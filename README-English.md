@@ -176,6 +176,20 @@
 >   hardware of other world-lab-paired devices are not factored in.
 > - See the 2026-08-25 (cont. 12) entry in [CLAUDE.md](CLAUDE.md).
 >
+> 📌 **Update (2026-08-27): new open-cg-cad "Drawing Ops" panel, verified
+> end-to-end**:
+> - A new "📐 open-cg-cad Drawing Ops (Upload/Merge/Redesign)" panel is now
+>   in the top bar. Upload semiconductor (CPU/NPU/GPU), automobile/
+>   motorcycle/shinkansen/maglev/aircraft drawings, merge multiple ones, or
+>   ask for a redesign — directly from the open-english screen (the actual
+>   data lives on open-cg-cad).
+> - **Verified on a real running instance**: with a live aruaru-llm
+>   running, the full open-english → open-cg-cad → aruaru-llm chain was
+>   confirmed to actually succeed for both merge and redesign. There's also
+>   an override field for aruaru-llm's address (defaults to the same
+>   `http://localhost:4600` this chat uses).
+> - See the 2026-08-27 (cont. 17/18) entries in [CLAUDE.md](CLAUDE.md).
+>
 > 📌 **Update (2026-08-25, cont. 10): the open-cg-cad "hybrid mutual
 > feature" is now reachable via the installer too**:
 > - The Windows installer now has an optional (unchecked by default) task

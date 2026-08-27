@@ -6732,6 +6732,12 @@ if (worldLabRefreshBtn) {
     if (el) el.textContent = text;
   }
 
+  function cgCadAruaruLlmBaseOverride() {
+    const el = document.getElementById("cg-cad-aruaru-llm-base");
+    const v = (el?.value || "").trim();
+    return v.length > 0 ? v : undefined;
+  }
+
   openBtn.addEventListener("click", () => {
     modal.classList.remove("hidden");
   });
@@ -6806,7 +6812,7 @@ if (worldLabRefreshBtn) {
         const resp = await fetch(cgCadOpsBase() + "v1/drawings/merge", {
           method: "POST",
           headers: { "content-type": "application/json" },
-          body: JSON.stringify({ drawing_ids: ids, instruction_text: instructionEl?.value || undefined }),
+          body: JSON.stringify({ drawing_ids: ids, instruction_text: instructionEl?.value || undefined, aruaru_llm_base: cgCadAruaruLlmBaseOverride() }),
         });
         const data = await resp.json();
         showOpsResult(data.ok ? `✅ Saved as drawing #${data.id}:\n\n${data.proposal}` : `❌ ${data.error || "merge failed"}`);
@@ -6831,7 +6837,7 @@ if (worldLabRefreshBtn) {
         const resp = await fetch(cgCadOpsBase() + "v1/drawings/redesign", {
           method: "POST",
           headers: { "content-type": "application/json" },
-          body: JSON.stringify({ old_drawing_id: oldId, instruction_text: instructionEl?.value || undefined }),
+          body: JSON.stringify({ old_drawing_id: oldId, instruction_text: instructionEl?.value || undefined, aruaru_llm_base: cgCadAruaruLlmBaseOverride() }),
         });
         const data = await resp.json();
         showOpsResult(data.ok ? `✅ Saved as drawing #${data.id}:\n\n${data.proposal}` : `❌ ${data.error || "redesign failed"}`);
