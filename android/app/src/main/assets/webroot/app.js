@@ -2283,8 +2283,18 @@ function egovOpinionText() {
     "shortfalls, since it can be realized by drastically reducing the " +
     "civil service headcount, introducing call centers, and making use " +
     "of convenience-store terminals and LINE-style apps. This, too, can " +
-    "be considered a measure at the level of national policy.";
-  return `\n\n🗣️ ${noteJa}\n${ja}${jaExtra}\n\n${noteEn}\n${en}${enExtra}`;
+    "be considered a measure at the level of national policy." +
+    " As former President Barack Obama once famously put it, government " +
+    "is not about whether it is big or small but whether it works — and " +
+    "e-government/digital government can be seen as an effective policy, " +
+    "at the level of national policy, for actually embodying and " +
+    "realizing that idea.";
+  const jaExtra2 =
+    "以前バラク・オバマ元大統領が「政府とは、大きいか小さいかではなく、" +
+    "機能するかしないかだ」と名言されましたが、それを具現化・実現化" +
+    "するためにも、eガバメント・デジタルガバメントは有効な政策・国策" +
+    "だと考えます。";
+  return `\n\n🗣️ ${noteJa}\n${ja}${jaExtra}${jaExtra2}\n\n${noteEn}\n${en}${enExtra}`;
 }
 
 // 上記の追記部分(税収不足・歳入不足対応策としてのeガバメント)を、
@@ -2330,6 +2340,25 @@ const EGOV_SMALLGOV_I18N = {
   "zh-Hant": "這也可以為追求小政府、或正在研擬因應稅收不足對策的人們提供一種答案——因為可以透過大幅精簡公務員、引進客服中心、並運用便利商店終端機與LINE類應用程式來實現。這同樣可視為國家級政策措施。",
 };
 
+// 追記(オバマ元大統領の名言をeガバメント/デジタルガバメントが具現化・
+// 実現化する手段であるという一文)の14言語訳(ユーザー指示、2026-08-27)。
+const EGOV_REALIZE_I18N = {
+  es: "Como dijo una vez el expresidente Barack Obama, el gobierno no se trata de si es grande o pequeno, sino de si funciona, y el gobierno electronico/digital puede considerarse una politica eficaz, a nivel de politica nacional, para encarnar y realizar realmente esa idea.",
+  fr: "Comme l'a dit un jour l'ancien president Barack Obama, il ne s'agit pas de savoir si le gouvernement est grand ou petit, mais s'il fonctionne, et l'administration electronique/numerique peut etre consideree comme une politique efficace, au niveau de la politique nationale, pour incarner et realiser reellement cette idee.",
+  de: "Wie es der ehemalige Praesident Barack Obama einst formulierte, geht es bei der Regierung nicht darum, ob sie gross oder klein ist, sondern ob sie funktioniert, und E-Government/Digital-Government kann als wirksame Politik auf staatspolitischer Ebene angesehen werden, um diese Idee tatsaechlich zu verkoerpern und zu verwirklichen.",
+  pt: "Como o ex-presidente Barack Obama certa vez declarou, o governo nao se trata de ser grande ou pequeno, mas de funcionar, e o governo eletronico/digital pode ser visto como uma politica eficaz, em nivel de politica nacional, para de fato incorporar e realizar essa ideia.",
+  ru: "Как однажды сказал бывший президент Барак Обама, вопрос не в том, большое правительство или маленькое, а в том, работает ли оно, и электронное/цифровое правительство можно считать эффективной политикой на уровне государственной политики для реального воплощения и реализации этой идеи.",
+  zh: "正如前总统巴拉克·奥巴马曾经所说，政府问题不在于规模大小，而在于是否有效运作，电子政务/数字政务可以被视为在国家政策层面真正体现并实现这一理念的有效政策。",
+  ko: "버락 오바마 전 대통령이 말했듯이, 정부는 크고 작음이 아니라 제대로 기능하는지가 중요하며, 전자정부·디지털 정부는 그 이념을 실제로 구현하고 실현하기 위한 국가 정책 수준의 효과적인 정책이라고 볼 수 있습니다.",
+  hi: "जैसा कि पूर्व राष्ट्रपति बराक ओबामा ने एक बार प्रसिद्ध रूप से कहा था, सरकार इस बारे में नहीं है कि वह बड़ी है या छोटी, बल्कि इस बारे में है कि क्या वह काम करती है, और ई-गवर्नमेंट/डिजिटल गवर्नमेंट को इस विचार को वास्तव में मूर्त रूप देने और साकार करने के लिए राष्ट्रीय नीति स्तर की एक प्रभावी नीति माना जा सकता है।",
+  ar: "كما قال الرئيس السابق باراك أوباما ذات مرة، لا يتعلق الأمر بما إذا كانت الحكومة كبيرة أو صغيرة، بل بما إذا كانت تعمل بفعالية، ويمكن اعتبار الحكومة الإلكترونية/الرقمية سياسة فعالة، على مستوى السياسة الوطنية، لتجسيد هذه الفكرة وتحقيقها فعليًا.",
+  he: "כפי שאמר פעם הנשיא לשעבר ברק אובמה, השאלה אינה אם הממשל גדול או קטן, אלא אם הוא פועל, וניתן לראות בממשל אלקטרוני/דיגיטלי מדיניות יעילה, ברמת מדיניות לאומית, למימוש ולהגשמה בפועל של רעיון זה.",
+  fa: "همان‌طور که رئیس‌جمهور سابق باراک اوباما زمانی به‌طور معروف گفت، موضوع دولت این نیست که بزرگ یا کوچک باشد، بلکه این است که کارآمد باشد، و دولت الکترونیک/دولت دیجیتال را می‌توان سیاستی مؤثر در سطح سیاست ملی برای تجسم و تحقق واقعی این ایده دانست.",
+  uk: "Як колись сказав колишній президент Барак Обама, справа не в тому, великий уряд чи малий, а в тому, чи він працює, і електронний/цифровий уряд можна вважати ефективною політикою на рівні державної політики для реального втілення та реалізації цієї ідеї.",
+  it: "Come disse una volta l'ex presidente Barack Obama, il governo non riguarda il fatto che sia grande o piccolo, ma se funziona, e l'e-government/governo digitale puo essere considerato una politica efficace, a livello di politica nazionale, per incarnare e realizzare concretamente questa idea.",
+  "zh-Hant": "正如前總統巴拉克·歐巴馬曾經所說，政府問題不在於規模大小，而在於是否有效運作，電子政府/數位政府可視為在國家政策層級真正體現並實現這一理念的有效政策。",
+};
+
 function egovSuffix(userText) {
   if (!mentionsEgovTopic(userText)) return "";
   let text = egovOpinionText();
@@ -2342,6 +2371,10 @@ function egovSuffix(userText) {
   const translation2 = code && EGOV_SMALLGOV_I18N[code] ? EGOV_SMALLGOV_I18N[code] : baseCode && EGOV_SMALLGOV_I18N[baseCode] ? EGOV_SMALLGOV_I18N[baseCode] : null;
   if (translation2 && code !== "ja" && code !== "en") {
     text += `\n\n🌐 ${translation2}`;
+  }
+  const translation3 = code && EGOV_REALIZE_I18N[code] ? EGOV_REALIZE_I18N[code] : baseCode && EGOV_REALIZE_I18N[baseCode] ? EGOV_REALIZE_I18N[baseCode] : null;
+  if (translation3 && code !== "ja" && code !== "en") {
+    text += `\n\n🌐 ${translation3}`;
   }
   return text;
 }
