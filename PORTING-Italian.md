@@ -198,3 +198,13 @@ per domanda) mostrata sotto ogni domanda del corso di ripetizioni, con
 settori/mestieri utili e possibili ruoli avanzati, sempre con linguaggio
 prudente. Dettagli e fonti sul sistema duale tedesco in PORTING.md (§17,
 giapponese).
+
+## Aggiornamento (2026-08-27)
+
+Distribuzione VPS (verificare con `ss -tlnp` prima di modificare la
+configurazione nginx se sia effettivamente nginx o un altro processo a
+gestire il traffico), il badge di stato della rete rileva solo il bind
+locale, non un reverse proxy, pannelli comprimibili generalizzati in
+un'unica funzione riutilizzabile, agente GitHub testato dal vivo (token
+letto solo nella shell del VPS, mai registrato). Dettagli completi solo
+in giapponese.

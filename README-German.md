@@ -602,3 +602,14 @@ End-to-End getestet.
   SSH wie Lolipop oder Sakura Internet, VPS wie ConoHa), geht direkt mit
   rsync: `rsync -avz /path/to/backup user@your-vps-host:/backup/open-english/`.
   Ziel und SSH-Schlüssel richten Sie selbst ein.
+
+## Neueste Updates (2026-08-27)
+
+Echtes Deployment auf dem VPS (easy-web.tokyo/open-english),
+Ordner-Browser für Backup-/Speicherpfade, dauerhaftes
+Netzwerkstatus-Badge (öffentlich/privat) mit DuckDNS-Unterstützung,
+einklappbare UI-Panels, echter End-to-End-Test des GitHub-/VPS-Zugriffs,
+Zeichnungs-Upload + textbasierter KI-Kommentar zusammen mit dem neuen
+open-cg-cad-Server, mehrsprachiger Übungstest für die
+US-Zertifizierung „Data Scientist“, sowie ein neues Meinungsthema zur
+Altersvorsorge. Vollständige Details nur in der japanischen Version.

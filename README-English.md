@@ -1108,3 +1108,16 @@ that `/sw.js` is actually served or that the install banner appears on a
 real device (needs testing once `cargo` is available). The existing
 native APK (`android/`, Android SDK present) was not rebuilt this
 session.
+
+## Recent updates (2026-08-27)
+
+Real deployment to the VPS (easy-web.tokyo/open-english), a folder
+browser for choosing backup/storage paths, a persistent public/private
+network-status badge with DuckDNS support for a custom domain,
+collapsible UI panels, a real end-to-end test of GitHub/VPS write access
+via the agent, drawing upload + text-based AI commentary shared with the
+new open-cg-cad server (your own files only, no image analysis），a
+multilingual (8 more languages) practice test for the US "Data
+Scientist" certification, and a new opinion topic responding to
+questions about retirement savings / Japan's "20-million-yen problem".
+Full details only in the Japanese README.md/CLAUDE.md.

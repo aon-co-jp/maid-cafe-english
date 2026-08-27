@@ -387,3 +387,19 @@ enseigne de vraies expressions anglaises pour la discussion hypothétique
 constructive, le feedback constructif, et l'importance d'être « audacieux
 mais délicat ». Vérifié en conditions réelles (serveur lancé, navigateur).
 Détails complets uniquement dans la version japonaise de CLAUDE.md.
+
+**Mise à jour (2026-08-27)** : Déploiement réel sur le VPS
+(easy-web.tokyo/open-english), sélecteur de dossier (explorateur) pour
+choisir les chemins de sauvegarde/stockage, badge permanent d'état
+public/privé du réseau avec prise en charge de DuckDNS pour un domaine
+personnalisé, panneaux d'interface repliables (avertissement, bannière
+smartphones inutilisés, bannière langues du monde, barre de réglages),
+test réel de bout en bout de l'écriture GitHub/VPS via l'agent, upload de
+plans + commentaire IA textuel partagé avec le nouveau serveur
+open-cg-cad (semi-conducteurs/automobile/bâtiment, vos propres fichiers
+uniquement, aucune analyse d'image — aruaru-llm ne traite que du texte),
+test blanc multilingue (8 langues supplémentaires) pour la certification
+« Data Scientist » américaine, et un nouveau sujet d'opinion répondant
+aux questions sur l'épargne retraite / le « problème des 20 millions de
+yens ». Détails complets uniquement dans la version japonaise de
+CLAUDE.md.

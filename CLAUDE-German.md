@@ -461,3 +461,18 @@ für GPU-Inferenz, nicht Genauigkeits-Infrastruktur — dieser Unterschied
 muss bei der Untersuchung beachtet werden. Noch nichts untersucht oder
 umgesetzt; vollständige Details nur in der japanischen Version von
 CLAUDE.md und in `aruaru-llm/CLAUDE.md`.
+
+**Update (2026-08-27)**: Echtes Deployment auf dem VPS
+(easy-web.tokyo/open-english), Ordner-Browser (Explorer) zur Auswahl von
+Backup-/Speicherpfaden, dauerhaftes Öffentlich/Privat-Netzwerkstatus-
+Badge mit DuckDNS-Unterstützung für eine eigene Domain, einklappbare
+UI-Panels (Haftungsausschluss, Banner für ungenutzte Smartphones, Banner
+für Weltsprachen, Einstellungsleiste), echter End-to-End-Test des
+GitHub-/VPS-Schreibzugriffs über den Agent, Zeichnungs-Upload +
+textbasierter KI-Kommentar gemeinsam mit dem neuen open-cg-cad-Server
+(Halbleiter/Automobil/Gebäude, nur eigene Dateien, keine Bildanalyse —
+aruaru-llm verarbeitet nur Text), mehrsprachiger (8 weitere Sprachen)
+Übungstest für die US-Zertifizierung „Data Scientist“, sowie ein neues
+Meinungsthema zu Fragen über Altersvorsorge / das „20-Millionen-Yen-
+Problem“. Vollständige Details nur in der japanischen Version von
+CLAUDE.md.

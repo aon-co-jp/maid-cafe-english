@@ -321,3 +321,13 @@ Releases](https://github.com/aon-co-jp/open-english/releases) ישירות).
 - **אחסון שיתופי / VPS**: כל שרת שנגיש ב-SSH (חבילות עם SSH כמו Lolipop או
   Sakura Internet, ו-VPS כמו ConoHa) עובד עם rsync:
   `rsync -avz /path/to/backup user@your-vps-host:/backup/open-english/`.
+
+## עדכונים אחרונים (2026-08-27)
+
+פריסה אמיתית על שרת ה-VPS (easy-web.tokyo/open-english), בורר תיקיות
+לנתיבי גיבוי/אחסון, תג מצב רשת קבוע (ציבורי/פרטי) עם תמיכה ב-DuckDNS,
+פאנלים מתקפלים בממשק, בדיקת קצה-לקצה אמיתית של כתיבה דרך GitHub/VPS,
+העלאת שרטוטים + הסבר טקסטואלי מבוסס-בינה מלאכותית יחד עם שרת
+open-cg-cad החדש, מבחן תרגול רב-לשוני עבור תעודת "מדען נתונים"
+האמריקאית, ונושא דעה חדש בנוגע לחיסכון לפנסיה. פרטים מלאים רק בגרסה
+היפנית.

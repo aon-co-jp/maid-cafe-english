@@ -268,3 +268,13 @@ Instruction-Tuning) bieten keine solche Garantie, und `open-directx`/
 Genauigkeits-Infrastruktur. Untersuchung möglicher Abhilfen ist als
 Aufgabe in `aruaru-llm/CLAUDE.md` (2026-08-26) vermerkt, aber noch
 nicht begonnen.
+
+## Update (2026-08-27)
+
+VPS-Deployment (vor jeder nginx-Konfigurationsänderung mit `ss -tlnp`
+prüfen, ob nginx oder ein anderer Prozess tatsächlich den Traffic
+verarbeitet), Netzwerkstatus-Badge erkennt nur die lokale Bindung, keine
+Reverse-Proxy-Situation, einklappbare Panels zu einer einzigen
+wiederverwendbaren Hilfsfunktion verallgemeinert, GitHub-Agent live
+getestet (Token nur in der VPS-Shell gelesen, nie geloggt). Vollständige
+Details nur auf Japanisch.

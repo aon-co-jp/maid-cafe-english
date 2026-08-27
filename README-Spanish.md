@@ -672,3 +672,15 @@ inventar un uso teórico, la respuesta ahora lleva campos `disclosure_ja` /
 `disclosure_en` que indican que los consumidores genuinamente acelerados
 son `open-raid-z` (GF(2^8)), `open-cuda` / `aruaru-llm` (inferencia en
 CPU) y `open-cg-cad` (derivada de sección transversal).
+
+## Actualizaciones recientes (2026-08-27)
+
+Despliegue real en el VPS (easy-web.tokyo/open-english), explorador de
+carpetas para rutas de copia de seguridad, insignia permanente de estado
+de red (público/privado) con soporte DuckDNS, paneles de interfaz
+plegables, prueba real de extremo a extremo de escritura vía
+GitHub/VPS, carga de planos + comentario textual de IA junto con el
+nuevo servidor open-cg-cad, examen de práctica multilingüe para la
+certificación estadounidense "Data Scientist", y un nuevo tema de
+opinión sobre el ahorro para la jubilación. Detalles completos solo en
+la versión japonesa.

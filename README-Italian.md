@@ -465,3 +465,15 @@ puro non è stato provato end-to-end nel nostro ambiente.
 - **Hosting condiviso / VPS**: qualsiasi host raggiungibile via SSH (piani con
   SSH come Lolipop o Sakura Internet, VPS come ConoHa) funziona con rsync:
   `rsync -avz /path/to/backup user@your-vps-host:/backup/open-english/`.
+
+## Aggiornamenti recenti (2026-08-27)
+
+Distribuzione reale sul VPS (easy-web.tokyo/open-english), selettore di
+cartelle per i percorsi di backup/archiviazione, badge permanente dello
+stato di rete (pubblico/privato) con supporto DuckDNS, pannelli
+dell'interfaccia comprimibili, test reale end-to-end della scrittura
+GitHub/VPS, caricamento di disegni + commento testuale dell'IA condiviso
+con il nuovo server open-cg-cad, test di prova multilingue per la
+certificazione statunitense "Data Scientist", e un nuovo argomento di
+opinione sui risparmi per la pensione. Dettagli completi solo nella
+versione giapponese.

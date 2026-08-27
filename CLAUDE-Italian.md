@@ -360,3 +360,19 @@ Skills" (medie/superiori) che insegna espressioni inglesi reali per
 discussioni ipotetiche costruttive, feedback costruttivo e l'importanza
 di essere "audaci ma delicati". Verificato dal vivo (server avviato,
 browser). Dettagli completi solo nella versione giapponese di CLAUDE.md.
+
+**Aggiornamento (2026-08-27)**: Distribuzione reale sul VPS
+(easy-web.tokyo/open-english), selettore di cartelle (esplora file) per
+scegliere i percorsi di backup/archiviazione, badge permanente dello
+stato pubblico/privato della rete con supporto DuckDNS per un dominio
+personalizzato, pannelli dell'interfaccia comprimibili (avviso, banner
+per smartphone inutilizzati, banner lingue del mondo, barra delle
+impostazioni), test reale end-to-end della scrittura GitHub/VPS tramite
+l'agente, caricamento di disegni + commento testuale dell'IA condiviso
+con il nuovo server open-cg-cad (semiconduttori/automotive/edilizia,
+solo i propri file, nessuna analisi delle immagini — aruaru-llm elabora
+solo testo), test di prova multilingue (8 lingue aggiuntive) per la
+certificazione statunitense "Data Scientist", e un nuovo argomento di
+opinione che risponde a domande sui risparmi per la pensione / il
+"problema dei 20 milioni di yen". Dettagli completi solo nella versione
+giapponese di CLAUDE.md.

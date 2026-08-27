@@ -249,3 +249,13 @@ matière, pas par question) affichée sous chaque question du parcours de
 tutorat, indiquant secteurs/métiers utiles et métiers avancés possibles,
 avec un langage toujours prudent. Voir PORTING.md (§17, japonais) pour
 les détails et les sources sur le système dual allemand.
+
+## Mise à jour (2026-08-27)
+
+Déploiement VPS (nginx vs proxy réel à vérifier via `ss -tlnp` avant
+toute modification de config), badge d'état réseau public/privé limité
+à la détection de la liaison locale (ne détecte pas un reverse proxy),
+panneaux repliables généralisés en une seule fonction utilitaire
+réutilisable, agent GitHub testé en conditions réelles (jeton lu
+uniquement côté shell VPS, jamais journalisé). Détails complets
+uniquement en japonais.
