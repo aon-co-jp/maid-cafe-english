@@ -1988,9 +1988,51 @@ function pensionProposalText() {
   return `\n\n🏦 ${en}\n\n${ja}`;
 }
 
+// 利用者が選択している「学びたい言語」(world:<code>)または母国語設定が
+// 対応言語であれば、日英併記に加えてその言語への訳文も添える(ユーザー
+// 指示「利用者が選択した世界の言語への翻訳も対応して」への対応、
+// 2026-08-27)。**正直な開示**: 全世界の言語を即座に網羅することは
+// 現実的でないため、既にデータサイエンティスト模擬TEST(このHANDOFF
+// 参照)向けに用意した主要8言語(スペイン語・フランス語・ドイツ語・
+// ポルトガル語・ロシア語・中国語・韓国語・ヒンディー語)から着手した。
+// 未対応言語の場合は従来通り日英併記のみを返す(嘘の「対応済み」は
+// 作らない)。訳文はネイティブレビュー未実施の最善努力の翻訳。
+const PENSION_PROPOSAL_I18N = {
+  es: "[Propuesta sobre el ahorro para la jubilación y el problema de las pensiones (opinión personal del desarrollador)] Para empezar por la conclusión: los fondos se pueden conseguir mediante la adopción del gobierno electrónico/digital -gestionando trámites administrativos a través de terminales multicopia de tiendas de conveniencia o aplicaciones tipo LINE en smartphones, tabletas y PC-, junto con centros de atención telefónica y videochat desde casa, lo que permitiría reducir drásticamente el número de funcionarios municipales y prefecturales al mínimo esencial. Esos fondos deberían destinarse a contrarrestar la baja natalidad/el envejecimiento y el problema de las pensiones. También debería abordarse el hecho de que los rendimientos de la inversión de las pensiones apenas se han devuelto a los ciudadanos -las políticas que priorizan a los funcionarios sobre los ciudadanos deberían reconsiderarse-. Para quienes tienen poca o ninguna pensión o ahorros, esta financiación debería sostener un nivel de vida mínimo. Además, debería ser posible la afiliación universal a la pensión básica más la pensión de asalariados más un incremento complementario, incluyendo a las amas de casa y a quienes no están afiliados a la pensión de asalariados.",
+  fr: "[Proposition sur l'épargne retraite et le problème des pensions (opinion personnelle du développeur)] Pour commencer par la conclusion : les fonds peuvent être obtenus grâce à l'adoption de l'administration électronique/numérique — gestion des démarches administratives via les bornes multicopies des supérettes ou des applications type LINE sur smartphone, tablette et PC —, associée à des centres d'appel et de vidéotchat en télétravail, ce qui permettrait de réduire fortement le nombre de fonctionnaires municipaux et préfectoraux au strict minimum. Ces fonds devraient être redirigés vers la lutte contre la dénatalité/le vieillissement et le problème des pensions. Le fait que les gains de placement des pensions n'aient presque jamais été reversés aux citoyens devrait aussi être corrigé — les politiques privilégiant les fonctionnaires plutôt que les citoyens devraient être révisées. Pour les personnes ayant peu ou pas de pension ni d'épargne, ce financement devrait garantir un niveau de vie minimal. De plus, une affiliation universelle à la pension de base plus la pension des salariés plus une majoration devrait être rendue possible, y compris pour les femmes/hommes au foyer et les personnes non affiliées à la pension des salariés.",
+  de: "[Vorschlag zur Altersvorsorge und zum Rentenproblem (persönliche Meinung des Entwicklers)] Zunächst das Fazit: Die Mittel lassen sich durch die Einführung von E-Government/Digital-Government beschaffen — Verwaltungsvorgänge über Multikopierterminals in Convenience-Stores oder LINE-artige Apps auf Smartphone, Tablet und PC —, zusammen mit Homeoffice-Callcentern und Videochat-Diensten, was eine drastische Reduzierung der Zahl der Gemeinde- und Präfekturbeamten auf das notwendige Minimum ermöglichen würde. Diese Mittel sollten zur Bekämpfung des Geburtenrückgangs/der alternden Gesellschaft sowie des Rentenproblems umgeleitet werden. Auch die Tatsache, dass Kapitalerträge der Rentenanlagen bisher kaum an die Bürger zurückgeflossen sind, sollte angegangen werden — eine Politik, die Beamte gegenüber Bürgern bevorzugt, sollte überdacht werden. Für Menschen mit wenig oder keiner Rente bzw. Ersparnissen sollte diese Finanzierung ein Mindestlebensniveau sichern. Außerdem sollte eine allgemeine Pflichtmitgliedschaft in der Grundrente plus Arbeitnehmerrente plus einer Zusatzerhöhung möglich sein, einschließlich Hausfrauen/-männer und Personen, die derzeit nicht in der Arbeitnehmerrente versichert sind.",
+  pt: "[Proposta sobre poupança para a aposentadoria e o problema previdenciário (opinião pessoal do desenvolvedor)] Para começar pela conclusão: o financiamento pode ser obtido por meio da adoção do governo eletrônico/digital — tratando trâmites administrativos via terminais multicópia de lojas de conveniência ou aplicativos do tipo LINE em smartphones, tablets e PCs —, combinado com centrais de atendimento em home office e serviços de videochat, o que permitiria reduzir drasticamente o número de funcionários municipais e estaduais ao mínimo essencial. Esses recursos deveriam ser redirecionados para combater a baixa natalidade/envelhecimento populacional e o problema previdenciário. O fato de os rendimentos de investimento da previdência raramente terem sido devolvidos aos cidadãos também deveria ser corrigido — políticas que priorizam funcionários públicos em detrimento dos cidadãos deveriam ser reconsideradas. Para quem tem pouca ou nenhuma previdência ou poupança, esse financiamento deveria garantir um padrão mínimo de vida. Além disso, deveria ser possível a filiação universal à previdência básica mais a previdência dos trabalhadores mais um adicional, incluindo donas/donos de casa e pessoas não filiadas à previdência dos trabalhadores.",
+  ru: "[Предложение по пенсионным накоплениям и пенсионной проблеме (личное мнение разработчика)] Начнём с вывода: финансирование можно обеспечить за счёт внедрения электронного/цифрового правительства — оформление административных процедур через терминалы копирования в круглосуточных магазинах или приложения вроде LINE на смартфонах, планшетах и ПК — вместе с колл-центрами на удалёнке и видеочат-сервисами, что позволит значительно сократить число муниципальных и префектуральных чиновников до необходимого минимума. Эти средства следует направить на борьбу со снижением рождаемости/старением общества и решение пенсионной проблемы. Также следует решить проблему того, что доходы от инвестирования пенсионных средств почти не возвращались гражданам — политику, ставящую чиновников выше граждан, следует пересмотреть. Для людей с минимальной пенсией или сбережениями (или без них) это финансирование должно обеспечивать минимальный уровень жизни. Кроме того, следует сделать возможным всеобщее участие в базовой пенсии плюс трудовой пенсии плюс дополнительной надбавке, включая домохозяек/домохозяев и тех, кто не состоит в системе трудовой пенсии.",
+  zh: "【关于养老储蓄与养老金问题的提案(开发者个人意见)】首先说结论：可以通过推进电子政务/数字政务——在便利店的多功能复印终端或LINE类应用(智能手机/平板/电脑版)上办理行政手续——并引入居家办公的呼叫中心和视频客服，从而大幅精简市町村、都道府县公务员至必要最低限度，以此筹措财源。由此产生的资金应当用于应对少子老龄化和养老金问题。此外，养老金投资收益(利息、运用收益)长期以来几乎没有回馈给国民的问题也应当解决——应当改变优先公务员、忽视国民的政策与态度。对于养老金或储蓄几乎为零、完全没有的人群，也应通过这些财源确保和回馈来提供最低生活保障制度。此外，应当使基础养老金+厚生年金+增额年金实现全员参加型的全民保险，包括专职家庭主妇(夫)以及未加入厚生年金的人群。",
+  ko: "【노후 자금·연금 문제에 대한 제안(개발자 개인 의견)】먼저 결론부터 말씀드리면, 재원은 정부·관공서의 전자정부(디지털 정부)화——편의점의 멀티복사기·정보단말기나 LINE 앱·스마트폰/태블릿/PC판을 통한 행정 절차 처리——로 충분히 확보할 수 있다고 생각합니다. 전자정부·디지털 정부화와 재택근무형 콜센터·화상채팅 서비스 도입을 통해 시정촌·도도부현 공무원을 필요 최소한까지 대폭 감축할 수 있다고 봅니다. 여기서 생긴 재원을 저출산고령화 대책·연금 문제 대책으로 환원해야 합니다. 또한 연금 운용 이익(이자·운용 수익)이 지금까지 국민에게 거의 환원되지 않은 문제에 대해서도, 공무원을 우선하고 국민을 뒷전으로 하는 정책·태도는 고쳐야 한다고 생각합니다. 연금이나 저축이 거의 없거나 전혀 없는 분들에 대해서도, 이러한 재원 확보와 환원을 통해 최소한의 생활을 지탱하는 제도를 마련해야 합니다. 나아가 기초연금+후생연금+증액연금을 전업주부(부)나 후생연금 미가입자를 포함해 전 국민 참여형 개보험으로 만드는 것이 가능하다고 생각합니다.",
+  hi: "[सेवानिवृत्ति बचत और पेंशन समस्या पर सुझाव (डेवलपर की व्यक्तिगत राय)] सबसे पहले निष्कर्ष बताते हुए: सुविधा स्टोर के मल्टी-कॉपी टर्मिनलों या स्मार्टफोन/टैबलेट/पीसी पर LINE जैसे ऐप्स के ज़रिए प्रशासनिक प्रक्रियाओं को संभालने वाले ई-गवर्नमेंट/डिजिटल-गवर्नमेंट को अपनाकर धन जुटाया जा सकता है। इसके साथ वर्क-फ्रॉम-होम कॉल सेंटर और वीडियो-चैट सेवाएं शुरू करने से नगरपालिका और प्रान्तीय सरकारी कर्मचारियों की संख्या को आवश्यक न्यूनतम तक बड़े पैमाने पर घटाया जा सकता है। इस तरह मुक्त हुए धन को घटती जन्म दर/वृद्ध होते समाज और पेंशन समस्या से निपटने के लिए पुनर्निर्देशित किया जाना चाहिए। यह तथ्य कि पेंशन निवेश रिटर्न (ब्याज और निवेश लाभ) ऐतिहासिक रूप से नागरिकों को बहुत कम वापस मिला है, उसे भी संबोधित किया जाना चाहिए — नागरिकों की तुलना में सरकारी कर्मचारियों को प्राथमिकता देने वाली नीतियों और रवैयों पर पुनर्विचार किया जाना चाहिए। जिनके पास बहुत कम या बिल्कुल भी पेंशन या बचत नहीं है, उनके लिए यह धन और पुनर्वितरण न्यूनतम जीवन स्तर सुनिश्चित करने वाली व्यवस्था का समर्थन करना चाहिए। इसके अतिरिक्त, गृहिणियों/गृहस्थों और वर्तमान में कर्मचारी पेंशन में नामांकित न होने वालों सहित सभी के लिए बुनियादी पेंशन + कर्मचारी पेंशन + अतिरिक्त पेंशन वृद्धि में सार्वभौमिक नामांकन संभव बनाया जाना चाहिए।",
+};
+
+function preferredWorldLangCode() {
+  let code = null;
+  const target = typeof learnTargetEl !== "undefined" && learnTargetEl ? learnTargetEl.value : null;
+  if (target === "japanese") code = "ja";
+  else if (target === "english") code = "en";
+  else if (target && target.startsWith("world:")) code = target.slice(6);
+  if (!code && typeof loadNativeLanguage === "function") {
+    try {
+      code = loadNativeLanguage();
+    } catch (_) {
+      code = null;
+    }
+  }
+  if (code && code.includes("-")) code = code.split("-")[0];
+  return code;
+}
+
 function pensionSuffix(userText) {
   if (!isPensionQuestion(userText)) return "";
-  return pensionProposalText();
+  let text = pensionProposalText();
+  const code = preferredWorldLangCode();
+  if (code && code !== "ja" && code !== "en" && PENSION_PROPOSAL_I18N[code]) {
+    text = `\n\n🌐 ${PENSION_PROPOSAL_I18N[code]}` + text;
+  }
+  return text;
 }
 
 // 「年収の壁」(103万円/106万円/130万円の壁)の解決策を尋ねる日本語入力を
