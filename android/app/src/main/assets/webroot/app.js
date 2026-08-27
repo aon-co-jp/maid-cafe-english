@@ -38,7 +38,46 @@ const langInstructions = {
   en: "Reply only in English.",
   ja: "日本語のみで返答してください(Reply only in Japanese).",
   hybrid: "Reply with a short mix of English and Japanese in the same message (e.g. give the English sentence, then a brief Japanese translation or note), to help the student learn both.",
+  // 2026-08-25追加(ユーザー指示「ドイツ語・欧州主要言語・ロシア語・
+  // アラビア語・ペルシャ語・ヘブライ語への対応拡張」への対応)。
+  // 正直な開示: aruaru-llmは英語中心に事前学習された小型GPT-2ベースで
+  // あり、これらの言語での指示追従・生成品質は保証されない
+  // (実機検証結果はCLAUDE.md HANDOFF・README参照)。
+  de: "Reply only in German (Deutsch).",
+  fr: "Reply only in French (Français).",
+  es: "Reply only in Spanish (Español).",
+  it: "Reply only in Italian (Italiano).",
+  ru: "Reply only in Russian (Русский).",
+  ar: "Reply only in Arabic (العربية).",
+  fa: "Reply only in Persian/Farsi (فارسی).",
+  he: "Reply only in Hebrew (עברית).",
 };
+
+// RTL(右書き)言語のコード一覧(ユーザー指示「Arabic・Persian・Hebrewは
+// RTLスクリプトなので設計・実装せよ」への対応)。`reply-lang`または
+// `learn-target`がこれに該当する場合、該当メッセージ吹き出しにのみ
+// dir="rtl"を設定する——アプリ全体のLTRレイアウト(トップバー・
+// 設定パネル等)は崩さず、チャット本文の可読性のみを改善する設計。
+const RTL_LANG_CODES = new Set(["ar", "fa", "he"]);
+const RTL_LEARN_TARGETS = new Set(["arabic", "persian", "hebrew"]);
+
+// 各種スクリプト(文字体系)検出。containsJapanese()と同じ
+// Unicodeプロパティエスケープ方式(\p{Script=...})を使い、追加
+// ライブラリ無しでモダンブラウザ上で判定する。ensureHybridReply()等の
+// 「モデルが要求言語で実際に書けているか」の判定、およびappendMessage()
+// でのdir="rtl"自動判定の両方に使う。
+function containsCyrillic(text) {
+  return /\p{Script=Cyrillic}/u.test(text);
+}
+function containsArabicScript(text) {
+  return /\p{Script=Arabic}/u.test(text);
+}
+function containsHebrewScript(text) {
+  return /\p{Script=Hebrew}/u.test(text);
+}
+function isRtlText(text) {
+  return containsArabicScript(text) || containsHebrewScript(text);
+}
 
 // 学びたい言語の方向(ユーザー指示「英会話か日本語会話か学びたい言語を
 // 選べるようにして」への対応)。従来は常に「英語トレーナー」固定だった
@@ -48,6 +87,14 @@ const langInstructions = {
 const trainerRoleByTarget = {
   english: "You are a friendly English conversation trainer at a maid cafe.",
   japanese: "You are a friendly Japanese conversation trainer at a maid cafe, helping the student practice speaking Japanese.",
+  german: "You are a friendly German (Deutsch) conversation trainer at a maid cafe, helping the student practice speaking German.",
+  french: "You are a friendly French (Français) conversation trainer at a maid cafe, helping the student practice speaking French.",
+  spanish: "You are a friendly Spanish (Español) conversation trainer at a maid cafe, helping the student practice speaking Spanish.",
+  italian: "You are a friendly Italian (Italiano) conversation trainer at a maid cafe, helping the student practice speaking Italian.",
+  russian: "You are a friendly Russian (Русский) conversation trainer at a maid cafe, helping the student practice speaking Russian.",
+  arabic: "You are a friendly Arabic (العربية) conversation trainer at a maid cafe, helping the student practice speaking Arabic.",
+  persian: "You are a friendly Persian/Farsi (فارسی) conversation trainer at a maid cafe, helping the student practice speaking Persian.",
+  hebrew: "You are a friendly Hebrew (עברית) conversation trainer at a maid cafe, helping the student practice speaking Hebrew.",
 };
 const learnTargetEl = document.getElementById("learn-target");
 
@@ -76,7 +123,8 @@ const learnTargetEl = document.getElementById("learn-target");
 (function showMaintenanceBanner() {
   const banner = document.getElementById("maintenance-banner");
   const countdownEl = document.getElementById("maintenance-countdown");
-  if (!banner || !countdownEl) return;
+  const messageEl = document.getElementById("maintenance-banner-message");
+  if (!banner || !countdownEl || !messageEl) return;
   banner.classList.remove("hidden");
   // メンテナンス中の待ち時間を使い、サーバー接続国のニュースを収集
   // しておく(ユーザー指示、2026-08-17「メンテナンス時にその人のIPアドレス
@@ -98,7 +146,14 @@ const learnTargetEl = document.getElementById("learn-target");
     countdownEl.textContent = String(Math.max(remaining, 0));
     if (remaining <= 0) {
       clearInterval(timer);
-      banner.classList.add("hidden");
+      // カウントダウン終了後、日英併記の「終了しました」メッセージへ差し替える
+      // (ユーザー指示「終わったら、メンテナンスが終わりましたと英語と日本語で
+      // 表示して」への対応)。すぐに隠さず、しばらく表示してから自動的に
+      // 閉じる——利用者が見逃さないようにするため。
+      messageEl.textContent = "✅ Maintenance has ended. Thank you for waiting! / メンテナンスが終わりました。お待たせしました!";
+      setTimeout(() => {
+        banner.classList.add("hidden");
+      }, 5000);
     }
   }, 1000);
 })();
@@ -272,6 +327,33 @@ function ensureHybridReply(completion, userText) {
   return `${completion}\n\n${note}`;
 }
 
+// 2026-08-25追加(ユーザー指示「German/Russian/Arabic/Persian/Hebrewの
+// 実生成品質を実機テストし、ガベージなら正直に開示せよ」への対応)。
+// 実機検証結果(CLAUDE.md HANDOFF参照): reply-langをde/fr/es/it/ru/ar/
+// fa/heのいずれに設定しても、aruaru-llm(英語中心の小型GPT-2)は
+// プロンプトの言語指示を無視し、実際には**常に英語のみ**を生成した
+// (5言語×複数回の実測でいずれも対象スクリプトの文字が一切含まれな
+// かった)。ラテン文字言語(de/fr/es/it)は英語との文字種の区別が
+// つかないため確実な検出はできないが、非ラテン文字言語
+// (ru/ar/fa/he)は`containsCyrillic`/`containsArabicScript`/
+// `containsHebrewScript`で機械的に判定できるため、
+// `ensureHybridReply`と同じ「保証」パターンをここでも適用し、
+// 対象スクリプトが1文字も無ければ定型の開示ノートを追記する
+// (機械翻訳の質を偽って主張しない、あくまで正直な注記)。
+const NON_LATIN_SCRIPT_GUARANTEE = {
+  ru: { test: containsCyrillic, label: "Russian / ロシア語" },
+  ar: { test: containsArabicScript, label: "Arabic / アラビア語" },
+  fa: { test: containsArabicScript, label: "Persian (Farsi) / ペルシャ語" },
+  he: { test: containsHebrewScript, label: "Hebrew / ヘブライ語" },
+};
+function ensureScriptGuaranteedReply(completion) {
+  const cfg = NON_LATIN_SCRIPT_GUARANTEE[replyLangEl.value];
+  if (!cfg) return completion;
+  if (cfg.test(completion)) return completion;
+  const note = `(Honest disclosure: this small English-centric AI model could not actually generate ${cfg.label} text — it replied in English instead. This was confirmed in live testing; see README for details. / 正直な開示: この小型AIモデルは英語中心のため、実際には${cfg.label}の文章を生成できず、英語で応答してしまいました。実機検証済みの既知の制約です。詳細はREADME参照。)`;
+  return `${completion}\n\n${note}`;
+}
+
 // パネル類の開閉(ユーザー指示「Xで閉じたりOPENで開いたり出来るように」
 // 「これらの表示はパネルとしてCLOSEとOPENをクリックで閉じたり開いたり
 // 可能にして」への対応、2026-08-25新設)。開閉状態はlocalStorageへ
@@ -307,19 +389,303 @@ makeCollapsiblePanel("disclosure-box", "disclosure-toggle-btn", "disclosure", "�
 makeCollapsiblePanel("phone-accel-banner", "phone-accel-banner-toggle", "phoneAccelBanner", "✕ CLOSE", "＋ OPEN");
 makeCollapsiblePanel("world-language-banner", "world-language-banner-toggle", "worldLanguageBanner", "✕ CLOSE", "＋ OPEN");
 makeCollapsiblePanel("topbar", "topbar-toggle", "topbar", "✕ CLOSE", "＋ OPEN");
+makeCollapsiblePanel("maintenance-banner-detail", "maintenance-banner-toggle", "maintenanceBannerDetail", "✕ CLOSE", "＋ OPEN");
+makeCollapsiblePanel("download-recommend-banner", "download-recommend-banner-toggle", "downloadRecommendBanner", "✕ CLOSE", "＋ OPEN");
+
+// ログインゲート(2026-08-26新設、ユーザー指示「家族や会社で共有する
+// 場合もあるので、ログインセキュリティシステムを導入しますか?」への
+// 対応)。`GET /v1/auth/config`でこのサーバーがログイン保護を要求して
+// いるかを確認し、要求していれば`GET /v1/auth/session`でログイン済みか
+// 判定、未ログインならオーバーレイを表示する。要求していない場合は、
+// まだ一度も尋ねていなければ「導入しますか?」の案内を一度だけ表示する
+// (以後は`localStorage`のフラグで再表示しない、既存の設定永続化の
+// 慣習を踏襲)。
+const LOGIN_PROMPT_SHOWN_KEY = "open-english.loginPromptShown";
+(async function initLoginGate() {
+  const gateEl = document.getElementById("login-gate");
+  const promptEl = document.getElementById("login-setup-prompt");
+  if (!gateEl || !promptEl) return;
+  let config;
+  try {
+    const res = await fetch("/v1/auth/config", { cache: "no-store" });
+    config = await res.json();
+  } catch (e) {
+    // `/v1/auth/config`未提供の配信形態(file://直開き等)では
+    // ログイン保護なしの既定動作へ黙ってフォールバックする。
+    return;
+  }
+
+  if (config.login_required) {
+    try {
+      const res = await fetch("/v1/auth/session", { cache: "no-store" });
+      const session = await res.json();
+      if (!session.logged_in) {
+        gateEl.classList.remove("hidden");
+      }
+    } catch (e) {
+      gateEl.classList.remove("hidden");
+    }
+    return;
+  }
+
+  // ログイン保護は無効——まだ一度も尋ねていなければ案内する。
+  let alreadyShown = false;
+  try {
+    alreadyShown = localStorage.getItem(LOGIN_PROMPT_SHOWN_KEY) === "1";
+  } catch (e) {
+    /* localStorage不可なら毎回表示されるが実害は無い */
+  }
+  if (!alreadyShown) {
+    promptEl.classList.remove("hidden");
+  }
+})();
+
+const loginEmailEl = document.getElementById("login-email");
+const loginEmail2El = document.getElementById("login-email2");
+const loginSendCodeBtn = document.getElementById("login-send-code-btn");
+const loginCodeSection = document.getElementById("login-code-section");
+const loginVerifyEmailEl = document.getElementById("login-verify-email");
+const loginCodeEl = document.getElementById("login-code");
+const loginVerifyBtn = document.getElementById("login-verify-btn");
+const loginStatusEl = document.getElementById("login-status");
+
+if (loginSendCodeBtn) {
+  loginSendCodeBtn.addEventListener("click", async () => {
+    const email = loginEmailEl.value.trim();
+    const email2 = (loginEmail2El?.value || "").trim();
+    if (!email) {
+      loginStatusEl.textContent = "Please enter your email / メールアドレスを入力してください";
+      return;
+    }
+    loginStatusEl.textContent = "Sending... / 送信中...";
+    try {
+      const res = await fetch("/v1/auth/request-otp", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(email2 ? { email, email2 } : { email }),
+      });
+      const data = await res.json();
+      if (res.ok) {
+        loginStatusEl.textContent = email2
+          ? "Code sent to both addresses — check either inbox / 両方のメールアドレスへコードを送信しました。どちらか一方をご確認ください"
+          : "Code sent — check your email / コードを送信しました。メールをご確認ください";
+        loginCodeSection.classList.remove("hidden");
+        // 検証欄には既定でメールアドレス1を入れておく(2つ目で受け取った
+        // 場合は利用者が書き換える、2026-08-27追加)。
+        if (loginVerifyEmailEl) loginVerifyEmailEl.value = email;
+      } else {
+        loginStatusEl.textContent = `⚠ ${data.error || "Failed to send code / コード送信に失敗しました"}`;
+      }
+    } catch (e) {
+      loginStatusEl.textContent = `⚠ ${e.message}`;
+    }
+  });
+}
+if (loginVerifyBtn) {
+  loginVerifyBtn.addEventListener("click", async () => {
+    const email = (loginVerifyEmailEl?.value || loginEmailEl.value).trim();
+    const code = loginCodeEl.value.trim();
+    loginStatusEl.textContent = "Verifying... / 確認中...";
+    try {
+      const res = await fetch("/v1/auth/verify-otp", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email, code }),
+      });
+      const data = await res.json();
+      if (res.ok) {
+        document.getElementById("login-gate").classList.add("hidden");
+      } else {
+        loginStatusEl.textContent = `⚠ ${data.error || "Incorrect code / コードが正しくありません"}`;
+      }
+    } catch (e) {
+      loginStatusEl.textContent = `⚠ ${e.message}`;
+    }
+  });
+}
+
+// 2026-08-27新設: 携帯電話でQRコードを撮影する方式(認証アプリ、TOTP)での
+// ログイン(既存のemail1/email2ログインの「もう1つの入口」、いずれか1つで
+// ログイン完了する設計——3つ全部の入力を要求するものではない)。
+const loginTotpEmailEl = document.getElementById("login-totp-email");
+const loginTotpPhoneLabelEl = document.getElementById("login-totp-phone-label");
+const loginTotpSetupBtn = document.getElementById("login-totp-setup-btn");
+const loginTotpQrContainer = document.getElementById("login-totp-qr-container");
+const loginTotpCodeEl = document.getElementById("login-totp-code");
+const loginTotpVerifyBtn = document.getElementById("login-totp-verify-btn");
+const loginTotpStatusEl = document.getElementById("login-totp-status");
+
+if (loginTotpSetupBtn) {
+  loginTotpSetupBtn.addEventListener("click", async () => {
+    const email = (loginTotpEmailEl?.value || "").trim();
+    if (!email) {
+      if (loginTotpStatusEl) loginTotpStatusEl.textContent = "Please enter your email / メールアドレスを入力してください";
+      return;
+    }
+    if (loginTotpStatusEl) loginTotpStatusEl.textContent = "Generating QR code… / QRコード生成中…";
+    try {
+      const res = await fetch("/v1/auth/totp-setup", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email, phone_label: (loginTotpPhoneLabelEl?.value || "").trim() || undefined }),
+      });
+      const data = await res.json();
+      if (res.ok && data.ok) {
+        if (loginTotpQrContainer) loginTotpQrContainer.innerHTML = data.qr_svg || "";
+        if (loginTotpStatusEl) {
+          loginTotpStatusEl.textContent = "✅ Scan this with your authenticator app (Google Authenticator, Authy, etc.), then enter the 6-digit code below. / 表示されたQRコードを認証アプリ(Google Authenticator・Authy等)で撮影し、下に6桁のコードを入力してください。";
+        }
+      } else {
+        if (loginTotpStatusEl) loginTotpStatusEl.textContent = `⚠ ${data.error || "Failed to set up / 設定に失敗しました"}`;
+      }
+    } catch (e) {
+      if (loginTotpStatusEl) loginTotpStatusEl.textContent = `⚠ ${e.message}`;
+    }
+  });
+}
+
+if (loginTotpVerifyBtn) {
+  loginTotpVerifyBtn.addEventListener("click", async () => {
+    const email = (loginTotpEmailEl?.value || "").trim();
+    const code = (loginTotpCodeEl?.value || "").trim();
+    if (!email || !code) {
+      if (loginTotpStatusEl) loginTotpStatusEl.textContent = "Email and code are both required / メールアドレスとコードの両方が必要です";
+      return;
+    }
+    if (loginTotpStatusEl) loginTotpStatusEl.textContent = "Verifying... / 確認中...";
+    try {
+      const res = await fetch("/v1/auth/totp-verify", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email, code }),
+      });
+      const data = await res.json();
+      if (res.ok && data.ok) {
+        document.getElementById("login-gate").classList.add("hidden");
+      } else {
+        if (loginTotpStatusEl) loginTotpStatusEl.textContent = `⚠ ${data.error || "Incorrect code / コードが正しくありません"}`;
+      }
+    } catch (e) {
+      if (loginTotpStatusEl) loginTotpStatusEl.textContent = `⚠ ${e.message}`;
+    }
+  });
+}
+
+const loginSetupEnableBtn = document.getElementById("login-setup-enable-btn");
+const loginSetupSkipBtn = document.getElementById("login-setup-skip-btn");
+function dismissLoginSetupPrompt() {
+  document.getElementById("login-setup-prompt").classList.add("hidden");
+  try {
+    localStorage.setItem(LOGIN_PROMPT_SHOWN_KEY, "1");
+  } catch (e) {
+    /* 保存できなくても閉じる動作自体は継続 */
+  }
+}
+if (loginSetupEnableBtn) {
+  loginSetupEnableBtn.addEventListener("click", async () => {
+    try {
+      await fetch("/v1/auth/config", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ login_required: true }),
+      });
+    } catch (e) {
+      /* 失敗しても案内は閉じる、次回起動時に再度有効化を試せる */
+    }
+    dismissLoginSetupPrompt();
+    location.reload();
+  });
+}
+if (loginSetupSkipBtn) {
+  loginSetupSkipBtn.addEventListener("click", () => dismissLoginSetupPrompt());
+}
 
 const logEl = document.getElementById("log");
 const formEl = document.getElementById("chat-form");
 const inputEl = document.getElementById("chat-input");
 const apiBaseEl = document.getElementById("api-base");
-// LAN経由アクセス(スマホ等)対応: このページ自体が`localhost`以外の
-// ホスト名(PCのIPアドレス)で開かれている場合、`aruaru-llm`の既定接続先も
-// 同じホスト名を使うよう自動調整する(ユーザー報告: スマホのWebViewから
-// PC上のopen-english-serverへ接続できても、そのままだと`aruaru-llm`
-// 接続先が`localhost`=スマホ自身を指してしまい、接続に失敗していた)。
-if (apiBaseEl && location.hostname && location.hostname !== "localhost" && location.hostname !== "127.0.0.1") {
-  apiBaseEl.value = `http://${location.hostname}:4600`;
+// 2026-08-26改訂(ユーザー指示「open-englishはVPSレンタルサーバーで
+// 一応動きますが、aruaru-llmを手元の端末にダウンロードして頂いて、
+// それをVPSのopen-englishがインストールに成功してますと認識出来る
+// ように」への対応): このページがVPS等どのホストから配信されていても、
+// `http://localhost:4600`(=閲覧者自身の端末)への接続を常に最優先の
+// 既定値とする——ブラウザの`localhost`/`127.0.0.1`は常に「このページを
+// 開いている端末自身」を指すため、VPS配信時にこれをページのホスト名
+// (VPS自身)へ書き換えてしまうと、閲覧者が自分の端末へダウンロード・
+// インストールした`aruaru-llm`に永久に接続できなくなるバグだった
+// (旧実装はホスト名が`localhost`以外だと無条件で`ホスト名:4600`へ
+// 書き換えていたため、VPS配信時はVPS自身のポート4600を叩こうとして
+// いた——閲覧者の端末ではなく)。
+// `checkHealth()`(下記)がこの既定値へ定期的にヘルスチェックを行い、
+// 閲覧者が自分の端末で`aruaru-llm`を起動した瞬間に自動的に「接続
+// できました」を検知する——これが「VPSがインストール成功を認識する」
+// 仕組みの実体(新しい通知APIを追加したわけではなく、既存のヘルス
+// チェックが正しい既定接続先に対して機能するようにした)。
+//
+// 旧来のLANヒューリスティック(スマホのWebViewからPC上のopen-english-
+// server+aruaru-llmへ、PCのLAN IP経由で両方接続するケース)は、
+// `localhost:4600`が応答しない場合の**フォールバック候補**として
+// 維持する(`autoDetectAruaruLlmBase`が両方を実際に`/healthz`で
+// プローブし、応答した方を採用する)。
+async function autoDetectAruaruLlmBase() {
+  if (!apiBaseEl) return;
+  const candidates = ["http://localhost:4600"];
+  if (location.hostname && location.hostname !== "localhost" && location.hostname !== "127.0.0.1") {
+    candidates.push(`http://${location.hostname}:4600`);
+  }
+  for (const candidate of candidates) {
+    try {
+      const res = await fetchWithTimeout(`${candidate}/healthz`, { cache: "no-store" }, 2000);
+      if (res.ok) {
+        apiBaseEl.value = candidate;
+        return;
+      }
+    } catch (e) {
+      // この候補は応答しない、次を試す。
+    }
+  }
+  // どちらも応答しない場合は、閲覧者自身の端末を指す既定値
+  // (`localhost:4600`)のまま残す——後続の`checkHealth()`の定期
+  // ポーリング(5秒間隔)が、閲覧者が後からインストール・起動した
+  // タイミングで自動的に接続を検知する。
+  apiBaseEl.value = candidates[0];
 }
+
+// デプロイ運用者が明示的にVPS側でaruaru-llmを共同ホストしている場合
+// (`OPEN_ENGLISH_ARUARU_LLM_BASE_URL`環境変数を設定した場合)のみ、
+// その接続先を使う——ただし上記の「閲覧者自身の端末」検出が既に成功
+// している場合はそちらを優先する(明示的なオプトインの補完策)。
+async function applyDeploymentAruaruLlmBaseIfOwnDeviceUnavailable() {
+  if (!apiBaseEl) return;
+  try {
+    const res = await fetch("/v1/config", { cache: "no-store" });
+    if (!res.ok) return;
+    const data = await res.json();
+    if (!data.aruaru_llm_base_url) return;
+    // 閲覧者自身の端末への接続が既に確立できているなら、それを
+    // VPS側の共有インスタンスへ上書きしない(閲覧者ごとに独立した
+    // aruaru-llmを使わせる、という設計方針を優先する)。
+    try {
+      const probe = await fetchWithTimeout(`${apiBaseEl.value.trim()}/healthz`, { cache: "no-store" }, 1500);
+      if (probe.ok) return;
+    } catch (e) {
+      // 閲覧者自身の端末への接続はまだ確立していない、VPS側へフォールバック。
+    }
+    apiBaseEl.value = data.aruaru_llm_base_url;
+  } catch (e) {
+    // `/v1/config`未提供の配信形態(file://直開き等)では黙って既定のまま。
+  }
+}
+
+// 2つの初期化処理は互いに競合しないよう必ず順番に実行する
+// (`autoDetectAruaruLlmBase`が`apiBaseEl.value`を確定させてから、
+// `applyDeploymentAruaruLlmBaseIfOwnDeviceUnavailable`がそれを見て
+// 判断する——並行実行すると後者が前者の未確定な値を読んでしまう
+// レースコンディションになるため)。
+setTimeout(async () => {
+  await autoDetectAruaruLlmBase();
+  await applyDeploymentAruaruLlmBaseIfOwnDeviceUnavailable();
+}, 0);
 const statusEl = document.getElementById("status");
 const trainerEl = document.getElementById("trainer");
 const bubbleEl = document.getElementById("speech-bubble");
@@ -379,6 +745,19 @@ function appendMessage(role, text) {
   div.className = `msg ${role}`;
   div.textContent = text;
   div.dataset.role = role;
+  // RTL(右書き)対応(2026-08-25追加): アプリ全体のLTRレイアウトは
+  // 変えず、このメッセージ吹き出し単体にだけdir="rtl"を設定する。
+  // 選択中の言語設定(reply-lang/learn-target)がAR/FA/HEなら、または
+  // 本文自体にアラビア文字・ヘブライ文字が実際に含まれていれば適用する
+  // (モデルが設定と無関係にRTL文字を生成した場合にも対応するため、
+  // 設定判定と実文字判定のOR)。
+  const wantsRtl =
+    (replyLangEl && RTL_LANG_CODES.has(replyLangEl.value)) ||
+    (learnTargetEl && RTL_LEARN_TARGETS.has(learnTargetEl.value)) ||
+    isRtlText(text);
+  if (wantsRtl) {
+    div.dir = "rtl";
+  }
   logEl.appendChild(div);
   logEl.scrollTop = logEl.scrollHeight;
   return div;
@@ -932,6 +1311,7 @@ async function advanceTrainingMode(userText) {
   let reply = await step.onUserReply(userText);
   reply += await referralsSuffix(userText);
   reply += consumptionTaxSuffix(userText);
+  reply += pensionSuffix(userText);
   reply += incomeWallSuffix(userText);
   reply += vendingMachineSuffix(userText);
   reply += internetAccessSuffix(userText);
@@ -1093,12 +1473,118 @@ async function askTrainer(userText) {
   }
   const prompt = `${trainerRole} ${levelInstruction} ${langInstruction}\nStudent: ${userText}\nTrainer:`;
 
+  // マルチLLMプロバイダ優先順位機能が有効な場合、まずChatGPT/DeepSeek/
+  // Gemini/Claudeを試す(ユーザー指摘「実際にチャットへ連携していない
+  // のでは」への対応、2026-08-26)。成功すればそのままそれを返信として
+  // 使う(GPT-2ローカル推論は呼ばない)。**「有料版も契約していたら自動で
+  // 継続する」という要件は、この経路自体が既に満たしている**——有料契約
+  // (課金設定)済みのプロバイダは無料枠切れの429を返さずそのまま成功する
+  // ため、無料/有料の切替を明示的に行うロジックは不要(同じAPIキーで
+  // 課金が有効なら黙って成功するだけ)。全プロバイダが無料枠切れだった
+  // 場合のみ、日英併記の「本日の無料枠は使い切りました」を先頭に付けた
+  // 上で、既存のGPT-2ローカル推論へ自動的にフォールバックする(サービス
+  // 全体を止めない、既存の可用性優先の設計を踏襲)。
+  let quotaExceededPrefix = "";
+  if (typeof window.tryPriorityProviderReply === "function") {
+    const priorityResult = await window.tryPriorityProviderReply(prompt);
+    if (priorityResult && typeof priorityResult.text === "string") {
+      let reply = ensureScriptGuaranteedReply(ensureHybridReply(trimDegenerateRepetition(priorityResult.text), userText));
+      if (priorityResult.provider) {
+        reply += `\n\n🤖 via ${priorityResult.provider} (external LLM) / 外部LLM(${priorityResult.provider})経由`;
+      }
+      reply += await referralsSuffix(userText);
+      reply += consumptionTaxSuffix(userText);
+      reply += pensionSuffix(userText);
+      reply += incomeWallSuffix(userText);
+      reply += vendingMachineSuffix(userText);
+      reply += internetAccessSuffix(userText);
+      reply += govConsultingSuffix(userText);
+      reply += fairTradeSuffix(userText);
+      reply += await newsSuffix(userText);
+      reply += troubledSuffix(userText);
+      reply += nuclearDeterrenceSuffix(userText);
+      reply += egovSuffix(userText);
+      return reply;
+    }
+    if (priorityResult && priorityResult.quotaExceeded) {
+      quotaExceededPrefix =
+        "⚠ Today's free quota has been used up for all configured AI providers. Switching to the " +
+        "built-in local AI for this reply. / 設定済みの全AIプロバイダで本日の無料枠は使い切りました。" +
+        "この返信は内蔵のローカルAIに切り替えて生成します。\n\n";
+    }
+  }
+
   // Google検索補強(ユーザー指示「発話・入力の都度Google検索する」への
-  // 対応、ブリッジ式)。トグルON時は`/v1/generate-with-search`を叩く
-  // ——`aruaru-llm`側でAPIキー未設定なら自動的に検索無しへフォールバック
-  // する(`used_search:false`、正直な開示としてUIにも表示する)。
+  // 対応、ブリッジ式)。
   const useWebSearch = webSearchToggleEl && webSearchToggleEl.checked;
-  const endpoint = useWebSearch ? "/v1/generate-with-search" : "/v1/generate";
+  // 2026-08-27追加(ユーザー指示「必要な所だけON/OFF」への対応): このON状態を
+  // 使うのはこの1通のメッセージだけとし、送信の時点で即座にOFFへ戻す
+  // (fetch開始前にリセットすることで、ネットワーク失敗時でもON状態が
+  // 残らないようにする)。次のメッセージでもGoogle検索キーを使いたい場合は
+  // 利用者が毎回明示的にチェックし直す必要がある——「本当に必要な1回だけ
+  // aruaru-llmへキーを渡す」という意図をより確実にするための設計。
+  if (useWebSearch && webSearchToggleEl) {
+    webSearchToggleEl.checked = false;
+  }
+
+  // 2026-08-25追加: Google検索補強がONの場合、このブラウザに保存された
+  // 訪問者自身のAPIキー/cx(あれば)を使う。
+  const ownGoogleSearchCreds = useWebSearch && typeof loadOwnGoogleSearchCredentials === "function"
+    ? loadOwnGoogleSearchCredentials()
+    : null;
+
+  // 2026-08-27追加(ユーザー指示「Google検索もGitHubトークンと同じく
+  // ブラウザから直接呼ぶ方式にして、aruaru-llmに一切キーを渡さないように
+  // して」への対応): 訪問者自身のキーがある場合は、Google Custom Search
+  // JSON APIを**ブラウザから直接**呼ぶ(`googleapis.com`が任意のOriginへ
+  // `Access-Control-Allow-Origin`を返すことを2026-08-27にcurlで実機確認
+  // 済み——CORS対応済み)。検索結果はブラウザ内で
+  // `aruaru-llm::web_search::build_search_augmented_prompt`と同一の
+  // 書式(QA形式プロンプト)へ組み立て、**通常の`/v1/generate`へキー無しで
+  // 送る**——これにより`aruaru-llm`は検索結果を含む文脈こそ受け取るが、
+  // Google APIキー・cx自体は一切見ない。訪問者自身のキーが無い場合
+  // (共有サーバー側のグローバル設定に任せたい場合)のみ、従来通り
+  // `/v1/generate-with-search`へキー無しでリクエストする
+  // (この経路はそもそもブラウザ側にキーが無いため、今回の変更は無関係)。
+  // 2026-08-27追加: 「④クロスオリジンiframe保管庫」モードの場合、
+  // APIキーの復号もGoogle Custom Search APIへの実際の呼び出しも
+  // vault.html内だけで行い、この本体ページのJSへは検索結果(タイトル・
+  // スニペット・URL)のみが渡る——キー自体はGitHubトークンと同様、
+  // 本体ページには一切現れない(ユーザー指示「全てセキュアモード
+  // ブラウザで受け渡しした方が良いのではないか」への対応)。
+  const googleSearchMode = document.getElementById("google-search-key-mode")?.value || "plain";
+  const useVaultSearchPath = useWebSearch && googleSearchMode === "vault";
+
+  let directSearchResults = null;
+  let directSearchError = null;
+  if (useVaultSearchPath) {
+    try {
+      directSearchResults = await googleSearchRequestVault(userText, 3);
+    } catch (err) {
+      directSearchError = err.message || String(err);
+    }
+  } else if (useWebSearch && ownGoogleSearchCreds) {
+    try {
+      directSearchResults = await googleSearchDirect(userText, ownGoogleSearchCreds.api_key, ownGoogleSearchCreds.cx, 3);
+    } catch (err) {
+      directSearchError = err.message || String(err);
+    }
+  }
+
+  const useDirectSearchPath = useWebSearch && (ownGoogleSearchCreds || useVaultSearchPath);
+  const endpoint = useWebSearch && !useDirectSearchPath ? "/v1/generate-with-search" : "/v1/generate";
+  // 2026-08-27バグ修正: `prompt`(メイドカフェ講師ペルソナ+レベル指示+
+  // 「Student: ...\nTrainer:」まで組み込んだ、既にラップ済みのテンプレート)
+  // をそのまま`buildSearchAugmentedPromptClient`の「質問」として渡すと、
+  // 「Question: {ペルソナ全文...Trainer:}\nAnswer:」という、質問の中に
+  // 別の生成キュー(Trainer:)が入れ子になった分かりにくいプロンプトに
+  // なってしまっていた(実機テストで発見)。「質問」には`userText`
+  // (利用者が実際に入力した生の発話)だけを使うよう修正——検索結果を
+  // 踏まえた回答の核心は「利用者の発話に対する回答」であり、ペルソナ
+  // 指示文はその周辺情報であって「質問」そのものではないため。
+  const effectivePrompt = useDirectSearchPath && directSearchResults && directSearchResults.length > 0
+    ? buildSearchAugmentedPromptClient(formatSearchResultsAsContext(directSearchResults), userText)
+    : prompt;
 
   // タイムアウト上限(2026-08-22追加)。GPT-2のCPU貪欲デコードは
   // 1トークンあたりほぼ一定時間かかるため、大きなモデル(gpt2-xl等)へ
@@ -1108,6 +1594,11 @@ async function askTrainer(userText) {
   // 従来挙動よりは遥かにましだが、「速くなる」わけではない(正直な開示)。
   const timeoutMs = useWebSearch ? 90000 : 60000;
   const startedAt = performance.now();
+  const requestBody = { prompt: effectivePrompt, max_new_tokens: 24 };
+  // useDirectSearchPathの場合はここでkey/cxを一切requestBodyへ入れない
+  // (aruaru-llmへ渡らないことがこの変更の目的そのもの)。訪問者自身の
+  // キーが無い場合の従来経路(/v1/generate-with-search)には元々キーが
+  // 付いていなかったため、この分岐でも変更は無い。
   const res = await fetchWithTimeout(`${base}${endpoint}`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
@@ -1116,7 +1607,7 @@ async function askTrainer(userText) {
     // ほぼ一定時間かかるため、トークン数を減らすことがそのまま応答時間の
     // 短縮になる——ファインチューニング無しの素のモデルであるという
     // 制約自体は変わらない。
-    body: JSON.stringify({ prompt, max_new_tokens: 24 }),
+    body: JSON.stringify(requestBody),
   }, timeoutMs);
   if (!res.ok) {
     // 本文にaruaru-llm側の`error`フィールドが入っていることがあるので、
@@ -1138,14 +1629,27 @@ async function askTrainer(userText) {
     renderRuntimeBadge(lastRuntimeInfo);
   }
   const completion = data.completion ?? "(no completion field in response)";
-  let reply = ensureHybridReply(trimDegenerateRepetition(completion), userText);
+  let reply = ensureScriptGuaranteedReply(ensureHybridReply(trimDegenerateRepetition(completion), userText));
 
   if (useWebSearch) {
-    if (data.used_search && Array.isArray(data.search_results) && data.search_results.length > 0) {
-      // 正直な開示・セキュリティ配慮: 検索結果のtitleは外部(Google経由の
-      // Webサイト)由来のテキストのため、`innerHTML`へそのまま挿入せず
-      // (XSSリスク回避)、`appendMessage`が使うプレーンテキスト
-      // (`textContent`)としてURLをそのまま列挙する。
+    if (useDirectSearchPath) {
+      const viaLabel = useVaultSearchPath
+        ? "called from the vault iframe / vault内から呼び出し"
+        : "called directly from your browser / ブラウザから直接呼び出し";
+      if (directSearchError) {
+        reply += `\n\n🔎 Google search failed (${viaLabel}, key never sent to aruaru-llm) / ` +
+          `Google検索に失敗しました(${viaLabel}、キーはaruaru-llmへ送っていません): ${directSearchError}`;
+      } else if (directSearchResults && directSearchResults.length > 0) {
+        // 正直な開示・セキュリティ配慮: 検索結果のtitleは外部(Google経由の
+        // Webサイト)由来のテキストのため、`innerHTML`へそのまま挿入せず
+        // (XSSリスク回避)、プレーンテキストとしてURLをそのまま列挙する。
+        const links = directSearchResults.map((r) => `${r.title} (${r.link})`).join(" / ");
+        reply += `\n\n🔎 Google search used (${viaLabel}, aruaru-llm never saw your key) / ` +
+          `Google検索を使用しました(${viaLabel}、キーはaruaru-llmへ渡していません): ${links}`;
+      } else {
+        reply += "\n\n🔎 Google search returned no results / Google検索結果が0件でした。";
+      }
+    } else if (data.used_search && Array.isArray(data.search_results) && data.search_results.length > 0) {
       const links = data.search_results.map((r) => `${r.title} (${r.link})`).join(" / ");
       reply += `\n\n🔎 Google search used / Google検索を使用しました: ${links}`;
     } else {
@@ -1156,6 +1660,7 @@ async function askTrainer(userText) {
   }
   reply += await referralsSuffix(userText);
   reply += consumptionTaxSuffix(userText);
+  reply += pensionSuffix(userText);
   reply += incomeWallSuffix(userText);
   reply += vendingMachineSuffix(userText);
   reply += internetAccessSuffix(userText);
@@ -1406,6 +1911,86 @@ function fairTradeSuffix(userText) {
 function consumptionTaxSuffix(userText) {
   if (!isConsumptionTaxSolutionQuestion(userText)) return "";
   return consumptionTaxProposalText();
+}
+
+// 「老後2,000万円問題」「年金が少ない/貯金がほとんど無い方はどう
+// すればよいか」「麻生太郎氏の『年金5万円で生活しろ』という趣旨の発言」
+// といった年金・老後資金に関する質問・意見を検出したら、開発者
+// (ユーザー)の具体的な政策提案を日英併記で案内する(ユーザー指示、
+// 2026-08-27)。消費税提案(`consumptionTaxSuffix`)・年収の壁提案と
+// 同じ設計方針の固定テキスト——AI推論(GPT-2)を経由させず、断定的な
+// 政治的主張は必ず「開発者個人の一意見」と明記した固定文で返す
+// (既存方針を踏襲)。
+const PENSION_TOPIC_KEYWORDS = [
+  "2000万円問題", "2,000万円問題", "老後2000万円", "老後2,000万円",
+  "麻生太郎", "年金5万円", "年金が少ない", "年金がない", "年金がゼロ",
+  "貯金がない", "貯金がほとんどない", "貯金がゼロ", "貯金ゼロ",
+  "老後資金", "老後の生活", "老後どうすれば", "老後の年金",
+];
+const PENSION_QUESTION_KEYWORDS = [
+  "どうしたら", "どうすれば", "どうしたらいい", "どうすればいい",
+  "教えて", "どう思う", "対策", "生活しろ", "生活できる",
+];
+
+function isPensionQuestion(userText) {
+  if (!containsJapanese(userText)) return false;
+  const hasTopic = PENSION_TOPIC_KEYWORDS.some((k) => userText.includes(k));
+  if (!hasTopic) return false;
+  // "2000万円問題"・"麻生太郎"+"年金"のように、話題語自体が既に
+  // 具体的な問題提起になっている場合は、追加の疑問詞が無くても
+  // 反応してよい(既存のCONSUMPTION_TAX判定より緩めた——「2000万円
+  // 問題」という言葉を出す時点でほぼ確実にこの話題についての発話
+  // であるため)。それ以外の一般的な語("老後の生活"等)は、疑問詞との
+  // AND条件を維持して誤検出を避ける。
+  const strongTopics = ["2000万円問題", "2,000万円問題", "老後2000万円", "老後2,000万円", "麻生太郎", "年金5万円"];
+  if (strongTopics.some((k) => userText.includes(k))) return true;
+  return PENSION_QUESTION_KEYWORDS.some((k) => userText.includes(k));
+}
+
+function pensionProposalText() {
+  const ja =
+    "【老後資金・年金問題への提案(開発者からの一意見)】\n" +
+    "まず結論から申し上げますと、財源は、政府・お役所のeガバメント" +
+    "(デジタルガバメント)化——コンビニのマルチコピー機・情報端末や" +
+    "LINEアプリ・スマホ/タブレット/PC版での行政手続き対応——で" +
+    "十分に確保が可能だと思われます。eガバメント・デジタルガバメント" +
+    "化と、在宅勤務のコールセンター・TVチャットサービスの導入により、" +
+    "市区町村・都道府県庁の公務員を必要最低限まで大幅にリストラできる" +
+    "と考えます。そこで生まれた財源を、少子高齢化対策・年金問題対策へ" +
+    "還元すべきです。また、年金の運用利益(利息・運用益)がこれまで" +
+    "国民へほとんど還元されてこなかった問題についても、公務員を優先し" +
+    "国民を後回しにするような政策・態度は改めるべきだと思います。" +
+    "年金や貯金がほとんど無い方・全く無い方についても、この財源確保と" +
+    "還元により、最低限の生活を支える制度を用意すべきです。さらに、" +
+    "基礎年金+厚生年金+増額年金を、専業主婦(夫)や厚生年金に加入して" +
+    "いない方も含めて全員参加型とする皆保険化が可能だと考えます。";
+  const en =
+    "[A proposal on retirement savings and the pension problem (the developer's own opinion)]\n" +
+    "To state the conclusion first: the funding can be secured through " +
+    "e-government/digital-government adoption — handling administrative " +
+    "procedures via convenience-store multi-copy terminals/information " +
+    "kiosks, or via LINE-style apps on smartphones, tablets, and PCs. " +
+    "Combined with introducing work-from-home call centers and video-chat " +
+    "support services, this should allow a major reduction in the civil " +
+    "service headcount at the municipal and prefectural level, down to the " +
+    "essential minimum. The funds freed up this way should be redirected " +
+    "toward countering the declining birthrate/aging society and the " +
+    "pension problem. The fact that pension investment returns (interest " +
+    "and investment gains) have historically been returned to citizens " +
+    "very little should also be addressed — policies and attitudes that " +
+    "prioritize civil servants over citizens should be reconsidered. For " +
+    "those with little or no pension or savings, this funding and " +
+    "redistribution should support a system guaranteeing a minimum " +
+    "standard of living. Furthermore, universal enrollment should be made " +
+    "possible for the basic pension plus the employees' pension plus a " +
+    "supplemental pension increase, covering everyone including full-time " +
+    "homemakers and those not currently enrolled in the employees' pension.";
+  return `\n\n🏦 ${en}\n\n${ja}`;
+}
+
+function pensionSuffix(userText) {
+  if (!isPensionQuestion(userText)) return "";
+  return pensionProposalText();
 }
 
 // 「年収の壁」(103万円/106万円/130万円の壁)の解決策を尋ねる日本語入力を
@@ -1744,6 +2329,37 @@ function creatorIntroductionText() {
     "大きなシアタールーム付きの大きな家を建てて、U-NEXTの映画や" +
     "ライブ・コンサートを家族で一緒に視聴したいです。";
   return `👤 ${en}\n\n${ja}`;
+}
+
+// 「風天のとらさん(トラさん)の職業・仕事は何か」という趣旨の質問
+// かどうかを判定する(2026-08-27新設、ユーザー指示)。`isCreatorQuestion`
+// と同じ設計方針: GPT-2はキャラクター設定を確実には把握できないため、
+// 推論に任せず固定文で即答する。
+const TORA_NAME_JA = ["風天のとら", "風天のトラ", "とらさん", "トラさん", "とら先生", "トラ先生"];
+const TORA_NAME_EN = ["torasan", "tora-san", "tora "];
+const OCCUPATION_WORD_JA = ["職業", "仕事", "お仕事", "何をしている", "何してる"];
+const OCCUPATION_WORD_EN = ["occupation", "job", "profession", "what does", "what is", "work as"];
+
+function isToraOccupationQuestion(userText) {
+  const lower = userText.toLowerCase();
+  const mentionsToraJa = TORA_NAME_JA.some((k) => userText.includes(k));
+  const mentionsToraEn = TORA_NAME_EN.some((k) => lower.includes(k));
+  if (!mentionsToraJa && !mentionsToraEn) return false;
+
+  const asksOccupationJa = OCCUPATION_WORD_JA.some((k) => userText.includes(k));
+  const asksOccupationEn = OCCUPATION_WORD_EN.some((k) => lower.includes(k));
+  return asksOccupationJa || asksOccupationEn;
+}
+
+// 固定の回答文(日英併記)。既存の`trainingIntroLine`の設定
+// (「Hello, I am Tora, your butler trainer! / こんにちは、私は執事の
+// 先生、トラです!」)と一致させている。
+function toraOccupationAnswerText() {
+  return (
+    "Tora-san's job is a butler! / 風天のとらさんの職業は執事です!\n" +
+    "He works as the butler trainer here at the maid cafe. / " +
+    "このメイドカフェで執事の先生として働いています。"
+  );
 }
 
 // ---------------------------------------------------------------------------
@@ -2620,6 +3236,19 @@ formEl.addEventListener("submit", async (e) => {
     return;
   }
 
+  // 「風天のとらさん(トラさん)の職業・仕事は何か」という質問にも、
+  // AI推論を経ずに固定文で「執事」と即答する(ユーザー指示、2026-08-27
+  // 新設)。GPT-2はキャラクター設定を確実には把握できないため、推論に
+  // 任せると設定と矛盾する答えを作ってしまう——既存の`isCreatorQuestion`
+  // と同じ理由・同じパターン。既存の`trainingIntroLine`でも
+  // 「Hello, I am Tora, your butler trainer! / こんにちは、私は執事の
+  // 先生、トラです!」と既に「執事」という設定になっており、今回は
+  // その設定を通常の会話中の質問にも確実に反映させる対応。
+  if (isToraOccupationQuestion(text)) {
+    appendMessage("trainer", toraOccupationAnswerText());
+    return;
+  }
+
   // 「666は悪魔・獣の印なのか」という趣旨の質問にも、AI推論を経ずに人手で
   // 書いた固定文(前提の紹介+現代的な語呂合わせ+都市伝説の明示+現代の
   // 利便性への肯定+Pythonの偶然の一致)を返す。宗教史と同じ理由で、
@@ -3255,18 +3884,207 @@ const googleSearchSaveBtn = document.getElementById("google-search-save");
 const googleSearchClearBtn = document.getElementById("google-search-clear");
 const googleSearchStatusEl = document.getElementById("google-search-status");
 
-async function refreshGoogleSearchStatus() {
+// 2026-08-25変更(ユーザー指示「ブラウザ版は各自Google検索のAPIキーとIDを
+// 各自で設定してもらう様に…開発者が設定したAPIキーとIDは、アクセス者は
+// 使わない、消費しない様に」への対応): 従来は`POST /v1/settings/
+// google-search`でaruaru-llmプロセス全体が共有するグローバル設定を
+// 書き換えていたが、これは複数の訪問者が同じaruaru-llmインスタンス
+// (例: VPS上の共有デプロイ)へアクセスする場合、**ある訪問者が自分の
+// キーを設定すると他の全訪問者の検索もそのキーへ切り替わってしまう**
+// (意図しない共有・消費)という設計上の欠陥があった。
+// 修正後は、各自のキー/cxを**このブラウザのlocalStorageにのみ**保存し、
+// リクエストのたびに`google_search_api_key`/`google_search_cx`として
+// 本文に含めて送る(`aruaru-llm`側`main.rs`の`generate_with_search`が
+// 2026-08-25新設、リクエストに同梱されたキーがあればグローバル設定
+// には一切触れずそのリクエスト限りで使う設計)。開発者がこのサーバーに
+// 別途キーを設定していても、ここで自分のキーを入力した訪問者の
+// リクエストはそのグローバルなキーを使わない・消費しない。
+const GOOGLE_SEARCH_LOCAL_KEY = "open-english.googleSearchApiKey";
+const GOOGLE_SEARCH_LOCAL_CX = "open-english.googleSearchCx";
+const GOOGLE_SEARCH_ENCRYPTED_LOCAL_KEY = "open-english.googleSearchCredsEncrypted";
+
+// 2026-08-27追加: ①ローカルファイル読込・②パスフレーズ復号のいずれかで
+// 得られた資格情報を、この変数にのみ保持する(localStorageへは書かない、
+// タブを閉じる/リロードで消える)。freelance GitHubトークンと同じ設計。
+let googleSearchUnlockedCreds = null;
+
+// 呼び出し元(チャット送信時など)は同期的にこの関数を呼ぶ前提のため、
+// ①②はここでは「既に読込/復号済みのメモリ上の値」しか返せない
+// (ファイル選択・パスフレーズ入力はユーザー操作を要するため非同期)。
+// モーダルを開いて①②を選んだままファイル選択/復号をしていない場合は
+// nullを返す(黙って③の古い値にフォールバックしない、正直な挙動)。
+// vault.html内でGoogle検索を実行させ、結果(タイトル・スニペット・URL、
+// APIキーは含まない)をpostMessageで受け取る(2026-08-27追加、GitHubの
+// freelanceRequestVaultGithubPushと同じパターン)。
+function googleSearchRequestVault(query, maxResults) {
+  return new Promise((resolve, reject) => {
+    const iframe = document.getElementById("google-search-vault-iframe");
+    const origin = window.googleSearchVaultOrigin;
+    if (!iframe || !iframe.contentWindow || !origin) {
+      reject(new Error("Vaultが読み込まれていません。先に読み込んでください。 / Vault is not loaded yet — load it first."));
+      return;
+    }
+    const requestId = `${Date.now()}-${Math.random()}`;
+    const timeoutId = setTimeout(() => {
+      window.removeEventListener("message", onMessage);
+      reject(new Error("Vaultからの応答がタイムアウトしました。 / Timed out waiting for a response from the vault."));
+    }, 30000);
+    function onMessage(event) {
+      if (event.origin !== origin) return;
+      const data = event.data || {};
+      if (data.type !== "vault:googleSearchResult" || data.requestId !== requestId) return;
+      clearTimeout(timeoutId);
+      window.removeEventListener("message", onMessage);
+      if (data.ok) resolve(data.results);
+      else reject(new Error(data.error || "unknown vault error"));
+    }
+    window.addEventListener("message", onMessage);
+    iframe.contentWindow.postMessage({ type: "vault:googleSearch", requestId, query, maxResults }, origin);
+  });
+}
+
+function loadOwnGoogleSearchCredentials() {
+  const mode = document.getElementById("google-search-key-mode")?.value || "plain";
+  if (mode === "file" || mode === "encrypted") {
+    return googleSearchUnlockedCreds;
+  }
+  // 2026-08-27バグ修正: ④vaultモードでは、キーの復号・使用はvault.html
+  // 内だけで完結させる設計のため、ここでは絶対に何も返してはならない。
+  // 修正前はここが③(plain)と同じlocalStorageチェックへフォールスルー
+  // しており、以前③モードで保存した平文キーが残っていた場合、vault
+  // モードを選んでいてもその平文キーが本体ページのJSメモリ
+  // (`ownGoogleSearchCreds`)へ読み込まれてしまっていた——実際の検索
+  // 処理はvault経由に切り替わるため実害は無かったが、「vaultモードでは
+  // 本体ページに一切キーを渡さない」という設計原則に反する不要な露出
+  // だった。GitHubトークン側の同種のテスト
+  // (`mode_switch_no_leak`)で確認した設計と揃える。
+  if (mode === "vault") {
+    return null;
+  }
   try {
-    const base = apiBaseEl.value.trim();
-    const res = await fetch(`${base}/v1/settings/google-search`);
-    const data = await res.json();
-    googleSearchStatusEl.textContent = data.configured
-      ? "✅ Configured / 設定済みです"
-      : "⚪ Not configured yet / まだ設定されていません";
-  } catch (err) {
-    googleSearchStatusEl.textContent = `⚠ Could not check status / 状態を確認できませんでした: ${err.message}`;
+    const api_key = localStorage.getItem(GOOGLE_SEARCH_LOCAL_KEY) || "";
+    const cx = localStorage.getItem(GOOGLE_SEARCH_LOCAL_CX) || "";
+    return api_key && cx ? { api_key, cx } : null;
+  } catch (e) {
+    return null;
   }
 }
+
+// 2026-08-27追加(ユーザー指示「Google検索もGitHubトークンと同じく
+// ブラウザから直接呼ぶ方式にして」への対応): Google Custom Search
+// JSON APIを`aruaru-llm`を経由せずブラウザから直接呼ぶ。
+// `www.googleapis.com`が任意のOriginへ`Access-Control-Allow-Origin`を
+// 返すことをcurlで実機確認済み(2026-08-27)——CORS対応済みのため
+// この方式が成立する(OpenAI/Gemini/DeepSeekは同じ方式が使えないことを
+// 既にCLAUDE.mdへ記録済み、Google Custom Searchは対象が異なるため
+// 別途確認が必要だった)。
+async function googleSearchDirect(query, apiKey, cx, maxResults) {
+  const url = `https://www.googleapis.com/customsearch/v1?key=${encodeURIComponent(apiKey)}&cx=${encodeURIComponent(cx)}&q=${encodeURIComponent(query)}&num=${Math.min(Math.max(maxResults || 3, 1), 10)}`;
+  const res = await fetch(url);
+  if (!res.ok) {
+    let detail = "";
+    try {
+      const body = await res.json();
+      detail = body?.error?.message ? ` — ${body.error.message}` : "";
+    } catch { /* ignore */ }
+    throw new Error(`Google Custom Search API returned HTTP ${res.status}${detail}`);
+  }
+  const data = await res.json();
+  const items = Array.isArray(data.items) ? data.items : [];
+  return items.map((item) => ({
+    title: item.title || "",
+    snippet: item.snippet || "",
+    link: item.link || "",
+  }));
+}
+
+// `aruaru-llm::web_search::format_results_as_context`と同一の書式
+// (番号付き箇条書き)。GPT-2のQ&Aパターン補完に乗せやすくする狙いは
+// Rust側と同じ(`aruaru-llm/CLAUDE.md`2026-08-26エントリ参照)。
+function formatSearchResultsAsContext(results) {
+  return results.map((r, i) => `${i + 1}. ${r.title}: ${r.snippet}`).join("\n");
+}
+
+// `aruaru-llm::web_search::build_search_augmented_prompt`と同一の
+// QA形式プロンプト。サーバー側のロジックと完全に同じ書式にすることで、
+// 「aruaru-llmにキーを渡さないよう変更した」以外の挙動差分を生まない
+// ようにしている(誠実さのため——検索結果活用の改善効果自体は変えない)。
+function buildSearchAugmentedPromptClient(context, question) {
+  return `Use the search results below to answer the question as accurately as possible. ` +
+    `If the search results don't contain the answer, say so honestly.\n\n` +
+    `Search results:\n${context}\n\n` +
+    `Question: ${question}\n` +
+    `Answer:`;
+}
+
+// 2026-08-26追加(ユーザー指示「Google検索APIキーも簡単に手元の端末で
+// 設定したものを、利用出来るようにして」への対応): ブラウザの
+// localStorageにキーを入力しなくても、閲覧者自身の端末で動いている
+// aruaru-llm(このページのapiBaseEl、上記autoDetectAruaruLlmBase参照)
+// 側で既に環境変数(`ARUARU_LLM_GOOGLE_SEARCH_API_KEY`/`_CX`)や
+// `POST /v1/settings/google-search`で検索が設定済みなら、それをそのまま
+// 使う——ブラウザ版でも二重に入力させない。判定は`GET /v1/settings/
+// google-search`(aruaru-llm側の既存ステータスAPI)を閲覧者自身の端末へ
+// 問い合わせるだけで、キーの値自体はこの経路には一切現れない。
+async function isSearchConfiguredOnOwnDevice() {
+  try {
+    const base = apiBaseEl ? apiBaseEl.value.trim() : "";
+    if (!base) return false;
+    const res = await fetchWithTimeout(`${base}/v1/settings/google-search`, { cache: "no-store" }, 2000);
+    if (!res.ok) return false;
+    const data = await res.json();
+    return !!data.configured;
+  } catch (e) {
+    return false;
+  }
+}
+
+async function refreshGoogleSearchStatus() {
+  // 2026-08-27バグ修正: ④vaultモードの場合、キーはvault.html内にのみ
+  // 存在し`loadOwnGoogleSearchCredentials()`は(正しく)nullを返すため、
+  // それをそのまま「未設定」扱いすると誤解を招く(vault内では設定・
+  // 復号済みでも、この本体側の文言が「未設定」のままになるバグだった)。
+  // vaultモードの実際の状態は`#google-search-vault-status`側で個別に
+  // 表示しているため、ここでは「vault側を確認してください」という
+  // 案内に留める。
+  const mode = document.getElementById("google-search-key-mode")?.value || "plain";
+  if (mode === "vault") {
+    if (googleSearchStatusEl) {
+      googleSearchStatusEl.textContent =
+        "ℹ️ vaultモードを使用中です。状態は下のvault欄をご確認ください。 / Using vault mode — check the vault status below.";
+    }
+    const inlineEl = document.getElementById("web-search-own-key-status");
+    if (inlineEl) inlineEl.textContent = "🔒 vault mode / vaultモード使用中";
+    return;
+  }
+  const creds = loadOwnGoogleSearchCredentials();
+  const configuredOnDevice = !creds && (await isSearchConfiguredOnOwnDevice());
+  if (googleSearchStatusEl) {
+    if (creds) {
+      googleSearchStatusEl.textContent = "✅ Your own key is saved in this browser / このブラウザにご自身のキーが保存されています";
+    } else if (configuredOnDevice) {
+      googleSearchStatusEl.textContent =
+        "✅ Already configured on your own aruaru-llm (localhost:4600) — no need to enter it here too / " +
+        "お使いの端末のaruaru-llm(localhost:4600)側で既に設定済みです——ここへ改めて入力する必要はありません";
+    } else {
+      googleSearchStatusEl.textContent = "⚪ Not set yet — search will not run for you / まだ設定されていません(検索は行われません)";
+    }
+  }
+  // トグル横にも簡潔なステータスを表示する(ユーザー指示「Google検索の
+  // APIキーも利用者の方が設定して御利用になる前提だと明記してその設定も
+  // 簡単になるようにして」への対応——モーダルを開かなくても一目で
+  // 「自分のキーが必要/既に設定済み」が分かるようにする)。
+  const inlineEl = document.getElementById("web-search-own-key-status");
+  if (inlineEl) {
+    inlineEl.textContent = creds || configuredOnDevice
+      ? "✅ your key set / ご自身のキー設定済み"
+      : "⚠ set your own key to use search / 検索にはご自身のキー設定が必要";
+  }
+}
+// 起動時にも一度反映しておく(トグルを押す前から状態が見える)。少し
+// 遅らせて呼ぶ(apiBaseEl.valueがautoDetectAruaruLlmBaseで確定して
+// からの方が、閲覧者自身の端末に対して正しく問い合わせできるため)。
+setTimeout(refreshGoogleSearchStatus, 500);
 
 if (googleSearchBtn && googleSearchModal) {
   googleSearchBtn.addEventListener("click", () => {
@@ -3277,40 +4095,691 @@ if (googleSearchBtn && googleSearchModal) {
   googleSearchModal.addEventListener("click", (e) => {
     if (e.target === googleSearchModal) googleSearchModal.classList.add("hidden");
   });
-  googleSearchSaveBtn.addEventListener("click", async () => {
-    const base = apiBaseEl.value.trim();
+  googleSearchSaveBtn.addEventListener("click", () => {
     const api_key = googleSearchApiKeyEl.value.trim();
     const cx = googleSearchCxEl.value.trim();
     try {
-      const res = await fetch(`${base}/v1/settings/google-search`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ api_key, cx }),
-      });
-      const data = await res.json();
-      googleSearchStatusEl.textContent = data.configured
-        ? "✅ Saved and configured / 保存・設定できました"
-        : "⚠ Saved but not configured (empty key/cx?) / 保存しましたが未設定のままです(キー/cxが空?)";
-      // 保存後は入力欄をクリアする(画面上に平文で残さない配慮)。
+      if (api_key && cx) {
+        localStorage.setItem(GOOGLE_SEARCH_LOCAL_KEY, api_key);
+        localStorage.setItem(GOOGLE_SEARCH_LOCAL_CX, cx);
+        googleSearchStatusEl.textContent = "✅ Saved in this browser only / このブラウザにのみ保存しました";
+      } else {
+        googleSearchStatusEl.textContent = "⚠ Both fields are required / 両方の欄を入力してください";
+      }
       googleSearchApiKeyEl.value = "";
       googleSearchCxEl.value = "";
     } catch (err) {
       googleSearchStatusEl.textContent = `⚠ Failed to save / 保存に失敗しました: ${err.message}`;
     }
   });
-  googleSearchClearBtn.addEventListener("click", async () => {
-    const base = apiBaseEl.value.trim();
+  googleSearchClearBtn.addEventListener("click", () => {
     try {
-      const res = await fetch(`${base}/v1/settings/google-search`, { method: "DELETE" });
-      const data = await res.json();
-      googleSearchStatusEl.textContent = data.configured
-        ? "⚠ Still configured (unexpected) / まだ設定されたままです(想定外)"
-        : "🗑 Cleared / 消去しました";
+      localStorage.removeItem(GOOGLE_SEARCH_LOCAL_KEY);
+      localStorage.removeItem(GOOGLE_SEARCH_LOCAL_CX);
+      googleSearchStatusEl.textContent = "🗑 Cleared from this browser / このブラウザから消去しました";
     } catch (err) {
       googleSearchStatusEl.textContent = `⚠ Failed to clear / 消去に失敗しました: ${err.message}`;
     }
   });
+
+  // --- 2026-08-27追加: ①ファイル/②暗号化モードの切り替えと処理 ---
+  const googleSearchKeyModeEl = document.getElementById("google-search-key-mode");
+  const googleSearchPlainSectionEl = document.getElementById("google-search-plain-section");
+  const googleSearchFileSectionEl = document.getElementById("google-search-file-section");
+  const googleSearchEncryptedSectionEl = document.getElementById("google-search-encrypted-section");
+  const googleSearchFileBtn = document.getElementById("google-search-file-btn");
+  const googleSearchPassphraseEl = document.getElementById("google-search-passphrase");
+  const googleSearchApiKeyEncEl = document.getElementById("google-search-api-key-enc");
+  const googleSearchCxEncEl = document.getElementById("google-search-cx-enc");
+  const googleSearchSaveEncryptedBtn = document.getElementById("google-search-save-encrypted");
+  const googleSearchUnlockEncryptedBtn = document.getElementById("google-search-unlock-encrypted");
+  const googleSearchClearEncryptedBtn = document.getElementById("google-search-clear-encrypted");
+
+  const googleSearchVaultSectionEl = document.getElementById("google-search-vault-section");
+  const googleSearchVaultUrlEl = document.getElementById("google-search-vault-url");
+  const googleSearchVaultLoadBtn = document.getElementById("google-search-vault-load-btn");
+  const googleSearchVaultStatusEl = document.getElementById("google-search-vault-status");
+  const googleSearchVaultIframeEl = document.getElementById("google-search-vault-iframe");
+
+  function updateGoogleSearchModeSections() {
+    const mode = googleSearchKeyModeEl?.value || "plain";
+    googleSearchPlainSectionEl?.classList.toggle("hidden", mode !== "plain");
+    googleSearchFileSectionEl?.classList.toggle("hidden", mode !== "file");
+    googleSearchEncryptedSectionEl?.classList.toggle("hidden", mode !== "encrypted");
+    googleSearchVaultSectionEl?.classList.toggle("hidden", mode !== "vault");
+    refreshGoogleSearchStatus();
+  }
+  if (googleSearchKeyModeEl) {
+    googleSearchKeyModeEl.addEventListener("change", updateGoogleSearchModeSections);
+    updateGoogleSearchModeSections();
+  }
+
+  if (googleSearchVaultLoadBtn) {
+    googleSearchVaultLoadBtn.addEventListener("click", () => {
+      const url = (googleSearchVaultUrlEl?.value || "").trim();
+      if (!url) {
+        if (googleSearchVaultStatusEl) googleSearchVaultStatusEl.textContent = "⚠ vault.htmlのURLを入力してください / Please enter the vault.html URL";
+        return;
+      }
+      let vaultUrlObj;
+      try {
+        vaultUrlObj = new URL(url);
+      } catch {
+        if (googleSearchVaultStatusEl) googleSearchVaultStatusEl.textContent = "⚠ 無効なURLです / Invalid URL";
+        return;
+      }
+      window.googleSearchVaultOrigin = vaultUrlObj.origin;
+      vaultUrlObj.searchParams.set("parentOrigin", window.location.origin);
+      if (googleSearchVaultIframeEl) {
+        googleSearchVaultIframeEl.src = vaultUrlObj.toString();
+        googleSearchVaultIframeEl.classList.remove("hidden");
+      }
+      if (googleSearchVaultStatusEl) {
+        const sameOrigin = window.googleSearchVaultOrigin === window.location.origin;
+        googleSearchVaultStatusEl.textContent = sameOrigin
+          ? "⚠ 読み込みました(同一オリジンのため分離効果はありません) / Loaded (same-origin, no isolation benefit)"
+          : "✅ 読み込みました(別オリジン) / Loaded (cross-origin)";
+      }
+    });
+  }
+
+  if (googleSearchFileBtn) {
+    googleSearchFileBtn.addEventListener("click", () => {
+      const input = document.createElement("input");
+      input.type = "file";
+      input.accept = ".json,application/json";
+      input.addEventListener("change", async () => {
+        const file = input.files?.[0];
+        if (!file) return;
+        try {
+          const parsed = JSON.parse(await file.text());
+          if (!parsed.api_key || !parsed.cx) {
+            throw new Error('JSON must contain "api_key" and "cx" / JSONに"api_key"と"cx"が必要です');
+          }
+          googleSearchUnlockedCreds = { api_key: parsed.api_key, cx: parsed.cx };
+          refreshGoogleSearchStatus();
+        } catch (err) {
+          if (googleSearchStatusEl) {
+            googleSearchStatusEl.textContent = `⚠ Failed to read file / ファイルの読み込みに失敗しました: ${err.message || err}`;
+          }
+        }
+      });
+      input.click();
+    });
+  }
+
+  if (googleSearchSaveEncryptedBtn) {
+    googleSearchSaveEncryptedBtn.addEventListener("click", async () => {
+      const api_key = googleSearchApiKeyEncEl?.value.trim();
+      const cx = googleSearchCxEncEl?.value.trim();
+      const passphrase = googleSearchPassphraseEl?.value || "";
+      if (!api_key || !cx || !passphrase) {
+        if (googleSearchStatusEl) {
+          googleSearchStatusEl.textContent =
+            "⚠ API Key・cx・パスフレーズをすべて入力してください / Please enter the API key, cx, and passphrase";
+        }
+        return;
+      }
+      try {
+        const payload = await owEncryptSecret(JSON.stringify({ api_key, cx }), passphrase);
+        localStorage.setItem(GOOGLE_SEARCH_ENCRYPTED_LOCAL_KEY, payload);
+        googleSearchUnlockedCreds = { api_key, cx };
+        if (googleSearchApiKeyEncEl) googleSearchApiKeyEncEl.value = "";
+        if (googleSearchCxEncEl) googleSearchCxEncEl.value = "";
+        if (googleSearchPassphraseEl) googleSearchPassphraseEl.value = "";
+        refreshGoogleSearchStatus();
+      } catch (err) {
+        if (googleSearchStatusEl) googleSearchStatusEl.textContent = `⚠ Encryption failed / 暗号化に失敗しました: ${err}`;
+      }
+    });
+  }
+  if (googleSearchUnlockEncryptedBtn) {
+    googleSearchUnlockEncryptedBtn.addEventListener("click", async () => {
+      const passphrase = googleSearchPassphraseEl?.value || "";
+      let payload;
+      try {
+        payload = localStorage.getItem(GOOGLE_SEARCH_ENCRYPTED_LOCAL_KEY);
+      } catch {
+        payload = null;
+      }
+      if (!payload) {
+        if (googleSearchStatusEl) googleSearchStatusEl.textContent = "⚠ No encrypted key saved yet / 暗号化済みキーがありません";
+        return;
+      }
+      if (!passphrase) {
+        if (googleSearchStatusEl) googleSearchStatusEl.textContent = "⚠ Please enter your passphrase / パスフレーズを入力してください";
+        return;
+      }
+      try {
+        const decoded = JSON.parse(await owDecryptSecret(payload, passphrase));
+        googleSearchUnlockedCreds = decoded;
+        if (googleSearchPassphraseEl) googleSearchPassphraseEl.value = "";
+        refreshGoogleSearchStatus();
+      } catch (err) {
+        googleSearchUnlockedCreds = null;
+        if (googleSearchStatusEl) {
+          googleSearchStatusEl.textContent = "⚠ Decryption failed (wrong passphrase?) / 復号に失敗しました(パスフレーズが違う可能性があります)";
+        }
+      }
+    });
+  }
+  if (googleSearchClearEncryptedBtn) {
+    googleSearchClearEncryptedBtn.addEventListener("click", () => {
+      try {
+        localStorage.removeItem(GOOGLE_SEARCH_ENCRYPTED_LOCAL_KEY);
+      } catch { /* ignore */ }
+      googleSearchUnlockedCreds = null;
+      refreshGoogleSearchStatus();
+    });
+  }
 }
+
+// AIプロバイダの優先順位パネル(2026-08-26新設、ユーザー指示「Google、
+// ChatGPT/DeepSeek/Gemini/Claudeは、無料枠を優先で使い切り順番に使用、に
+// チェックを付けられる様にして。Googleなどは、順番を入力したり、数字の
+// ラジオボタンを押すかのどちらかで優先の順番を変更可能にして」への対応)。
+// APIキーはこのブラウザのlocalStorageにのみ保存し(Google Search設定と
+// 同じ方針)、保存操作のたびにaruaru-llm側の実行時設定
+// (`/v1/settings/chat-providers`・`/v1/settings/provider-priority`、
+// いずれもメモリ上保持のみ)へ送信する。
+(() => {
+  const PROVIDER_PRIORITY_SERVICES = [
+    { id: "googlesearch", label: "Google Search / Google検索" },
+    { id: "openai", label: "ChatGPT (OpenAI)" },
+    { id: "deepseek", label: "DeepSeek" },
+    { id: "gemini", label: "Gemini" },
+    { id: "claude", label: "Claude (Anthropic)" },
+  ];
+  const PROVIDER_KEY_LOCAL_PREFIX = "open-english.providerKey.";
+  const PROVIDER_PRIORITY_ORDER_KEY = "open-english.providerPriorityOrder";
+  const PROVIDER_PRIORITY_ENABLED_KEY = "open-english.providerPriorityEnabled";
+  const PROVIDER_PRIORITY_USE_GOOGLE_KEY = "open-english.providerPriorityUseGoogle";
+  const PROVIDER_PRIORITY_USE_GITHUB_KEY = "open-english.providerPriorityUseGithub";
+  const PROVIDER_PRIORITY_USE_YOUTUBE_KEY = "open-english.providerPriorityUseYoutube";
+  const GITHUB_TOKEN_LOCAL_KEY = "open-english.githubToken";
+  const YOUTUBE_API_KEY_LOCAL_KEY = "open-english.youtubeApiKey";
+
+  let priorityOrder = PROVIDER_PRIORITY_SERVICES.map((s) => s.id);
+  try {
+    const saved = JSON.parse(localStorage.getItem(PROVIDER_PRIORITY_ORDER_KEY) || "null");
+    if (Array.isArray(saved) && saved.length === priorityOrder.length && saved.every((id) => priorityOrder.includes(id))) {
+      priorityOrder = saved;
+    }
+  } catch (e) {
+    /* fall back to default order */
+  }
+
+  const btn = document.getElementById("provider-priority-settings-btn");
+  const modal = document.getElementById("provider-priority-modal");
+  const closeBtn = document.getElementById("provider-priority-close");
+  const enabledEl = document.getElementById("provider-priority-enabled");
+  const listEl = document.getElementById("provider-priority-list");
+  const saveBtn = document.getElementById("provider-priority-save");
+  const clearBtn = document.getElementById("provider-priority-clear");
+  const statusEl = document.getElementById("provider-priority-status");
+  const useGoogleEl = document.getElementById("provider-priority-use-google");
+  const useGithubEl = document.getElementById("provider-priority-use-github");
+  const githubTokenEl = document.getElementById("provider-priority-github-token");
+  const useYoutubeEl = document.getElementById("provider-priority-use-youtube");
+  const youtubeKeyEl = document.getElementById("provider-priority-youtube-key");
+  if (!btn || !modal || !listEl) return;
+
+  try {
+    enabledEl.checked = localStorage.getItem(PROVIDER_PRIORITY_ENABLED_KEY) === "1";
+    if (useGoogleEl) useGoogleEl.checked = localStorage.getItem(PROVIDER_PRIORITY_USE_GOOGLE_KEY) === "1";
+    if (useGithubEl) useGithubEl.checked = localStorage.getItem(PROVIDER_PRIORITY_USE_GITHUB_KEY) === "1";
+    if (useYoutubeEl) useYoutubeEl.checked = localStorage.getItem(PROVIDER_PRIORITY_USE_YOUTUBE_KEY) === "1";
+  } catch (e) {
+    /* ignore */
+  }
+
+  // 番号入力欄・ラジオボタンいずれで指定しても同じ`setPosition`を通す
+  // (既存の言語表示順3系統連動指定〈`setLanguageOrderPosition`〉と同じ
+  // 「重複は入れ替えで解決する」設計)。
+  function setPosition(serviceId, pos) {
+    pos = Math.max(1, Math.min(priorityOrder.length, Math.round(pos)));
+    const currentIndex = priorityOrder.indexOf(serviceId);
+    const targetIndex = pos - 1;
+    if (currentIndex === -1 || currentIndex === targetIndex) return;
+    const other = priorityOrder[targetIndex];
+    priorityOrder[targetIndex] = serviceId;
+    priorityOrder[currentIndex] = other;
+    try {
+      localStorage.setItem(PROVIDER_PRIORITY_ORDER_KEY, JSON.stringify(priorityOrder));
+    } catch (e) {
+      /* ignore storage failures */
+    }
+    renderList();
+  }
+
+  function renderList() {
+    listEl.textContent = "";
+    priorityOrder.forEach((serviceId, idx) => {
+      const svc = PROVIDER_PRIORITY_SERVICES.find((s) => s.id === serviceId);
+      if (!svc) return;
+      const row = document.createElement("div");
+      row.className = "settings-field";
+
+      const label = document.createElement("span");
+      label.textContent = `${svc.label}: `;
+      row.appendChild(label);
+
+      const numberInput = document.createElement("input");
+      numberInput.type = "number";
+      numberInput.min = "1";
+      numberInput.max = String(priorityOrder.length);
+      numberInput.value = String(idx + 1);
+      numberInput.style.width = "3.5em";
+      numberInput.addEventListener("change", () => setPosition(serviceId, Number(numberInput.value)));
+      row.appendChild(numberInput);
+
+      for (let pos = 1; pos <= priorityOrder.length; pos++) {
+        const radioLabel = document.createElement("label");
+        radioLabel.style.marginLeft = "0.4em";
+        const radio = document.createElement("input");
+        radio.type = "radio";
+        radio.name = `provider-priority-radio-${serviceId}`;
+        radio.checked = idx + 1 === pos;
+        radio.addEventListener("change", () => setPosition(serviceId, pos));
+        radioLabel.appendChild(radio);
+        radioLabel.appendChild(document.createTextNode(String(pos)));
+        row.appendChild(radioLabel);
+      }
+
+      listEl.appendChild(row);
+    });
+  }
+  renderList();
+
+  // パネルを開くたびaruaru-llm側の実際の現状(有効/無効・順序・設定済み
+  // プロバイダ)を取得して表示する(2026-08-26追記、実機TEST中に発見した
+  // 使いやすさの粗——従来は保存操作をするまでサーバー側の実状態が
+  // 画面に一切反映されず、環境変数等で既に設定済みの場合でも「未設定」
+  // に見えていた)。取得に失敗しても画面はローカルの既定値のまま動作を
+  // 継続する(既存のGoogle Search設定パネルと同じ可用性優先の設計)。
+  async function refreshProviderPriorityStatus() {
+    const base = apiBaseEl ? apiBaseEl.value.trim() : "";
+    if (!base) return;
+    try {
+      const [priorityRes, keysRes] = await Promise.all([
+        fetchWithTimeout(`${base}/v1/settings/provider-priority`, { cache: "no-store" }, 4000),
+        fetchWithTimeout(`${base}/v1/settings/chat-providers`, { cache: "no-store" }, 4000),
+      ]);
+      if (priorityRes.ok) {
+        const data = await priorityRes.json();
+        if (Array.isArray(data.order) && data.order.length === priorityOrder.length) {
+          priorityOrder = data.order;
+          renderList();
+        }
+        enabledEl.checked = !!data.enabled;
+      }
+      if (keysRes.ok) {
+        const data = await keysRes.json();
+        const configured = Array.isArray(data.configured_providers) ? data.configured_providers : [];
+        statusEl.textContent = configured.length
+          ? `✅ Already configured on aruaru-llm / 設定済み: ${configured.join(", ")}`
+          : "⚪ No chat provider API keys configured yet on aruaru-llm / まだAPIキーは設定されていません";
+      }
+    } catch (e) {
+      /* best-effort only, keep local defaults on failure */
+    }
+  }
+
+  if (btn && modal) {
+    btn.addEventListener("click", () => {
+      modal.classList.remove("hidden");
+      refreshProviderPriorityStatus();
+    });
+    closeBtn.addEventListener("click", () => modal.classList.add("hidden"));
+    modal.addEventListener("click", (e) => {
+      if (e.target === modal) modal.classList.add("hidden");
+    });
+  }
+
+  async function saveToAruaruLlm() {
+    const base = apiBaseEl ? apiBaseEl.value.trim() : "";
+    if (!base) {
+      statusEl.textContent = "⚠ aruaru-llm base URL is not set / aruaru-llmの接続先が未設定です";
+      return;
+    }
+    const enabled = !!enabledEl.checked;
+    try {
+      localStorage.setItem(PROVIDER_PRIORITY_ENABLED_KEY, enabled ? "1" : "0");
+      localStorage.setItem(PROVIDER_PRIORITY_USE_GOOGLE_KEY, useGoogleEl && useGoogleEl.checked ? "1" : "0");
+      localStorage.setItem(PROVIDER_PRIORITY_USE_GITHUB_KEY, useGithubEl && useGithubEl.checked ? "1" : "0");
+      localStorage.setItem(PROVIDER_PRIORITY_USE_YOUTUBE_KEY, useYoutubeEl && useYoutubeEl.checked ? "1" : "0");
+      if (githubTokenEl && githubTokenEl.value.trim()) localStorage.setItem(GITHUB_TOKEN_LOCAL_KEY, githubTokenEl.value.trim());
+      if (youtubeKeyEl && youtubeKeyEl.value.trim()) localStorage.setItem(YOUTUBE_API_KEY_LOCAL_KEY, youtubeKeyEl.value.trim());
+    } catch (e) {
+      /* ignore */
+    }
+
+    const results = [];
+    try {
+      const res = await fetchWithTimeout(
+        `${base}/v1/settings/provider-priority`,
+        { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ enabled, order: priorityOrder }) },
+        8000
+      );
+      results.push(res.ok ? "priority: ok" : `priority: HTTP ${res.status}`);
+    } catch (err) {
+      results.push(`priority: failed (${err.message})`);
+    }
+
+    const keyFields = [
+      ["openai", "provider-key-openai"],
+      ["deepseek", "provider-key-deepseek"],
+      ["gemini", "provider-key-gemini"],
+      ["claude", "provider-key-claude"],
+    ];
+    const savedValues = {};
+    for (const [provider, elId] of keyFields) {
+      const el = document.getElementById(elId);
+      const value = el ? el.value.trim() : "";
+      if (!value) continue;
+      savedValues[provider] = value;
+      try {
+        localStorage.setItem(PROVIDER_KEY_LOCAL_PREFIX + provider, value);
+      } catch (e) {
+        /* ignore */
+      }
+      try {
+        const res = await fetchWithTimeout(
+          `${base}/v1/settings/chat-providers`,
+          { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ provider, api_key: value }) },
+          8000
+        );
+        results.push(res.ok ? `${provider}: ok` : `${provider}: HTTP ${res.status}`);
+      } catch (err) {
+        results.push(`${provider}: failed (${err.message})`);
+      }
+      el.value = "";
+    }
+
+    await maybeOfferProviderKeyDbSave(savedValues);
+
+    statusEl.textContent = `Saved / 保存しました\n${results.join("\n")}`;
+  }
+
+  // ダウンロードPC版(このページ自体をopen-english-server〈localhost〉が
+  // 配信している場合)とブラウザ版(file://直接、または開発者用の別サーバー
+  // からの配信)を区別する(ユーザー指示「ダウンロードPC版は端末のPCです
+  // よね？そのDATABASEに保存して次回そこから読んで良いか質問する機能を
+  // 搭載して」への対応)。判定は「同一オリジンの`/v1/db/settings`
+  // (open-english-serverのSQLite設定API)が実際に到達可能かどうか」で
+  // 行う——これはブラウザ版(共有VPS等)でも技術的には到達可能なため
+  // 完全に確実な判定ではないが、少なくとも「サーバーへ到達できない
+  // ケース(file://直接オープン等)」では絶対にDB保存を提案しない
+  // (fetchが失敗しそもそも提案自体が出ない)。
+  //
+  // **正直な開示・セキュリティ上の判断**: APIキーは機微情報のため、
+  // 既存の`persistSetting()`(他の一般設定用、確認無しでDBへも自動保存)
+  // とは異なり、**必ずユーザーの明示的な同意(confirm)を得てから**
+  // ローカルSQLiteへ平文で保存する。同意は`open-english.
+  // providerKeyDbSaveChoice`にキャッシュし、次回以降は毎回聞き直さない
+  // (ただし「保存しない」を選んだ場合も次回また聞く——保存する場合だけ
+  // 記憶する、既存のGoogle検索キー〈ブラウザのみに保存、サーバーへは
+  // 一切送らない〉という設計方針との整合を保ちつつ、PC版限定でDB保存の
+  // 選択肢を追加する形)。
+  async function isDbReachable() {
+    try {
+      const res = await fetchWithTimeout("/v1/db/settings", { cache: "no-store" }, 3000);
+      return res.ok;
+    } catch (e) {
+      return false;
+    }
+  }
+
+  async function maybeOfferProviderKeyDbSave(savedValues) {
+    const providers = Object.keys(savedValues);
+    if (!providers.length) return;
+    if (!(await isDbReachable())) return; // ブラウザ版(サーバー未検出)では何もしない
+
+    let saveChoice = null;
+    try {
+      saveChoice = localStorage.getItem("open-english.providerKeyDbSaveChoice");
+    } catch (e) {
+      /* ignore */
+    }
+    if (saveChoice !== "1") {
+      const confirmed = window.confirm(
+        "Save these AI provider API keys to the local database on this PC, so you don't have to " +
+          "re-enter them next time you start the app? They will be stored in plain text in the local " +
+          "SQLite file on this device only (never uploaded elsewhere).\n\n" +
+          "これらのAIプロバイダのAPIキーを、このPCのローカルデータベースに保存し、次回アプリ起動時に " +
+          "再入力を省略できるようにしますか？この端末上のローカルSQLiteファイルに平文で保存されます " +
+          "(他のどこにもアップロードされません)。"
+      );
+      try {
+        localStorage.setItem("open-english.providerKeyDbSaveChoice", confirmed ? "1" : "0");
+      } catch (e) {
+        /* ignore */
+      }
+      if (!confirmed) return;
+    } else if (saveChoice === "0") {
+      return;
+    }
+
+    for (const provider of providers) {
+      persistSetting(`open-english.dbProviderKey.${provider}`, savedValues[provider]);
+    }
+  }
+
+  // 起動時、ダウンロードPC版でDBに前回保存されたキーが見つかれば、
+  // 読み込んで良いか確認する(ユーザー指示「次回そこから読んで良いか
+  // 質問する機能を搭載して」への対応)。一度「はい」と答えたら以降は
+  // 確認なしで自動適用する(`providerKeyDbAutoApply`)——「いいえ」の
+  // 場合は次回また尋ねる(保存側と同じ、慎重側に倒す設計)。
+  async function maybeRestoreProviderKeysFromDb() {
+    if (!(await isDbReachable())) return;
+    let settings;
+    try {
+      const res = await fetchWithTimeout("/v1/db/settings", { cache: "no-store" }, 3000);
+      if (!res.ok) return;
+      settings = await res.json();
+    } catch (e) {
+      return;
+    }
+    if (!settings || typeof settings !== "object") return;
+    const providers = ["openai", "deepseek", "gemini", "claude"];
+    const found = providers.filter((p) => typeof settings[`open-english.dbProviderKey.${p}`] === "string" && settings[`open-english.dbProviderKey.${p}`]);
+    if (!found.length) return;
+
+    let autoApply = false;
+    try {
+      autoApply = localStorage.getItem("open-english.providerKeyDbAutoApply") === "1";
+    } catch (e) {
+      /* ignore */
+    }
+    if (!autoApply) {
+      const confirmed = window.confirm(
+        `Found ${found.length} AI provider API key(s) saved in this PC's local database from a previous ` +
+          "session. Load and apply them to aruaru-llm now?\n\n" +
+          `前回保存されたAIプロバイダのAPIキーがこのPCのローカルデータベースに${found.length}件見つかりました。` +
+          "今すぐ読み込んでaruaru-llmへ適用しますか？"
+      );
+      if (!confirmed) return;
+      try {
+        localStorage.setItem("open-english.providerKeyDbAutoApply", "1");
+      } catch (e) {
+        /* ignore */
+      }
+    }
+
+    const base = apiBaseEl ? apiBaseEl.value.trim() : "";
+    if (!base) return;
+    for (const provider of found) {
+      const value = settings[`open-english.dbProviderKey.${provider}`];
+      try {
+        await fetchWithTimeout(
+          `${base}/v1/settings/chat-providers`,
+          { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ provider, api_key: value }) },
+          8000
+        );
+      } catch (e) {
+        /* best-effort */
+      }
+    }
+    if (statusEl) statusEl.textContent = `✅ Restored ${found.length} key(s) from local database / データベースから${found.length}件のキーを復元しました`;
+  }
+  // 起動直後は`apiBaseEl.value`が未確定な場合があるため少し遅らせる
+  // (`refreshGoogleSearchStatus`の既存パターンと同じ)。
+  setTimeout(() => {
+    maybeRestoreProviderKeysFromDb();
+  }, 1500);
+
+  // APIキー取得先への直リンク(ユーザー指示「それぞれ、API Keyは何処を
+  // 参照したら良いかそのURLリンクを表示してクリック出来るようにして」
+  // への対応)。**正直な開示**: これらの発行ページ自体はいずれも国・
+  // 地域別のURLを持たない単一のグローバルURL(各社のダッシュボード自体が
+  // ブラウザ言語設定に応じて表示言語を自動的に切り替える仕組みを持つ
+  // ため)。「IPアドレスから国や言語別に参照するURLを自動変更」という
+  // 要望のうち、唯一Google AI Studio(Gemini)だけが`?hl=<言語コード>`
+  // という表示言語指定クエリパラメータを公式にサポートしている
+  // ことを確認できたため、そこだけ`navigator.language`(IPベースの
+  // 国別ジオロケーションではなく、ブラウザ自身が申告する言語設定——
+  // IPジオロケーションは外部サービスへの問い合わせを伴いプライバシー上の
+  // 懸念があるため意図的に不採用)を使って`hl`を付与する。他3社は
+  // そのような言語指定パラメータを公式提供していないため、プレーンな
+  // リンクのみとする(存在しない機能を実装したと偽らない)。
+  const PROVIDER_KEY_LINKS = {
+    openai: "https://platform.openai.com/api-keys",
+    deepseek: "https://platform.deepseek.com/api_keys",
+    gemini: "https://aistudio.google.com/apikey",
+    claude: "https://console.anthropic.com/settings/keys",
+  };
+  Object.entries(PROVIDER_KEY_LINKS).forEach(([provider, baseUrl]) => {
+    const input = document.getElementById(`provider-key-${provider}`);
+    if (!input || !input.parentElement) return;
+    let url = baseUrl;
+    if (provider === "gemini") {
+      try {
+        const lang = (navigator.language || "en").split("-")[0];
+        url = `${baseUrl}?hl=${encodeURIComponent(lang)}`;
+      } catch (e) {
+        /* keep plain baseUrl */
+      }
+    }
+    const link = document.createElement("a");
+    link.href = url;
+    link.target = "_blank";
+    link.rel = "noopener noreferrer";
+    link.className = "setup-note";
+    link.style.display = "block";
+    link.textContent = "🔗 Where do I get this key? / このキーはどこで取得できますか?";
+    input.insertAdjacentElement("afterend", link);
+  });
+
+  if (saveBtn) {
+    saveBtn.addEventListener("click", () => {
+      saveToAruaruLlm();
+    });
+  }
+
+  if (clearBtn) {
+    clearBtn.addEventListener("click", async () => {
+      const base = apiBaseEl ? apiBaseEl.value.trim() : "";
+      try {
+        ["openai", "deepseek", "gemini", "claude"].forEach((p) => {
+          localStorage.removeItem(PROVIDER_KEY_LOCAL_PREFIX + p);
+          localStorage.removeItem(`open-english.dbProviderKey.${p}`);
+        });
+        localStorage.removeItem(PROVIDER_PRIORITY_ENABLED_KEY);
+        localStorage.removeItem(PROVIDER_PRIORITY_ORDER_KEY);
+        localStorage.removeItem(PROVIDER_PRIORITY_USE_GOOGLE_KEY);
+        localStorage.removeItem(PROVIDER_PRIORITY_USE_GITHUB_KEY);
+        localStorage.removeItem(PROVIDER_PRIORITY_USE_YOUTUBE_KEY);
+        localStorage.removeItem(GITHUB_TOKEN_LOCAL_KEY);
+        localStorage.removeItem(YOUTUBE_API_KEY_LOCAL_KEY);
+        localStorage.removeItem("open-english.providerKeyDbSaveChoice");
+        localStorage.removeItem("open-english.providerKeyDbAutoApply");
+      } catch (e) {
+        /* ignore */
+      }
+      priorityOrder = PROVIDER_PRIORITY_SERVICES.map((s) => s.id);
+      enabledEl.checked = false;
+      if (useGoogleEl) useGoogleEl.checked = false;
+      if (useGithubEl) useGithubEl.checked = false;
+      if (useYoutubeEl) useYoutubeEl.checked = false;
+      if (githubTokenEl) githubTokenEl.value = "";
+      if (youtubeKeyEl) youtubeKeyEl.value = "";
+      renderList();
+      if (base) {
+        try {
+          await fetchWithTimeout(`${base}/v1/settings/chat-providers`, { method: "DELETE" }, 8000);
+          await fetchWithTimeout(`${base}/v1/settings/provider-priority`, { method: "DELETE" }, 8000);
+          await fetchWithTimeout(`${base}/v1/settings/github-search`, { method: "DELETE" }, 8000);
+          await fetchWithTimeout(`${base}/v1/settings/youtube-search`, { method: "DELETE" }, 8000);
+        } catch (e) {
+          /* ignore, best-effort */
+        }
+      }
+      if (await isDbReachable()) {
+        ["openai", "deepseek", "gemini", "claude"].forEach((p) => persistSetting(`open-english.dbProviderKey.${p}`, ""));
+      }
+      statusEl.textContent = "🗑 Cleared from this browser and aruaru-llm / このブラウザとaruaru-llmから消去しました";
+    });
+  }
+
+  // askTrainer()(チャット送信フロー)から呼ばれる、優先順位設定に基づく
+  // 外部LLM呼び出し(ユーザー指摘「実際にチャットへ連携していないのでは」
+  // への対応——従来この機能は設定パネルからのみ呼び出し可能で、実際の
+  // 会話フローには一切配線されていなかった)。
+  window.tryPriorityProviderReply = async function tryPriorityProviderReply(prompt) {
+    let enabled = false;
+    try {
+      enabled = localStorage.getItem(PROVIDER_PRIORITY_ENABLED_KEY) === "1";
+    } catch (e) {
+      /* ignore */
+    }
+    if (!enabled) return null;
+    const base = apiBaseEl ? apiBaseEl.value.trim() : "";
+    if (!base) return null;
+
+    const body = { prompt };
+    try {
+      if (localStorage.getItem(PROVIDER_PRIORITY_USE_GOOGLE_KEY) === "1") {
+        body.use_google_search = true;
+        const creds = typeof loadOwnGoogleSearchCredentials === "function" ? loadOwnGoogleSearchCredentials() : null;
+        if (creds) {
+          body.google_search_api_key = creds.api_key;
+          body.google_search_cx = creds.cx;
+        }
+      }
+      if (localStorage.getItem(PROVIDER_PRIORITY_USE_GITHUB_KEY) === "1") {
+        body.use_github_search = true;
+        const token = localStorage.getItem(GITHUB_TOKEN_LOCAL_KEY);
+        if (token) body.github_token = token;
+      }
+      if (localStorage.getItem(PROVIDER_PRIORITY_USE_YOUTUBE_KEY) === "1") {
+        body.use_youtube_search = true;
+        const key = localStorage.getItem(YOUTUBE_API_KEY_LOCAL_KEY);
+        if (key) body.youtube_api_key = key;
+      }
+    } catch (e) {
+      /* ignore */
+    }
+
+    try {
+      const res = await fetchWithTimeout(
+        `${base}/v1/chat-providers/complete-priority`,
+        { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(body) },
+        45000
+      );
+      if (!res.ok) return null;
+      const data = await res.json();
+      if (data.reply && typeof data.reply.text === "string") {
+        return { text: data.reply.text, provider: data.reply.provider, searchNotes: data.search_notes || [] };
+      }
+      if (data.all_quota_exceeded) {
+        return { quotaExceeded: true, searchNotes: data.search_notes || [] };
+      }
+      return null;
+    } catch (e) {
+      return null;
+    }
+  };
+})();
 
 document.querySelectorAll(".copy-btn").forEach((btn) => {
   btn.addEventListener("click", async () => {
@@ -3619,6 +5088,18 @@ async function renderExamPrepQuiz() {
     const extra = await loadExtraExamPrepQuestions();
     pool = (EXAM_PREP_QUESTIONS[exam] || []).concat(extra[exam] || []);
   }
+  if (pool.length === 0) {
+    // プールが空の場合、押しても何も始まらないように見えるBUGを修正
+    // (「開始」ボタンを押しても画面が空のままだった)——正直な案内を
+    // 表示し、「開始」ボタンも隠す(既存のvschool側と同じパターン)。
+    currentExamPrepQuiz = [];
+    examPrepQuizEl.innerHTML = "";
+    examPrepResultEl.textContent =
+      "現在この試験区分の問題は準備中です。 / Questions for this exam are not ready yet.";
+    examPrepSubmitBtn.classList.add("hidden");
+    examPrepPracticeBtn.classList.add("hidden");
+    return;
+  }
   // プール全体からランダムに抽出した上で出題順もシャッフルし、各問の
   // 選択肢の並び(正解の位置)も毎回シャッフルする——正解が常に同じ
   // 位置に来る/常に同じ問題の組み合わせで出題される、という予測可能性を
@@ -3904,6 +5385,16 @@ async function fetchWorldLanguages() {
     const res = await fetch("/v1/world-languages", { cache: "no-store" });
     if (!res.ok) throw new Error(`HTTP ${res.status}`);
     const data = await res.json();
+    // 2026-08-25新設: メモリ/ディスク容量が限られたデプロイ(VPS等)向けの
+    // 制限モード。サーバー側が`limited:true`を返した場合、追加言語選択
+    // ボタンを隠して代わりに正直な案内(日英併記)を表示する。
+    const noticeEl = document.getElementById("world-language-limited-notice");
+    const chooseBtn = document.getElementById("world-language-banner-btn");
+    if (data.limited && noticeEl) {
+      noticeEl.textContent = `${data.notice_ja || ""} / ${data.notice_en || ""}`;
+      noticeEl.classList.remove("hidden");
+      if (chooseBtn) chooseBtn.classList.add("hidden");
+    }
     return Array.isArray(data.languages) ? data.languages : [];
   } catch (e) {
     // APIが無い配信形態(`file://`直開き等)では静的JSONへフォールバックする。
@@ -5320,12 +6811,307 @@ if (worldLabGotoAiCodingBtn) {
   });
 }
 
+// open-cg-cad(AI工務店&AI建設)への導線(2026-08-25追加、open-cg-cad側の
+// HANDOFF「open-english側からopen-cg-cadへのリンク・インストール導線が
+// 未着手」への対応)。open-cg-cadは別アプリ(別サーバー/別ポート)のため
+// 上記2つと違いモーダル切替ではなく実際に別タブで開く。**正直な開示**:
+// 専用の連携APIは無く、単純な外部リンク+localStorage経由のURLヒント
+// 受け渡しのみ(open-cg-cad/server/src/index.htmlが読む
+// "open-cg-cad.openEnglishBase"キーに、自分自身のURLを書き込んでおく
+// ことで、easy-web.tokyo等の同一オリジン配下にpath prefixで両アプリが
+// 同居している本番環境では、open-cg-cad側の「← open-englishへ戻る」
+// リンクが正しい戻り先を指せるようにする——ローカル開発時(別ポート=
+// 別オリジン)はlocalStorageが共有されないため効果が無いが実害も無い)。
+const worldLabGotoCgCadBtn = document.getElementById("world-lab-goto-cg-cad-btn");
+if (worldLabGotoCgCadBtn) {
+  worldLabGotoCgCadBtn.addEventListener("click", () => {
+    const isLocalHost = /^(127\.0\.0\.1|localhost|\[::1\])$/.test(location.hostname);
+    // 本番デプロイ(easy-web.tokyo等)では、open-cg-cadも同一オリジン配下に
+    // path prefixで同居しているため、そちらを既定にする(2026-08-27、
+    // 実際にeasy-web.tokyo/open-cg-cad/がVPS上で200を返すことを確認済み)。
+    // ローカル開発時(別ポート=別オリジン)は従来通りlocalhost既定のまま。
+    const defaultCgCadBase = isLocalHost
+      ? "http://127.0.0.1:4701/"
+      : location.origin + "/open-cg-cad/";
+    let cgCadBase = defaultCgCadBase;
+    try {
+      cgCadBase = localStorage.getItem("open-english.cgCadBase") || defaultCgCadBase;
+      const ownBase = location.origin + location.pathname.replace(/[^/]*$/, "");
+      localStorage.setItem("open-cg-cad.openEnglishBase", ownBase);
+    } catch (e) { /* localStorage不可でも既定URLでのリンクは機能する */ }
+    window.open(cgCadBase, "_blank", "noopener");
+  });
+}
+
 if (worldLabRefreshBtn) {
   worldLabRefreshBtn.addEventListener("click", () => {
     refreshWorldLabStatus();
     refreshWorldLabDevices();
   });
 }
+
+// 2026-08-27新設: open-cg-cadの図面操作(UPLOAD/合成/再設計)パネル
+// (ユーザー指示「open-englishのチャットで、open-cg-cadで図面のUPLOADや
+// 複数図面の合成や手直しの指示なども出来るようにしたい」への対応)。
+// **正直な開示**: open-cg-cad側のAPIをこのページから直接fetchするのみ
+// (open-english自体のチャットAIは介在しない)。本番デプロイ
+// (easy-web.tokyo)ではopen-english/open-cg-cadが同一オリジン配下に
+// path prefixで同居しているため、fetchはCORS制約に引っかからない
+// (open-cg-cad側index.htmlの「共有ログイン状態」表示と同じ前提)。
+// ローカル開発時(別ポート=別オリジン)はopen-cg-cad-server側がCORSを
+// 有効化していないため失敗しうる——その場合もエラーメッセージを正直に
+// 表示するのみで、他機能には影響しない。
+(function () {
+  const modal = document.getElementById("cg-cad-drawing-ops-modal");
+  const openBtn = document.getElementById("cg-cad-drawing-ops-btn");
+  const closeBtn = document.getElementById("cg-cad-drawing-ops-close");
+  if (!modal || !openBtn) return;
+
+  function cgCadOpsBase() {
+    const isLocalHost = /^(127\.0\.0\.1|localhost|\[::1\])$/.test(location.hostname);
+    const defaultBase = isLocalHost ? "http://127.0.0.1:4701/" : location.origin + "/open-cg-cad/";
+    try {
+      return localStorage.getItem("open-english.cgCadBase") || defaultBase;
+    } catch (e) {
+      return defaultBase;
+    }
+  }
+
+  function showOpsResult(text) {
+    const el = document.getElementById("cg-cad-ops-result");
+    if (el) el.textContent = text;
+  }
+
+  function cgCadAruaruLlmBaseOverride() {
+    const el = document.getElementById("cg-cad-aruaru-llm-base");
+    const v = (el?.value || "").trim();
+    return v.length > 0 ? v : undefined;
+  }
+
+  openBtn.addEventListener("click", () => {
+    modal.classList.remove("hidden");
+  });
+  if (closeBtn) {
+    closeBtn.addEventListener("click", () => modal.classList.add("hidden"));
+  }
+  modal.addEventListener("click", (e) => {
+    if (e.target === modal) modal.classList.add("hidden");
+  });
+
+  const uploadFileInput = document.getElementById("cg-cad-upload-file");
+  const uploadBtn = document.getElementById("cg-cad-upload-btn");
+  if (uploadBtn) {
+    uploadBtn.addEventListener("click", async () => {
+      const filenameEl = document.getElementById("cg-cad-upload-filename");
+      const categoryEl = document.getElementById("cg-cad-upload-category");
+      const descriptionEl = document.getElementById("cg-cad-upload-description");
+      const statusEl = document.getElementById("cg-cad-upload-status");
+      const filename = (filenameEl?.value || "").trim();
+      if (!filename) {
+        if (statusEl) statusEl.textContent = "Filename is required. / ファイル名が必要です。";
+        return;
+      }
+      let dataBase64 = "e30="; // "{}" — ファイル未選択時の既定値(空のプレースホルダ)
+      const file = uploadFileInput?.files?.[0];
+      if (file) {
+        const buf = await file.arrayBuffer();
+        let binary = "";
+        const bytes = new Uint8Array(buf);
+        for (let i = 0; i < bytes.length; i++) binary += String.fromCharCode(bytes[i]);
+        dataBase64 = btoa(binary);
+      }
+      if (statusEl) statusEl.textContent = "Uploading… / アップロード中…";
+      try {
+        const resp = await fetch(cgCadOpsBase() + "v1/drawings/upload", {
+          method: "POST",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify({
+            filename,
+            category: categoryEl?.value || "other",
+            description: descriptionEl?.value || "",
+            data_base64: dataBase64,
+          }),
+        });
+        const data = await resp.json();
+        if (data.ok) {
+          if (statusEl) statusEl.textContent = `✅ Uploaded as drawing #${data.id} / 図面#${data.id}として保存しました`;
+        } else {
+          if (statusEl) statusEl.textContent = `❌ ${data.error || "upload failed"}`;
+        }
+      } catch (e) {
+        if (statusEl) statusEl.textContent = `❌ Could not reach open-cg-cad / open-cg-cadへ到達できませんでした: ${e}`;
+      }
+    });
+  }
+
+  const mergeBtn = document.getElementById("cg-cad-merge-btn");
+  if (mergeBtn) {
+    mergeBtn.addEventListener("click", async () => {
+      const idsEl = document.getElementById("cg-cad-merge-ids");
+      const instructionEl = document.getElementById("cg-cad-merge-instruction");
+      const ids = (idsEl?.value || "")
+        .split(",")
+        .map((s) => parseInt(s.trim(), 10))
+        .filter((n) => Number.isFinite(n));
+      if (ids.length < 2) {
+        showOpsResult("Please enter at least 2 drawing IDs, comma-separated. / 図面IDを2件以上、カンマ区切りで入力してください。");
+        return;
+      }
+      showOpsResult("Merging… (this calls aruaru-llm via open-cg-cad, may take a while) / 合成中…(open-cg-cad経由でaruaru-llmを呼びます、時間がかかる場合があります)");
+      try {
+        const resp = await fetch(cgCadOpsBase() + "v1/drawings/merge", {
+          method: "POST",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify({ drawing_ids: ids, instruction_text: instructionEl?.value || undefined, aruaru_llm_base: cgCadAruaruLlmBaseOverride() }),
+        });
+        const data = await resp.json();
+        showOpsResult(data.ok ? `✅ Saved as drawing #${data.id}:\n\n${data.proposal}` : `❌ ${data.error || "merge failed"}`);
+      } catch (e) {
+        showOpsResult(`❌ Could not reach open-cg-cad / open-cg-cadへ到達できませんでした: ${e}`);
+      }
+    });
+  }
+
+  const redesignBtn = document.getElementById("cg-cad-redesign-btn");
+  if (redesignBtn) {
+    redesignBtn.addEventListener("click", async () => {
+      const oldIdEl = document.getElementById("cg-cad-redesign-old-id");
+      const instructionEl = document.getElementById("cg-cad-redesign-instruction");
+      const oldId = parseInt(oldIdEl?.value || "", 10);
+      if (!Number.isFinite(oldId)) {
+        showOpsResult("Please enter the old drawing's ID. / 旧図面のIDを入力してください。");
+        return;
+      }
+      showOpsResult("Redesigning… (this calls aruaru-llm via open-cg-cad, may take a while) / 再設計中…(open-cg-cad経由でaruaru-llmを呼びます、時間がかかる場合があります)");
+      try {
+        const resp = await fetch(cgCadOpsBase() + "v1/drawings/redesign", {
+          method: "POST",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify({ old_drawing_id: oldId, instruction_text: instructionEl?.value || undefined, aruaru_llm_base: cgCadAruaruLlmBaseOverride() }),
+        });
+        const data = await resp.json();
+        showOpsResult(data.ok ? `✅ Saved as drawing #${data.id}:\n\n${data.proposal}` : `❌ ${data.error || "redesign failed"}`);
+      } catch (e) {
+        showOpsResult(`❌ Could not reach open-cg-cad / open-cg-cadへ到達できませんでした: ${e}`);
+      }
+    });
+  }
+
+  // 2026-08-27新設: GitHubトークンの復号・利用をvault.html(クロス
+  // オリジンiframeサンドボックス)内に隔離しつつ、open-cg-cadサーバー
+  // 自身のGitHub書き込みAPI(POST /v1/agent/github/commit、
+  // `github_agent::commit_file`)を呼び出す(ユーザー指示「open-cg-cadの
+  // GitHub書き込みを…vault.html経由で呼び出すUIを配線して」への対応)。
+  // 既存のフリーランス開発コーナーの`freelanceRequestVaultGithubPush`
+  // と同型のpostMessageプロトコル(`freelanceVaultLoadBtn`のロード
+  // ロジックも参照)だが、こちらは新規リポジトリ作成ではなく既存
+  // リポジトリの既存パスへのcommitを行う専用メッセージ型
+  // (`vault:cgCadGithubCommit`)を使う。
+  const cgCadGithubVaultIframeEl = document.getElementById("cg-cad-github-vault-iframe");
+  let cgCadGithubVaultOrigin = null;
+
+  const cgCadGithubVaultLoadBtn = document.getElementById("cg-cad-github-vault-load-btn");
+  if (cgCadGithubVaultLoadBtn) {
+    cgCadGithubVaultLoadBtn.addEventListener("click", () => {
+      const urlEl = document.getElementById("cg-cad-github-vault-url");
+      const statusEl = document.getElementById("cg-cad-github-vault-status");
+      const url = (urlEl?.value || "").trim();
+      if (!url) {
+        if (statusEl) statusEl.textContent = "⚠ vault.htmlのURLを入力してください / Please enter the vault.html URL";
+        return;
+      }
+      let vaultUrlObj;
+      try {
+        vaultUrlObj = new URL(url);
+      } catch {
+        if (statusEl) statusEl.textContent = "⚠ 無効なURLです / Invalid URL";
+        return;
+      }
+      cgCadGithubVaultOrigin = vaultUrlObj.origin;
+      vaultUrlObj.searchParams.set("parentOrigin", window.location.origin);
+      if (cgCadGithubVaultIframeEl) {
+        cgCadGithubVaultIframeEl.src = vaultUrlObj.toString();
+        cgCadGithubVaultIframeEl.classList.remove("hidden");
+      }
+      if (statusEl) {
+        const sameOrigin = cgCadGithubVaultOrigin === window.location.origin;
+        statusEl.textContent = sameOrigin
+          ? "⚠ 読み込みました(同一オリジンのため分離効果はありません) / Loaded (same-origin, no isolation benefit)"
+          : "✅ 読み込みました(別オリジン) / Loaded (cross-origin)";
+      }
+    });
+  }
+
+  function cgCadRequestVaultGithubCommit(args) {
+    return new Promise((resolve, reject) => {
+      if (!cgCadGithubVaultIframeEl || !cgCadGithubVaultIframeEl.contentWindow || !cgCadGithubVaultOrigin) {
+        reject(new Error("Vaultが読み込まれていません。先に読み込んでください。 / Vault is not loaded yet — load it first."));
+        return;
+      }
+      const requestId = `${Date.now()}-${Math.random()}`;
+      const timeoutId = setTimeout(() => {
+        window.removeEventListener("message", onMessage);
+        reject(new Error("Vaultからの応答がタイムアウトしました。 / Timed out waiting for a response from the vault."));
+      }, 30000);
+      function onMessage(event) {
+        if (event.origin !== cgCadGithubVaultOrigin) return;
+        const data = event.data || {};
+        if (data.type !== "vault:cgCadGithubCommitResult" || data.requestId !== requestId) return;
+        clearTimeout(timeoutId);
+        window.removeEventListener("message", onMessage);
+        if (data.ok) resolve(data.url);
+        else reject(new Error(data.error || "unknown vault error"));
+      }
+      window.addEventListener("message", onMessage);
+      cgCadGithubVaultIframeEl.contentWindow.postMessage({ type: "vault:cgCadGithubCommit", requestId, ...args }, cgCadGithubVaultOrigin);
+    });
+  }
+
+  const cgCadGithubCommitBtn = document.getElementById("cg-cad-github-commit-btn");
+  if (cgCadGithubCommitBtn) {
+    cgCadGithubCommitBtn.addEventListener("click", async () => {
+      const statusEl = document.getElementById("cg-cad-github-status");
+      const drawingId = parseInt(document.getElementById("cg-cad-github-drawing-id")?.value || "", 10);
+      const owner = (document.getElementById("cg-cad-github-owner")?.value || "").trim();
+      const repo = (document.getElementById("cg-cad-github-repo")?.value || "").trim();
+      const path = (document.getElementById("cg-cad-github-path")?.value || "").trim();
+      const branch = (document.getElementById("cg-cad-github-branch")?.value || "").trim() || undefined;
+      const message = (document.getElementById("cg-cad-github-message")?.value || "").trim() || undefined;
+      if (!Number.isFinite(drawingId) || !owner || !repo || !path) {
+        if (statusEl) statusEl.textContent = "⚠ Drawing ID, owner, repo, and path are all required. / 図面ID・owner・repo・pathはすべて必須です。";
+        return;
+      }
+      if (statusEl) statusEl.textContent = "Fetching drawing from open-cg-cad… / open-cg-cadから図面を取得中…";
+      let drawing;
+      try {
+        const resp = await fetch(cgCadOpsBase() + `v1/drawings/get?id=${drawingId}`);
+        const data = await resp.json();
+        if (!data.ok) throw new Error(data.error || "drawing not found");
+        drawing = data.drawing;
+      } catch (e) {
+        if (statusEl) statusEl.textContent = `❌ Could not fetch drawing #${drawingId} from open-cg-cad: ${e}`;
+        return;
+      }
+      // 図面本体(ファイルBLOB)は転送せず、GitHubへ保存するのは
+      // ファイル名・カテゴリ・説明文・AI提案(あれば)のみのJSON。
+      // 正直な開示: これはopen-cg-cad DB内の図面「記録」の複製であり、
+      // アップロードされた元ファイル自体(data_base64)は含めていない
+      // (実装をシンプルに保つための今回の選択、次回拡張の余地あり)。
+      const content = JSON.stringify(
+        { id: drawing.id, filename: drawing.filename, category: drawing.category, description: drawing.description, analysis: drawing.analysis, redesign_of_id: drawing.redesign_of_id },
+        null,
+        2
+      );
+      if (statusEl) statusEl.textContent = "Committing via vault → open-cg-cad → GitHub… / vault→open-cg-cad→GitHub経由でコミット中…";
+      try {
+        const url = await cgCadRequestVaultGithubCommit({ cgCadBase: cgCadOpsBase(), owner, repo, path, content, message, branch });
+        if (statusEl) statusEl.textContent = `✅ Committed: ${url || "(no URL returned)"}`;
+      } catch (e) {
+        if (statusEl) statusEl.textContent = `❌ ${e.message || e}`;
+      }
+    });
+  }
+})();
 
 if (worldLabPairBtn) {
   worldLabPairBtn.addEventListener("click", async () => {
@@ -9436,4 +11222,638 @@ if (vschoolModal && vschoolBtn) {
   vschoolStartBtn.addEventListener("click", renderVschoolQuiz);
   vschoolSubmitBtn.addEventListener("click", scoreVschoolQuiz);
   vschoolReviewBtn.addEventListener("click", reviewVschoolWithTrainer);
+}
+
+// ============================================================
+// 2026-08-26新設: フリーランス開発コーナー(ユーザー指示「フリーランス
+// プログラマー向け求人案件を参考にAI先生と開発するコーナー」)。
+// 範囲の正直な開示はモーダルHTML(index.html #freelance-corner-modal)
+// 側のsetup-honestに記載。実装方針: 求人検索はGoogle検索を新規タブで
+// 開く方式(APIキー不要、利用規約・レート制限に配慮)、GitHub連携は
+// ブラウザから直接GitHub REST APIを呼ぶ方式(トークンはこのブラウザの
+// localStorageにのみ保存、当アプリのサーバーへは送信しない)。
+// ============================================================
+
+// 代表的なプログラミング言語100種(TIOBE/GitHub Octoverse等で継続的に
+// 上位・話題に上る言語を中心に選定。「100種類から選択」というユーザー
+// 要望への対応、恣意的な優先順位付けはしていない・アルファベット順)。
+const FREELANCE_PROGRAMMING_LANGUAGES = [
+  "Ada", "Angular (TypeScript)", "Apex", "APL", "AppleScript", "Assembly (x86)",
+  "AutoHotkey", "AWK", "Ballerina", "Bash / Shell", "BASIC", "C", "C#", "C++",
+  "Clojure", "COBOL", "CoffeeScript", "Common Lisp", "Crystal", "Dart", "Delphi (Object Pascal)",
+  "Elixir", "Elm", "Erlang", "F#", "Flutter (Dart)", "Fortran", "GDScript", "Go",
+  "Groovy", "Hack", "Haskell", "HCL (Terraform)", "HTML/CSS", "Java", "JavaScript",
+  "Julia", "Kotlin", "LabVIEW", "Lua", "MATLAB", "Nim", "Node.js (JavaScript)",
+  "Objective-C", "OCaml", "Pascal", "Perl", "PHP", "PL/SQL", "PowerShell", "Prolog",
+  "Python", "R", "Racket", "React (JavaScript/TypeScript)", "Reason", "Ruby", "Rust",
+  "SAS", "Scala", "Scheme", "Scratch", "Shell (POSIX sh)", "Smalltalk", "Solidity",
+  "Solidity (EVM)", "SQL", "Svelte (JavaScript/TypeScript)", "Swift", "Tcl", "TypeScript",
+  "V (vlang)", "Vala", "VB.NET", "VBA", "Verilog", "VHDL", "Visual Basic", "Vue (JavaScript/TypeScript)",
+  "WebAssembly (WAT)", "X++", "Xojo", "Zig", "ABAP", "ActionScript", "Ceylon", "Chapel",
+  "D", "Dylan", "Eiffel", "Factor", "Forth", "Genie", "Io", "J", "Mercury", "Modula-2",
+  "Nix", "PostScript", "Pure Data", "Q#", "Red", "Rebol", "SuperCollider", "Wolfram Language",
+];
+
+const freelanceCornerBtn = document.getElementById("freelance-corner-btn");
+const freelanceCornerModal = document.getElementById("freelance-corner-modal");
+const freelanceCornerClose = document.getElementById("freelance-corner-close");
+const freelanceLanguageSelectEl = document.getElementById("freelance-language-select");
+const freelanceLanguageCustomEl = document.getElementById("freelance-language-custom");
+const freelanceFrameworkInputEl = document.getElementById("freelance-framework-input");
+const freelanceSearchOfficialBtn = document.getElementById("freelance-search-official-btn");
+const freelanceCopyOfficialUrlBtn = document.getElementById("freelance-copy-official-url-btn");
+const freelanceSearchJobsBtn = document.getElementById("freelance-search-jobs-btn");
+const freelanceCopyJobsUrlBtn = document.getElementById("freelance-copy-jobs-url-btn");
+const freelanceJobNotesEl = document.getElementById("freelance-job-notes");
+const freelanceSampleListEl = document.getElementById("freelance-sample-list");
+const freelanceAskTeacherBtn = document.getElementById("freelance-ask-teacher-btn");
+
+// GitHub連携要素(2026-08-27: トークンの受け渡し方法を3種類に拡張)
+const freelanceGithubTokenModeEl = document.getElementById("freelance-github-token-mode");
+const freelanceGithubTokenFileSectionEl = document.getElementById("freelance-github-token-file-section");
+const freelanceGithubTokenEncryptedSectionEl = document.getElementById("freelance-github-token-encrypted-section");
+const freelanceGithubTokenPlainSectionEl = document.getElementById("freelance-github-token-plain-section");
+const freelanceGithubTokenFileBtn = document.getElementById("freelance-github-token-file-btn");
+const freelanceGithubPassphraseEl = document.getElementById("freelance-github-passphrase");
+const freelanceGithubTokenEl = document.getElementById("freelance-github-token");
+const freelanceGithubSaveTokenBtn = document.getElementById("freelance-github-save-token-btn");
+const freelanceGithubUnlockTokenBtn = document.getElementById("freelance-github-unlock-token-btn");
+const freelanceGithubClearTokenBtn = document.getElementById("freelance-github-clear-token-btn");
+const freelanceGithubTokenPlainEl = document.getElementById("freelance-github-token-plain");
+const freelanceGithubSaveTokenPlainBtn = document.getElementById("freelance-github-save-token-plain-btn");
+const freelanceGithubClearTokenPlainBtn = document.getElementById("freelance-github-clear-token-plain-btn");
+const freelanceGithubTokenStatusEl = document.getElementById("freelance-github-token-status");
+const freelanceGithubRepoNameEl = document.getElementById("freelance-github-repo-name");
+const freelanceGithubPrivateEl = document.getElementById("freelance-github-private");
+const freelanceGithubFilePathEl = document.getElementById("freelance-github-file-path");
+const freelanceGithubFileContentEl = document.getElementById("freelance-github-file-content");
+const freelanceGithubCommitMessageEl = document.getElementById("freelance-github-commit-message");
+const freelanceGithubPushBtn = document.getElementById("freelance-github-push-btn");
+const freelanceGithubPushStatusEl = document.getElementById("freelance-github-push-status");
+
+const FREELANCE_GITHUB_TOKEN_LOCAL_KEY = "open-english.freelanceGithubToken";
+const FREELANCE_GITHUB_TOKEN_ENCRYPTED_LOCAL_KEY = "open-english.freelanceGithubTokenEncrypted";
+
+// メモリ上のみで保持するトークン(①ファイル読込・②復号後)。
+// どちらもlocalStorageへは書き込まない——タブを閉じる/リロードすると消える。
+let freelanceGithubFileToken = null;
+let freelanceGithubUnlockedToken = null;
+
+// 練習用サンプル案件(架空、実在の求人ではない——setup-honestで開示済み)。
+const FREELANCE_SAMPLE_LISTINGS = [
+  {
+    title_ja: "【サンプル】Rustバックエンド開発(週3日リモート)",
+    title_en: "[Sample] Rust backend development (3 days/week, remote)",
+    text: "Rustで書かれたAPIサーバーの機能追加・パフォーマンス改善。tokio/axum経験歓迎。週3日リモート、期間3ヶ月〜。",
+  },
+  {
+    title_ja: "【サンプル】React + TypeScriptフロントエンド改修",
+    title_en: "[Sample] React + TypeScript frontend revamp",
+    text: "既存のReact/TypeScript SPAのUI刷新とアクセシビリティ改善。週2〜3日、フルリモート可。",
+  },
+  {
+    title_ja: "【サンプル】Python(Django)受託開発の一部担当",
+    title_en: "[Sample] Contract Django (Python) development, partial scope",
+    text: "Django製の業務システムに新機能を追加。DB設計の経験があれば尚可。単発〜継続どちらも相談可。",
+  },
+];
+
+function freelanceSelectedLanguage() {
+  const custom = (freelanceLanguageCustomEl?.value || "").trim();
+  if (custom) return custom;
+  return freelanceLanguageSelectEl?.value || "";
+}
+
+function freelancePopulateLanguageSelect() {
+  if (!freelanceLanguageSelectEl || freelanceLanguageSelectEl.options.length > 0) return;
+  for (const lang of FREELANCE_PROGRAMMING_LANGUAGES) {
+    const opt = document.createElement("option");
+    opt.value = lang;
+    opt.textContent = lang;
+    freelanceLanguageSelectEl.appendChild(opt);
+  }
+}
+
+async function freelanceCopyText(text, statusEl) {
+  try {
+    await navigator.clipboard.writeText(text);
+    if (statusEl) {
+      statusEl.textContent = "コピーしました / Copied.";
+      setTimeout(() => { statusEl.textContent = ""; }, 3000);
+    }
+  } catch (err) {
+    if (statusEl) statusEl.textContent = `コピーに失敗しました / Copy failed: ${err}`;
+  }
+}
+
+function freelanceBuildOfficialSearchUrl() {
+  const lang = freelanceSelectedLanguage();
+  const fw = (freelanceFrameworkInputEl?.value || "").trim();
+  const parts = [lang, fw, "official site OR github.com OR blog"].filter(Boolean);
+  return `https://www.google.com/search?q=${encodeURIComponent(parts.join(" "))}`;
+}
+
+function freelanceBuildJobSearchUrl() {
+  const lang = freelanceSelectedLanguage();
+  const fw = (freelanceFrameworkInputEl?.value || "").trim();
+  const parts = [lang, fw, "フリーランス 案件 OR freelance job"].filter(Boolean);
+  return `https://www.google.com/search?q=${encodeURIComponent(parts.join(" "))}`;
+}
+
+function freelanceRenderSamples() {
+  if (!freelanceSampleListEl) return;
+  freelanceSampleListEl.innerHTML = "";
+  for (const sample of FREELANCE_SAMPLE_LISTINGS) {
+    const card = document.createElement("div");
+    card.className = "setup-note";
+    card.style.border = "1px solid var(--border-color, #ccc)";
+    card.style.borderRadius = "8px";
+    card.style.padding = "8px";
+    card.style.marginBottom = "8px";
+
+    const heading = document.createElement("strong");
+    heading.textContent = `${sample.title_ja} / ${sample.title_en}`;
+    card.appendChild(heading);
+
+    const body = document.createElement("p");
+    body.textContent = sample.text;
+    card.appendChild(body);
+
+    const useBtn = document.createElement("button");
+    useBtn.type = "button";
+    useBtn.className = "setup-btn";
+    useBtn.textContent = "このサンプルを案件メモへ / Use this sample";
+    useBtn.addEventListener("click", () => {
+      if (freelanceJobNotesEl) {
+        freelanceJobNotesEl.value = `${sample.title_ja}\n${sample.text}`;
+      }
+    });
+    card.appendChild(useBtn);
+
+    freelanceSampleListEl.appendChild(card);
+  }
+}
+
+// 現在選択中の受け渡し方法("file" | "encrypted" | "plain")に応じて、
+// 実際にGitHub APIへ渡すトークン文字列を1つ返す(無ければ空文字列)。
+// ①②はメモリ上の変数のみ、③のみlocalStorageを読む。
+function freelanceLoadGithubToken() {
+  const mode = freelanceGithubTokenModeEl?.value || "file";
+  if (mode === "file") return freelanceGithubFileToken || "";
+  if (mode === "encrypted") return freelanceGithubUnlockedToken || "";
+  // 2026-08-27防御的修正: ④vaultモードではキーの復号・使用はvault.html
+  // 内だけで完結させる設計のため、ここでは絶対に何も返さない
+  // (現状の呼び出し元`freelanceGithubCreateRepoAndPush`はvaultモード
+  // 時には呼ばれない設計だが、Google検索側で同種のフォールスルーが
+  // 実際にバグを引き起こしたため〈同日の別コミット参照〉、将来の
+  // 呼び出し追加に備えて明示的にブロックしておく)。
+  if (mode === "vault") return "";
+  try {
+    return window.localStorage.getItem(FREELANCE_GITHUB_TOKEN_LOCAL_KEY) || "";
+  } catch {
+    return "";
+  }
+}
+
+function freelanceRefreshGithubTokenStatus() {
+  if (!freelanceGithubTokenStatusEl) return;
+  const mode = freelanceGithubTokenModeEl?.value || "file";
+  if (mode === "file") {
+    freelanceGithubTokenStatusEl.textContent = freelanceGithubFileToken
+      ? "ファイルから読み込み済み(保存はされていません)。 / Loaded from file (not saved anywhere)."
+      : "ファイル未選択です。 / No file selected yet.";
+  } else if (mode === "encrypted") {
+    let hasEncrypted = false;
+    try { hasEncrypted = !!window.localStorage.getItem(FREELANCE_GITHUB_TOKEN_ENCRYPTED_LOCAL_KEY); } catch { /* ignore */ }
+    freelanceGithubTokenStatusEl.textContent = freelanceGithubUnlockedToken
+      ? "パスフレーズで復号済み(メモリ上のみ)。 / Decrypted with your passphrase (in memory only)."
+      : hasEncrypted
+        ? "暗号化済みトークンが保存されています。パスフレーズで復号してください。 / An encrypted token is saved — decrypt it with your passphrase."
+        : "暗号化トークン未設定です。 / No encrypted token saved yet.";
+  } else if (mode === "vault") {
+    freelanceGithubTokenStatusEl.textContent = freelanceVaultOrigin
+      ? `Vault読み込み済み(${freelanceVaultOrigin})。トークンの解錠はvault内で行います。 / Vault loaded (${freelanceVaultOrigin}). Unlock the token inside the vault itself.`
+      : "Vault未読み込みです。上の欄でURLを指定して読み込んでください。 / Vault not loaded yet — enter its URL above and load it.";
+  } else {
+    const token = (() => { try { return window.localStorage.getItem(FREELANCE_GITHUB_TOKEN_LOCAL_KEY) || ""; } catch { return ""; } })();
+    freelanceGithubTokenStatusEl.textContent = token
+      ? "トークンが平文で保存されています(このブラウザのみ)。 / A token is saved in plain text (this browser only)."
+      : "トークン未設定です。 / No token saved.";
+  }
+}
+
+const freelanceGithubTokenVaultSectionEl = document.getElementById("freelance-github-token-vault-section");
+const freelanceVaultUrlEl = document.getElementById("freelance-vault-url");
+const freelanceVaultLoadBtn = document.getElementById("freelance-vault-load-btn");
+const freelanceVaultStatusEl = document.getElementById("freelance-vault-status");
+const freelanceVaultIframeEl = document.getElementById("freelance-vault-iframe");
+let freelanceVaultOrigin = null; // 読み込み済みvaultのorigin(postMessage送信先の検証に使う)
+
+function freelanceUpdateGithubTokenModeSections() {
+  const mode = freelanceGithubTokenModeEl?.value || "file";
+  freelanceGithubTokenFileSectionEl?.classList.toggle("hidden", mode !== "file");
+  freelanceGithubTokenEncryptedSectionEl?.classList.toggle("hidden", mode !== "encrypted");
+  freelanceGithubTokenPlainSectionEl?.classList.toggle("hidden", mode !== "plain");
+  freelanceGithubTokenVaultSectionEl?.classList.toggle("hidden", mode !== "vault");
+  freelanceRefreshGithubTokenStatus();
+}
+if (freelanceGithubTokenModeEl) {
+  freelanceGithubTokenModeEl.addEventListener("change", freelanceUpdateGithubTokenModeSections);
+}
+
+// vault.htmlをiframeとして読み込み、このページのoriginをparentOrigin
+// クエリパラメータとして渡す(vault.html側はこのoriginからのメッセージ
+// のみ受け付ける、双方向のorigin検証)。
+if (freelanceVaultLoadBtn) {
+  freelanceVaultLoadBtn.addEventListener("click", () => {
+    const url = (freelanceVaultUrlEl?.value || "").trim();
+    if (!url) {
+      if (freelanceVaultStatusEl) freelanceVaultStatusEl.textContent = "⚠ vault.htmlのURLを入力してください / Please enter the vault.html URL";
+      return;
+    }
+    let vaultUrlObj;
+    try {
+      vaultUrlObj = new URL(url);
+    } catch {
+      if (freelanceVaultStatusEl) freelanceVaultStatusEl.textContent = "⚠ 無効なURLです / Invalid URL";
+      return;
+    }
+    freelanceVaultOrigin = vaultUrlObj.origin;
+    vaultUrlObj.searchParams.set("parentOrigin", window.location.origin);
+    if (freelanceVaultIframeEl) {
+      freelanceVaultIframeEl.src = vaultUrlObj.toString();
+      freelanceVaultIframeEl.classList.remove("hidden");
+    }
+    if (freelanceVaultStatusEl) {
+      const sameOrigin = freelanceVaultOrigin === window.location.origin;
+      freelanceVaultStatusEl.textContent = sameOrigin
+        ? "⚠ 読み込みました(同一オリジンのため分離効果はありません) / Loaded (same-origin, no isolation benefit)"
+        : "✅ 読み込みました(別オリジン) / Loaded (cross-origin)";
+    }
+  });
+}
+
+// vault.html内でGitHub pushを実行させ、結果(URLまたはエラー)を
+// postMessageで受け取る。平文トークンはこの関数の外へ一切出てこない。
+function freelanceRequestVaultGithubPush(pushArgs) {
+  return new Promise((resolve, reject) => {
+    if (!freelanceVaultIframeEl || !freelanceVaultIframeEl.contentWindow || !freelanceVaultOrigin) {
+      reject(new Error("Vaultが読み込まれていません。先に読み込んでください。 / Vault is not loaded yet — load it first."));
+      return;
+    }
+    const requestId = `${Date.now()}-${Math.random()}`;
+    const timeoutId = setTimeout(() => {
+      window.removeEventListener("message", onMessage);
+      reject(new Error("Vaultからの応答がタイムアウトしました。 / Timed out waiting for a response from the vault."));
+    }, 30000);
+    function onMessage(event) {
+      if (event.origin !== freelanceVaultOrigin) return;
+      const data = event.data || {};
+      if (data.type !== "vault:githubPushResult" || data.requestId !== requestId) return;
+      clearTimeout(timeoutId);
+      window.removeEventListener("message", onMessage);
+      if (data.ok) resolve(data.url);
+      else reject(new Error(data.error || "unknown vault error"));
+    }
+    window.addEventListener("message", onMessage);
+    freelanceVaultIframeEl.contentWindow.postMessage(
+      { type: "vault:githubPush", requestId, ...pushArgs },
+      freelanceVaultOrigin
+    );
+  });
+}
+
+if (freelanceGithubTokenFileBtn) {
+  freelanceGithubTokenFileBtn.addEventListener("click", () => {
+    const input = document.createElement("input");
+    input.type = "file";
+    input.accept = ".txt,text/plain";
+    input.addEventListener("change", async () => {
+      const file = input.files?.[0];
+      if (!file) return;
+      try {
+        freelanceGithubFileToken = (await file.text()).trim();
+        freelanceRefreshGithubTokenStatus();
+      } catch (err) {
+        if (freelanceGithubTokenStatusEl) {
+          freelanceGithubTokenStatusEl.textContent = `ファイルの読み込みに失敗しました / Failed to read file: ${err}`;
+        }
+      }
+    });
+    input.click();
+  });
+}
+
+// ============================================================
+// 2026-08-27汎用化: 元はfreelance GitHubトークン専用だった暗号化
+// ヘルパーを汎用関数へ切り出し(`ow`プレフィックス)、Google検索API
+// キー・AIプロバイダキーなど他の秘密情報でも使い回せるようにした
+// (ユーザー指示「Google検索などのAPI KeyやID、AIなどのKeyやIDも
+// 暗号化で安全に受け渡し出来るように」への対応)。ランダムな
+// salt(PBKDF2用)・iv(AES-GCM用)を都度生成し、パスフレーズから
+// Web Crypto APIでAES-GCM鍵を導出して暗号化する。パスフレーズ自体は
+// どこにも保存しない(呼び出し側が毎回入力する前提)。
+// ============================================================
+async function owDeriveAesKey(passphrase, salt) {
+  const baseKey = await crypto.subtle.importKey(
+    "raw", new TextEncoder().encode(passphrase), "PBKDF2", false, ["deriveKey"]
+  );
+  return crypto.subtle.deriveKey(
+    { name: "PBKDF2", salt, iterations: 250000, hash: "SHA-256" },
+    baseKey,
+    { name: "AES-GCM", length: 256 },
+    false,
+    ["encrypt", "decrypt"]
+  );
+}
+
+function owBytesToBase64(bytes) {
+  let binary = "";
+  for (const b of bytes) binary += String.fromCharCode(b);
+  return btoa(binary);
+}
+function owBase64ToBytes(b64) {
+  return Uint8Array.from(atob(b64), (c) => c.charCodeAt(0));
+}
+
+// `plaintext`(任意のUTF-8文字列——単一の値でも、複数の値をまとめた
+// JSON文字列でも良い)を暗号化し、salt/iv/ciphertextをまとめた
+// JSON文字列を返す(そのままlocalStorageへ保存できる)。
+async function owEncryptSecret(plaintext, passphrase) {
+  const salt = crypto.getRandomValues(new Uint8Array(16));
+  const iv = crypto.getRandomValues(new Uint8Array(12));
+  const key = await owDeriveAesKey(passphrase, salt);
+  const ciphertext = await crypto.subtle.encrypt(
+    { name: "AES-GCM", iv }, key, new TextEncoder().encode(plaintext)
+  );
+  return JSON.stringify({
+    salt: owBytesToBase64(salt),
+    iv: owBytesToBase64(iv),
+    ciphertext: owBytesToBase64(new Uint8Array(ciphertext)),
+  });
+}
+
+async function owDecryptSecret(payloadJson, passphrase) {
+  const payload = JSON.parse(payloadJson);
+  const salt = owBase64ToBytes(payload.salt);
+  const iv = owBase64ToBytes(payload.iv);
+  const key = await owDeriveAesKey(passphrase, salt);
+  const plainBytes = await crypto.subtle.decrypt(
+    { name: "AES-GCM", iv }, key, owBase64ToBytes(payload.ciphertext)
+  );
+  return new TextDecoder().decode(plainBytes);
+}
+
+if (freelanceGithubSaveTokenBtn) {
+  freelanceGithubSaveTokenBtn.addEventListener("click", async () => {
+    const token = (freelanceGithubTokenEl?.value || "").trim();
+    const passphrase = freelanceGithubPassphraseEl?.value || "";
+    if (!token || !passphrase) {
+      if (freelanceGithubTokenStatusEl) {
+        freelanceGithubTokenStatusEl.textContent =
+          "トークンとパスフレーズの両方を入力してください。 / Please enter both a token and a passphrase.";
+      }
+      return;
+    }
+    try {
+      const payload = await owEncryptSecret(token, passphrase);
+      window.localStorage.setItem(FREELANCE_GITHUB_TOKEN_ENCRYPTED_LOCAL_KEY, payload);
+      freelanceGithubUnlockedToken = token; // このセッションでは既に復号済み扱い
+      if (freelanceGithubTokenEl) freelanceGithubTokenEl.value = "";
+      if (freelanceGithubPassphraseEl) freelanceGithubPassphraseEl.value = "";
+      freelanceRefreshGithubTokenStatus();
+    } catch (err) {
+      if (freelanceGithubTokenStatusEl) {
+        freelanceGithubTokenStatusEl.textContent = `暗号化に失敗しました / Encryption failed: ${err}`;
+      }
+    }
+  });
+}
+if (freelanceGithubUnlockTokenBtn) {
+  freelanceGithubUnlockTokenBtn.addEventListener("click", async () => {
+    const passphrase = freelanceGithubPassphraseEl?.value || "";
+    let payload;
+    try {
+      payload = window.localStorage.getItem(FREELANCE_GITHUB_TOKEN_ENCRYPTED_LOCAL_KEY);
+    } catch {
+      payload = null;
+    }
+    if (!payload) {
+      if (freelanceGithubTokenStatusEl) {
+        freelanceGithubTokenStatusEl.textContent = "暗号化済みトークンがありません。先に保存してください。 / No encrypted token saved yet.";
+      }
+      return;
+    }
+    if (!passphrase) {
+      if (freelanceGithubTokenStatusEl) {
+        freelanceGithubTokenStatusEl.textContent = "パスフレーズを入力してください。 / Please enter your passphrase.";
+      }
+      return;
+    }
+    try {
+      freelanceGithubUnlockedToken = await owDecryptSecret(payload, passphrase);
+      if (freelanceGithubPassphraseEl) freelanceGithubPassphraseEl.value = "";
+      freelanceRefreshGithubTokenStatus();
+    } catch (err) {
+      freelanceGithubUnlockedToken = null;
+      if (freelanceGithubTokenStatusEl) {
+        freelanceGithubTokenStatusEl.textContent =
+          "復号に失敗しました(パスフレーズが違う可能性があります)。 / Decryption failed (wrong passphrase?).";
+      }
+    }
+  });
+}
+if (freelanceGithubClearTokenBtn) {
+  freelanceGithubClearTokenBtn.addEventListener("click", () => {
+    try {
+      window.localStorage.removeItem(FREELANCE_GITHUB_TOKEN_ENCRYPTED_LOCAL_KEY);
+    } catch { /* ignore */ }
+    freelanceGithubUnlockedToken = null;
+    freelanceRefreshGithubTokenStatus();
+  });
+}
+
+if (freelanceGithubSaveTokenPlainBtn) {
+  freelanceGithubSaveTokenPlainBtn.addEventListener("click", () => {
+    const token = (freelanceGithubTokenPlainEl?.value || "").trim();
+    if (!token) {
+      if (freelanceGithubTokenStatusEl) {
+        freelanceGithubTokenStatusEl.textContent = "トークンを入力してください。 / Please enter a token.";
+      }
+      return;
+    }
+    try {
+      window.localStorage.setItem(FREELANCE_GITHUB_TOKEN_LOCAL_KEY, token);
+      if (freelanceGithubTokenPlainEl) freelanceGithubTokenPlainEl.value = "";
+      freelanceRefreshGithubTokenStatus();
+    } catch (err) {
+      if (freelanceGithubTokenStatusEl) {
+        freelanceGithubTokenStatusEl.textContent = `保存に失敗しました / Failed to save: ${err}`;
+      }
+    }
+  });
+}
+if (freelanceGithubClearTokenPlainBtn) {
+  freelanceGithubClearTokenPlainBtn.addEventListener("click", () => {
+    try {
+      window.localStorage.removeItem(FREELANCE_GITHUB_TOKEN_LOCAL_KEY);
+    } catch { /* ignore */ }
+    freelanceRefreshGithubTokenStatus();
+  });
+}
+
+if (freelanceCornerBtn && freelanceCornerModal) {
+  freelanceCornerBtn.addEventListener("click", () => {
+    freelancePopulateLanguageSelect();
+    freelanceRenderSamples();
+    freelanceUpdateGithubTokenModeSections();
+    freelanceCornerModal.classList.remove("hidden");
+  });
+}
+if (freelanceCornerClose && freelanceCornerModal) {
+  freelanceCornerClose.addEventListener("click", () => {
+    freelanceCornerModal.classList.add("hidden");
+  });
+  freelanceCornerModal.addEventListener("click", (e) => {
+    if (e.target === freelanceCornerModal) freelanceCornerModal.classList.add("hidden");
+  });
+}
+
+if (freelanceSearchOfficialBtn) {
+  freelanceSearchOfficialBtn.addEventListener("click", () => {
+    window.open(freelanceBuildOfficialSearchUrl(), "_blank", "noopener,noreferrer");
+  });
+}
+if (freelanceCopyOfficialUrlBtn) {
+  freelanceCopyOfficialUrlBtn.addEventListener("click", () => {
+    freelanceCopyText(freelanceBuildOfficialSearchUrl(), null);
+  });
+}
+if (freelanceSearchJobsBtn) {
+  freelanceSearchJobsBtn.addEventListener("click", () => {
+    window.open(freelanceBuildJobSearchUrl(), "_blank", "noopener,noreferrer");
+  });
+}
+if (freelanceCopyJobsUrlBtn) {
+  freelanceCopyJobsUrlBtn.addEventListener("click", () => {
+    freelanceCopyText(freelanceBuildJobSearchUrl(), null);
+  });
+}
+
+if (freelanceAskTeacherBtn) {
+  freelanceAskTeacherBtn.addEventListener("click", () => {
+    const lang = freelanceSelectedLanguage();
+    const fw = (freelanceFrameworkInputEl?.value || "").trim();
+    const notes = (freelanceJobNotesEl?.value || "").trim();
+    if (!lang) {
+      alert("言語を選択または入力してください。 / Please choose or type a language first.");
+      return;
+    }
+    let question = `${lang}`;
+    if (fw) question += ` + ${fw}`;
+    question += " を使ったフリーランス案件について、学ぶべき基礎とレッスンの進め方を教えてください。";
+    if (notes) question += `\n\n参考にしている案件メモ:\n${notes}`;
+    if (inputEl && formEl) {
+      inputEl.value = question;
+      freelanceCornerModal?.classList.add("hidden");
+      formEl.requestSubmit();
+    }
+  });
+}
+
+// --- GitHub連携(2026-08-26新設、トークンの受け渡し方法(①ファイル/
+// ②暗号化/③平文)は上のセクションで実装済み。詳細な安全上の警告は
+// index.htmlのモーダル内setup-honest参照) ---
+
+// UTF-8文字列をGitHub Contents APIが要求するBase64へ変換する(単純な
+// btoaはASCII前提でマルチバイト文字を扱えないため、TextEncoder経由)。
+function freelanceUtf8ToBase64(str) {
+  const bytes = new TextEncoder().encode(str);
+  let binary = "";
+  for (const b of bytes) binary += String.fromCharCode(b);
+  return btoa(binary);
+}
+
+// GitHub REST APIをブラウザから直接呼び、(1)リポジトリを新規作成し
+// (2)指定ファイルを1件push(Contents API、コミット1件)する。
+// トークンはこの関数の外(localStorage)から読むだけで、当アプリの
+// サーバーへは一切送信しない(fetch先は常にapi.github.com)。
+async function freelanceGithubCreateRepoAndPush() {
+  const token = freelanceLoadGithubToken();
+  const repoName = (freelanceGithubRepoNameEl?.value || "").trim();
+  const isPrivate = !!freelanceGithubPrivateEl?.checked;
+  const filePath = (freelanceGithubFilePathEl?.value || "README.md").trim() || "README.md";
+  const fileContent = freelanceGithubFileContentEl?.value || "";
+  const commitMessage = (freelanceGithubCommitMessageEl?.value || "Initial commit").trim() || "Initial commit";
+
+  if (!token) throw new Error("GitHubトークンが未設定です。上の欄に入力して保存してください。 / No GitHub token saved yet.");
+  if (!repoName) throw new Error("リポジトリ名を入力してください。 / Please enter a repository name.");
+
+  const headers = {
+    Authorization: `Bearer ${token}`,
+    Accept: "application/vnd.github+json",
+    "Content-Type": "application/json",
+  };
+
+  const createRes = await fetch("https://api.github.com/user/repos", {
+    method: "POST",
+    headers,
+    body: JSON.stringify({ name: repoName, private: isPrivate, auto_init: false }),
+  });
+  if (!createRes.ok) {
+    const errBody = await createRes.text().catch(() => "");
+    throw new Error(`リポジトリ作成に失敗しました(HTTP ${createRes.status}) / repo creation failed: ${errBody}`);
+  }
+  const repo = await createRes.json();
+  const owner = repo.owner?.login;
+  if (!owner) throw new Error("GitHub APIのレスポンスにowner情報がありませんでした。 / GitHub API response had no owner info.");
+
+  const putRes = await fetch(
+    `https://api.github.com/repos/${encodeURIComponent(owner)}/${encodeURIComponent(repoName)}/contents/${encodeURIComponent(filePath)}`,
+    {
+      method: "PUT",
+      headers,
+      body: JSON.stringify({
+        message: commitMessage,
+        content: freelanceUtf8ToBase64(fileContent),
+      }),
+    }
+  );
+  if (!putRes.ok) {
+    const errBody = await putRes.text().catch(() => "");
+    throw new Error(`ファイルpushに失敗しました(HTTP ${putRes.status}) / file push failed: ${errBody}`);
+  }
+
+  return repo.html_url;
+}
+
+if (freelanceGithubPushBtn) {
+  freelanceGithubPushBtn.addEventListener("click", async () => {
+    if (freelanceGithubPushStatusEl) {
+      freelanceGithubPushStatusEl.textContent = "処理中... / Working...";
+    }
+    freelanceGithubPushBtn.disabled = true;
+    try {
+      const mode = freelanceGithubTokenModeEl?.value || "file";
+      const url = mode === "vault"
+        ? await freelanceRequestVaultGithubPush({
+            repoName: (freelanceGithubRepoNameEl?.value || "").trim(),
+            isPrivate: !!freelanceGithubPrivateEl?.checked,
+            filePath: (freelanceGithubFilePathEl?.value || "README.md").trim() || "README.md",
+            fileContent: freelanceGithubFileContentEl?.value || "",
+            commitMessage: (freelanceGithubCommitMessageEl?.value || "Initial commit").trim() || "Initial commit",
+          })
+        : await freelanceGithubCreateRepoAndPush();
+      if (freelanceGithubPushStatusEl) {
+        freelanceGithubPushStatusEl.innerHTML =
+          `完了しました / Done: <a href="${url}" target="_blank" rel="noopener noreferrer">${url}</a>`;
+      }
+    } catch (err) {
+      if (freelanceGithubPushStatusEl) {
+        freelanceGithubPushStatusEl.textContent = `エラー / Error: ${err.message || err}`;
+      }
+    } finally {
+      freelanceGithubPushBtn.disabled = false;
+    }
+  });
 }

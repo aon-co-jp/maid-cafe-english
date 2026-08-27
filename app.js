@@ -1311,6 +1311,7 @@ async function advanceTrainingMode(userText) {
   let reply = await step.onUserReply(userText);
   reply += await referralsSuffix(userText);
   reply += consumptionTaxSuffix(userText);
+  reply += pensionSuffix(userText);
   reply += incomeWallSuffix(userText);
   reply += vendingMachineSuffix(userText);
   reply += internetAccessSuffix(userText);
@@ -1493,6 +1494,7 @@ async function askTrainer(userText) {
       }
       reply += await referralsSuffix(userText);
       reply += consumptionTaxSuffix(userText);
+      reply += pensionSuffix(userText);
       reply += incomeWallSuffix(userText);
       reply += vendingMachineSuffix(userText);
       reply += internetAccessSuffix(userText);
@@ -1658,6 +1660,7 @@ async function askTrainer(userText) {
   }
   reply += await referralsSuffix(userText);
   reply += consumptionTaxSuffix(userText);
+  reply += pensionSuffix(userText);
   reply += incomeWallSuffix(userText);
   reply += vendingMachineSuffix(userText);
   reply += internetAccessSuffix(userText);
@@ -1908,6 +1911,86 @@ function fairTradeSuffix(userText) {
 function consumptionTaxSuffix(userText) {
   if (!isConsumptionTaxSolutionQuestion(userText)) return "";
   return consumptionTaxProposalText();
+}
+
+// 「老後2,000万円問題」「年金が少ない/貯金がほとんど無い方はどう
+// すればよいか」「麻生太郎氏の『年金5万円で生活しろ』という趣旨の発言」
+// といった年金・老後資金に関する質問・意見を検出したら、開発者
+// (ユーザー)の具体的な政策提案を日英併記で案内する(ユーザー指示、
+// 2026-08-27)。消費税提案(`consumptionTaxSuffix`)・年収の壁提案と
+// 同じ設計方針の固定テキスト——AI推論(GPT-2)を経由させず、断定的な
+// 政治的主張は必ず「開発者個人の一意見」と明記した固定文で返す
+// (既存方針を踏襲)。
+const PENSION_TOPIC_KEYWORDS = [
+  "2000万円問題", "2,000万円問題", "老後2000万円", "老後2,000万円",
+  "麻生太郎", "年金5万円", "年金が少ない", "年金がない", "年金がゼロ",
+  "貯金がない", "貯金がほとんどない", "貯金がゼロ", "貯金ゼロ",
+  "老後資金", "老後の生活", "老後どうすれば", "老後の年金",
+];
+const PENSION_QUESTION_KEYWORDS = [
+  "どうしたら", "どうすれば", "どうしたらいい", "どうすればいい",
+  "教えて", "どう思う", "対策", "生活しろ", "生活できる",
+];
+
+function isPensionQuestion(userText) {
+  if (!containsJapanese(userText)) return false;
+  const hasTopic = PENSION_TOPIC_KEYWORDS.some((k) => userText.includes(k));
+  if (!hasTopic) return false;
+  // "2000万円問題"・"麻生太郎"+"年金"のように、話題語自体が既に
+  // 具体的な問題提起になっている場合は、追加の疑問詞が無くても
+  // 反応してよい(既存のCONSUMPTION_TAX判定より緩めた——「2000万円
+  // 問題」という言葉を出す時点でほぼ確実にこの話題についての発話
+  // であるため)。それ以外の一般的な語("老後の生活"等)は、疑問詞との
+  // AND条件を維持して誤検出を避ける。
+  const strongTopics = ["2000万円問題", "2,000万円問題", "老後2000万円", "老後2,000万円", "麻生太郎", "年金5万円"];
+  if (strongTopics.some((k) => userText.includes(k))) return true;
+  return PENSION_QUESTION_KEYWORDS.some((k) => userText.includes(k));
+}
+
+function pensionProposalText() {
+  const ja =
+    "【老後資金・年金問題への提案(開発者からの一意見)】\n" +
+    "まず結論から申し上げますと、財源は、政府・お役所のeガバメント" +
+    "(デジタルガバメント)化——コンビニのマルチコピー機・情報端末や" +
+    "LINEアプリ・スマホ/タブレット/PC版での行政手続き対応——で" +
+    "十分に確保が可能だと思われます。eガバメント・デジタルガバメント" +
+    "化と、在宅勤務のコールセンター・TVチャットサービスの導入により、" +
+    "市区町村・都道府県庁の公務員を必要最低限まで大幅にリストラできる" +
+    "と考えます。そこで生まれた財源を、少子高齢化対策・年金問題対策へ" +
+    "還元すべきです。また、年金の運用利益(利息・運用益)がこれまで" +
+    "国民へほとんど還元されてこなかった問題についても、公務員を優先し" +
+    "国民を後回しにするような政策・態度は改めるべきだと思います。" +
+    "年金や貯金がほとんど無い方・全く無い方についても、この財源確保と" +
+    "還元により、最低限の生活を支える制度を用意すべきです。さらに、" +
+    "基礎年金+厚生年金+増額年金を、専業主婦(夫)や厚生年金に加入して" +
+    "いない方も含めて全員参加型とする皆保険化が可能だと考えます。";
+  const en =
+    "[A proposal on retirement savings and the pension problem (the developer's own opinion)]\n" +
+    "To state the conclusion first: the funding can be secured through " +
+    "e-government/digital-government adoption — handling administrative " +
+    "procedures via convenience-store multi-copy terminals/information " +
+    "kiosks, or via LINE-style apps on smartphones, tablets, and PCs. " +
+    "Combined with introducing work-from-home call centers and video-chat " +
+    "support services, this should allow a major reduction in the civil " +
+    "service headcount at the municipal and prefectural level, down to the " +
+    "essential minimum. The funds freed up this way should be redirected " +
+    "toward countering the declining birthrate/aging society and the " +
+    "pension problem. The fact that pension investment returns (interest " +
+    "and investment gains) have historically been returned to citizens " +
+    "very little should also be addressed — policies and attitudes that " +
+    "prioritize civil servants over citizens should be reconsidered. For " +
+    "those with little or no pension or savings, this funding and " +
+    "redistribution should support a system guaranteeing a minimum " +
+    "standard of living. Furthermore, universal enrollment should be made " +
+    "possible for the basic pension plus the employees' pension plus a " +
+    "supplemental pension increase, covering everyone including full-time " +
+    "homemakers and those not currently enrolled in the employees' pension.";
+  return `\n\n🏦 ${en}\n\n${ja}`;
+}
+
+function pensionSuffix(userText) {
+  if (!isPensionQuestion(userText)) return "";
+  return pensionProposalText();
 }
 
 // 「年収の壁」(103万円/106万円/130万円の壁)の解決策を尋ねる日本語入力を
