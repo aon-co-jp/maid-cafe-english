@@ -23,6 +23,7 @@ mod db;
 mod github_agent;
 mod local_agent;
 mod self_update;
+mod totp;
 mod vps_agent;
 mod world_lab;
 
@@ -499,6 +500,56 @@ async fn auth_verify_otp(req: Request) -> Response {
                     format!("{}={token}; HttpOnly; SameSite=Lax; Path=/; Max-Age=86400", auth::SESSION_COOKIE_NAME),
                 )
                 .body(open_runo_poem_compat::hyper_compat::fixed_body(bytes::Bytes::from(body)))
+                .expect("building a response from a fixed set of valid headers cannot fail")
+        }
+        Err(e) => rs_json_response(StatusCode::UNAUTHORIZED, &serde_json::json!({"error": format!("{e:#}")})),
+    }
+}
+
+#[derive(serde::Deserialize)]
+struct TotpSetupRequest {
+    email: String,
+    #[serde(default)]
+    phone_label: Option<String>,
+}
+
+/// `POST /v1/auth/totp-setup`(2026-08-27新設): このメールアドレスに
+/// TOTPシークレットが無ければ新規生成、あれば既存のものからQRコードを
+/// 再生成して返す。認証(ログイン)は行わない——設定のみ。
+async fn auth_totp_setup(req: Request, db: Arc<Db>) -> Response {
+    let body: TotpSetupRequest = match read_rs_json_body(req).await {
+        Ok(v) => v,
+        Err(resp) => return resp,
+    };
+    match auth::totp_setup(&db, &body.email, body.phone_label.as_deref()) {
+        Ok((secret, qr_svg)) => rs_json_response(StatusCode::OK, &serde_json::json!({"ok": true, "secret": secret, "qr_svg": qr_svg})),
+        Err(e) => rs_json_response(StatusCode::BAD_REQUEST, &serde_json::json!({"ok": false, "error": format!("{e:#}")})),
+    }
+}
+
+#[derive(serde::Deserialize)]
+struct TotpVerifyRequest {
+    email: String,
+    code: String,
+}
+
+/// `POST /v1/auth/totp-verify`(2026-08-27新設): 認証アプリの6桁コードで
+/// ログインする(既存のemail OTPログインと同じセッションCookieを発行する
+/// 「もう1つの入口」——email1・email2・TOTPのいずれか1つで認証完了、
+/// 3つ全部の入力を要求するものではない)。
+async fn auth_totp_verify(req: Request, db: Arc<Db>) -> Response {
+    let body: TotpVerifyRequest = match read_rs_json_body(req).await {
+        Ok(v) => v,
+        Err(resp) => return resp,
+    };
+    match auth::totp_verify(&db, &body.email, &body.code) {
+        Ok(token) => {
+            let resp_body = rust_json::to_vec_strict(&serde_json::json!({"ok": true})).unwrap_or_else(|_| b"{}".to_vec());
+            hyper::Response::builder()
+                .status(StatusCode::OK)
+                .header("content-type", "application/json")
+                .header("set-cookie", format!("{}={token}; HttpOnly; SameSite=Lax; Path=/; Max-Age=86400", auth::SESSION_COOKIE_NAME))
+                .body(open_runo_poem_compat::hyper_compat::fixed_body(bytes::Bytes::from(resp_body)))
                 .expect("building a response from a fixed set of valid headers cannot fail")
         }
         Err(e) => rs_json_response(StatusCode::UNAUTHORIZED, &serde_json::json!({"error": format!("{e:#}")})),
@@ -1851,6 +1902,8 @@ async fn main() {
     {
         let db_for_auth_get = Arc::clone(&db);
         let db_for_auth_set = Arc::clone(&db);
+        let db_for_totp_setup = Arc::clone(&db);
+        let db_for_totp_verify = Arc::clone(&db);
         app = app.at(
             "/v1/auth/config",
             get(handler_fn(move |_req, _p| {
@@ -1866,6 +1919,20 @@ async fn main() {
         app = app.at("/v1/auth/verify-otp", post(handler_fn(move |req, _p| async move { auth_verify_otp(req).await })));
         app = app.at("/v1/auth/session", get(handler_fn(move |req, _p| async move { auth_session(req).await })));
         app = app.at("/v1/auth/logout", post(handler_fn(move |req, _p| async move { auth_logout(req).await })));
+        app = app.at(
+            "/v1/auth/totp-setup",
+            post(handler_fn(move |req, _p| {
+                let db = Arc::clone(&db_for_totp_setup);
+                async move { auth_totp_setup(req, db).await }
+            })),
+        );
+        app = app.at(
+            "/v1/auth/totp-verify",
+            post(handler_fn(move |req, _p| {
+                let db = Arc::clone(&db_for_totp_verify);
+                async move { auth_totp_verify(req, db).await }
+            })),
+        );
     }
 
     // 会話履歴・設定の永続化API(2026-08-18新設、db.rsモジュールdoc参照)。

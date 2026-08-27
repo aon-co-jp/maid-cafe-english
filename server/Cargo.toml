@@ -91,3 +91,12 @@ wasmtime = "48"
 rcgen = "0.13"
 lettre = { version = "0.11.19", default-features = false, features = ["smtp-transport", "tokio1-rustls-tls", "builder", "pool"] }
 ring = "0.17.14"
+# 携帯電話(認証アプリ)でのQRコード撮影による2FA(2026-08-27追加、
+# ユーザー指示「メールアドレス1と2と携帯電話番号の3種類を入力するように
+# 仕様変更して、携帯電話番号はQRコードを撮影する2FAとして」への対応)。
+# rs-sync側で既に実機検証済みの実装(`rs-sync/src/totp.rs`、HMAC-SHA1+
+# base32を自前実装、外部totp専用クレートには依存しない設計)をそのまま
+# 移植する。
+hmac = "0.12"
+sha1 = "0.10"
+qrcode = { version = "0.14", default-features = false, features = ["svg"] }

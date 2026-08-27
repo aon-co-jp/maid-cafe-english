@@ -504,6 +504,73 @@ if (loginVerifyBtn) {
   });
 }
 
+// 2026-08-27新設: 携帯電話でQRコードを撮影する方式(認証アプリ、TOTP)での
+// ログイン(既存のemail1/email2ログインの「もう1つの入口」、いずれか1つで
+// ログイン完了する設計——3つ全部の入力を要求するものではない)。
+const loginTotpEmailEl = document.getElementById("login-totp-email");
+const loginTotpPhoneLabelEl = document.getElementById("login-totp-phone-label");
+const loginTotpSetupBtn = document.getElementById("login-totp-setup-btn");
+const loginTotpQrContainer = document.getElementById("login-totp-qr-container");
+const loginTotpCodeEl = document.getElementById("login-totp-code");
+const loginTotpVerifyBtn = document.getElementById("login-totp-verify-btn");
+const loginTotpStatusEl = document.getElementById("login-totp-status");
+
+if (loginTotpSetupBtn) {
+  loginTotpSetupBtn.addEventListener("click", async () => {
+    const email = (loginTotpEmailEl?.value || "").trim();
+    if (!email) {
+      if (loginTotpStatusEl) loginTotpStatusEl.textContent = "Please enter your email / メールアドレスを入力してください";
+      return;
+    }
+    if (loginTotpStatusEl) loginTotpStatusEl.textContent = "Generating QR code… / QRコード生成中…";
+    try {
+      const res = await fetch("/v1/auth/totp-setup", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email, phone_label: (loginTotpPhoneLabelEl?.value || "").trim() || undefined }),
+      });
+      const data = await res.json();
+      if (res.ok && data.ok) {
+        if (loginTotpQrContainer) loginTotpQrContainer.innerHTML = data.qr_svg || "";
+        if (loginTotpStatusEl) {
+          loginTotpStatusEl.textContent = "✅ Scan this with your authenticator app (Google Authenticator, Authy, etc.), then enter the 6-digit code below. / 表示されたQRコードを認証アプリ(Google Authenticator・Authy等)で撮影し、下に6桁のコードを入力してください。";
+        }
+      } else {
+        if (loginTotpStatusEl) loginTotpStatusEl.textContent = `⚠ ${data.error || "Failed to set up / 設定に失敗しました"}`;
+      }
+    } catch (e) {
+      if (loginTotpStatusEl) loginTotpStatusEl.textContent = `⚠ ${e.message}`;
+    }
+  });
+}
+
+if (loginTotpVerifyBtn) {
+  loginTotpVerifyBtn.addEventListener("click", async () => {
+    const email = (loginTotpEmailEl?.value || "").trim();
+    const code = (loginTotpCodeEl?.value || "").trim();
+    if (!email || !code) {
+      if (loginTotpStatusEl) loginTotpStatusEl.textContent = "Email and code are both required / メールアドレスとコードの両方が必要です";
+      return;
+    }
+    if (loginTotpStatusEl) loginTotpStatusEl.textContent = "Verifying... / 確認中...";
+    try {
+      const res = await fetch("/v1/auth/totp-verify", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email, code }),
+      });
+      const data = await res.json();
+      if (res.ok && data.ok) {
+        document.getElementById("login-gate").classList.add("hidden");
+      } else {
+        if (loginTotpStatusEl) loginTotpStatusEl.textContent = `⚠ ${data.error || "Incorrect code / コードが正しくありません"}`;
+      }
+    } catch (e) {
+      if (loginTotpStatusEl) loginTotpStatusEl.textContent = `⚠ ${e.message}`;
+    }
+  });
+}
+
 const loginSetupEnableBtn = document.getElementById("login-setup-enable-btn");
 const loginSetupSkipBtn = document.getElementById("login-setup-skip-btn");
 function dismissLoginSetupPrompt() {

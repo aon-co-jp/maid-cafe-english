@@ -1075,6 +1075,82 @@ AIコーディング支援パネル)にとどめている。
 
 ## HANDOFF
 
+- **2026-08-27(続き20) 携帯電話QRコード(TOTP)ログインを第3の入口として
+  追加+SMTP送信の実バグ修正(ユーザー指示「メールアドレス1と2と携帯電話
+  番号の3種類を入力するように仕様変更して、携帯電話番号はQRコードを撮影
+  する2FAとして」+「その3種類のどれでもログイン出来るようにして」への
+  対応)**:
+  1. **【実バグ発見・修正】SMTP送信が本番Gmailアカウントで常に失敗
+     していた**: ユーザーが実際に「Send code」ボタンを押したところ
+     「⚠ SMTP is not configured on this server」と表示された件を調査。
+     まずVPS上の`open-english.service`にSMTP環境変数が一つも設定
+     されていなかったことが判明(未設定は正直な既存の挙動、バグでは
+     ない)。ユーザーの許可を得て、`open-easy-web.service`が既に使って
+     いる動作確認済みの同じGmailアカウント(`norukia.jp@gmail.com`)の
+     認証情報を`OPEN_ENGLISH_SMTP_HOST/_PORT/_USER/_FROM/_PASSWORD`
+     として追加・再起動したところ、**今度は`SMTP send failed:
+     received corrupt message of type InvalidContentType`という
+     別の実エラー**が発生した——これは`auth.rs`側の実装バグで、
+     `AsyncSmtpTransport::relay()`(既定で暗黙的TLS、通常ポート465向け)
+     を使っていたため、STARTTLSを使うポート587のGmailへ接続すると
+     平文バナーへ即座にTLSハンドシェイクを試みて失敗していた。
+     `open-easy-web/server/src/mail.rs`が最初から使っている
+     `starttls_relay()`(ポート587のSTARTTLS専用コンストラクタ)へ
+     揃えて修正。**実機検証**: 修正後、実際に本番(`https://easy-web.
+     tokyo/open-english/v1/auth/request-otp`)へ実メールアドレス
+     (`info2@aon.tokyo`)宛のリクエストを送り、`{"sent":true}`が返る
+     ことを確認した(実際にGmail経由でメールが送信されたことを実証、
+     モックではない)。
+  2. **携帯電話QRコード(TOTP)ログインの新設**: `rs-sync/src/totp.rs`
+     (2026-08-13新設、実機検証済み)をそのまま`server/src/totp.rs`へ
+     移植(HMAC-SHA1+base32の自前実装、外部totp専用crateには依存
+     しない方針を踏襲)。`hmac`/`sha1`/`qrcode`crateを新規依存に追加。
+     **設計(重要)**: 既存のemail1/email2ログイン(「どちらか一方で
+     ログイン完了、二段階認証=ANDではない」という2026-08-27〈続き5〉
+     の既存方針)と全く同じ考え方を踏襲し、**email1・email2・TOTP
+     コードのいずれか1つでログイン完了する**(3つ全部の入力を要求
+     するものではない)。「携帯電話番号」欄自体は認証に使われない
+     (SMS送信は行わない)——実際の6桁コードはQRコードを撮影した
+     認証アプリが生成する、という正直な開示をUI・コード両方に明記。
+  3. **`server/src/auth.rs`**: `totp_setup(db, email, phone_label)`
+     (未設定ならシークレット新規生成→`Db::set_setting`で
+     `totp_secret:<email>`キーへ永続化、既存ならQRコードを再生成する
+     のみ)・`totp_verify(db, email, code)`(既存の`verify_otp`と同じ
+     セッション発行ロジック、認証方式が違うだけ)を新設。**正直な
+     開示**: TOTPシークレットは平文でSQLiteへ保存する(既存の他の
+     設定項目と同水準、専用の追加暗号化は無し)。
+  4. **`server/src/main.rs`**: `POST /v1/auth/totp-setup`・
+     `POST /v1/auth/totp-verify`を新設(既存の`/v1/auth/request-otp`・
+     `/v1/auth/verify-otp`と同じルート登録パターン)。
+  5. **UI(`index.html`/`app.js`)**: ログインゲート内に「📱 携帯電話で
+     QRコードを撮影してログイン」節を新設(メールアドレス+電話番号
+     ラベル入力→QR表示ボタン→SVGをその場に描画→認証アプリのコード
+     入力→ログインボタン)。
+  6. **実機検証(型チェック・ビルド成功だけで完了と報告しない方針の
+     徹底)**: `cargo test --release totp::`6件全green。実際にサーバー
+     を起動し、(a) `POST /v1/auth/totp-setup`が実際のQRコードSVG
+     (22KB超)を返すこと、(b) 生成されたシークレットから実際に計算した
+     6桁コードで`POST /v1/auth/totp-verify`が成功しセッションCookie
+     (`oe_session=...`)を発行すること、(c) 誤ったコード(`000000`)は
+     正しく`401`+正直なエラーで拒否されること、を実HTTPで確認。
+     さらにClaude Browserで実際にUI操作を行い、(d) QRコード表示
+     ボタン押下で本物のSVG(22,555文字)が画面へ実際に描画されること、
+     (e) 誤ったコードでログインボタンを押すと「⚠ incorrect or expired
+     TOTP code」が画面に正しく表示されることを確認した。
+  7. **正直な開示・今回のスコープ外**: (a) 実際にスマホのカメラで
+     QRコードを撮影して認証アプリへ登録するE2E検証は未実施(この
+     開発環境にスマホ実機が無いため、rs-sync側の既存の同種の制約と
+     同じ)。(b) ユーザーから「その方式は、ログインする私の全てのリポジトリで
+     同じにして」との指示があったが、**今回はopen-englishのみに実装**
+     した——rs-syncは既に同型のTOTP+QR実装を持つ(2026-08-13新設)ため
+     対応不要、open-easy-webは別のOTP実装(`mail.rs`)を持ち今回は
+     未着手、他にログイン機能を持つリポジトリがあるかどうかの棚卸しも
+     未実施。次回、対象リポジトリを確認した上で横展開する必要がある。
+  - 次にすべきこと: (1) 実機スマホでのQRコード撮影→認証アプリ登録→
+    ログイン成功のE2E検証、(2) open-easy-web等、他にログイン機能を
+    持つリポジトリの棚卸しと、同じ「email1/email2/TOTP QRのいずれか
+    1つでログイン」方式への統一を検討。
+
 - **2026-08-27(続き19) vault.html経由でopen-cg-cadのGitHub書き込みを
   呼べるUIを新設(ユーザー指示「open-cg-cadのGitHub書き込み
   〈github_agent::commit_file〉は…バックエンドのみで、vault.html経由で

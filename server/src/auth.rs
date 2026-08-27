@@ -238,6 +238,75 @@ pub fn verify_otp(email: &str, code: &str) -> Result<String> {
     Ok(token)
 }
 
+// ----------------------------------------------------------------------------
+// 携帯電話番号+QRコード撮影による2FA(2026-08-27新設、`totp.rs`参照)。
+// ユーザー指示「メールアドレス1と2と携帯電話番号の3種類を入力するように
+// 仕様変更して、携帯電話番号はQRコードを撮影する2FAとして」+「その3種類の
+// どれでもログイン出来るようにして」への対応。
+//
+// **設計(既存のemail1/email2と同じ「どれか一つでOK」の可用性向上の考え方
+// を踏襲、二段階認証=ANDではない)**: TOTPコードでのログインが成功すれば、
+// 既存のemail OTPログインと全く同じセッショントークンを発行する——email1・
+// email2のどちらか、またはTOTPコードのいずれか1つで認証完了する設計
+// (3つ全部の入力を要求するものではない)。
+//
+// **正直な開示**: TOTPシークレットは`Db`の設定テーブル(`set_setting`/
+// `get_setting`、`totp_secret:<email>`キー)へ永続化する——ただし現状の
+// `Db::set_setting`は平文でSQLiteへ書き込む設計(既存の他の設定項目と
+// 同水準)であり、TOTPシークレット専用の追加暗号化は行っていない。
+// ディスクへのアクセス権を持つ攻撃者からは保護されない点は、既存の
+// `db.rs`の設計方針をそのまま引き継いでいる。
+// ----------------------------------------------------------------------------
+
+/// このアカウント(email、既存のemail1/email2と同じ正規化されたキー)に
+/// 未設定ならTOTPシークレットを新規生成してDBへ保存し、認証アプリで
+/// 読み取れるQRコード(SVG)を返す。既に設定済みなら、その既存シークレット
+/// からQRコードを再生成して返す(再表示のため、シークレット自体は
+/// 変更しない)。
+pub fn totp_setup(db: &crate::db::Db, email: &str, phone_label: Option<&str>) -> Result<(String, String)> {
+    let email = email.trim().to_lowercase();
+    if email.is_empty() || !email.contains('@') {
+        bail!("invalid email address");
+    }
+    let setting_key = format!("totp_secret:{email}");
+    let secret = match db.get_setting(&setting_key).ok().flatten() {
+        Some(existing) if !existing.trim().is_empty() => existing,
+        _ => {
+            let generated = crate::totp::generate_secret();
+            db.set_setting(&setting_key, &generated).context("failed to save TOTP secret")?;
+            generated
+        }
+    };
+    if let Some(label) = phone_label {
+        let label = label.trim();
+        if !label.is_empty() {
+            let _ = db.set_setting(&format!("totp_phone_label:{email}"), label);
+        }
+    }
+    let qr_svg = crate::totp::totp_qr_svg(&secret, &email, "open-english").map_err(|e| anyhow::anyhow!(e))?;
+    Ok((secret, qr_svg))
+}
+
+/// 6桁のTOTPコードを検証し、成功すればセッショントークンを発行する
+/// (`verify_otp`と同じセッション発行ロジック、認証方式が違うだけ)。
+pub fn totp_verify(db: &crate::db::Db, email: &str, code: &str) -> Result<String> {
+    let email = email.trim().to_lowercase();
+    let setting_key = format!("totp_secret:{email}");
+    let secret = db
+        .get_setting(&setting_key)
+        .ok()
+        .flatten()
+        .context("TOTP is not set up for this email yet (set it up first) / このメールアドレスにはまだTOTPが設定されていません(先に設定してください)")?;
+    let now_unix = SystemTime::now().duration_since(std::time::UNIX_EPOCH).map(|d| d.as_secs() as i64).unwrap_or(0);
+    if !crate::totp::verify_code(&secret, code, now_unix) {
+        bail!("incorrect or expired TOTP code / TOTPコードが正しくないか期限切れです");
+    }
+    let token = random_hex(32);
+    let mut sessions = state().sessions.lock().unwrap();
+    sessions.insert(token.clone(), SessionEntry { email, expires_at: SystemTime::now() + SESSION_TTL });
+    Ok(token)
+}
+
 /// セッショントークンが有効なら、ログイン中のメールアドレスを返す。
 pub fn session_email(token: &str) -> Option<String> {
     let now = SystemTime::now();
