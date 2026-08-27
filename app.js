@@ -6846,6 +6846,121 @@ if (worldLabRefreshBtn) {
       }
     });
   }
+
+  // 2026-08-27新設: GitHubトークンの復号・利用をvault.html(クロス
+  // オリジンiframeサンドボックス)内に隔離しつつ、open-cg-cadサーバー
+  // 自身のGitHub書き込みAPI(POST /v1/agent/github/commit、
+  // `github_agent::commit_file`)を呼び出す(ユーザー指示「open-cg-cadの
+  // GitHub書き込みを…vault.html経由で呼び出すUIを配線して」への対応)。
+  // 既存のフリーランス開発コーナーの`freelanceRequestVaultGithubPush`
+  // と同型のpostMessageプロトコル(`freelanceVaultLoadBtn`のロード
+  // ロジックも参照)だが、こちらは新規リポジトリ作成ではなく既存
+  // リポジトリの既存パスへのcommitを行う専用メッセージ型
+  // (`vault:cgCadGithubCommit`)を使う。
+  const cgCadGithubVaultIframeEl = document.getElementById("cg-cad-github-vault-iframe");
+  let cgCadGithubVaultOrigin = null;
+
+  const cgCadGithubVaultLoadBtn = document.getElementById("cg-cad-github-vault-load-btn");
+  if (cgCadGithubVaultLoadBtn) {
+    cgCadGithubVaultLoadBtn.addEventListener("click", () => {
+      const urlEl = document.getElementById("cg-cad-github-vault-url");
+      const statusEl = document.getElementById("cg-cad-github-vault-status");
+      const url = (urlEl?.value || "").trim();
+      if (!url) {
+        if (statusEl) statusEl.textContent = "⚠ vault.htmlのURLを入力してください / Please enter the vault.html URL";
+        return;
+      }
+      let vaultUrlObj;
+      try {
+        vaultUrlObj = new URL(url);
+      } catch {
+        if (statusEl) statusEl.textContent = "⚠ 無効なURLです / Invalid URL";
+        return;
+      }
+      cgCadGithubVaultOrigin = vaultUrlObj.origin;
+      vaultUrlObj.searchParams.set("parentOrigin", window.location.origin);
+      if (cgCadGithubVaultIframeEl) {
+        cgCadGithubVaultIframeEl.src = vaultUrlObj.toString();
+        cgCadGithubVaultIframeEl.classList.remove("hidden");
+      }
+      if (statusEl) {
+        const sameOrigin = cgCadGithubVaultOrigin === window.location.origin;
+        statusEl.textContent = sameOrigin
+          ? "⚠ 読み込みました(同一オリジンのため分離効果はありません) / Loaded (same-origin, no isolation benefit)"
+          : "✅ 読み込みました(別オリジン) / Loaded (cross-origin)";
+      }
+    });
+  }
+
+  function cgCadRequestVaultGithubCommit(args) {
+    return new Promise((resolve, reject) => {
+      if (!cgCadGithubVaultIframeEl || !cgCadGithubVaultIframeEl.contentWindow || !cgCadGithubVaultOrigin) {
+        reject(new Error("Vaultが読み込まれていません。先に読み込んでください。 / Vault is not loaded yet — load it first."));
+        return;
+      }
+      const requestId = `${Date.now()}-${Math.random()}`;
+      const timeoutId = setTimeout(() => {
+        window.removeEventListener("message", onMessage);
+        reject(new Error("Vaultからの応答がタイムアウトしました。 / Timed out waiting for a response from the vault."));
+      }, 30000);
+      function onMessage(event) {
+        if (event.origin !== cgCadGithubVaultOrigin) return;
+        const data = event.data || {};
+        if (data.type !== "vault:cgCadGithubCommitResult" || data.requestId !== requestId) return;
+        clearTimeout(timeoutId);
+        window.removeEventListener("message", onMessage);
+        if (data.ok) resolve(data.url);
+        else reject(new Error(data.error || "unknown vault error"));
+      }
+      window.addEventListener("message", onMessage);
+      cgCadGithubVaultIframeEl.contentWindow.postMessage({ type: "vault:cgCadGithubCommit", requestId, ...args }, cgCadGithubVaultOrigin);
+    });
+  }
+
+  const cgCadGithubCommitBtn = document.getElementById("cg-cad-github-commit-btn");
+  if (cgCadGithubCommitBtn) {
+    cgCadGithubCommitBtn.addEventListener("click", async () => {
+      const statusEl = document.getElementById("cg-cad-github-status");
+      const drawingId = parseInt(document.getElementById("cg-cad-github-drawing-id")?.value || "", 10);
+      const owner = (document.getElementById("cg-cad-github-owner")?.value || "").trim();
+      const repo = (document.getElementById("cg-cad-github-repo")?.value || "").trim();
+      const path = (document.getElementById("cg-cad-github-path")?.value || "").trim();
+      const branch = (document.getElementById("cg-cad-github-branch")?.value || "").trim() || undefined;
+      const message = (document.getElementById("cg-cad-github-message")?.value || "").trim() || undefined;
+      if (!Number.isFinite(drawingId) || !owner || !repo || !path) {
+        if (statusEl) statusEl.textContent = "⚠ Drawing ID, owner, repo, and path are all required. / 図面ID・owner・repo・pathはすべて必須です。";
+        return;
+      }
+      if (statusEl) statusEl.textContent = "Fetching drawing from open-cg-cad… / open-cg-cadから図面を取得中…";
+      let drawing;
+      try {
+        const resp = await fetch(cgCadOpsBase() + `v1/drawings/get?id=${drawingId}`);
+        const data = await resp.json();
+        if (!data.ok) throw new Error(data.error || "drawing not found");
+        drawing = data.drawing;
+      } catch (e) {
+        if (statusEl) statusEl.textContent = `❌ Could not fetch drawing #${drawingId} from open-cg-cad: ${e}`;
+        return;
+      }
+      // 図面本体(ファイルBLOB)は転送せず、GitHubへ保存するのは
+      // ファイル名・カテゴリ・説明文・AI提案(あれば)のみのJSON。
+      // 正直な開示: これはopen-cg-cad DB内の図面「記録」の複製であり、
+      // アップロードされた元ファイル自体(data_base64)は含めていない
+      // (実装をシンプルに保つための今回の選択、次回拡張の余地あり)。
+      const content = JSON.stringify(
+        { id: drawing.id, filename: drawing.filename, category: drawing.category, description: drawing.description, analysis: drawing.analysis, redesign_of_id: drawing.redesign_of_id },
+        null,
+        2
+      );
+      if (statusEl) statusEl.textContent = "Committing via vault → open-cg-cad → GitHub… / vault→open-cg-cad→GitHub経由でコミット中…";
+      try {
+        const url = await cgCadRequestVaultGithubCommit({ cgCadBase: cgCadOpsBase(), owner, repo, path, content, message, branch });
+        if (statusEl) statusEl.textContent = `✅ Committed: ${url || "(no URL returned)"}`;
+      } catch (e) {
+        if (statusEl) statusEl.textContent = `❌ ${e.message || e}`;
+      }
+    });
+  }
 })();
 
 if (worldLabPairBtn) {

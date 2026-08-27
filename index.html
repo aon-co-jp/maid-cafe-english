@@ -979,6 +979,44 @@ cd aruaru-db
       <button type="button" id="cg-cad-redesign-btn" class="setup-btn">✏️ Redesign / 再設計する</button>
 
       <p class="setup-note" id="cg-cad-ops-result" style="white-space: pre-line;"></p>
+
+      <h3>🔐 Push a drawing to GitHub (via vault) / GitHubへ図面をpush(vault経由)</h3>
+      <p class="setup-honest">
+        <strong>Honest disclosure:</strong> Your GitHub token is decrypted and used only inside
+        an embedded <code>vault.html</code> iframe (same isolation design as the freelance corner's
+        GitHub push feature) — it never touches this page's (index.html) own JavaScript. The vault
+        sends the token to <strong>open-cg-cad's own server</strong>
+        (<code>POST /v1/agent/github/commit</code>), which uses it once to call the GitHub API and
+        does not persist it to disk. See <a href="vault.html" target="_blank" rel="noopener">vault.html</a>
+        and CLAUDE.md (2026-08-27) for details. For real isolation benefit, serve vault.html from a
+        different origin than this page — see the note in the section above.<br /><br />
+        <strong>正直な開示：</strong>GitHubトークンの復号・利用は、埋め込まれた<code>vault.html</code>
+        のiframe内でのみ行われます(フリーランス開発コーナーのGitHub push機能と同じ隔離設計)——
+        このページ(index.html)自身のJavaScriptには一切渡りません。vaultは
+        <strong>open-cg-cadサーバー自身</strong>(<code>POST /v1/agent/github/commit</code>)へ
+        トークンを送り、そこで1回だけGitHub APIの呼び出しに使われ、ディスクへは保存されません。
+        詳細は<a href="vault.html" target="_blank" rel="noopener">vault.html</a>とCLAUDE.md
+        (2026-08-27)を参照してください。本当の分離効果を得るには、上のセクションの注記通り、
+        vault.htmlをこのページとは別オリジンで配信してください。
+      </p>
+      <label class="setup-label">
+        vault.htmlのURL(別オリジン推奨) / vault.html URL (a different origin is recommended)<br />
+        <input type="text" id="cg-cad-github-vault-url" class="setup-input" placeholder="https://vault.example.com/vault.html" />
+      </label>
+      <button type="button" id="cg-cad-github-vault-load-btn" class="setup-btn">🔌 vaultを読み込む / Load vault</button>
+      <p class="setup-note" id="cg-cad-github-vault-status"></p>
+      <iframe id="cg-cad-github-vault-iframe" class="hidden"
+        sandbox="allow-scripts allow-same-origin allow-forms"
+        style="width:100%;height:340px;border:1px solid #666;border-radius:8px;"></iframe>
+
+      <label>Drawing ID to push (its filename/category/description/analysis are packaged as JSON) / pushする図面ID(ファイル名/カテゴリ/説明文/AI提案をJSONにまとめます)<input type="number" id="cg-cad-github-drawing-id" class="setup-input" placeholder="e.g. 10" /></label>
+      <label>GitHub owner / GitHubオーナー<input type="text" id="cg-cad-github-owner" class="setup-input" placeholder="e.g. your-github-username" /></label>
+      <label>GitHub repo (must already exist) / GitHubリポジトリ名(既存のもの)<input type="text" id="cg-cad-github-repo" class="setup-input" placeholder="e.g. my-cg-cad-designs" /></label>
+      <label>Path in repo / リポジトリ内のパス<input type="text" id="cg-cad-github-path" class="setup-input" placeholder="e.g. drawings/drawing-10.json" /></label>
+      <label>Branch (optional) / ブランチ(任意)<input type="text" id="cg-cad-github-branch" class="setup-input" placeholder="main" /></label>
+      <label>Commit message (optional) / コミットメッセージ(任意)<input type="text" id="cg-cad-github-message" class="setup-input" placeholder="Add/update drawing from open-english" /></label>
+      <button type="button" id="cg-cad-github-commit-btn" class="setup-btn">🔐 Commit to GitHub / GitHubへコミット</button>
+      <p class="setup-note" id="cg-cad-github-status" style="white-space: pre-line;"></p>
     </div>
   </div>
 

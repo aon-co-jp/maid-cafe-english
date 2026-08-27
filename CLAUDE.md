@@ -1075,6 +1075,64 @@ AIコーディング支援パネル)にとどめている。
 
 ## HANDOFF
 
+- **2026-08-27(続き19) vault.html経由でopen-cg-cadのGitHub書き込みを
+  呼べるUIを新設(ユーザー指示「open-cg-cadのGitHub書き込み
+  〈github_agent::commit_file〉は…バックエンドのみで、vault.html経由で
+  呼び出すUIはまだ配線して下さい」への対応)**:
+  1. **経路の設計判断(重要)**: 既存の`vault.html`の
+     `githubCreateRepoAndPush`はこのiframeから**GitHub REST APIを直接
+     叩く**設計(常に新規リポジトリを作成)だが、今回は
+     ユーザーが明示的に参照した`open-cg-cad`側の
+     `github_agent::commit_file`(既存リポジトリの既存パスへの
+     コミット)を**実際に経由させる**必要があったため、新規メッセージ型
+     `vault:cgCadGithubCommit`を追加し、`vault.html`内の新関数
+     `cgCadGithubCommit()`が**open-cg-cadサーバー自身の
+     `POST /v1/agent/github/commit`へfetchする**設計にした
+     (iframeから直接GitHubを叩く経路とは別、トークンの経路は
+     このiframe→open-cg-cadサーバー→GitHubの3段)。
+  2. **UI(`index.html`の`#cg-cad-drawing-ops-modal`内に新設)**:
+     「🔐 Push a drawing to GitHub (via vault)」節——vault.htmlのURL
+     入力+読み込みボタン+iframe(フリーランス開発コーナーと同じ
+     `sandbox="allow-scripts allow-same-origin allow-forms"`)、
+     図面ID・owner・repo・path・branch・commit messageの入力欄。
+  3. **`app.js`**: `cgCadRequestVaultGithubCommit()`
+     (`freelanceRequestVaultGithubPush`と同型のpostMessage往復
+     Promiseラッパー)。コミットボタン押下時、まず
+     `GET /v1/drawings/get?id=`で図面レコード(ファイル名・カテゴリ・
+     説明文・AI提案)を取得しJSON化(**元のアップロードファイル本体
+     〈data_base64〉は含めない**、正直な開示としてコード内に明記)→
+     vault経由でopen-cg-cadへコミット依頼。
+  4. **実機検証(型チェック・ビルド成功だけで完了と報告しない方針の
+     徹底)**: 実際に`open-cg-cad-server`+`open-english-server`を
+     起動し、Claude Browserで**完全なE2E経路**を確認した——(a) 図面を
+     アップロード、(b) vault.htmlをiframeとして読み込み、②パスフレーズ
+     暗号化モードでダミートークンを保存・メモリ上で復号、(c) コミット
+     ボタン押下→**実際に**「open-english→open-cg-cad(図面取得)→
+     postMessageでvault.htmlへ依頼→vault内でトークン復号→
+     open-cg-cadサーバーの`/v1/agent/github/commit`へfetch→
+     **実際のGitHub REST APIへ到達**」という全経路が動作し、ダミー
+     トークンのため実際のGitHubから`401 Unauthorized {"message":"Bad
+     credentials"}`が返り、それが逆順に伝播して画面へ正しく表示される
+     ことを確認した(モックではない実HTTP往復、`Failed to fetch`のような
+     配線ミスではなく本物の認証エラーであることを実証)。
+  5. **合わせて修正: vault.htmlの文字色/文字サイズ(ユーザー指摘
+     「白文字にして」「文字は全て一回り大きくして」への対応)**:
+     `<a>`タグに明示的な色指定が無く、暗い背景(`#1b1320`)にブラウザ
+     既定の青/紫リンク色が乗り読みにくかったバグを発見・修正
+     (`a, a:visited { color: #ffffff; }`を追加)。あわせて本文
+     13px→15px、`.status`12px→14px、`.warn`11px→13pxへ、ボタン・
+     入力欄も同様に拡大した。`.warn`の文字色も`#ffb3b3`→`#ffffff`へ
+     統一。
+  6. **正直な開示・今回のスコープ外**: (a) 実際に有効なGitHub PAT
+     (fine-grainedトークン、対象リポジトリ限定)を使った**書き込み成功
+     例**は未確認(ダミートークンでの認証エラー経路の確認までに留めた
+     ——実トークンの用意はユーザー側の作業)。(b) アップロード元
+     ファイル本体(`data_base64`)はGitHubへ含めていない(上記3番、
+     今回は図面「記録」〈メタデータ+AI提案〉のみ)。
+  - 次にすべきこと: (1) 実際に有効なfine-grained PAT(対象リポジトリ
+    限定・Contents: Read and writeのみ)を用意した上での書き込み成功
+    E2E検証、(2) 必要であればファイル本体もコミット対象に含める拡張。
+
 - **2026-08-27(続き18) 図面操作パネルの「未検証」だった成功パスを実機で
   確認+aruaru-llm接続先の上書き欄を追加(ユーザー指示「未TEST、未検証…
   を実用的になるまで数回繰り返して」への対応)**:

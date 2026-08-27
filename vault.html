@@ -8,11 +8,16 @@
   /* 最小限の見た目のみ。open-english本体のstyle.cssには依存しない
      (このページは別オリジンで単独配信されることを想定した自己完結
      設計のため——外部CSS/JSへの依存はセキュリティ境界を曖昧にする)。 */
-  body { font-family: sans-serif; margin: 12px; background: #1b1320; color: #f3e9f7; font-size: 13px; }
-  input, button { font-size: 13px; padding: 4px 6px; margin: 2px 0; }
+  body { font-family: sans-serif; margin: 12px; background: #1b1320; color: #ffffff; font-size: 15px; }
+  input, button, select, option { font-size: 15px; padding: 4px 6px; margin: 2px 0; }
   input[type="password"], input[type="text"] { width: 100%; box-sizing: border-box; }
-  .status { font-size: 12px; opacity: 0.85; min-height: 1.4em; }
-  .warn { color: #ffb3b3; font-size: 11px; }
+  .status { font-size: 14px; opacity: 0.9; min-height: 1.4em; color: #ffffff; }
+  .warn { color: #ffffff; font-size: 13px; }
+  /* 2026-08-27追記(ユーザー指摘): リンクに明示的な色指定が無く、
+     ブラウザ既定の青(未訪問)/紫(訪問済み)が暗い背景で読みにくかった
+     ため、本文と同じ白へ統一(全文字色白・文字サイズ一回り拡大の指示
+     への対応)。 */
+  a, a:visited { color: #ffffff; }
 </style>
 </head>
 <body>
@@ -69,6 +74,13 @@
   なります(鍵の暗号化・保存・復号自体は単体でも動作します)。ローカルの
   アドレスが既定(<code>127.0.0.1:4601</code>)と異なる場合は
   <code>-ServerHost</code>/<code>-ServerPort</code>引数で指定してください。<br />
+  <strong>上記スクリプトを使わず、自分でシークレット/プライベートウィンドウを
+  開いた場合も同じです</strong>——貼り付けるのは<strong>open-english本体のURL</strong>
+  (本番: <code>https://easy-web.tokyo/open-english/</code>、ローカル:
+  <code>http://127.0.0.1:4601/</code>等)であり、この<code>vault.html</code>自身の
+  URLではありません。開いたら、本体ページ内のパネル(図面操作/フリーランス開発
+  コーナー等)からこの<code>vault.html</code>のURLを別途入力してiframeとして
+  読み込んでください。<br />
   This page itself cannot force a browser or mode switch, but <strong>if Chrome is installed
   ahead of time, a dedicated desktop shortcut can be created that always opens a fresh Chrome
   Incognito window</strong> when double-clicked (using Chrome's real, documented
@@ -79,7 +91,13 @@
   the parent page (GitHub push / Google Search delegation talk to the parent via postMessage),
   so opening it standalone would break those features (key encryption/storage/decryption alone
   still works). If your local address differs from the default (<code>127.0.0.1:4601</code>),
-  pass <code>-ServerHost</code>/<code>-ServerPort</code>.
+  pass <code>-ServerHost</code>/<code>-ServerPort</code>.<br />
+  <strong>The same applies if you open an incognito/private window yourself instead of using the
+  script above</strong> — paste in the <strong>open-english app's own URL</strong> (production:
+  <code>https://easy-web.tokyo/open-english/</code>, local: e.g.
+  <code>http://127.0.0.1:4601/</code>), not this <code>vault.html</code> page's own URL. Once it's
+  open, load this <code>vault.html</code>'s URL as an iframe from within one of the app's panels
+  (Drawing Ops, the freelance corner, etc.).
 </p>
 
 <div>
@@ -431,6 +449,33 @@
     return repo.html_url;
   }
 
+  // ---- 2026-08-27新設: open-cg-cadサーバー自身のGitHub書き込みAPI
+  // (`POST /v1/agent/github/commit`、`server/src/github_agent.rs`)を
+  // 呼び出す。**このiframeからGitHub REST APIを直接叩くのではなく、
+  // open-cg-cadサーバーへ委譲する**——ユーザー指示「open-cg-cadの
+  // GitHub書き込み(github_agent::commit_file)を…vault.html経由で
+  // 呼び出す」に沿った設計。トークンの経路: このiframe(復号済みメモリ
+  // 上)→open-cg-cadサーバー(リクエストの都度受け取りメモリ上でのみ
+  // 使用、ディスクへ永続化しない設計——github_agent.rsのモジュールdoc
+  // 参照)→GitHub。**正直な開示**: 上のgithubCreateRepoAndPush
+  // (このiframeから直接GitHub APIを呼ぶ、フリーランス開発コーナー用)
+  // より1段多く経由するため、その分だけ露出範囲は広がる
+  // (open-cg-cadサーバーのメモリを一瞬経由する)——ただしディスクへの
+  // 永続化は無く、ログにも出力しない設計。
+  async function cgCadGithubCommit({ cgCadBase, owner, repo, path, content, message, branch, sha }) {
+    if (!unlockedToken) throw new Error("Vault is locked — unlock it first / vaultがロックされています——先に復号してください");
+    if (!cgCadBase) throw new Error("cgCadBase (open-cg-cad server URL) is required / cgCadBase(open-cg-cadサーバーのURL)が必要です");
+    if (!owner || !repo || !path) throw new Error("owner, repo, and path are required / owner・repo・pathが必要です");
+    const resp = await fetch(`${cgCadBase.replace(/\/$/, "")}/v1/agent/github/commit`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ owner, repo, path, content: content || "", message: message || "Update via open-cg-cad drawing ops", branch: branch || undefined, sha: sha || undefined, token: unlockedToken }),
+    });
+    const data = await resp.json().catch(() => ({}));
+    if (!resp.ok || data.ok === false) throw new Error(data.error || `open-cg-cad returned HTTP ${resp.status}`);
+    return data.html_url || null;
+  }
+
   // ---- 親ページとのpostMessageプロトコル ----
   // 受信: {type: "vault:githubPush", requestId, repoName, isPrivate, filePath, fileContent, commitMessage}
   // 送信: {type: "vault:githubPushResult", requestId, ok, url} または {..., ok:false, error}
@@ -448,6 +493,17 @@
       } catch (err) {
         event.source.postMessage({ type: "vault:githubPushResult", requestId: data.requestId, ok: false, error: String(err.message || err) }, event.origin);
         setStatus(`⚠ Push failed: ${err.message || err}`);
+      }
+    } else if (data.type === "vault:cgCadGithubCommit") {
+      // 受信: {type:"vault:cgCadGithubCommit", requestId, cgCadBase, owner, repo, path, content, message, branch, sha}
+      // 送信: {type:"vault:cgCadGithubCommitResult", requestId, ok, url} または {..., ok:false, error}
+      try {
+        const url = await cgCadGithubCommit(data);
+        event.source.postMessage({ type: "vault:cgCadGithubCommitResult", requestId: data.requestId, ok: true, url }, event.origin);
+        setStatus(`✅ Committed via open-cg-cad for parent page: ${data.path}`);
+      } catch (err) {
+        event.source.postMessage({ type: "vault:cgCadGithubCommitResult", requestId: data.requestId, ok: false, error: String(err.message || err) }, event.origin);
+        setStatus(`⚠ Commit failed: ${err.message || err}`);
       }
     } else if (data.type === "vault:status") {
       event.source.postMessage(
