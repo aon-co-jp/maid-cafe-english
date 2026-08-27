@@ -2264,13 +2264,51 @@ function egovOpinionText() {
     "person.) Building on that idea, there is a view that e-government " +
     "and digital government should be developed urgently worldwide, " +
     "together with online international trade systems and low-cost " +
-    "seller/listing fees.";
-  return `\n\n🗣️ ${noteJa}\n${ja}\n\n${noteEn}\n${en}`;
+    "seller/listing fees. Furthermore, adopting e-government/digital " +
+    "government at the national and local government level — including " +
+    "prefectures and (overseas) states — can be seen as a national-policy" +
+    "-level measure capable of addressing shortfalls in tax and other " +
+    "revenue.";
+  const jaExtra =
+    "さらに、eガバメント・デジタルガバメントの導入は、政府・地方自治体・" +
+    "都道府県庁・(海外の)州などにおいて、税収不足や歳入不足にも対応" +
+    "できる政策として、国策と言えるレベルの重要施策だと考えます。";
+  return `\n\n🗣️ ${noteJa}\n${ja}${jaExtra}\n\n${noteEn}\n${en}`;
 }
+
+// 上記の追記部分(税収不足・歳入不足対応策としてのeガバメント)を、
+// 利用者が選択した世界の言語へも翻訳する(ユーザー指示「英語と日本語と
+// 世界中の言語に翻訳して追加して」への対応、2026-08-27)。年金トピック
+// (`PENSION_PROPOSAL_I18N`)と同じ設計・同じ14言語から着手した——
+// 全世界の言語を一度に翻訳することは現実的でないため、正直な開示として
+// 未対応言語では日英併記のみ返す。
+const EGOV_TAX_I18N = {
+  es: "Además, la adopción del gobierno electrónico/digital a nivel nacional y de gobiernos locales -incluyendo prefecturas y estados (en el extranjero)- puede considerarse una medida de nivel de política nacional capaz de abordar la escasez de ingresos fiscales y otros ingresos.",
+  fr: "De plus, l'adoption de l'administration électronique/numérique au niveau national et local -y compris les préfectures et les États (à l'étranger)- peut être considérée comme une mesure de niveau politique national capable de remédier aux déficits de recettes fiscales et autres.",
+  de: "Darüber hinaus kann die Einführung von E-Government/Digital-Government auf nationaler und kommunaler Ebene -einschließlich Präfekturen und (ausländischer) Bundesstaaten- als eine Maßnahme auf Ebene der Staatspolitik angesehen werden, die Steuer- und sonstige Einnahmeausfälle beheben kann.",
+  pt: "Além disso, a adoção do governo eletrônico/digital em nível nacional e municipal -incluindo prefeituras e estados (no exterior)- pode ser vista como uma medida de política nacional capaz de resolver a escassez de receitas tributárias e outras.",
+  ru: "Кроме того, внедрение электронного/цифрового правительства на национальном и местном уровне — включая префектуры и (зарубежные) штаты — можно рассматривать как меру государственной политики, способную решить проблему нехватки налоговых и иных доходов.",
+  zh: "此外，在国家和地方政府层面(包括都道府县和海外的州)推进电子政务/数字政务，可以被视为一项能够应对税收和其他财政收入不足问题的国家级政策措施。",
+  ko: "또한 정부·지방자치단체·도도부현·(해외의) 주 등에서 전자정부·디지털 정부를 도입하는 것은 세수 부족이나 세입 부족에도 대응할 수 있는 국가 정책 수준의 중요한 시책이라고 생각합니다.",
+  hi: "इसके अलावा, राष्ट्रीय और स्थानीय सरकार स्तर पर -प्रान्तों और (विदेशी) राज्यों सहित- ई-गवर्नमेंट/डिजिटल गवर्नमेंट को अपनाना, कर और अन्य राजस्व की कमी को दूर करने में सक्षम एक राष्ट्रीय नीति-स्तरीय उपाय माना जा सकता है।",
+  ar: "علاوة على ذلك، يمكن اعتبار اعتماد الحكومة الإلكترونية/الرقمية على المستوى الوطني والمحلي — بما في ذلك المحافظات والولايات (في الخارج) — إجراءً على مستوى السياسة الوطنية قادرًا على معالجة النقص في الإيرادات الضريبية وغيرها.",
+  he: "בנוסף, אימוץ ממשל אלקטרוני/דיגיטלי ברמה הלאומית והמקומית — כולל מחוזות ומדינות (בחו\"ל) — ניתן לראות כאמצעי ברמת מדיניות לאומית המסוגל להתמודד עם מחסור בהכנסות ממס ובהכנסות אחרות.",
+  fa: "علاوه بر این، پذیرش دولت الکترونیک/دولت دیجیتال در سطح ملی و محلی — از جمله استان‌ها و ایالت‌ها (در خارج از کشور) — می‌تواند به‌عنوان اقدامی در سطح سیاست ملی در نظر گرفته شود که قادر به مقابله با کمبود درآمد مالیاتی و سایر درآمدها است.",
+  uk: "Крім того, впровадження електронного/цифрового уряду на національному та місцевому рівні — включно з префектурами та (закордонними) штатами — можна розглядати як захід державної політики, здатний вирішити проблему нестачі податкових та інших доходів.",
+  it: "Inoltre, l'adozione dell'e-government/governo digitale a livello nazionale e locale, comprese le prefetture e gli stati (esteri), puo essere considerata una misura di livello politico nazionale in grado di affrontare la carenza di entrate fiscali e di altro tipo.",
+  "zh-Hant": "此外，在國家與地方政府層級(包括都道府縣與海外的州)推動電子政府/數位政府，可視為一項能夠因應稅收與其他財政收入不足問題的國家級政策措施。",
+};
 
 function egovSuffix(userText) {
   if (!mentionsEgovTopic(userText)) return "";
-  return egovOpinionText();
+  let text = egovOpinionText();
+  const code = preferredWorldLangCode();
+  const baseCode = code && code.includes("-") ? code.split("-")[0] : null;
+  const translation = code && EGOV_TAX_I18N[code] ? EGOV_TAX_I18N[code] : baseCode && EGOV_TAX_I18N[baseCode] ? EGOV_TAX_I18N[baseCode] : null;
+  if (translation && code !== "ja" && code !== "en") {
+    text += `\n\n🌐 ${translation}`;
+  }
+  return text;
 }
 
 // 正直な開示: 対話ファインチューニングを受けていない素のGPT-2(貪欲
