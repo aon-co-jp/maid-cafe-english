@@ -189,7 +189,15 @@ pub async fn request_otp(email1: &str, email2: Option<&str>) -> Result<()> {
          心当たりが無い場合は、このメールを無視して構いません。"
     );
     let creds = Credentials::new(cfg.user.clone(), cfg.password.clone());
-    let mailer = AsyncSmtpTransport::<Tokio1Executor>::relay(&cfg.host)
+    // **2026-08-27修正(実バグ)**: `relay()`は既定で暗黙的TLS(ラッパー方式、
+    // 通常ポート465向け)を仮定するため、STARTTLSを使うポート587の
+    // Gmail等へ接続すると平文のSMTPバナーへ即座にTLSハンドシェイクを
+    // 試みてしまい`received corrupt message of type InvalidContentType`
+    // で失敗する(実機で本番Gmailアカウントへの送信を試みて発見)。
+    // `open-easy-web/server/src/mail.rs`が最初から使っている
+    // `starttls_relay()`(ポート587のSTARTTLS専用コンストラクタ)へ
+    // 揃えて解消した。
+    let mailer = AsyncSmtpTransport::<Tokio1Executor>::starttls_relay(&cfg.host)
         .context("failed to configure SMTP relay")?
         .port(cfg.port)
         .credentials(creds)
