@@ -1075,6 +1075,71 @@ AIコーディング支援パネル)にとどめている。
 
 ## HANDOFF
 
+- **2026-08-27(続き17) open-cg-cad「図面操作」パネルを新設(ユーザー指示
+  「open-englishのチャットで、open-cg-cadで図面のUPLOADや複数図面の
+  合成や手直しの指示なども出来るようにしたい」+「画面としてはopen-
+  english、インストール先(実際のデータ操作先)はeasy-web.tokyo/
+  open-cg-cad」への対応)**:
+  1. **設計判断(正直な開示、最重要)**: 「open-englishのチャットで指示」
+     という要望を、素のGPT-2への自由記述文の意図解析(NLU)経由で実装
+     することは避けた——本ファイルの既存の開示(GPT-2は指示追従を保証
+     しない、多言語対応の実機検証等)と同じ理由で、誤解析による「動く
+     ふりの図面操作」を生むリスクが高いと判断したため。代わりに、
+     world-labパネルの隣に**専用パネル**(`#cg-cad-drawing-ops-modal`)を
+     新設し、明示的なフォーム操作(ファイル名/カテゴリ/説明文の入力、
+     図面ID指定)でopen-cg-cadのAPIを直接呼ぶ設計にした——ユーザーの
+     「画面としてはopen-english」という要望はこのパネルで満たし、
+     「インストール先(実データ)はeasy-web.tokyo/open-cg-cad」という
+     要望は、open-english側に新規のサーバーロジック・DBを一切追加せず
+     open-cg-cadのAPIを直接叩くだけ、という設計で満たしている。
+  2. **実装(`index.html`/`app.js`のみ、`server/`側は無変更)**:
+     `#cg-cad-drawing-ops-modal`(3セクション: 📤アップロード・
+     🔀複数図面の合成・✏️旧図面の再設計)を新設。`app.js`側は
+     `cgCadOpsBase()`(open-cg-cadへのlinkボタンと同じ`isLocalHost`
+     判定パターンを再利用、本番は同一オリジンpath prefix・ローカルは
+     `127.0.0.1:4701`)で接続先を決め、`fetch`で
+     `open-cg-cad`側`/v1/drawings/{upload,merge,redesign}`を直接呼ぶ。
+     ファイルアップロード時はブラウザの`ArrayBuffer`→Base64変換
+     (既存の`freelanceUtf8ToBase64`等とは独立した簡易実装、ファイル
+     選択が無い場合は空オブジェクト`"{}"`のBase64をプレースホルダとして
+     送る)。結果(AI生成の合成/再設計提案文、または正直なエラー)は
+     モーダル内に表示するのみで、チャットログへは注入しない(パネルの
+     スコープをチャット送信フローから独立させ、既存の`askTrainer`等の
+     複雑なsuffix連鎖に新たな分岐を増やさないための設計判断)。
+  3. **open-cg-cad側の対応変更(別リポジトリ、詳細は`open-cg-cad/
+     CLAUDE.md`同日エントリ参照)**: `POST /v1/drawings/merge`
+     (2〜8件の図面IDを合成)を新設、ルートチェーンへ`.with_cors()`を
+     追加(open-englishからのクロスオリジンfetchを許可するため)。
+  4. **実機検証(型チェック・ビルド成功だけで完了と報告しない方針の
+     徹底)**: `cargo build --release`(open-english/server・
+     open-cg-cad/server 両方)成功。`node --check app.js`成功。
+     **実際に2つのサーバーを別々のポートで同時起動し(open-english:
+     18731、open-cg-cad: 18730)、Claude Browserで実際にopen-english
+     のページ上から**: (a) パネルを開く→アップロードフォームへ入力
+     ("npu_chip_v1.json"、"4-core NPU, 15 TOPS, 5nm process.")→
+     アップロードボタン押下→**実際にopen-cg-cad側へクロスオリジン
+     fetchが成功し**「✅ Uploaded as drawing #7」が表示されることを
+     確認、(b) 続けて再設計フォームへ旧図面ID(7)+指示文("Add support
+     for INT4 quantization.")を入力→再設計ボタン押下→
+     open-english→open-cg-cad→aruaru-llm(未起動)という**3段の
+     経路全体が実際に到達し**、正直なエラー
+     ("could not reach aruaru-llm at http://localhost:4600: ...")が
+     モーダルへ表示されることを確認した。**モックではなく実HTTP
+     往復**(localStorageで接続先を上書きし、実際に2プロセス間で
+     ネットワーク通信させた)。検証後、両テストサーバーは終了済み。
+  5. **正直な開示・今回のスコープ外**: (a) 実際にaruaru-llmを起動した
+     状態での合成/再設計の成功例(AI生成テキストが実際に返ってくる
+     ところ)までは確認していない——エラー経路の確認までに留めた
+     (open-cg-cad側の`analyze_drawing`は過去に実際起動して確認済みの
+     ため、同じコードパスを再利用する本機能も動作すると推定される)。
+     (b) 生成された合成/再設計提案をチャットへ注入して会話を続ける
+     導線は無い(上記2番の設計判断通り、パネル内で完結)。(c) 本番
+     (easy-web.tokyo)環境での実際のクロスオリジン/同一オリジンfetch
+     E2E確認は次のVPSデプロイ後に実施する。
+  - 次にすべきこと: (1) VPSデプロイ後の本番環境での実機確認、
+    (2) 実際にaruaru-llmを起動した状態での合成/再設計成功例の確認、
+    (3) 需要があれば結果をチャットログへ注入する導線の追加検討。
+
 - **2026-08-26(続き3・未着手タスク記録) 「GPT-2が検索結果を正確に活用
   する保証はない」制約の緩和可能性を次回調査・改善することを記録**:
   ユーザーから「Google検索結果を参考に情報収集して解析してAIが回答に

@@ -1,0 +1,98 @@
+{
+  "eiken5": [
+    { "q": "This is ___ apple.", "choices": ["a", "an", "some", "many"], "answer": 1 },
+    { "q": "He ___ to school every day.", "choices": ["go", "goes", "going", "gone"], "answer": 1 },
+    { "q": "___ is your name?", "choices": ["What", "Who", "Where", "When"], "answer": 0 },
+    { "q": "I like ___ dogs.", "choices": ["a", "an", "the", "-"], "answer": 3 }
+  ],
+  "eiken4": [
+    { "q": "She ___ swimming last weekend.", "choices": ["go", "went", "goes", "going"], "answer": 1 },
+    { "q": "There ___ many books on the desk.", "choices": ["is", "are", "was", "be"], "answer": 1 },
+    { "q": "I ___ finished my homework yet.", "choices": ["haven't", "hasn't", "didn't", "don't"], "answer": 0 },
+    { "q": "He can speak English ___.", "choices": ["good", "well", "nice", "fine"], "answer": 1 }
+  ],
+  "eiken3": [
+    { "q": "If I ___ rich, I would travel a lot.", "choices": ["am", "was", "were", "be"], "answer": 2 },
+    { "q": "The book ___ on the table is mine.", "choices": ["lying", "lie", "lay", "lain"], "answer": 0 },
+    { "q": "She told me ___ she would arrive late.", "choices": ["that", "what", "which", "who"], "answer": 0 },
+    { "q": "I have been waiting ___ two hours.", "choices": ["since", "for", "during", "by"], "answer": 1 }
+  ],
+  "eiken-pre2": [
+    { "q": "He must have ___ tired after the long trip.", "choices": ["be", "being", "been", "was"], "answer": 2 },
+    { "q": "Not until later ___ realize her mistake.", "choices": ["did she", "she did", "she does", "does she"], "answer": 0 },
+    { "q": "It is essential that he ___ present.", "choices": ["is", "be", "was", "being"], "answer": 1 },
+    { "q": "The sooner you start, the ___ you finish.", "choices": ["sooner", "soon", "soonest", "most soon"], "answer": 0 }
+  ],
+  "eiken2": [
+    { "q": "Given the circumstances, it is unlikely ___ the plan succeeds.", "choices": ["that", "what", "which", "if"], "answer": 0 },
+    { "q": "Hardly ___ arrived when it began to rain.", "choices": ["had I", "I had", "I did", "did I"], "answer": 0 },
+    { "q": "The proposal was rejected ___ its high cost.", "choices": ["because of", "because", "due", "so that"], "answer": 0 },
+    { "q": "She would rather he ___ stayed home.", "choices": ["has", "have", "had", "having"], "answer": 2 }
+  ],
+  "eiken1": [
+    { "q": "His speech was ___ with irony.", "choices": ["laden", "riddled", "fraught", "festooned"], "answer": 1 },
+    { "q": "The findings were ___ by subsequent research.", "choices": ["corroborated", "vitiated", "exonerated", "obviated"], "answer": 0 },
+    { "q": "His demeanor remained ___ despite the chaos.", "choices": ["placid", "fractious", "obstreperous", "truculent"], "answer": 0 },
+    { "q": "The negotiations finally broke the ___ after months of deadlock.", "choices": ["impasse", "imprimatur", "impetus", "imbroglio"], "answer": 0 }
+  ],
+  "toeic": [
+    { "q": "The shipment is expected to arrive ___ Friday.", "choices": ["by", "until", "since", "for"], "answer": 0 },
+    { "q": "Please ensure all forms are ___ before submission.", "choices": ["complete", "completing", "completed", "completes"], "answer": 2 },
+    { "q": "The manager asked employees ___ the report by noon.", "choices": ["finish", "to finish", "finishing", "finished"], "answer": 1 },
+    { "q": "Our office will be closed ___ the holiday.", "choices": ["during", "while", "for", "since"], "answer": 0 }
+  ],
+  "toefl": [
+    { "q": "The lecture focused on the ___ of climate change.", "choices": ["implications", "implicate", "implicative", "implicatively"], "answer": 0 },
+    { "q": "Researchers found a strong ___ between the two variables.", "choices": ["correlate", "correlation", "correlative", "correlatively"], "answer": 1 },
+    { "q": "The essay ___ several counterarguments before concluding.", "choices": ["address", "addresses", "addressed", "addressing"], "answer": 1 },
+    { "q": "Despite ___ evidence, the theory remains controversial.", "choices": ["substantial", "substantially", "substantiate", "substantiation"], "answer": 0 }
+  ],
+  "jlptN5": [
+    { "q": "わたしは学生 ___ す。", "choices": ["で", "を", "に", "が"], "answer": 0 },
+    { "q": "あそこに猫 ___ います。", "choices": ["が", "を", "は", "も"], "answer": 0 },
+    { "q": "きのう映画 ___ 見ました。", "choices": ["を", "が", "に", "で"], "answer": 0 },
+    { "q": "わたしの部屋は二階 ___ あります。", "choices": ["に", "を", "が", "へ"], "answer": 0 }
+  ],
+  "jlptN4": [
+    { "q": "雨が降っていた ___、出かけませんでした。", "choices": ["ので", "のに", "なら", "けど"], "answer": 0 },
+    { "q": "薬を飲んだ ___、熱が下がりました。", "choices": ["ら", "と", "なら", "ので"], "answer": 0 },
+    { "q": "この漢字の読み方が ___ わかりません。", "choices": ["よく", "たくさん", "すこし", "ぜんぜん"], "answer": 0 },
+    { "q": "駅まで歩いて ___ 分かかります。", "choices": ["何", "いくつ", "どの", "どちら"], "answer": 0 }
+  ],
+  "jlptN3": [
+    { "q": "忙しい ___ 手伝ってくれてありがとう。", "choices": ["のに", "ので", "から", "ても"], "answer": 0 },
+    { "q": "あの人は日本語が話せる ___、中国語も話せる。", "choices": ["ばかりでなく", "だけ", "のみ", "ほど"], "answer": 0 },
+    { "q": "考えれば考える ___、わからなくなる。", "choices": ["ほど", "だけ", "まま", "ばかり"], "answer": 0 },
+    { "q": "この件については彼に任せる ___ にした。", "choices": ["こと", "もの", "はず", "つもり"], "answer": 0 }
+  ],
+  "jlptN2": [
+    { "q": "この地域は雨が多い ___、農業が盛んだ。", "choices": ["ことから", "にしては", "にもかかわらず", "ばかりに"], "answer": 0 },
+    { "q": "彼の説明を聞く ___、状況が理解できた。", "choices": ["ことで", "うちに", "かぎり", "につけ"], "answer": 0 },
+    { "q": "締め切りが近いにも ___、まだ準備が終わっていない。", "choices": ["かかわらず", "かかわり", "かかわる", "かかわって"], "answer": 0 },
+    { "q": "彼女は忙しい仕事の ___、家族との時間も大切にしている。", "choices": ["かたわら", "あまり", "せいで", "おかげで"], "answer": 0 }
+  ],
+  "jlptN1": [
+    { "q": "彼の主張は事実に ___ ものではない。", "choices": ["即した", "即する", "即して", "即せる"], "answer": 0 },
+    { "q": "この決定は、社員の声を ___ なされたものだ。", "choices": ["踏まえて", "問わず", "限らず", "おいて"], "answer": 0 },
+    { "q": "彼女は困難に ___、決してあきらめなかった。", "choices": ["直面しても", "直面して", "直面したら", "直面するなら"], "answer": 0 },
+    { "q": "彼の勇気ある行動は賞賛に ___。", "choices": ["値する", "値する足る", "値しかねる", "値し得ない"], "answer": 0 }
+  ],
+  "nihongoKentei3": [
+    { "q": "「お世話になっております」は主にどんな場面で使うか。", "choices": ["ビジネスの挨拶", "友人との会話", "家族との会話", "独り言"], "answer": 0 },
+    { "q": "「一石二鳥」の意味として正しいものは?", "choices": ["一つの行動で二つの利益を得ること", "一つも得られないこと", "二つの石を同時に投げること", "失敗を繰り返すこと"], "answer": 0 },
+    { "q": "「差し支えなければ」の意味として正しいものは?", "choices": ["もし問題がなければ", "絶対に", "決して", "仕方なく"], "answer": 0 },
+    { "q": "「頭が下がる」の意味として正しいものは?", "choices": ["感心し敬服する", "恥ずかしく思う", "うつむく", "反省する"], "answer": 0 }
+  ],
+  "nihongoKentei2": [
+    { "q": "「渡りに船」の意味として正しいものは?", "choices": ["ちょうど都合のよいことが起こる", "危険を冒す", "船に乗って渡る", "何も得られない"], "answer": 0 },
+    { "q": "取引先に予定変更を伝える際、最も適切な表現は?", "choices": ["都合により予定を変更させていただきます", "予定が変わりました", "変更します", "予定変えます"], "answer": 0 },
+    { "q": "「木を見て森を見ず」の意味として正しいものは?", "choices": ["細部にとらわれて全体を見失う", "全体だけを見る", "森林を観察する", "木の種類を調べる"], "answer": 0 },
+    { "q": "「口が堅い」の意味として正しいものは?", "choices": ["秘密を守れる", "話し方が固い", "口が動かない", "無口である"], "answer": 0 }
+  ],
+  "nihongoKentei1": [
+    { "q": "「臍を噬む」の意味として正しいものは?", "choices": ["ひどく後悔する", "喜ぶ", "驚く", "無関心である"], "answer": 0 },
+    { "q": "「韜晦」の意味として正しいものは?", "choices": ["本心や才能を包み隠すこと", "才能を誇示すること", "隠居すること", "才能を伸ばすこと"], "answer": 0 },
+    { "q": "重要な提案を上司に伝える際、最も謙虚で適切な言い方は?", "choices": ["僭越ではございますが、一つ提案させていただければと存じます", "提案します", "言わせてもらいます", "こう思います"], "answer": 0 },
+    { "q": "「刎頸の交わり」の意味として正しいものは?", "choices": ["生死をともにするほど深い友情", "浅い付き合い", "仕事上の関係", "一時的な関係"], "answer": 0 }
+  ]
+}

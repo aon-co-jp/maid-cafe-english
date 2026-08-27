@@ -907,6 +907,70 @@ cd aruaru-db
     </div>
   </div>
 
+  <!-- 2026-08-27新設(ユーザー指示「open-englishのチャットで、open-cg-cadで
+       図面のUPLOADや複数図面の合成や手直しの指示なども出来るようにしたい」+
+       「画面としてはopen-english、インストール先(実際のデータ操作先)は
+       easy-web.tokyo/open-cg-cad」への対応)。**正直な開示**: これは
+       open-cg-cad上のGPT-2への自由記述チャット文からの意図解析(NLU)では
+       ない——GPT-2は指示追従を保証しないため(CLAUDE.md既存の開示通り)、
+       意図の取り違えによる「動くふりの図面操作」を避け、専用パネルの
+       明示的なフォーム操作としてこの機能を実装した。open-cg-cadの
+       /v1/drawings/{upload,merge,redesign}をこのページから直接呼ぶのみで、
+       open-english側に新規のサーバーロジックは追加していない。 -->
+  <div id="cg-cad-drawing-ops-modal" class="setup-modal hidden">
+    <div class="setup-panel">
+      <button type="button" id="cg-cad-drawing-ops-close" class="setup-close">✕</button>
+      <h2>📐 open-cg-cad Drawing Ops / 図面操作(UPLOAD・合成・再設計)</h2>
+      <p class="setup-honest">
+        <strong>Honest disclosure:</strong> These buttons call open-cg-cad's own API directly from
+        this page (<code>/v1/drawings/upload</code>, <code>/v1/drawings/merge</code>,
+        <code>/v1/drawings/redesign</code>) — open-english's own chat AI (a base GPT-2) is not used
+        to interpret your instructions, since it cannot reliably follow free-text instructions. All
+        drawing storage and AI-generated proposals happen on open-cg-cad, not here.<br /><br />
+        <strong>正直な開示：</strong>この画面のボタンは、open-cg-cad自身のAPI
+        (<code>/v1/drawings/upload</code>・<code>/v1/drawings/merge</code>・
+        <code>/v1/drawings/redesign</code>)をこのページから直接呼び出しているだけです——
+        open-english自体のチャットAI(素のGPT-2)が指示文を解釈しているわけではありません
+        (自由記述の指示追従は保証されないため)。図面の保存・AIによる提案生成は、すべて
+        open-cg-cad側で行われます。
+      </p>
+
+      <h3>📤 Upload a drawing / 図面をアップロード</h3>
+      <label>Filename / ファイル名<input type="text" id="cg-cad-upload-filename" class="setup-input" placeholder="e.g. engine_v1.json" /></label>
+      <label>Category / カテゴリ
+        <select id="cg-cad-upload-category" class="setup-input">
+          <option value="cpu-npu-gpu">半導体・CPU・NPU・GPU / Semiconductor (CPU/NPU/GPU)</option>
+          <option value="vehicle">自動車・バイク / Automobile / Motorcycle</option>
+          <option value="rail">新幹線・リニアモーターカー / Shinkansen / Maglev</option>
+          <option value="aircraft">航空機 / Aircraft</option>
+          <option value="building">建築 / Building</option>
+          <option value="other">その他 / Other</option>
+        </select>
+      </label>
+      <label>Description (text only — the AI cannot see the file itself) / 説明文(AIはファイル自体を見ません)
+        <textarea id="cg-cad-upload-description" class="setup-input" rows="3" placeholder="e.g. V6 gasoline engine, 300hp, 3.5L displacement."></textarea>
+      </label>
+      <label>File (optional, stored as-is) / ファイル(任意、そのまま保管)<input type="file" id="cg-cad-upload-file" class="setup-input" /></label>
+      <button type="button" id="cg-cad-upload-btn" class="setup-btn">📤 Upload / アップロード</button>
+      <p class="setup-note" id="cg-cad-upload-status"></p>
+
+      <h3>🔀 Merge multiple drawings / 複数図面を合成</h3>
+      <p class="setup-note">
+        Comma-separated drawing IDs (2–8) / カンマ区切りの図面ID(2〜8件)<br />
+        <input type="text" id="cg-cad-merge-ids" class="setup-input" placeholder="e.g. 5,6" />
+      </p>
+      <label>Instruction (optional) / 指示文(任意)<textarea id="cg-cad-merge-instruction" class="setup-input" rows="2" placeholder="e.g. Combine the engine and chassis into one sports car design."></textarea></label>
+      <button type="button" id="cg-cad-merge-btn" class="setup-btn">🔀 Merge / 合成する</button>
+
+      <h3>✏️ Redesign an old drawing / 旧図面を再設計</h3>
+      <label>Old drawing ID / 旧図面ID<input type="number" id="cg-cad-redesign-old-id" class="setup-input" placeholder="e.g. 5" /></label>
+      <label>Instruction, or paste/re-upload the spec text here / 指示文、または指示書・仕様書のテキストを貼り付け<textarea id="cg-cad-redesign-instruction" class="setup-input" rows="2" placeholder="e.g. Add an integrated NPU capable of 20 TOPS and reduce TDP to 45W."></textarea></label>
+      <button type="button" id="cg-cad-redesign-btn" class="setup-btn">✏️ Redesign / 再設計する</button>
+
+      <p class="setup-note" id="cg-cad-ops-result" style="white-space: pre-line;"></p>
+    </div>
+  </div>
+
   <!-- 2026-08-26新設(ユーザー指示「フリーランスプログラマー向け求人案件を
        参考にAI先生と開発するコーナー」)。範囲の正直な開示: 言語/FW選択・
        Google検索連携(新規タブでの検索、APIキー不要)・URL/テキストコピー・
@@ -1374,6 +1438,7 @@ cd aruaru-db
       <button type="button" id="world-lab-goto-aruaru-llm-btn" class="setup-btn">⚙ Setup aruaru-llm</button>
       <button type="button" id="world-lab-goto-ai-coding-btn" class="setup-btn">🖥️ AI Coding Assistant (incl. Copilot) / AIでプログラミング(Copilot含む)</button>
       <button type="button" id="world-lab-goto-cg-cad-btn" class="setup-btn">🏗 open-cg-cad (AI工務店&AI建設)</button>
+      <button type="button" id="cg-cad-drawing-ops-btn" class="setup-btn">📐 open-cg-cad 図面操作(UPLOAD/合成/再設計) / Drawing Ops</button>
 
       <h3>🔗 Pair a device / デバイスをペアリング</h3>
       <p class="setup-note">

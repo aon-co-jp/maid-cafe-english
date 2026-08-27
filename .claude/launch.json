@@ -1,0 +1,11 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    {
+      "name": "open-english-server",
+      "runtimeExecutable": "F:\\runo\\open-english\\server\\target\\release\\open-english-server.exe",
+      "runtimeArgs": [],
+      "port": 4601
+    }
+  ]
+}

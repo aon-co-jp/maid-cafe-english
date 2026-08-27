@@ -6700,6 +6700,148 @@ if (worldLabRefreshBtn) {
   });
 }
 
+// 2026-08-27新設: open-cg-cadの図面操作(UPLOAD/合成/再設計)パネル
+// (ユーザー指示「open-englishのチャットで、open-cg-cadで図面のUPLOADや
+// 複数図面の合成や手直しの指示なども出来るようにしたい」への対応)。
+// **正直な開示**: open-cg-cad側のAPIをこのページから直接fetchするのみ
+// (open-english自体のチャットAIは介在しない)。本番デプロイ
+// (easy-web.tokyo)ではopen-english/open-cg-cadが同一オリジン配下に
+// path prefixで同居しているため、fetchはCORS制約に引っかからない
+// (open-cg-cad側index.htmlの「共有ログイン状態」表示と同じ前提)。
+// ローカル開発時(別ポート=別オリジン)はopen-cg-cad-server側がCORSを
+// 有効化していないため失敗しうる——その場合もエラーメッセージを正直に
+// 表示するのみで、他機能には影響しない。
+(function () {
+  const modal = document.getElementById("cg-cad-drawing-ops-modal");
+  const openBtn = document.getElementById("cg-cad-drawing-ops-btn");
+  const closeBtn = document.getElementById("cg-cad-drawing-ops-close");
+  if (!modal || !openBtn) return;
+
+  function cgCadOpsBase() {
+    const isLocalHost = /^(127\.0\.0\.1|localhost|\[::1\])$/.test(location.hostname);
+    const defaultBase = isLocalHost ? "http://127.0.0.1:4701/" : location.origin + "/open-cg-cad/";
+    try {
+      return localStorage.getItem("open-english.cgCadBase") || defaultBase;
+    } catch (e) {
+      return defaultBase;
+    }
+  }
+
+  function showOpsResult(text) {
+    const el = document.getElementById("cg-cad-ops-result");
+    if (el) el.textContent = text;
+  }
+
+  openBtn.addEventListener("click", () => {
+    modal.classList.remove("hidden");
+  });
+  if (closeBtn) {
+    closeBtn.addEventListener("click", () => modal.classList.add("hidden"));
+  }
+  modal.addEventListener("click", (e) => {
+    if (e.target === modal) modal.classList.add("hidden");
+  });
+
+  const uploadFileInput = document.getElementById("cg-cad-upload-file");
+  const uploadBtn = document.getElementById("cg-cad-upload-btn");
+  if (uploadBtn) {
+    uploadBtn.addEventListener("click", async () => {
+      const filenameEl = document.getElementById("cg-cad-upload-filename");
+      const categoryEl = document.getElementById("cg-cad-upload-category");
+      const descriptionEl = document.getElementById("cg-cad-upload-description");
+      const statusEl = document.getElementById("cg-cad-upload-status");
+      const filename = (filenameEl?.value || "").trim();
+      if (!filename) {
+        if (statusEl) statusEl.textContent = "Filename is required. / ファイル名が必要です。";
+        return;
+      }
+      let dataBase64 = "e30="; // "{}" — ファイル未選択時の既定値(空のプレースホルダ)
+      const file = uploadFileInput?.files?.[0];
+      if (file) {
+        const buf = await file.arrayBuffer();
+        let binary = "";
+        const bytes = new Uint8Array(buf);
+        for (let i = 0; i < bytes.length; i++) binary += String.fromCharCode(bytes[i]);
+        dataBase64 = btoa(binary);
+      }
+      if (statusEl) statusEl.textContent = "Uploading… / アップロード中…";
+      try {
+        const resp = await fetch(cgCadOpsBase() + "v1/drawings/upload", {
+          method: "POST",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify({
+            filename,
+            category: categoryEl?.value || "other",
+            description: descriptionEl?.value || "",
+            data_base64: dataBase64,
+          }),
+        });
+        const data = await resp.json();
+        if (data.ok) {
+          if (statusEl) statusEl.textContent = `✅ Uploaded as drawing #${data.id} / 図面#${data.id}として保存しました`;
+        } else {
+          if (statusEl) statusEl.textContent = `❌ ${data.error || "upload failed"}`;
+        }
+      } catch (e) {
+        if (statusEl) statusEl.textContent = `❌ Could not reach open-cg-cad / open-cg-cadへ到達できませんでした: ${e}`;
+      }
+    });
+  }
+
+  const mergeBtn = document.getElementById("cg-cad-merge-btn");
+  if (mergeBtn) {
+    mergeBtn.addEventListener("click", async () => {
+      const idsEl = document.getElementById("cg-cad-merge-ids");
+      const instructionEl = document.getElementById("cg-cad-merge-instruction");
+      const ids = (idsEl?.value || "")
+        .split(",")
+        .map((s) => parseInt(s.trim(), 10))
+        .filter((n) => Number.isFinite(n));
+      if (ids.length < 2) {
+        showOpsResult("Please enter at least 2 drawing IDs, comma-separated. / 図面IDを2件以上、カンマ区切りで入力してください。");
+        return;
+      }
+      showOpsResult("Merging… (this calls aruaru-llm via open-cg-cad, may take a while) / 合成中…(open-cg-cad経由でaruaru-llmを呼びます、時間がかかる場合があります)");
+      try {
+        const resp = await fetch(cgCadOpsBase() + "v1/drawings/merge", {
+          method: "POST",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify({ drawing_ids: ids, instruction_text: instructionEl?.value || undefined }),
+        });
+        const data = await resp.json();
+        showOpsResult(data.ok ? `✅ Saved as drawing #${data.id}:\n\n${data.proposal}` : `❌ ${data.error || "merge failed"}`);
+      } catch (e) {
+        showOpsResult(`❌ Could not reach open-cg-cad / open-cg-cadへ到達できませんでした: ${e}`);
+      }
+    });
+  }
+
+  const redesignBtn = document.getElementById("cg-cad-redesign-btn");
+  if (redesignBtn) {
+    redesignBtn.addEventListener("click", async () => {
+      const oldIdEl = document.getElementById("cg-cad-redesign-old-id");
+      const instructionEl = document.getElementById("cg-cad-redesign-instruction");
+      const oldId = parseInt(oldIdEl?.value || "", 10);
+      if (!Number.isFinite(oldId)) {
+        showOpsResult("Please enter the old drawing's ID. / 旧図面のIDを入力してください。");
+        return;
+      }
+      showOpsResult("Redesigning… (this calls aruaru-llm via open-cg-cad, may take a while) / 再設計中…(open-cg-cad経由でaruaru-llmを呼びます、時間がかかる場合があります)");
+      try {
+        const resp = await fetch(cgCadOpsBase() + "v1/drawings/redesign", {
+          method: "POST",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify({ old_drawing_id: oldId, instruction_text: instructionEl?.value || undefined }),
+        });
+        const data = await resp.json();
+        showOpsResult(data.ok ? `✅ Saved as drawing #${data.id}:\n\n${data.proposal}` : `❌ ${data.error || "redesign failed"}`);
+      } catch (e) {
+        showOpsResult(`❌ Could not reach open-cg-cad / open-cg-cadへ到達できませんでした: ${e}`);
+      }
+    });
+  }
+})();
+
 if (worldLabPairBtn) {
   worldLabPairBtn.addEventListener("click", async () => {
     const token = (worldLabPairTokenEl?.value || "").trim();

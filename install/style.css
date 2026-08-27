@@ -1,0 +1,1117 @@
+:root {
+  --bg: #1a1220;
+  --panel: #241a30;
+  --pink: #f096be;
+  --text: #f5eef7;
+  --accent: #ffce54;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  font-family: system-ui, -apple-system, "Segoe UI", sans-serif;
+  background: var(--bg);
+  color: var(--text);
+  min-height: 100vh;
+}
+
+.topbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 10px;
+  padding: 12px 20px;
+  background: var(--panel);
+  border-bottom: 2px solid var(--pink);
+}
+
+.topbar h1 {
+  margin: 0;
+  font-size: 1.2rem;
+}
+
+.phase-badge {
+  font-size: 0.9rem;
+  background: var(--accent);
+  color: #332200;
+  padding: 2px 8px;
+  border-radius: 8px;
+  vertical-align: middle;
+}
+
+.level-select select,
+.lang-select select {
+  margin-left: 6px;
+  padding: 4px 8px;
+  border-radius: 6px;
+  border: none;
+}
+
+.level-hint {
+  text-align: center;
+  font-size: 0.95rem;
+  color: #cbb;
+  margin: 8px 20px 0;
+}
+
+.stage {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 24px;
+  padding: 24px;
+  max-width: 1000px;
+  margin: 0 auto;
+}
+
+.trainer {
+  flex: 0 0 220px;
+  text-align: center;
+  /* キャラクター周りだけ薄いピンク背景(ユーザー指示、2026-08-10)、
+     ページ全体の紺色背景(body)はそのまま維持する。 */
+  background: #fbe4ec;
+  border-radius: 20px;
+  padding: 16px 10px;
+  /* 2026-08-24修正(バグ報告): この薄いピンク背景の中でも本文色
+     (var(--text)、ほぼ白)がそのまま継承され、「Voice reply / 音声で
+     返答」等のラベルがほぼ読めなくなっていた。明示的に濃い色を指定する。 */
+  color: #3a1a2a;
+}
+
+#trainer-svg {
+  width: 200px;
+  height: 280px;
+  animation: breathe 3.2s ease-in-out infinite;
+  transform-origin: 100px 200px;
+}
+
+@keyframes breathe {
+  0%,
+  100% {
+    transform: translateY(0) scale(1);
+  }
+  50% {
+    transform: translateY(-3px) scale(1.01, 0.99);
+  }
+}
+
+#eyelid-left,
+#eyelid-right,
+#eyelid-left-helper,
+#eyelid-right-helper {
+  animation: blink 4.5s ease-in-out infinite;
+}
+
+@keyframes blink {
+  0%,
+  92%,
+  100% {
+    height: 0;
+  }
+  95% {
+    height: 15px;
+  }
+}
+
+#eye-left,
+#eye-right {
+  animation: look-around 6s ease-in-out infinite;
+  transform-box: fill-box;
+  transform-origin: center;
+}
+
+@keyframes look-around {
+  0%,
+  60%,
+  100% {
+    transform: translate(0, 0);
+  }
+  70% {
+    transform: translate(1.2px, 0);
+  }
+  80% {
+    transform: translate(-1px, 0.6px);
+  }
+}
+
+#mouth,
+#mouth-helper {
+  transform-origin: 100px 94px;
+  transition: transform 0.1s ease;
+}
+
+.trainer.speaking #mouth,
+.trainer.speaking #mouth-helper {
+  animation: talk 0.22s infinite alternate;
+}
+
+.character-switch-btn {
+  margin-top: 10px;
+  padding: 6px 12px;
+  border-radius: 8px;
+  border: none;
+  background: #444;
+  color: #fff;
+  cursor: pointer;
+  font-size: 0.9rem;
+}
+
+@keyframes talk {
+  from {
+    transform: scaleY(1);
+  }
+  to {
+    transform: scaleY(2.2);
+  }
+}
+
+.voice-controls {
+  margin-top: 10px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  font-size: 0.9rem;
+}
+
+#mic-btn {
+  padding: 8px 14px;
+  border-radius: 20px;
+  border: none;
+  background: var(--accent);
+  color: #332200;
+  font-weight: bold;
+  cursor: pointer;
+}
+
+#mic-btn.listening {
+  background: #ff5e8e;
+  color: #fff;
+  animation: pulse 0.6s infinite alternate;
+}
+
+@keyframes pulse {
+  from {
+    box-shadow: 0 0 0 0 rgba(255, 94, 142, 0.6);
+  }
+  to {
+    box-shadow: 0 0 0 8px rgba(255, 94, 142, 0);
+  }
+}
+
+.voice-toggle {
+  color: #5a3040;
+}
+
+.speech-bubble {
+  margin-top: 12px;
+  background: var(--panel);
+  /* 2026-08-25修正(バグ報告): 親の`.trainer`が薄いピンク背景向けに
+     濃い文字色`color: #3a1a2a`を指定しているため、暗い背景を持つこの
+     吹き出しがその色をそのまま継承すると「暗い背景に暗い文字」で
+     読めなくなる。`.trainer`側の色指定を打ち消し、`body`と同じ
+     `var(--text)`(ほぼ白)へ明示的に戻す。 */
+  color: var(--text);
+  border: 2px solid var(--pink);
+  border-radius: 10px;
+  padding: 10px 12px;
+  font-size: 1.0rem;
+  min-height: 60px;
+  white-space: pre-line;
+}
+
+.chat-panel {
+  flex: 1 1 400px;
+  min-width: 300px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.disclosure {
+  background: #3a2a1a;
+  border: 1px solid var(--accent);
+  border-radius: 8px;
+  padding: 10px 12px;
+  font-size: 0.9rem;
+  line-height: 1.4;
+}
+
+.disclosure-toggle-btn {
+  margin-bottom: 6px;
+  font-size: 0.85rem;
+  padding: 4px 10px;
+}
+
+.collapsible-toggle-btn {
+  display: block;
+  margin: 4px 8px 0;
+  font-size: 0.75rem;
+  padding: 3px 8px;
+  border-radius: 999px;
+  border: 1px solid #5a3a5a;
+  background: #241726;
+  color: var(--text);
+  cursor: pointer;
+}
+
+.log {
+  background: var(--panel);
+  border-radius: 8px;
+  padding: 12px;
+  min-height: 260px;
+  max-height: 420px;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.msg {
+  max-width: 80%;
+  padding: 8px 12px;
+  border-radius: 10px;
+  font-size: 1.0rem;
+  line-height: 1.4;
+  white-space: pre-line;
+}
+
+.msg.user {
+  align-self: flex-end;
+  background: #3a5a8c;
+}
+
+.msg.trainer {
+  align-self: flex-start;
+  background: #1a2452;
+  color: #ffffff;
+}
+
+.msg.system {
+  align-self: center;
+  background: transparent;
+  color: #bba;
+  font-size: 0.95rem;
+}
+
+.chat-form {
+  display: flex;
+  gap: 8px;
+}
+
+.chat-form input {
+  flex: 1;
+  padding: 10px;
+  border-radius: 8px;
+  border: none;
+  /* 2026-08-24修正(バグ報告): 背景色を指定していない入力欄はブラウザ
+     既定の白背景になるが、文字色は本文色(var(--text)、ほぼ白)を継承
+     していたため、入力した文字がほぼ見えなくなっていた。数字を含め、
+     このアプリのテキスト入力欄すべてに共通する問題だったため、明示的に
+     白背景+濃い文字色を指定する。 */
+  background: #fff;
+  color: #221a26;
+}
+
+.chat-form button {
+  padding: 10px 16px;
+  border-radius: 8px;
+  border: none;
+  background: var(--pink);
+  color: #200;
+  font-weight: bold;
+  cursor: pointer;
+}
+
+.settings {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 0.9rem;
+  color: #cbb;
+}
+
+.settings input {
+  padding: 4px 6px;
+  border-radius: 6px;
+  border: none;
+  min-width: 220px;
+  /* 2026-08-24修正(バグ報告と同根、chat-form inputを参照): 明示的な
+     背景・文字色が無いと白背景に白文字同然になるため両方指定する。 */
+  background: #fff;
+  color: #221a26;
+}
+
+.status {
+  padding: 2px 8px;
+  border-radius: 6px;
+  background: #333;
+}
+
+.status.ok {
+  background: #2a5a2a;
+  color: #cfc;
+}
+
+.status.error {
+  background: #5a2a2a;
+  color: #fcc;
+}
+
+.setup-btn {
+  padding: 6px 12px;
+  border-radius: 8px;
+  border: none;
+  background: var(--accent);
+  color: #332200;
+  font-weight: bold;
+  cursor: pointer;
+}
+
+.login-gate {
+  position: fixed;
+  inset: 0;
+  background: rgba(20, 14, 24, 0.92);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 9999;
+}
+.login-gate.hidden {
+  display: none;
+}
+.login-gate-box {
+  background: var(--panel);
+  color: var(--text);
+  border-radius: 12px;
+  padding: 24px;
+  max-width: 420px;
+  width: 90%;
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.5);
+}
+.login-gate-box h2 {
+  margin-top: 0;
+}
+
+.maintenance-banner {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  background: #f0ad4e;
+  color: #222;
+  text-align: center;
+  padding: 10px 16px;
+  font-weight: bold;
+  z-index: 20;
+}
+
+.maintenance-banner.hidden {
+  display: none;
+}
+
+/* `.setup-note`は既定で暗い背景(#3a2a1a)を持つため、周囲の
+   `.maintenance-banner`の文字色(#222、暗い背景を想定)をそのまま
+   継承すると暗背景に暗文字で読めなくなる(ユーザー報告により発見・
+   修正、2026-08-25)。ここでは白色を明示する。 */
+#maintenance-banner-detail .setup-note {
+  color: #ffffff;
+}
+
+.free-tier-banner {
+  background: var(--panel);
+  color: var(--text);
+  border-bottom: 2px solid var(--accent);
+  padding: 6px 16px;
+  font-size: 0.85rem;
+}
+
+.free-tier-banner.hidden {
+  display: none;
+}
+
+.free-tier-toggle {
+  width: 100%;
+  background: none;
+  border: none;
+  color: var(--text);
+  font-size: 0.85rem;
+  font-weight: bold;
+  text-align: left;
+  cursor: pointer;
+  padding: 4px 0;
+}
+
+.free-tier-body {
+  padding: 6px 0 8px;
+}
+
+.free-tier-body.hidden {
+  display: none;
+}
+
+.free-tier-list,
+#free-tier-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+#free-tier-list li {
+  padding: 4px 0;
+  border-top: 1px solid rgba(245, 238, 247, 0.15);
+}
+
+#free-tier-list li strong {
+  color: var(--accent);
+}
+
+.free-tier-note,
+.free-tier-updated {
+  font-size: 0.75rem;
+  opacity: 0.8;
+  margin: 6px 0 0;
+}
+
+.setup-modal {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.6);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 20px;
+  z-index: 10;
+}
+
+.setup-modal.hidden {
+  display: none;
+}
+
+.setup-card {
+  position: relative;
+  background: var(--panel);
+  border: 2px solid var(--pink);
+  border-radius: 12px;
+  padding: 24px;
+  max-width: 640px;
+  max-height: 85vh;
+  overflow-y: auto;
+}
+
+/* google-search-modal・exam-prep-modalが使うパネル(2026-08-11修正:
+   .setup-cardと同じスクロール可能な箱スタイルが定義されておらず、
+   実機で「問題が画面外にはみ出して下へスクロールできず、それ以上
+   回答できない」という実バグとして発覚したため追加)。 */
+.setup-panel {
+  position: relative;
+  background: var(--panel);
+  border: 2px solid var(--pink);
+  border-radius: 12px;
+  padding: 24px;
+  max-width: 640px;
+  max-height: 85vh;
+  overflow-y: auto;
+  width: 100%;
+}
+
+.setup-card h2 {
+  margin-top: 0;
+  font-size: 1.1rem;
+}
+
+.setup-card h3 {
+  font-size: 1.05rem;
+  margin-bottom: 6px;
+}
+
+.setup-honest,
+.setup-note {
+  font-size: 0.9rem;
+  background: #3a2a1a;
+  border: 1px solid var(--accent);
+  border-radius: 8px;
+  padding: 10px 12px;
+  line-height: 1.5;
+  white-space: pre-line;
+}
+
+.update-history-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 0;
+  border-bottom: 1px solid #4a3a2a;
+}
+
+.update-history-row:last-child {
+  border-bottom: none;
+}
+
+.setup-script {
+  background: #111;
+  color: #cfc;
+  padding: 10px 12px;
+  border-radius: 8px;
+  overflow-x: auto;
+  font-size: 0.95rem;
+  margin: 0 0 8px;
+}
+
+.copy-btn {
+  padding: 6px 12px;
+  border-radius: 8px;
+  border: none;
+  background: #444;
+  color: #fff;
+  cursor: pointer;
+  margin-bottom: 16px;
+}
+
+.copy-btn.copied {
+  background: #2a5a2a;
+}
+
+.setup-close {
+  position: absolute;
+  top: 12px;
+  right: 12px;
+  border: none;
+  background: transparent;
+  color: var(--text);
+  font-size: 1.1rem;
+  cursor: pointer;
+}
+
+.app-version {
+  text-align: center;
+  padding: 8px 0 16px;
+  font-size: 0.95rem;
+  color: #888;
+}
+
+/* facebook.html(Facebook経由の入口ページ)専用、2026-08-19新設。
+   .setup-panelは通常モーダル内(position: fixedの親)で使われるが、
+   このページでは通常の静的セクションとして縦に並べるだけなので
+   max-heightは適用しない。 */
+.fb-entry {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  max-width: 720px;
+  margin: 0 auto;
+  padding: 16px;
+}
+
+.fb-entry .setup-panel {
+  max-height: none;
+  overflow-y: visible;
+}
+
+.download-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.9rem;
+}
+
+.download-table th,
+.download-table td {
+  border: 1px solid var(--pink);
+  padding: 8px;
+  text-align: left;
+}
+
+.web-search-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 0.95rem;
+}
+
+/* 資格試験対策コーナー(2026-08-11新設)。 */
+.exam-prep-question {
+  margin: 12px 0;
+  padding: 10px 12px;
+  background: #241925;
+  border-radius: 8px;
+}
+.exam-prep-choice {
+  display: block;
+  margin: 4px 0 4px 12px;
+  font-size: 0.95rem;
+}
+
+/* 学年別・家庭教師コース(2026-08-23新設)。学年ボタン・教科チェックの並び。 */
+.tutor-choice-grid {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin: 8px 0 12px;
+}
+.tutor-choice-grid .setup-btn.selected {
+  outline: 2px solid #ffb3d9;
+}
+.tutor-subject-choice {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 10px;
+  background: #241925;
+  border-radius: 8px;
+  font-size: 0.95rem;
+}
+.tutor-subject-choice.unavailable {
+  opacity: 0.65;
+}
+/* キャリアガイダンス機能(2026-08-24新設)。教科ごとに「役立つかもしれない
+   業界・職種」「上級職種」を補足表示するボックス。 */
+.tutor-career-box {
+  margin: 10px 0;
+  padding: 10px 12px;
+  background: #2c1f33;
+  border-left: 3px solid #ff9ecb;
+  border-radius: 6px;
+  font-size: 0.9rem;
+  line-height: 1.5;
+}
+.tutor-career-title {
+  margin: 0 0 6px;
+  font-weight: bold;
+  color: #ff9ecb;
+}
+
+/* 名言・ことわざ+モチベーションメッセージ(2026-08-24新設)。
+   キャリアガイダンス欄(`.tutor-career-box`/`.vschool-career`)の直後に
+   同じ見た目で続けて表示する。 */
+.tutor-quote-box,
+.tutor-motivation-box {
+  flex-basis: 100%;
+  margin: 6px 0 0;
+  padding: 8px 10px;
+  background: #241726;
+  border-left: 3px solid #ffd27a;
+  border-radius: 6px;
+  font-size: 0.85rem;
+  line-height: 1.5;
+}
+.tutor-motivation-box {
+  border-left-color: #9ed6ff;
+}
+.tutor-quote-label {
+  margin: 0 0 4px;
+  font-weight: bold;
+  color: #ffd27a;
+}
+.tutor-motivation-box .tutor-quote-label {
+  color: #9ed6ff;
+}
+.tutor-quote-note {
+  opacity: 0.9;
+}
+
+/* バーチャルスクール / 職業訓練校の分野カード内に置くYouTube検索リンク
+   (2026-08-24追加)。特定の動画ではなく検索結果ページへのリンク。 */
+.vschool-yt-link {
+  margin-left: 4px;
+  color: #ff9ecb;
+  font-size: 0.85rem;
+  text-decoration: underline;
+  white-space: nowrap;
+}
+.vschool-yt-link:hover {
+  color: #ffd0e6;
+}
+/* 分野カードは「チェックボックス+説明+リンク」で横に長くなるため、
+   グリッド内で折り返せるようにしておく。 */
+#vschool-field-list .tutor-subject-choice {
+  flex-wrap: wrap;
+}
+/* キャリアガイダンス(2026-08-24追加、ドイツの職業訓練校
+   〈デュアルシステム〉+普通科の進路指導〈Berufsorientierung〉を参考にした
+   補足説明)。分野カード/教科カード/出題画面のいずれでも同じ見た目にする。 */
+.vschool-career {
+  flex-basis: 100%;
+  margin-top: 6px;
+  padding: 8px 10px;
+  background: #241726;
+  border-left: 3px solid #ff9ecb;
+  border-radius: 6px;
+  font-size: 0.85rem;
+  line-height: 1.5;
+}
+.vschool-career p {
+  margin: 3px 0;
+}
+.vschool-career-label {
+  font-weight: bold;
+  color: #ff9ecb;
+}
+.vschool-sample-code {
+  flex-basis: 100%;
+  margin-top: 6px;
+  padding: 8px 10px;
+  background: #241726;
+  border-left: 3px solid #8ee6a1;
+  border-radius: 6px;
+}
+.vschool-sample-code select {
+  margin: 4px 0;
+}
+.vschool-sample-pre {
+  margin: 8px 0 0;
+  padding: 10px 12px;
+  background: #1b1219;
+  border-radius: 8px;
+  overflow-x: auto;
+  font-size: 0.85rem;
+  line-height: 1.45;
+  white-space: pre;
+  color: var(--text);
+}
+
+/* プログラミング教材のサンプルコード。長い行は横スクロールさせる。 */
+.tutor-code {
+  margin: 8px 0;
+  padding: 10px 12px;
+  background: #1b1219;
+  border-radius: 8px;
+  overflow-x: auto;
+  font-size: 0.9rem;
+  line-height: 1.45;
+  white-space: pre;
+}
+
+/* 問題に添える図解(インラインSVG)。 */
+.tutor-figure {
+  margin: 8px 0 10px;
+}
+.tutor-figure svg {
+  max-width: 100%;
+  height: auto;
+}
+
+/* 汎用の非表示クラス(exam-prep-submit等、モーダル本体以外の要素にも使う)。 */
+.hidden {
+  display: none !important;
+}
+
+/* データ・モデル保存先パネル用の入力欄(2026-08-19新設)。 */
+.setup-input {
+  display: block;
+  width: 100%;
+  box-sizing: border-box;
+  margin: 6px 0;
+  padding: 6px 8px;
+  font-size: 0.95rem;
+  /* 2026-08-24修正(白文字/白背景バグ、chat-form inputと同根): 背景・
+     文字色を明示しないとブラウザ既定の白背景に本文色(ほぼ白)が
+     継承され読めなくなるため、両方指定する。 */
+  background: #fff;
+  color: #221a26;
+}
+
+/* 世界の言語も選べることを大きく案内するバナー(2026-08-22追加、
+   ユーザー指示「日本語と英語をデフォルトとして選択できますが、世界中の
+   言語も選択可能ですと、日本語と英語で大きく表示して」)。 */
+.network-status-badge {
+  display: inline-block;
+  margin: 6px 8px 0;
+  padding: 4px 10px;
+  border-radius: 999px;
+  font-size: 0.85rem;
+  font-weight: 600;
+  cursor: pointer;
+  background: #24304a;
+  color: #cfe0ff;
+  border: 1px solid #3a5a8c;
+}
+.network-status-badge.is-public {
+  background: #4a2424;
+  color: #ffd8d8;
+  border-color: #8c3a3a;
+}
+
+.world-language-banner {
+  background: linear-gradient(90deg, #fff2f8, #f2f6ff);
+  border: 2px solid #f096be;
+  border-radius: 10px;
+  margin: 8px;
+  padding: 10px 14px;
+  text-align: center;
+  /* 2026-08-24修正(バグ報告): 明るいグラデーション背景に、本文色
+     (var(--text)、ほぼ白)がそのまま継承され、日本語・数字とも
+     ほぼ読めなくなっていた。このバナー内だけ明示的に濃い色を指定する。 */
+  color: #3a1a2a;
+}
+.world-language-banner-main {
+  margin: 0 0 8px;
+  font-size: 1.15rem;
+  line-height: 1.6;
+  font-weight: 600;
+}
+.world-language-banner-main strong {
+  color: #c2185b;
+  font-size: 1.2em;
+}
+@media (max-width: 600px) {
+  .world-language-banner-main { font-size: 1rem; }
+}
+.world-language-limited-notice {
+  margin: 8px 0 0;
+  font-size: 0.95rem;
+  line-height: 1.5;
+  color: #3a1a2a;
+  font-style: italic;
+}
+
+/* 追加言語パック選択UI(2026-08-22追加)。 */
+.language-pack-list {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(230px, 1fr));
+  gap: 4px 12px;
+  max-height: 45vh;
+  overflow-y: auto;
+  margin: 10px 0;
+  padding: 8px;
+  border: 1px solid #ddd;
+  border-radius: 8px;
+}
+.language-pack-item {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 0.95rem;
+}
+.language-pack-item.language-pack-default {
+  opacity: 0.75;
+}
+.language-pack-count {
+  color: #d8c8dc;
+  /* 2026-08-24修正(表示改善指示): 「(default / 既定)」等の日英併記が
+     本文より小さく不揃いだったため、周囲の文字サイズ(1em)に揃えた。 */
+  font-size: 1em;
+}
+
+/* 多言語の連続表示・読み上げ(2026-08-22追加)。表示文はコピー&ペースト
+   できる必要があるため、user-select を妨げる指定は一切しない。 */
+.multi-speak-output {
+  margin: 8px 0;
+}
+.multi-speak-row {
+  border: 1px solid #e3e3e3;
+  border-radius: 8px;
+  padding: 6px 8px;
+  margin-bottom: 6px;
+  background: #fff;
+  /* 2026-08-24修正: 本文の文字色は body の var(--text)(ほぼ白)を継承する
+     ため、この白背景カード内では文字が白 on 白になり読めなくなっていた
+     (バグ報告により発覚)。カード内だけ明示的に濃い色を指定する。 */
+  color: #2a1a22;
+}
+.multi-speak-row.speaking-now {
+  border-color: #f096be;
+  background: #fff5fa;
+}
+.multi-speak-row-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+.multi-speak-lang {
+  font-weight: 600;
+}
+.multi-speak-text {
+  width: 100%;
+  box-sizing: border-box;
+  margin-top: 4px;
+  font-size: 1rem;
+  line-height: 1.5;
+  resize: vertical;
+  user-select: text;
+  -webkit-user-select: text;
+  /* 2026-08-24修正(白文字/白背景バグと同根): フォーム要素は必ずしも
+     祖先のcolorを継承しないブラウザがあるため、明示的に指定する。 */
+  background: #fff;
+  color: #2a1a22;
+}
+
+/* 母国語指定+表示順のカスタマイズUI(2026-08-22追加)。順番は数値入力欄・
+   ラジオボタン・▲▼ボタンの3系統から指定でき、互いに連動する。 */
+.language-order-list {
+  margin: 8px 0;
+}
+.language-order-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+  border: 1px solid #e3e3e3;
+  border-radius: 8px;
+  padding: 6px 8px;
+  margin-bottom: 6px;
+  background: #fff;
+  /* 2026-08-24修正: 白背景カード内の文字が本文色(ほぼ白)を継承し
+     読めなくなっていたバグの修正(multi-speak-rowと同根)。 */
+  color: #2a1a22;
+}
+.language-order-name {
+  font-weight: 600;
+  min-width: 12em;
+  flex: 1 1 12em;
+}
+.language-order-number {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  /* 2026-08-24修正(表示改善指示): 数値入力欄まわりの文字サイズを
+     周囲の日本語ラベルと揃えた(0.9rem→1rem)。 */
+  font-size: 1rem;
+}
+.language-order-input {
+  width: 4em;
+  font-size: 1rem;
+  padding: 2px 4px;
+}
+.language-order-radios {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+.language-order-radio {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  /* 2026-08-24修正(表示改善指示): 番号ラジオボタンの文字サイズを
+     周囲の日本語ラベルと揃えた(0.9rem→1rem)。 */
+  font-size: 1rem;
+}
+
+/* 言語選択の国名併記(2026-08-22追加)。
+   2026-08-24修正(表示改善指示): 「イギリス・アメリカ / United Kingdom /
+   USA」のような日英併記部分が、本文(日本語)より小さいフォントサイズに
+   なっていて不揃いだったため、周囲の文字サイズ(1em)に揃えた。 */
+.language-pack-country {
+  color: #d8c8dc;
+  font-size: 1em;
+  margin-left: 4px;
+}
+
+/* 話題ブリーフィング(2026-08-22追加)。 */
+.briefing-maintenance {
+  font-weight: 600;
+  margin: 4px 0;
+}
+#briefing-progress progress {
+  width: 100%;
+  height: 14px;
+}
+.briefing-lang {
+  border: 1px solid #e3e3e3;
+  border-radius: 8px;
+  padding: 8px 10px;
+  margin: 8px 0;
+  background: #fff;
+  /* 2026-08-24修正: 白背景カード内の文字が本文色(ほぼ白)を継承し
+     読めなくなっていたバグの修正(multi-speak-rowと同根)。 */
+  color: #2a1a22;
+}
+.briefing-lang-top {
+  border-color: #f096be;
+  background: #fff7fb;
+}
+.briefing-top-badge {
+  font-size: 0.75em;
+  background: #f096be;
+  color: #fff;
+  border-radius: 6px;
+  padding: 1px 6px;
+  vertical-align: middle;
+}
+.briefing-section {
+  margin: 6px 0;
+}
+.briefing-section h4 {
+  margin: 4px 0;
+  font-size: 1rem;
+}
+.briefing-section ul {
+  margin: 2px 0 2px 1.2em;
+  padding: 0;
+}
+
+/* 実行基盤バッジ・生成待ちプレースホルダー(2026-08-22追加、aruaru-llm
+   連携の可視化とタイムアウト対応。詳細はapp.js側のコメント参照)。 */
+.runtime-badge {
+  display: inline-block;
+  margin-left: 0.6rem;
+  padding: 0.15rem 0.55rem;
+  border-radius: 999px;
+  font-size: 0.78rem;
+  line-height: 1.5;
+  border: 1px solid transparent;
+  cursor: help;
+  white-space: nowrap;
+  max-width: 24rem;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  vertical-align: middle;
+}
+.runtime-badge.cpu    { background: #eef2ff; color: #3730a3; border-color: #c7d2fe; }
+.runtime-badge.gpu    { background: #ecfdf5; color: #065f46; border-color: #a7f3d0; }
+.runtime-badge.unknown{ background: #f3f4f6; color: #6b7280; border-color: #e5e7eb; }
+
+.msg.pending {
+  opacity: 0.7;
+  font-style: italic;
+  animation: pending-pulse 1.2s ease-in-out infinite;
+}
+@keyframes pending-pulse {
+  0%, 100% { opacity: 0.45; }
+  50%      { opacity: 0.85; }
+}
+
+/* 2026-08-25新設: フォルダブラウザ(エクスプローラー風UI)。 */
+.setup-path-row {
+  display: flex;
+  gap: 6px;
+  align-items: center;
+}
+.setup-path-row .setup-input {
+  flex: 1 1 auto;
+}
+.folder-browser-list {
+  max-height: 260px;
+  overflow-y: auto;
+  background: #1a1220;
+  border: 1px solid #3a2a4a;
+  border-radius: 6px;
+  padding: 4px;
+  margin: 8px 0;
+}
+.folder-browser-entry {
+  display: block;
+  width: 100%;
+  text-align: left;
+  padding: 6px 10px;
+  background: transparent;
+  color: var(--text);
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 0.95rem;
+}
+.folder-browser-entry:hover {
+  background: #2e2040;
+}
+.setup-already-connected {
+  background: #1a3a2a;
+  border-left: 3px solid #7ee0a8;
+  border-radius: 6px;
+  padding: 8px 10px;
+}

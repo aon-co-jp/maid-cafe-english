@@ -1,0 +1,1659 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>open-english: Maid Cafe English Trainer (Phase 0)</title>
+<link rel="stylesheet" href="style.css" />
+<link rel="manifest" href="manifest.json" />
+<link rel="icon" type="image/png" sizes="192x192" href="icons/icon-192.png" />
+<link rel="icon" type="image/png" sizes="32x32" href="icons/icon-32.png" />
+<link rel="apple-touch-icon" sizes="180x180" href="icons/icon-180.png" />
+<meta name="theme-color" content="#f096be" />
+</head>
+<body>
+  <!-- ログインゲート(2026-08-26新設、ユーザー指示「家族や会社で共有する
+       場合もあるので、ログインセキュリティシステムを導入しますか?」への
+       対応)。既定は非表示——`GET /v1/auth/config`がlogin_required:true を
+       返した場合のみ、`app.js`がこのオーバーレイを表示しページ全体を
+       覆う。実際のアクセス制御はサーバー側(/v1/db/*へのrequire_session
+       ゲート)が行うため、ここは主にUX上の導線。 -->
+  <div id="login-gate" class="login-gate hidden">
+    <div class="login-gate-box">
+      <h2>🔒 Login required / ログインが必要です</h2>
+      <p class="setup-note">
+        This device is protected with email login. Enter your email to receive a one-time code. /
+        この端末はログイン保護が有効になっています。メールアドレスを入力してワンタイムコードを受け取ってください。
+      </p>
+      <label class="settings-field">
+        Email / メールアドレス
+        <input type="email" id="login-email" autocomplete="email" placeholder="you@example.com" />
+      </label>
+      <button type="button" id="login-send-code-btn" class="setup-btn">Send code / コードを送信</button>
+      <div id="login-code-section" class="hidden">
+        <label class="settings-field">
+          Code / コード
+          <input type="text" id="login-code" autocomplete="one-time-code" placeholder="123456" maxlength="6" />
+        </label>
+        <button type="button" id="login-verify-btn" class="setup-btn">Verify / ログイン</button>
+      </div>
+      <p id="login-status" class="setup-note"></p>
+    </div>
+  </div>
+  <!-- 初回案内(2026-08-26新設): ログイン保護を導入するかどうかを日英
+       併記で一度だけ尋ねる。既定はオフのまま(利用者が明示的に有効化
+       した場合のみ、上記ログインゲートが働くようになる)。 -->
+  <div id="login-setup-prompt" class="login-gate hidden">
+    <div class="login-gate-box">
+      <h2>🔒 Login security / ログインセキュリティ</h2>
+      <p class="setup-note">
+        This PC/tablet/phone may be shared with family or coworkers. Would you like to enable login
+        security (email + one-time code)? You can change this later in settings. /
+        このPC・タブレット・スマホなどは、家族や会社で共有する場合もあります。ログインセキュリティ(メール+ワンタイムコード)を導入しますか?
+        後から設定でいつでも変更できます。
+      </p>
+      <div class="settings-buttons">
+        <button type="button" id="login-setup-enable-btn" class="setup-btn">Enable / 導入する</button>
+        <button type="button" id="login-setup-skip-btn" class="setup-btn">Use without login / ログインせずに利用する</button>
+      </div>
+    </div>
+  </div>
+  <div id="maintenance-banner" class="maintenance-banner hidden">
+    <p id="maintenance-banner-message">
+      🛠️ Under maintenance. Please wait about 1 minute. / ただいまメンテナンス中です。1分ほどお待ち下さい。
+      (<span id="maintenance-countdown">60</span>s)
+    </p>
+    <button type="button" id="maintenance-banner-toggle" class="setup-btn">✕ CLOSE</button>
+    <div id="maintenance-banner-detail">
+      <p class="setup-note">
+        このメンテナンス中は、サーバー接続国のニュースを収集し、話題についていけるよう準備しています。この待ち時間は固定のカウントダウン表示であり、実際のバックエンド処理の完了時刻と厳密には連動していません。 /
+        During this maintenance window, we gather local news for your region so the trainer can keep up with current topics. This countdown is a simple fixed timer and is not strictly tied to the actual completion time of backend processing.
+      </p>
+    </div>
+  </div>
+  <button type="button" id="download-recommend-banner-toggle" class="collapsible-toggle-btn">✕ CLOSE</button>
+  <div id="download-recommend-banner" class="maintenance-banner">
+    <p>
+      💡 <strong>open-englishは、基本的にはご利用者様ご自身の端末(PC・タブレット・スマホ)へダウンロード・インストールしてご利用いただくアプリです。</strong>
+      このページ(ブラウザ版)は入口・お試し用であり、フル機能をご利用いただくには
+      <a href="https://github.com/aon-co-jp/open-english/releases/latest" target="_blank" rel="noopener noreferrer">こちら</a>
+      からご自身の端末へダウンロードしてください。/
+      <strong>open-english is fundamentally meant to be downloaded and installed on your own device (PC, tablet, or phone).</strong>
+      This browser version is an entry point / trial only — to use the full app, please
+      <a href="https://github.com/aon-co-jp/open-english/releases/latest" target="_blank" rel="noopener noreferrer">download it to your own device here</a>.
+    </p>
+  </div>
+  <div id="free-tier-banner" class="free-tier-banner hidden">
+    <button type="button" id="free-tier-toggle" class="free-tier-toggle">
+      💰 AI/Search free tiers / AI・検索の無料枠情報 <span id="free-tier-caret">▾</span>
+    </button>
+    <div id="free-tier-body" class="free-tier-body hidden">
+      <ul id="free-tier-list"></ul>
+      <p class="free-tier-note">
+        ※ この情報は開発者が定期メンテナンス時に手動で確認・更新しているものです(自動取得ではありません)。最新かつ正確な情報は必ず各社公式サイトでご確認ください。
+        / This information is manually reviewed and updated by the developer during periodic maintenance (not fetched automatically in real time). Please check each provider's official site for the latest, authoritative details.
+      </p>
+      <p class="free-tier-updated">Last updated / 最終更新: <span id="free-tier-last-updated">-</span></p>
+    </div>
+  </div>
+  <button type="button" id="phone-accel-banner-toggle" class="collapsible-toggle-btn">✕ CLOSE</button>
+  <div id="phone-accel-banner" class="free-tier-banner">
+    <p class="free-tier-note" style="margin:0;">
+      📱 使わなくなったスマホもフル動員しましょう！(実験的機能) PC側にタスク配布API(<code>GET /v1/background-fold/task</code>・<code>POST /v1/background-fold/task-result</code>)を、Androidアプリ側にポーリング計算ワーカーを実装しました。実機・NPU搭載機での検証は未実施で、実際の計算はNNAPI対応端末でも常にCPUで行われます(NNAPIは利用可否の検出のみ)。使うにはAndroidアプリ内の「使わなくなったスマホもフル動員」欄にPC側のURLを入力して開始してください。
+      <br />
+      Let's put your unused phones to full use! (Experimental) We've implemented a PC-side task distribution API (<code>GET /v1/background-fold/task</code>, <code>POST /v1/background-fold/task-result</code>) and an Android polling worker that computes tasks. Real-device and NPU-equipped hardware verification has not been done, and the actual computation always runs on CPU even on NNAPI-capable devices (NNAPI is only detected, not yet used for the math). To try it, enter the PC's URL in the "put unused phones to full use" section of the Android app and start.
+    </p>
+  </div>
+  <!--
+    世界中の言語も選べることを大きく案内するバナー(ユーザー指示、
+    2026-08-22「日本語と英語をデフォルトとして選択できますが、世界中の
+    言語も選択可能ですと、日本語と英語で大きく表示して」への対応)。
+  -->
+  <button type="button" id="world-language-banner-toggle" class="collapsible-toggle-btn">✕ CLOSE</button>
+  <div id="world-language-banner" class="world-language-banner">
+    <p class="world-language-banner-main">
+      🌍 日本語と英語をデフォルトとして選択できますが、<strong>世界中の言語も選択可能です。</strong><br />
+      English and Japanese are the defaults, but <strong>you can choose languages from all over the world.</strong>
+    </p>
+    <button type="button" id="world-language-banner-btn" class="setup-btn">
+      🌐 追加する言語を選ぶ / Choose additional languages
+    </button>
+    <p id="world-language-limited-notice" class="world-language-limited-notice hidden"></p>
+  </div>
+  <div id="network-status-badge" class="network-status-badge" title="Click for details / クリックで詳細">
+    <span id="network-status-text">🔒 Checking… / 確認中…</span>
+  </div>
+  <button type="button" id="topbar-toggle" class="collapsible-toggle-btn">✕ CLOSE</button>
+  <header class="topbar" id="topbar">
+    <h1>open-english <span class="phase-badge">Phase 0</span></h1>
+    <label class="level-select">
+      Age group / 年齢層:
+      <select id="age-group">
+        <option value="infant">Infant / Toddler / 保育園児未満(乳幼児)</option>
+        <option value="nursery">Nursery / 保育園児</option>
+        <option value="kindergarten">Kindergarten / 幼稚園児</option>
+        <option value="elementary">Elementary school / 小学生</option>
+        <option value="junior-high">Junior high school / 中学生</option>
+        <option value="high-school">High school / 高校生</option>
+        <option value="university" selected>University / 大学生</option>
+        <option value="working-adult">Working adult / 社会人</option>
+        <option value="senior">Senior / 社会人以上(シニア)</option>
+      </select>
+    </label>
+    <label class="level-select">
+      Learn / 学びたい言語:
+      <select id="learn-target">
+        <option value="english" selected>English conversation / 英会話</option>
+        <option value="japanese">Japanese conversation / 日本語会話</option>
+        <option value="german">German conversation / ドイツ語会話</option>
+        <option value="french">French conversation / フランス語会話</option>
+        <option value="spanish">Spanish conversation / スペイン語会話</option>
+        <option value="italian">Italian conversation / イタリア語会話</option>
+        <option value="russian">Russian conversation / ロシア語会話</option>
+        <option value="arabic">Arabic conversation / アラビア語会話</option>
+        <option value="persian">Persian (Farsi) conversation / ペルシャ語会話</option>
+        <option value="hebrew">Hebrew conversation / ヘブライ語会話</option>
+      </select>
+      <span class="setup-note">※正直な開示 / Honest note: ドイツ語・フランス語・スペイン語・
+        イタリア語・ロシア語・アラビア語・ペルシャ語・ヘブライ語は、英語中心に
+        事前学習された小型GPT-2ベースのaruaru-llmでは生成品質が低い(実質的に
+        使い物にならない場合がある)ことを実機検証済みです。詳細はREADME参照。
+        These languages ran with poor/unusable quality in live testing against
+        the English-centric GPT-2-based aruaru-llm — see README for details.</span>
+    </label>
+    <label class="level-select">
+      Level / レベル:
+      <select id="level">
+        <option value="super-beginner">Super Beginner / 超初心者</option>
+        <option value="beginner">Beginner / 初心者</option>
+        <option value="intermediate" selected>Intermediate / 中級者</option>
+        <option value="native">Native / ネイティブ</option>
+        <option value="maid-cafe-training">Maid Cafe English Training / メイドカフェ英会話研修</option>
+      </select>
+    </label>
+    <label class="web-search-toggle">
+      <input type="checkbox" id="business-english-toggle" />
+      Business English / ビジネス英会話を追加
+    </label>
+    <label class="lang-select">
+      Reply lang / 応答言語:
+      <select id="reply-lang">
+        <option value="hybrid" selected>Hybrid EN+JA / 英日ハイブリッド</option>
+        <option value="en">English only</option>
+        <option value="ja">日本語のみ</option>
+        <option value="de">Deutsch / ドイツ語のみ</option>
+        <option value="fr">Français / フランス語のみ</option>
+        <option value="es">Español / スペイン語のみ</option>
+        <option value="it">Italiano / イタリア語のみ</option>
+        <option value="ru">Русский / ロシア語のみ</option>
+        <option value="ar">العربية / アラビア語のみ</option>
+        <option value="fa">فارسی / ペルシャ語のみ</option>
+        <option value="he">עברית / ヘブライ語のみ</option>
+      </select>
+    </label>
+    <label class="web-search-toggle">
+      <input type="checkbox" id="web-search-toggle" />
+      Google search boost / Google検索で補強
+    </label>
+    <button type="button" id="google-search-settings-btn" class="setup-btn">🔎 Setup Google Search.</button>
+    <span id="web-search-own-key-status" class="setup-note" style="display:inline-block;margin-left:6px;"></span>
+    <button type="button" id="setup-btn" class="setup-btn">⚙ Setup aruaru-llm.</button>
+    <button type="button" id="aruaru-db-setup-btn" class="setup-btn">🗄 Setup aruaru-db.</button>
+    <button type="button" id="exam-prep-btn" class="setup-btn">📝 Exam Prep / 資格対策</button>
+    <button type="button" id="language-pack-btn" class="setup-btn">🌐 Languages / 言語のインストール</button>
+    <button type="button" id="tutor-course-btn" class="setup-btn">🎓 Install the student tutor course / 学生向け家庭教師コースをインストール</button>
+    <button type="button" id="vschool-btn" class="setup-btn">🏫 バーチャルスクール(学生向け教育) / Virtual school (for students)</button>
+    <button type="button" id="vvoc-btn" class="setup-btn">🛠 バーチャルオンライン職業訓練校 / Virtual online vocational school</button>
+    <button type="button" id="uscert-btn" class="setup-btn">🇺🇸 アメリカの資格(擬似模擬) / US certifications (mock)</button>
+    <button type="button" id="briefing-btn" class="setup-btn">🗞 話題ブリーフィング / Topic briefing</button>
+    <button type="button" id="llm-recommend-btn" class="setup-btn">🧠 Recommend LLM / おすすめLLM</button>
+    <button type="button" id="data-storage-btn" class="setup-btn">💾 Data & Model Storage / データ・モデルの保存先</button>
+    <button type="button" id="ai-coding-btn" class="setup-btn">🖥️ AI Coding Assistant / AIでプログラミング</button>
+    <button type="button" id="world-lab-btn" class="setup-btn">🌐 world-lab (experimental) / world-lab(実験的機能)</button>
+    <button type="button" id="custom-url-btn" class="setup-btn">🔗 Icon & Custom URL / アイコン起動・独自URL</button>
+  </header>
+
+  <div id="setup-modal" class="setup-modal hidden">
+    <div class="setup-card">
+      <button type="button" id="setup-close" class="setup-close">✕</button>
+      <h2>Easy setup for aruaru-llm / aruaru-llmの簡単セットアップ</h2>
+      <p class="setup-note setup-already-connected hidden" id="setup-already-connected-banner">
+        ✅ <strong>Already installed and connected — you don't need to do anything below.</strong>
+        aruaru-llm is running and this app is talking to it right now.<br />
+        ✅ <strong>既にインストール・接続済みです——以下の手順を行う必要はありません。</strong>
+        aruaru-llmは起動中で、このアプリは現在それと通信できています。
+      </p>
+      <p class="setup-honest">
+        <strong>Honest disclosure (updated 2026-08-17):</strong> A prebuilt
+        binary download is now available below (no Git/Rust/terminal script
+        required — see "Recommended" section) — this replaces the previous
+        "no one-click download yet" state. The build-from-source path further
+        below is now the advanced/developer option; that path still requires
+        Git and the Rust toolchain
+        (<a href="https://rustup.rs" target="_blank" rel="noopener">rustup.rs</a>)
+        and real, non-optional cross-repo path dependencies (<code>open-cuda</code>,
+        <code>RPoem</code>, <code>open-web-server</code>, <code>RS-SmartTCP</code>
+        cloned as siblings) — none of which are needed for the prebuilt
+        download.<br />
+        正直な開示(2026-08-17更新): 以下に実行ファイル配布(Git/Rust/
+        ターミナルスクリプト不要)を追加しました——「以前はワンクリック
+        配布が無かった」状態は解消済みです。さらに下のソースビルド手順は
+        上級者・開発者向けの選択肢として残しています(GitとRust
+        ツールチェーン、<code>open-cuda</code>・<code>RPoem</code>・
+        <code>open-web-server</code>・<code>RS-SmartTCP</code>を同階層に
+        クローンする必要があります)——実行ファイル配布ではこれらは
+        一切不要です。
+      </p>
+
+      <h3>✅ Recommended: prebuilt download (no build, no terminal script to type) /
+        推奨: ビルド不要の実行ファイル配布(ターミナルへコマンドを打つ必要なし)</h3>
+      <p class="setup-note">
+        This is the same download used by the Windows installer's "install
+        aruaru-llm too" option (2026-08-10, see CLAUDE.md) — a ready-to-run
+        binary from GitHub Releases. The path dependencies on open-cuda/RPoem/
+        open-web-server/RS-SmartTCP mentioned below are only needed to
+        <strong>build from source</strong>; they are already compiled into
+        this prebuilt binary and do not need to be cloned separately.
+        Download, unzip, and run — no <code>git</code>/<code>cargo</code>
+        needed on this path.<br />
+        Windowsインストーラーの「aruaru-llmも同時インストール」オプション
+        (2026-08-10、CLAUDE.md参照)と同じダウンロード元です——GitHub
+        Releasesのビルド済み実行ファイルです。下記の
+        open-cuda/RPoem/open-web-server/RS-SmartTCPへの依存はソースから
+        ビルドする場合のみ必要で、この実行ファイルには既に組み込み済み
+        のため別途クローンする必要はありません。ダウンロード→展開→
+        実行するだけで、<code>git</code>・<code>cargo</code>は不要です。
+      </p>
+      <div class="settings-buttons">
+        <a class="setup-btn" href="https://github.com/aon-co-jp/aruaru-llm/releases/latest/download/aruaru-llm-windows-x86_64.zip">⬇ Windows (.zip)</a>
+        <a class="setup-btn" href="https://github.com/aon-co-jp/aruaru-llm/releases/latest/download/aruaru-llm-linux-x86_64.tar.gz">⬇ Linux (.tar.gz)</a>
+      </div>
+      <p class="setup-note">
+        macOS: no prebuilt binary is published yet (honest disclosure) — use
+        the build-from-source instructions below.<br />
+        macOS: ビルド済み配布は未公開です(正直な開示)——下記のソース
+        ビルド手順をご利用ください。
+      </p>
+
+      <h3>Advanced: build from source (developers) / 上級者向け: ソースからビルド</h3>
+      <p class="setup-note">
+        Run this in a normal PowerShell window (not as Administrator, not in
+        <code>C:\Windows\System32</code> — that folder is protected and will
+        fail with "Permission denied"). It clones into your user folder.<br />
+        通常のPowerShell(管理者権限なし、<code>C:\Windows\System32</code>では
+        「Permission denied」になります)で実行してください。ユーザー
+        フォルダ内にクローンされます。
+      </p>
+      <p class="setup-note">
+        <strong>One line, paste once and press Enter</strong> — no need to copy/paste line by
+        line.<br />
+        <strong>1行だけ</strong>です。1行ずつコピー&amp;ペーストする必要はありません。
+      </p>
+      <pre class="setup-script" data-script="win-oneline">cd $env:USERPROFILE; git clone https://github.com/aon-co-jp/open-cuda; git clone https://github.com/aon-co-jp/RS-SmartTCP; git clone https://github.com/aon-co-jp/open-web-server; git clone https://github.com/aon-co-jp/RPoem; git clone https://github.com/aon-co-jp/aruaru-llm; cd aruaru-llm; cargo run --release</pre>
+      <button type="button" class="copy-btn" data-target="win-oneline">Copy</button>
+
+      <p class="setup-note">Linux / macOS (bash), one line / Linux・macOS(bash)、1行:</p>
+      <pre class="setup-script" data-script="unix-oneline">cd ~ && git clone https://github.com/aon-co-jp/open-cuda && git clone https://github.com/aon-co-jp/RS-SmartTCP && git clone https://github.com/aon-co-jp/open-web-server && git clone https://github.com/aon-co-jp/RPoem && git clone https://github.com/aon-co-jp/aruaru-llm && cd aruaru-llm && cargo run --release</pre>
+      <button type="button" class="copy-btn" data-target="unix-oneline">Copy</button>
+
+      <p class="setup-note">
+        (Same commands, shown one per line for readability only — copying the one-liner above is
+        all you need.)<br />
+        (同じ内容を読みやすく1行ずつ表示しているだけです——実行には上の1行版をコピーすれば
+        十分です。)
+      </p>
+      <pre class="setup-script" data-script="win">cd $env:USERPROFILE
+git clone https://github.com/aon-co-jp/open-cuda
+git clone https://github.com/aon-co-jp/RS-SmartTCP
+git clone https://github.com/aon-co-jp/open-web-server
+git clone https://github.com/aon-co-jp/RPoem
+git clone https://github.com/aon-co-jp/aruaru-llm
+cd aruaru-llm
+cargo run --release</pre>
+
+      <p class="setup-note">Linux / macOS (bash):</p>
+      <pre class="setup-script" data-script="unix">cd ~
+git clone https://github.com/aon-co-jp/open-cuda
+git clone https://github.com/aon-co-jp/RS-SmartTCP
+git clone https://github.com/aon-co-jp/open-web-server
+git clone https://github.com/aon-co-jp/RPoem
+git clone https://github.com/aon-co-jp/aruaru-llm
+cd aruaru-llm
+cargo run --release</pre>
+
+      <p class="setup-note">
+        Once it's running, this page will show <strong>aruaru-llm: connected</strong>
+        at the bottom automatically (checked via <code>/healthz</code>).<br />
+        起動すると、このページ下部の表示が自動で<strong>aruaru-llm: connected</strong>
+        になります(<code>/healthz</code>で確認)。
+      </p>
+      <button type="button" id="setup-recheck" class="setup-btn">Check connection now / 今すぐ接続確認</button>
+    </div>
+  </div>
+
+  <div id="google-search-modal" class="setup-modal hidden">
+    <div class="setup-panel">
+      <button type="button" id="google-search-close" class="setup-close">✕</button>
+      <h2>Google Search Setup / Google検索の設定</h2>
+      <p class="setup-honest">
+        <strong>Honest disclosure:</strong> This uses the Google Custom Search JSON API.
+        You need your own API key and Search Engine ID (cx) — this app does not include or
+        acquire one for you.<br /><br />
+        <strong>正直な開示:</strong> Google Custom Search JSON APIを使用します。
+        APIキーと検索エンジンID(cx)はご自身で取得してください——このアプリは
+        キーを同梱・取得代行しません。
+      </p>
+      <p class="setup-honest">
+        <strong>Browser (shared-server) version:</strong> If you are using this app in a web
+        browser via a shared/rental server (e.g. easy-web.tokyo), please set up your <strong>own</strong>
+        Google Search API key and Search Engine ID (cx) below. Your key is saved only in
+        <em>this browser's local storage</em> and sent only with your own search requests —
+        it is never uploaded to the server as a shared setting. If the developer has configured
+        their own key on this server for other purposes, your requests using your own key here
+        will <strong>not</strong> use or consume the developer's key/quota, and vice versa.<br /><br />
+        <strong>ブラウザ版(共有サーバー)をご利用の場合:</strong>
+        easy-web.tokyo等の共有・レンタルサーバー上でブラウザからご利用の場合は、
+        <strong>ご自身の</strong>Google検索APIキーと検索エンジンID(cx)を以下に
+        設定してください。入力したキーは<em>このブラウザのローカルストレージ
+        にのみ</em>保存され、ご自身の検索リクエストにのみ添付されます——
+        サーバー側の共有設定として送信されることはありません。開発者がこの
+        サーバーに別途キーを設定していたとしても、ここでご自身のキーを設定
+        した場合、あなたのリクエストが開発者のキー・クォータを使用・消費する
+        ことはありません(逆も同様です)。
+      </p>
+      <ol class="setup-steps">
+        <li>
+          <a href="https://programmablesearchengine.google.com/" target="_blank" rel="noopener noreferrer">
+            Programmable Search Engine
+          </a> — create a search engine (site: <code>example.com</code> then enable
+          "Search the entire web"), copy the <strong>Search engine ID (cx)</strong>.<br />
+          検索エンジンを作成し(サイトに<code>example.com</code>等を入れてから
+          「全ウェブを検索」をON)、<strong>検索エンジンID(cx)</strong>をコピー。
+        </li>
+        <li>
+          <a href="https://console.cloud.google.com/apis/library/customsearch.googleapis.com" target="_blank" rel="noopener noreferrer">
+            Google Cloud Console
+          </a> — enable "Custom Search API", then create an API key under
+          "APIs &amp; Services → Credentials" (free up to 100 queries/day, no billing
+          required for the free tier).<br />
+          「Custom Search API」を有効化し、「認証情報」からAPIキーを作成
+          (1日100件まで無料、無料枠の範囲では課金設定不要)。
+        </li>
+      </ol>
+      <label class="settings-field">
+        API Key / APIキー
+        <input type="password" id="google-search-api-key" autocomplete="off" placeholder="AIzaSy... (or AQ....)" />
+      </label>
+      <label class="settings-field">
+        Search Engine ID (cx) / 検索エンジンID
+        <input type="text" id="google-search-cx" autocomplete="off" placeholder="e.g. e4990caa4651e48ba" />
+      </label>
+      <div class="settings-buttons">
+        <button type="button" id="google-search-save" class="setup-btn">Save / 保存</button>
+        <button type="button" id="google-search-clear" class="setup-btn">Clear / 消去</button>
+      </div>
+      <p id="google-search-status" class="setup-note"></p>
+    </div>
+  </div>
+
+  <div id="llm-recommend-modal" class="setup-modal hidden">
+    <div class="setup-panel">
+      <button type="button" id="llm-recommend-close" class="setup-close">✕</button>
+      <h2>Recommend an LLM / おすすめLLM</h2>
+      <p class="setup-honest">
+        <strong>Honest disclosure:</strong> This reads your GPU VRAM/CPU/system-memory/NPU
+        detection results from <code>aruaru-llm</code> (<code>GET /v1/recommend</code>) and
+        picks a size heuristically (VRAM &lt; 2GB → 124M, 2-4GB → 355M, 4-8GB → 774M,
+        8GB+ → 1.5B). It is a rough parameter-count-vs-VRAM estimate, not a precise
+        benchmark.<br /><br />
+        <strong>正直な開示:</strong> <code>aruaru-llm</code>の
+        <code>GET /v1/recommend</code>が返すGPU VRAM/CPU/システムメモリ/NPU検出結果を元に、
+        簡易ヒューリスティック(VRAM 2GB未満→124M、2-4GB→355M、4-8GB→774M、8GB以上→1.5B)で
+        サイズを選びます。パラメータ数とVRAM容量の大まかな見積もりであり、精密な
+        ベンチマークではありません。
+      </p>
+      <div id="llm-recommend-body">
+        <p class="setup-note">Click below to detect your hardware and compare LLM options. /
+          下のボタンでハードウェアを検出し、LLMの選択肢を比較します。</p>
+      </div>
+      <button type="button" id="llm-recommend-detect" class="setup-btn">
+        Detect & Compare / 検出して比較する
+      </button>
+    </div>
+  </div>
+
+  <div id="aruaru-db-setup-modal" class="setup-modal hidden">
+    <div class="setup-panel">
+      <button type="button" id="aruaru-db-setup-close" class="setup-close">✕</button>
+      <h2>Setup aruaru-db & PostgreSQL / aruaru-db・PostgreSQLのセットアップ</h2>
+      <p class="setup-honest">
+        Setting up <code>open-easy-web</code> + PostgreSQL + <code>aruaru-db</code> will let this
+        app (and others) process large amounts of information faster in the future.<br /><br />
+        <code>open-easy-web</code>とPostgreSQLと<code>aruaru-db</code>をセットアップして頂きますと、
+        将来大量の情報をより高速で処理する事も可能になる予定です。
+      </p>
+      <p class="setup-honest">
+        <strong>Honest disclosure:</strong> This is shared infrastructure — install it
+        <strong>once per machine/server</strong> (not once per app). It is managed by
+        <code>open-easy-web</code>'s multi-tenant ("shadow clone") design, so once it's running,
+        other apps/domains on the same machine can reuse it without reinstalling. This app
+        (<code>open-english</code>) works fine without it (the geography/travel content falls
+        back to a built-in dataset).<br /><br />
+        <strong>正直な開示:</strong> これは共有インフラです——マシン/サーバーごとに
+        <strong>一度だけ</strong>セットアップすれば十分です(アプリごとに毎回インストールする
+        ものではありません)。<code>open-easy-web</code>の分身の術(マルチテナント)構成で管理されるため、
+        一度動かせば同じマシン上の他のアプリ/ドメインも再インストール不要で使い回せます。
+        本アプリ(<code>open-english</code>)自体は無くても動作します(地理・観光の内容は
+        組み込みデータへ自動的にフォールバックします)。
+      </p>
+      <h3>1. PostgreSQL</h3>
+      <p class="setup-note">
+        <a href="https://www.postgresql.org/download/" target="_blank" rel="noopener noreferrer">
+          postgresql.org/download</a> から、お使いのOS向けのインストーラーをダウンロード・実行
+        してください(Windows/Linux/macOSいずれも公式インストーラーあり)。
+      </p>
+      <h3>2. aruaru-db</h3>
+      <p class="setup-note">
+        ✅ Recommended / 推奨: git不要のビルド済みダウンロード。展開したフォルダで
+        <code>install.ps1</code>(Windows)/<code>install.sh</code>(Linux/macOS、
+        既にダウンロード済みなので中の<code>git clone</code>行は不要です)を実行
+        するだけです。
+      </p>
+      <div class="settings-buttons">
+        <a class="setup-btn" href="https://github.com/aon-co-jp/aruaru-db/releases/latest/download/aruaru-db-windows-x86_64.zip">⬇ Windows (.zip)</a>
+        <a class="setup-btn" href="https://github.com/aon-co-jp/aruaru-db/releases/latest/download/aruaru-db-linux-x86_64.tar.gz">⬇ Linux (.tar.gz)</a>
+      </div>
+      <p class="setup-note">
+        Advanced / 上級者向け(ソースから):
+      </p>
+      <h3>Windows (PowerShell)</h3>
+      <pre class="setup-script" data-script="aruaru-db-win">cd $env:USERPROFILE
+git clone https://github.com/aon-co-jp/aruaru-db
+cd aruaru-db
+./install.ps1</pre>
+      <button type="button" class="copy-btn" data-target="aruaru-db-win">Copy</button>
+
+      <h3>Linux / macOS (bash)</h3>
+      <pre class="setup-script" data-script="aruaru-db-unix">cd ~
+git clone https://github.com/aon-co-jp/aruaru-db
+cd aruaru-db
+./install.sh</pre>
+      <button type="button" class="copy-btn" data-target="aruaru-db-unix">Copy</button>
+
+      <p class="setup-note">
+        セットアップ後、<code>open-easy-web</code>から他のアプリ/ドメインを登録すると
+        同じPostgreSQL/aruaru-dbインスタンスをそのまま共有できます(詳細は
+        <a href="https://github.com/aon-co-jp/open-easy-web" target="_blank" rel="noopener noreferrer">open-easy-web</a>参照)。
+      </p>
+    </div>
+  </div>
+
+  <div id="data-storage-modal" class="setup-modal hidden">
+    <div class="setup-panel">
+      <button type="button" id="data-storage-close" class="setup-close">✕</button>
+      <h2>Data & Model Storage / データ・モデルの保存先</h2>
+      <p class="setup-honest">
+        <strong>Honest disclosure:</strong> GPT-2-family model weights and the embedding model are
+        <strong>not bundled</strong> with this app (size/licensing) — you download them once via
+        "🧠 Recommend LLM" (PC/browser) or the in-app "Download model" button (Android), and they are
+        stored locally on this device. This panel lets you see/back up your local <em>conversation
+        history &amp; settings</em> database (<code>aruaru-llm</code>'s own model files are managed by
+        <code>aruaru-llm</code> itself, not by this panel).<br /><br />
+        <strong>正直な開示：</strong>GPT-2系モデル重み・埋め込みモデルはアプリに同梱されて
+        <strong>いません</strong>(サイズ・ライセンスの都合)——「🧠 おすすめLLM」(PC/ブラウザ版)、
+        またはアプリ内「モデルをダウンロード」ボタン(Android版)で一度取得すると、この端末上に
+        ローカル保存されます。この画面で見る/バックアップできるのは<em>会話履歴・設定</em>の
+        データベースです(<code>aruaru-llm</code>本体のモデルファイル自体は
+        <code>aruaru-llm</code>側が管理しており、この画面の対象外です)。
+      </p>
+
+      <h3>Current storage / 現在の保存先</h3>
+      <p class="setup-note" id="data-storage-info">Loading… / 読み込み中…</p>
+      <button type="button" id="data-storage-refresh" class="setup-btn">🔄 Refresh / 再読み込み</button>
+
+      <h3>Change storage location / 保存先を変更</h3>
+      <p class="setup-note">
+        Move the local database file to another folder (e.g. a microSD card or external drive).<br />
+        データベースファイルを別のフォルダ(microSDや外部ドライブなど)へ移動します。
+      </p>
+      <div class="setup-path-row">
+        <input type="text" id="data-storage-new-path" class="setup-input" placeholder="e.g. D:\open-english-data\open-english.sqlite3" />
+        <button type="button" class="setup-btn browse-btn" data-target-input="data-storage-new-path" data-filename="open-english.sqlite3">📁 Browse… / 参照…</button>
+      </div>
+      <button type="button" id="data-storage-relocate-btn" class="setup-btn">📁 Move here / ここへ移動</button>
+      <p class="setup-note" id="data-storage-relocate-status"></p>
+
+      <h3>Backup via RSync / RSyncで同期バックアップ</h3>
+      <p class="setup-note">
+        Local path or <code>user@host:/path</code>. Use "Browse…" for a local folder — remote
+        <code>user@host:/path</code> destinations must still be typed by hand (there is no way to
+        browse another machine's filesystem from here).<br />
+        ローカルパス、または<code>user@host:/path</code>を指定してください。「参照…」はローカルの
+        フォルダ選択用です——リモートの<code>user@host:/path</code>は他のマシンのファイル
+        システムのため、引き続き手入力が必要です。
+      </p>
+      <div class="setup-path-row">
+        <input type="text" id="data-storage-rsync-dest" class="setup-input" placeholder="e.g. /mnt/usb-backup/ or user@host:/backups/" />
+        <button type="button" class="setup-btn browse-btn" data-target-input="data-storage-rsync-dest">📁 Browse… / 参照…</button>
+      </div>
+      <button type="button" id="data-storage-backup-btn" class="setup-btn">💾 Backup now / 今すぐバックアップ</button>
+      <button type="button" id="data-storage-install-rsync-btn" class="setup-btn hidden">⬇ Install RSync / RSyncをインストール</button>
+      <p class="setup-note" id="data-storage-backup-status"></p>
+
+      <h3>Backup conversation DB + aruaru-db/PostgreSQL together / 会話履歴DBとaruaru-db/PostgreSQLを同時にバックアップ</h3>
+      <p class="setup-note">
+        Enter <strong>one</strong> destination and both the local conversation DB and (if
+        <code>OPEN_ENGLISH_DATABASE_URL</code> is configured) the <code>aruaru-db</code>/PostgreSQL
+        mirror are backed up in a single click. The <code>aruaru-db</code> side is exported with
+        <code>pg_dump</code> (a consistent snapshot dump) rather than copying its live data files
+        directly, to avoid corrupting a database engine that may still be writing.<br />
+        宛先を<strong>1つ</strong>入力するだけで、会話履歴のローカルDBと(<code>OPEN_ENGLISH_DATABASE_URL</code>が
+        設定されていれば)<code>aruaru-db</code>/PostgreSQLミラーの両方を1回でバックアップします。
+        <code>aruaru-db</code>側は稼働中のデータファイルを直接コピーすると破損リスクがあるため、
+        <code>pg_dump</code>(一貫性のあるスナップショットダンプ)経由で書き出します。
+      </p>
+      <div class="setup-path-row">
+        <input type="text" id="data-storage-rsync-dest-all" class="setup-input" placeholder="e.g. /mnt/usb-backup/ or user@host:/backups/" />
+        <button type="button" class="setup-btn browse-btn" data-target-input="data-storage-rsync-dest-all">📁 Browse… / 参照…</button>
+      </div>
+      <button type="button" id="data-storage-backup-all-btn" class="setup-btn">🔄 Backup both now / 両方を今すぐバックアップ</button>
+      <p class="setup-note" id="data-storage-backup-all-status"></p>
+
+      <h3>🔄 Updates &amp; Rollback / アップデート・ロールバック</h3>
+      <p class="setup-honest">
+        <strong>Honest disclosure:</strong> Only the last few versions actually installed on
+        <em>this machine</em> via the automatic updater are kept (3 generations by default, to
+        avoid using unbounded disk space) — you can only roll back to a version that is still
+        listed below, not to an arbitrary older release. Rolling back <code>open-english</code>
+        itself briefly restarts the server (this page will disconnect for a few seconds).<br /><br />
+        <strong>正直な開示：</strong>自動アップデート機能が実際に<em>この端末上で</em>適用した
+        直近の数バージョンのみを保持しています(ディスク容量への配慮から既定3世代)——
+        下の一覧に無い任意の過去バージョンへは戻せません。<code>open-english</code>本体を
+        ダウングレードすると、サーバーが一時的に再起動します(この画面も数秒間切断されます)。
+      </p>
+      <button type="button" id="updates-history-refresh" class="setup-btn">🔄 Refresh / 再読み込み</button>
+      <div id="updates-history-list" class="setup-note">Loading… / 読み込み中…</div>
+      <p class="setup-note" id="updates-downgrade-status"></p>
+    </div>
+  </div>
+
+  <div id="ai-coding-modal" class="setup-modal hidden">
+    <div class="setup-panel">
+      <button type="button" id="ai-coding-close" class="setup-close">✕</button>
+      <h2>AI Coding Assistant / AIでプログラミング</h2>
+      <p class="setup-honest">
+        <strong>Honest disclosure:</strong> This page runs in your normal web browser, which is
+        sandboxed for security. It <strong>cannot</strong> reach an arbitrary local drive on its
+        own, and it <strong>cannot</strong> launch a separate desktop application (such as Claude
+        Code Desktop) for you. What it <em>can</em> do: let you explicitly pick files/folders via
+        your browser's own file/folder picker (upload), let you save files back to your device
+        (download), and show you a shortcut to the AI tool of your choice so you can open/install
+        it yourself. Folder selection uses the File System Access API, which currently only works
+        in Chromium-based browsers (Chrome / Edge / Opera, etc.) — Firefox and Safari are not
+        supported and will show a fallback message below.<br /><br />
+        <strong>正直な開示：</strong>このページは通常のWebブラウザ上で動作しており、
+        セキュリティ上サンドボックス化されています。そのため<strong>任意のローカルドライブへ
+        自由にアクセスすることはできず</strong>、<strong>Claude Code Desktopのような別の
+        デスクトップアプリをこのページから起動することもできません</strong>。実現できるのは、
+        ブラウザ標準のファイル/フォルダ選択ダイアログで<em>あなたが明示的に選んだ</em>
+        ファイル・フォルダへのアクセス(アップロード)、ファイルをこの端末へ保存する機能
+        (ダウンロード)、そして選んだAIツールの案内リンクを表示して自分で開く/インストール
+        してもらうことです。フォルダ選択にはFile System Access APIを使用しており、現時点では
+        Chromium系ブラウザ(Chrome・Edge・Operaなど)のみ対応——Firefox・Safariは非対応で、
+        下に非対応の案内が表示されます。
+      </p>
+
+      <h3>📤 Upload files / ファイルをアップロード</h3>
+      <p class="setup-note">
+        Pick one or more files from your device. They stay in this browser tab's memory only —
+        nothing is uploaded to any server unless a feature explicitly says so.<br />
+        端末からファイルを1つ以上選択してください。選んだファイルはこのブラウザタブの
+        メモリ上に保持されるのみで、明示されない限りどこかのサーバーへ送信されることは
+        ありません。
+      </p>
+      <input type="file" id="ai-coding-upload" multiple class="setup-input" />
+      <p class="setup-note" id="ai-coding-upload-status">No files selected. / ファイル未選択です。</p>
+
+      <h3>📁 Select a local folder / ローカルフォルダを選択</h3>
+      <p class="setup-note">
+        Uses <code>showDirectoryPicker()</code> — a real GUI folder picker where you can browse
+        into any drive/folder you have access to and select it. Chromium-based browsers only.<br />
+        <code>showDirectoryPicker()</code>を使用します——実際のGUIフォルダ選択ダイアログで、
+        アクセス権のある任意のドライブ・フォルダを辿って選択できます。Chromium系ブラウザのみ
+        対応です。
+      </p>
+      <button type="button" id="ai-coding-folder-btn" class="setup-btn">📁 Select folder / フォルダを選択</button>
+      <p class="setup-note" id="ai-coding-folder-status"></p>
+
+      <h3>⬇ Download / ダウンロード</h3>
+      <p class="setup-note">
+        Save the files you uploaded above back to your device (a round-trip demo of the browser's
+        standard download mechanism — not a way to fetch files from elsewhere).<br />
+        上でアップロードしたファイルをこの端末へ保存し直します(ブラウザ標準のダウンロード
+        機構の往復デモです——他の場所からファイルを取得する機能ではありません)。
+      </p>
+      <button type="button" id="ai-coding-download-btn" class="setup-btn">⬇ Download uploaded files / アップロード済みファイルをダウンロード</button>
+      <p class="setup-note" id="ai-coding-download-status"></p>
+
+      <h3>🧠 Choose an AI coding tool / AIツールを選択</h3>
+      <p class="setup-note">
+        Selecting a tool here only shows you a link to its official site/download page — this
+        page cannot launch a desktop app such as Claude Code Desktop for you (browser security).
+        You install/open it yourself.<br />
+        ここでツールを選ぶと、公式サイト・ダウンロードページへの案内リンクが表示されるだけです
+        ——Claude Code Desktopのようなデスクトップアプリをこのページから起動することは
+        できません(ブラウザのセキュリティ制約)。インストール・起動はご自身で行ってください。
+      </p>
+      <label class="settings-field">
+        AI tool / AIツール
+        <select id="ai-coding-tool-select">
+          <option value="claude-code-desktop">Claude Code Desktop</option>
+          <option value="claude-code-cli">Claude Code (CLI)</option>
+          <option value="claude-ai">Claude.ai / Claude API (Anthropic)</option>
+          <option value="chatgpt">ChatGPT / OpenAI</option>
+          <option value="gemini">Google Gemini</option>
+          <option value="deepseek">DeepSeek</option>
+          <option value="copilot">Microsoft Copilot</option>
+          <option value="github-copilot">GitHub Copilot</option>
+        </select>
+      </label>
+      <button type="button" id="ai-coding-tool-link-btn" class="setup-btn">🔗 Open official site / 公式サイトを開く</button>
+      <p class="setup-note" id="ai-coding-tool-status"></p>
+    </div>
+  </div>
+
+  <!-- 2026-08-25新設(ユーザー指示「バックアップ先入力欄が1本のテキスト
+       欄だけでは分かりにくいので、エクスプローラーの様な物を」への対応)。
+       サーバー側の新規GET /v1/fs/list-dir(読み取り専用、フォルダ名のみ
+       返す)を使ったフォルダブラウザ。ブラウザ標準のFile System Access
+       APIは選んだフォルダの絶対パス文字列をJSへ渡さない設計のため
+       (セキュリティ上の理由)、rsync等に必要な実際のパス文字列を得る
+       にはこの方式が必要だった。 -->
+  <div id="folder-browser-modal" class="setup-modal hidden">
+    <div class="setup-panel">
+      <button type="button" id="folder-browser-close" class="setup-close">✕</button>
+      <h2>📁 Choose a folder / フォルダを選択</h2>
+      <p class="setup-honest">
+        <strong>Honest disclosure:</strong> This lists folders on <em>this machine</em> (where the
+        server is running) — it cannot browse another computer. For a remote
+        <code>user@host:/path</code> destination, type it in by hand instead.<br />
+        <strong>正直な開示：</strong>これは<em>このサーバーが動いているマシン</em>上のフォルダ
+        一覧です——他のPCの中は見られません。リモートの<code>user@host:/path</code>を指定
+        したい場合は、引き続き手入力してください。
+      </p>
+      <p class="setup-note" id="folder-browser-current-path">/</p>
+      <button type="button" id="folder-browser-up-btn" class="setup-btn">⬆ Up one level / 一つ上へ</button>
+      <div id="folder-browser-list" class="folder-browser-list">Loading… / 読み込み中…</div>
+      <button type="button" id="folder-browser-select-btn" class="setup-btn">✅ Select this folder / このフォルダを選択</button>
+      <p class="setup-note" id="folder-browser-status"></p>
+    </div>
+  </div>
+
+  <div id="custom-url-modal" class="setup-modal hidden">
+    <div class="setup-panel">
+      <button type="button" id="custom-url-close" class="setup-close">✕</button>
+      <h2>🔗 Icon & Custom URL / アイコン起動・独自URL</h2>
+
+      <h3>1. Launch from an icon / アイコンから起動</h3>
+      <p class="setup-note">
+        Windows/Linux/macOS installers already create a desktop shortcut/launcher that starts the
+        server and opens this page for you (see the "installer/" downloads on the project README).
+        On Android, install the app or add this page to your home screen (⋮ menu → "Add to Home
+        screen") for one-tap launch.<br />
+        Windows/Linux/macOS版インストーラーには、サーバー起動+このページを開くデスクトップ
+        ショートカット/ランチャーが既に同梱されています(プロジェクトREADMEの「installer/」を
+        参照)。Androidではアプリをインストールするか、ブラウザのメニュー(⋮)→
+        「ホーム画面に追加」でワンタップ起動できます。
+      </p>
+
+      <h3>2. Bookmark this page's URL / このページのURLをお気に入りに登録</h3>
+      <p class="setup-note">
+        You can simply bookmark this page's current address in your browser
+        (<span id="custom-url-current"></span>) — no extra setup is required for that.<br />
+        ブラウザでこのページの現在のアドレス(<span id="custom-url-current-ja"></span>)を
+        そのままお気に入り/ブックマークに登録するだけで構いません——特別な設定は不要です。
+      </p>
+
+      <h3>3. Assign a memorable domain via DuckDNS (or any other) / DuckDNS等で覚えやすいドメインを割り当て</h3>
+      <p class="setup-honest">
+        <strong>Honest disclosure:</strong> DuckDNS only points a domain name at your current IP
+        address. It does <strong>not</strong> open any router ports and does <strong>not</strong> by
+        itself make this server reachable from outside your home network — this server still binds to
+        <code>127.0.0.1</code> only unless you explicitly set <code>OPEN_ENGLISH_SERVER_BIND</code>,
+        and real internet (WAN) access still requires you to set up port forwarding and TLS yourself
+        (e.g. via <a href="https://github.com/aon-co-jp/open-web-server" target="_blank" rel="noopener noreferrer">open-web-server</a>
+        or <a href="https://github.com/aon-co-jp/open-easy-web" target="_blank" rel="noopener noreferrer">open-easy-web</a>).
+        We deliberately do not auto-configure port forwarding (UPnP), for the same "no stepping stone"
+        security reasons as world-lab.<br />
+        <strong>正直な開示：</strong>DuckDNSはドメイン名を現在のIPアドレスへ結びつけるだけです。
+        ルーターのポートは<strong>開きません</strong>し、それだけでは自宅ネットワーク外から
+        このサーバーへ到達できるようにも<strong>なりません</strong>——このサーバー自体も
+        <code>OPEN_ENGLISH_SERVER_BIND</code>を明示的に変更しない限り<code>127.0.0.1</code>限定の
+        ままで、実際にインターネット(WAN)から使うにはポートフォワーディングとTLSをご自身で
+        用意する必要があります(例:
+        <a href="https://github.com/aon-co-jp/open-web-server" target="_blank" rel="noopener noreferrer">open-web-server</a>や
+        <a href="https://github.com/aon-co-jp/open-easy-web" target="_blank" rel="noopener noreferrer">open-easy-web</a>)。
+        world-labと同じ「踏み台にならない」方針により、UPnP等での自動ポート開放はあえて実装して
+        いません。
+      </p>
+      <p class="setup-note">
+        Get a free domain first at <a href="https://www.duckdns.org" target="_blank" rel="noopener noreferrer">duckdns.org</a>
+        (sign in, add a subdomain, copy your token). Prefer a different dynamic DNS or your own
+        domain? Just point it at your IP yourself — this button is only a convenience for DuckDNS.<br />
+        まず<a href="https://www.duckdns.org" target="_blank" rel="noopener noreferrer">duckdns.org</a>
+        で無料のサブドメインを取得してください(サインイン→サブドメイン追加→トークンをコピー)。
+        他の動的DNSや独自ドメインをお使いになりたい場合は、ご自身でIPへ割り当ててください——
+        このボタンはDuckDNS向けの簡易ヘルパーに過ぎません。
+      </p>
+      <label>DuckDNS subdomain / サブドメイン (e.g. "your-name"):
+        <input type="text" id="duckdns-domain" class="setup-input" placeholder="your-name" />
+      </label>
+      <label>DuckDNS token / トークン:
+        <input type="password" id="duckdns-token" class="setup-input" placeholder="xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx" />
+      </label>
+      <button type="button" id="duckdns-update-btn" class="setup-btn">🔄 Update DuckDNS now / 今すぐDuckDNSを更新</button>
+      <p class="setup-note" id="duckdns-status"></p>
+    </div>
+  </div>
+
+  <div id="world-lab-modal" class="setup-modal hidden">
+    <div class="setup-panel">
+      <button type="button" id="world-lab-close" class="setup-close">✕</button>
+      <h2>world-lab (experimental) / world-lab(実験的機能)</h2>
+      <p class="setup-honest">
+        <strong>Honest disclosure:</strong> world-lab lets you pool idle CPU/GPU/NPU capacity from
+        spare devices (old phones/tablets/PCs, connected via USB/Wi-Fi/Bluetooth/LAN) to run
+        computation inside a WASM sandbox — no reward, mutual aid only. <strong>Disabled by
+        default on the server</strong> (two separate opt-in flags,
+        <code>OPEN_ENGLISH_WORLD_LAB_ENABLED</code> and
+        <code>OPEN_ENGLISH_WORLD_LAB_COMPUTE_ENABLED</code>). This app <strong>never relays
+        traffic on your behalf</strong> — there is no code path that forwards network traffic for
+        anyone, which is a deliberate design choice to avoid ever becoming a Winny-style relay for
+        someone else's abuse. If this server has it disabled, everything below will show an error
+        saying so — that is expected, not a bug.<br /><br />
+        <strong>正直な開示：</strong>world-labは、使わなくなったスマホ・タブレット・PC
+        (USB/Wi-Fi/Bluetooth/LAN経由で接続)の遊休CPU/GPU/NPUを、WASMサンドボックス内での
+        計算に持ち寄る実験的機能です——報酬は無く、相互扶助のみを目的としています。
+        <strong>サーバー側で既定は無効</strong>です(2つの独立したオプトインフラグ、
+        <code>OPEN_ENGLISH_WORLD_LAB_ENABLED</code>と
+        <code>OPEN_ENGLISH_WORLD_LAB_COMPUTE_ENABLED</code>)。このアプリは
+        <strong>通信を一切中継しません</strong>——誰かの代わりに通信を転送するコード自体が
+        存在せず、Winnyのような踏み台化を避けるための意図的な設計です。このサーバーで無効に
+        なっている場合、以下はすべて「無効です」というエラーを表示します——これは不具合では
+        なく想定どおりの挙動です。
+      </p>
+
+      <h3>📶 Status / 状態</h3>
+      <button type="button" id="world-lab-refresh-btn" class="setup-btn">🔄 Refresh / 再読み込み</button>
+      <p class="setup-note" id="world-lab-status-info">Loading… / 読み込み中…</p>
+
+      <h3>🧩 Related tools / 関連ツール</h3>
+      <p class="setup-note">
+        world-lab is about sharing idle hardware, not AI chat itself. For the AI backend this app
+        actually talks to, or for AI coding tool shortcuts (including Microsoft/GitHub Copilot),
+        use the panels below — they are not duplicated here.<br />
+        world-labは遊休ハードウェアの共有機能であり、AIチャット機能そのものではありません。
+        このアプリが実際に話しかけるAIバックエンドの設定や、AIコーディングツールの案内
+        (Microsoft/GitHub Copilotを含む)は下のパネルをご利用ください(ここには複製して
+        いません)。
+      </p>
+      <button type="button" id="world-lab-goto-aruaru-llm-btn" class="setup-btn">⚙ Setup aruaru-llm</button>
+      <button type="button" id="world-lab-goto-ai-coding-btn" class="setup-btn">🖥️ AI Coding Assistant (incl. Copilot) / AIでプログラミング(Copilot含む)</button>
+      <button type="button" id="world-lab-goto-cg-cad-btn" class="setup-btn">🏗 open-cg-cad (AI工務店&AI建設)</button>
+
+      <h3>🔗 Pair a device / デバイスをペアリング</h3>
+      <p class="setup-note">
+        The pairing token is printed to this server's own startup log — it is never sent anywhere
+        automatically, and this page does not display it either (you must copy it from wherever
+        you started the server).<br />
+        ペアリングトークンはこのサーバー自身の起動ログに表示されます——自動的にどこかへ送信
+        されることはなく、この画面にも表示しません(サーバーを起動した場所からコピーして
+        ください)。
+      </p>
+      <input type="text" id="world-lab-pair-token" class="setup-input" placeholder="pairing token from server log / サーバーログのペアリングトークン" />
+      <input type="text" id="world-lab-pair-name" class="setup-input" placeholder="device name / デバイス名 (e.g. old-pixel-6)" />
+      <label class="settings-field">
+        Connection / 接続方式
+        <select id="world-lab-pair-connection">
+          <option value="usb">USB</option>
+          <option value="wifi">Wi-Fi</option>
+          <option value="bluetooth">Bluetooth</option>
+          <option value="lan">LAN (incl. crossover cable / クロスケーブル含む)</option>
+          <option value="wan">WAN / Internet (⚠ no TLS yet, see disclosure / TLS未対応、開示参照)</option>
+        </select>
+      </label>
+      <label class="settings-field">
+        Device type / デバイス種別
+        <select id="world-lab-pair-kind">
+          <option value="phone">📱 Phone / スマホ</option>
+          <option value="tablet">📲 Tablet / タブレット</option>
+          <option value="pc">🖥 PC</option>
+          <option value="other">❓ Other / その他</option>
+        </select>
+      </label>
+      <p class="setup-note">
+        Hardware this device claims to have (self-reported, not verified — see honest disclosure
+        above; actual compute tasks always run on CPU today).<br />
+        このデバイスが備えると自己申告するハードウェア(検証はしていません——上の開示参照。
+        実際の計算タスクは現状すべてCPUで実行されます)。
+      </p>
+      <label class="settings-field-inline">
+        <input type="checkbox" id="world-lab-pair-cap-cpu" checked disabled /> CPU
+      </label>
+      <label class="settings-field-inline">
+        <input type="checkbox" id="world-lab-pair-cap-gpu" /> GPU
+      </label>
+      <label class="settings-field-inline">
+        <input type="checkbox" id="world-lab-pair-cap-npu" /> NPU
+      </label>
+      <button type="button" id="world-lab-pair-btn" class="setup-btn">🔗 Pair / ペアリング</button>
+      <p class="setup-note" id="world-lab-pair-status"></p>
+
+      <h3>🏢 Bulk pairing (offices, many PCs at once) / 一括ペアリング(オフィス等、多数のPCを一度に)</h3>
+      <p class="setup-note">
+        Paste one device name per line — they will all use the connection/type/capabilities
+        selected above. This is still an explicit, one-click action with the same token check per
+        device — not automatic discovery.<br />
+        1行に1台ずつデバイス名を貼り付けてください——上で選んだ接続方式/種別/能力が全台へ
+        適用されます。これも「明示的な1回の操作+1台ごとの同じトークン確認」であり、
+        自動発見ではありません。
+      </p>
+      <textarea id="world-lab-bulk-pair-names" class="setup-input" rows="4" placeholder="office-pc-01&#10;office-pc-02&#10;office-pc-03"></textarea>
+      <button type="button" id="world-lab-bulk-pair-btn" class="setup-btn">🏢 Pair all listed devices / 一覧の全デバイスをペアリング</button>
+      <p class="setup-note" id="world-lab-bulk-pair-status"></p>
+
+      <h3>📋 Paired devices / ペアリング済みデバイス</h3>
+      <div id="world-lab-device-list" class="setup-note">—</div>
+
+      <h3>⚗ Run a compute task (advanced) / 計算タスクを実行(上級者向け)</h3>
+      <p class="setup-honest">
+        <strong>Honest disclosure:</strong> the guest module must export a linear memory named
+        <code>memory</code> and a function <code>run(in_ptr, in_len, out_ptr, out_cap) -&gt;
+        i32</code> — this is a deliberately minimal ABI, not a general-purpose WASI environment
+        (the module cannot access files/network/etc. — see the disclosure above). This is meant
+        for people who already know how to build such a <code>.wasm</code> file; there is no
+        code editor here.<br />
+        <strong>正直な開示：</strong>ゲストモジュールは線形メモリ<code>memory</code>と、
+        関数<code>run(in_ptr, in_len, out_ptr, out_cap) -&gt; i32</code>をエクスポートしている
+        必要があります——意図的に最小限のABIであり、汎用的なWASI環境ではありません
+        (ファイル・ネットワーク等へは一切アクセスできません、上の開示参照)。既にそのような
+        <code>.wasm</code>ファイルを作れる方向けの機能で、この画面にコードエディタはありません。
+      </p>
+      <input type="file" id="world-lab-task-wasm" accept=".wasm" class="setup-input" />
+      <textarea id="world-lab-task-input" class="setup-input" rows="3" placeholder="input text (UTF-8) / 入力テキスト(UTF-8)"></textarea>
+      <button type="button" id="world-lab-task-run-btn" class="setup-btn">▶ Run task / タスクを実行</button>
+      <p class="setup-note" id="world-lab-task-status"></p>
+    </div>
+  </div>
+
+  <div id="exam-prep-modal" class="setup-modal hidden">
+    <div class="setup-panel">
+      <button type="button" id="exam-prep-close" class="setup-close">✕</button>
+      <h2>Certification Exam Prep / 資格試験対策コーナー</h2>
+      <p class="setup-honest">
+        <strong>Honest disclosure:</strong> These are original practice questions written for
+        this app, not real past questions from Eiken (STEP), TOEIC, TOEFL, the Japanese Language
+        Proficiency Test (JLPT), or the
+        <a href="https://www.nihongokentei.jp/" target="_blank" rel="noopener noreferrer">Nihongo
+        Kentei</a> (日本語検定) — those are copyrighted and we do not reproduce them. Difficulty is
+        only a loose approximation of each real exam's level, not an official prediction.<br /><br />
+        <strong>正直な開示:</strong> これらは本アプリ用に作成したオリジナルの練習問題であり、
+        英検・TOEIC・TOEFL・日本語能力試験(JLPT)・
+        <a href="https://www.nihongokentei.jp/" target="_blank" rel="noopener noreferrer">日本語検定</a>
+        の実際の過去問(著作権保護対象)ではありません。
+        難易度も各試験の実際のレベルへの大まかな目安に過ぎず、公式の予測スコアではありません。
+      </p>
+      <label class="settings-field">
+        Exam / 試験
+        <select id="exam-prep-exam">
+          <option value="eiken1">英検1級 / Eiken Grade 1</option>
+          <option value="eiken2">英検2級 / Eiken Grade 2</option>
+          <option value="eiken-pre2">英検準2級 / Eiken Grade Pre-2</option>
+          <option value="eiken3" selected>英検3級 / Eiken Grade 3</option>
+          <option value="eiken4">英検4級 / Eiken Grade 4</option>
+          <option value="eiken5">英検5級 / Eiken Grade 5</option>
+          <option value="toeic">TOEIC</option>
+          <option value="toefl">TOEFL</option>
+          <option value="jlptN1">日本語能力試験 N1 / JLPT N1</option>
+          <option value="jlptN2">日本語能力試験 N2 / JLPT N2</option>
+          <option value="jlptN3">日本語能力試験 N3 / JLPT N3</option>
+          <option value="jlptN4">日本語能力試験 N4 / JLPT N4</option>
+          <option value="jlptN5">日本語能力試験 N5 / JLPT N5</option>
+          <option value="nihongoKentei1">日本語検定 1級 / Nihongo Kentei Grade 1</option>
+          <option value="nihongoKentei2">日本語検定 2級 / Nihongo Kentei Grade 2</option>
+          <option value="nihongoKentei3">日本語検定 3級 / Nihongo Kentei Grade 3</option>
+          <!--
+            世界の言語の擬似模擬試験(2026-08-22追加)は、app.js の
+            populateWorldLanguageExamOptions() が起動時に <optgroup> として
+            ここへ動的に追加する(有効化された言語のみ)。
+          -->
+        </select>
+      </label>
+      <p class="setup-note" id="exam-prep-world-note"></p>
+      <div id="exam-prep-quiz"></div>
+      <div class="settings-buttons">
+        <button type="button" id="exam-prep-start" class="setup-btn">Start / 開始</button>
+        <button type="button" id="exam-prep-submit" class="setup-btn hidden">Submit / 採点</button>
+      </div>
+      <p id="exam-prep-result" class="setup-note"></p>
+      <button type="button" id="exam-prep-practice-btn" class="setup-btn hidden">
+        💬 Practice these with your trainer / トレーナーと練習する
+      </button>
+    </div>
+  </div>
+  <!--
+    学年別・家庭教師コース(ユーザー指示、2026-08-23「学生向け家庭教師
+    コースをインストールしたい、学年を尋ねて学年別・教科別に練習問題を」
+    への対応)。UI・採点の作りは既存の資格試験対策コーナー
+    (#exam-prep-modal)を踏襲している。
+  -->
+  <div id="tutor-course-modal" class="setup-modal hidden">
+    <div class="setup-panel">
+      <button type="button" id="tutor-course-close" class="setup-close">✕</button>
+      <h2>🎓 学生向け家庭教師コース / Student tutor course</h2>
+      <p class="setup-honest">
+        <strong>正直な開示:</strong> ここに収録している問題は、すべて本アプリ用に書き下ろした
+        <strong>オリジナルの練習問題</strong>です。市販の教科書・問題集・実際の入学試験の問題は
+        一切転載していません(いずれも著作権保護の対象です)。学年・教科の区分は日本の一般的な
+        カリキュラムを目安にした<strong>おおまかな分類</strong>であり、特定の教科書や指導要領に
+        準拠したものではありません。<strong>現時点で問題を用意できているのは一部の学年・教科だけ</strong>で、
+        それ以外を選んだ場合は「準備中」と正直に表示します(用意できていないものを
+        「対応済み」に見せることはしません)。<br /><br />
+        <strong>Honest disclosure:</strong> every question here is an <strong>original practice
+        question written for this app</strong>. Nothing is copied from textbooks, workbooks, or real
+        entrance exams. The grade/subject split follows the usual Japanese school curriculum only as a
+        rough guide. <strong>Only some grade/subject combinations have questions so far</strong>; for the
+        rest the app honestly says "not ready yet" rather than pretending to be complete.
+      </p>
+
+      <p class="setup-honest">
+        <strong>ご利用の前に: 学習履歴データベースのセットアップをおすすめします。</strong>
+        家庭教師コースをご利用の前に、<strong>aruaru-db</strong>(上部の「🗄 Setup aruaru-db」)、
+        または<strong>標準的なPostgreSQL</strong>のセットアップをおすすめします。どの学年・どの教科を学んだか、
+        どの問題が解けたか、テストの結果はどうだったかを記録として蓄積でき、後から自分の学習の積み重ねを
+        振り返ることができます。<br />
+        <strong>セットアップしない場合に起きること(正直な開示)</strong>: 採点結果はアプリ内蔵のローカルDB
+        (SQLite)にのみ保存されます。手元で見る分には十分ですが、アプリを入れ直したり別の端末へ移ったりすると
+        引き継げず、長期的な振り返りには向きません。選んだ学年・インストール済み教科もブラウザの
+        localStorageに保存されるだけで、ブラウザのデータを消すと失われます。
+        <strong>どちらを選んでも構いません</strong>——保存先は環境変数
+        <code>OPEN_ENGLISH_DATABASE_URL</code>にPostgreSQL接続文字列を設定するだけで、aruaru-dbは
+        PostgreSQLワイヤプロトコル互換(pgwire)のため同じ設定で使えます。
+        <strong>ただし正直な但し書き(2026-08-24更新)</strong>: サーバー側は
+        <code>tokio-postgres-rustls</code>によりTLS接続に対応しています(接続文字列の
+        <code>sslmode=require</code>等を設定すれば、SSL必須のマネージドPostgreSQLサービスにも
+        接続できます。自己署名証明書の場合のみ<code>OPEN_ENGLISH_DB_TLS_INSECURE=1</code>が必要です、
+        中間者攻撃に無防備になる設定のため信頼できる閉域網以外では使わないでください)。
+        ただし、この開発機には<code>cargo</code>/<code>rustc</code>・<code>psql</code>・Dockerのいずれも
+        インストールされていないため、TLS接続・標準PostgreSQL単体への実接続とも、この環境で実機検証は
+        できていません(コードレビューレベルの確認にとどまります)。接続クライアント自体
+        (<code>tokio-postgres</code>)はaruaru-db固有ではなく標準的なPostgreSQLワイヤプロトコル
+        クライアントであるため、標準PostgreSQLへの接続可否は主にクライアント側ではなくaruaru-db側の
+        pgwire実装の完成度に依存します。<br /><br />
+        <strong>Before you start: we recommend setting up a learning-history database.</strong>
+        Set up either <strong>aruaru-db</strong> (see "🗄 Setup aruaru-db" above) or a
+        <strong>standard PostgreSQL</strong> server, and the course can keep a record of which grades and
+        subjects you studied, which questions you got right, and how your tests went — so you can look back
+        on what you have built up over time. <strong>Without it</strong>, scores are stored only in the
+        app's built-in local SQLite database (fine day to day, but it does not follow you to another device
+        or survive a reinstall), and your grade/subject choices live only in browser localStorage.
+        Either database works: point <code>OPEN_ENGLISH_DATABASE_URL</code> at a PostgreSQL connection
+        string — aruaru-db speaks the same PostgreSQL wire protocol. <strong>Honest caveats</strong>: the
+        server now supports TLS via <code>tokio-postgres-rustls</code> (updated 2026-08-24) — set
+        <code>sslmode=require</code> etc. in the connection string to reach managed PostgreSQL services that
+        require SSL (self-signed certificates need <code>OPEN_ENGLISH_DB_TLS_INSECURE=1</code>, which disables
+        certificate verification and should only be used on a trusted closed network). However, this
+        development machine has neither <code>cargo</code>/<code>rustc</code> nor <code>psql</code> nor Docker
+        installed, so neither the TLS path nor a plain PostgreSQL connection has actually been tested end to
+        end here — this remains a code-review-level check only. The client library itself
+        (<code>tokio-postgres</code>) is a generic PostgreSQL wire-protocol client, not specific to aruaru-db,
+        so compatibility with standard PostgreSQL mainly depends on aruaru-db's own pgwire implementation
+        rather than on this client.
+      </p>
+      <p class="setup-honest">
+        <strong>より安全にしたい方へ: aruaru-db と PostgreSQL の二重(DUAL)構成 — 実装済みです</strong><br />
+        aruaru-db と PostgreSQL の<strong>両方</strong>を用意し、互いに写しを持たせておくと、片方が壊れても
+        もう片方から学習履歴を復元できます。<strong>実装状況(2026-08-24 更新)</strong>:
+        <strong>open-english 自身が2つのデータベースへ同時に書き込む機能を実装しました</strong>
+        (以前このページに書いていた「未実装」という案内は、この更新で解消されています)。<br />
+        <strong>設定方法</strong>: 環境変数を2つ設定するだけです。
+        <code>OPEN_ENGLISH_DATABASE_URL</code>(1つ目、aruaru-db を想定)と
+        <code>OPEN_ENGLISH_DATABASE_URL_SECONDARY</code>(2つ目、標準的な PostgreSQL を想定)。
+        どちらにどちらを割り当てても動作は同じです(どちらも通常の PostgreSQL 接続として扱われるため)。
+        <strong>両方を設定すれば両方へ同時に書き込み</strong>、片方だけなら<strong>そちらのみ</strong>、
+        どちらも未設定なら<strong>内蔵SQLiteのみ</strong>で従来どおり動作します。<br />
+        <code>OPEN_ENGLISH_DATABASE_URL=host=127.0.0.1 user=... dbname=...</code><br />
+        <code>OPEN_ENGLISH_DATABASE_URL_SECONDARY=host=127.0.0.1 user=... dbname=...</code><br />
+        書き込みは<strong>2つのデータベースそれぞれ独立に</strong>行われます——片方が停止・接続不能でも、
+        もう片方への書き込みはそのまま完了し、学習の進行(HTTPリクエスト)も止まりません。
+        失敗した側だけがサーバーのログに記録されます。現在の設定状態は
+        <code>GET /v1/db/info</code> の <code>dual_mirror</code> / <code>mirror_targets</code> で確認できます。<br />
+        <strong>正直な但し書き</strong>: 実装したのは「書き込み時に両方へ送る」ところまでです。
+        <strong>片方が停止していた期間に取りこぼした行を、復旧後に自動で追いつかせる自己修復機能は
+        実装していません</strong>(その場合はバックアップからのリストアが必要です)。TLS対応は
+        2026-08-24に追加済みですが、この開発機に検証手段(cargo/psql/Docker)が無いため実機検証は
+        できていません(詳細は上の節参照)。<br />
+        <strong>バックアップ(rsync)について</strong>: 学習履歴DBは、open-english の
+        「💾 Data &amp; Model Storage」パネルにある rsync バックアップ機能で、外付けドライブ・別PC・VPS等へ
+        コピー対象として<strong>加えることができます</strong>(自動で常時バックアップされるわけではありません)。
+        rsync 自体の一般的な使い方——コマンド例、Googleドライブへの同期(rclone)、レンタルサーバー/VPSへの同期、
+        定期実行、復元——は、独立したガイドページにまとめてあります:
+        <a href="https://easy-web.tokyo/rsync" target="_blank" rel="noopener noreferrer">https://easy-web.tokyo/rsync</a>
+        (<strong>正直な但し書き</strong>: これは rsync の<strong>使い方ガイド</strong>であって、
+        open-easy-web に rsync の同期機構が実装されているという意味ではありません)。<br /><br />
+        <strong>For extra safety: a dual aruaru-db + PostgreSQL setup — now implemented.</strong> Running
+        <strong>both</strong> and keeping one as a copy of the other means a failure on one side does not lose your
+        learning history. <strong>Implementation status (updated 2026-08-24)</strong>:
+        <strong>open-english now writes to two databases at once itself</strong> — the earlier note on this page
+        saying this was "not implemented yet" no longer applies.
+        <strong>How to set it up</strong>: just set two environment variables —
+        <code>OPEN_ENGLISH_DATABASE_URL</code> (the first target, typically aruaru-db) and
+        <code>OPEN_ENGLISH_DATABASE_URL_SECONDARY</code> (the second, typically a standard PostgreSQL). It does not
+        matter which one you assign to which, since both are treated as ordinary PostgreSQL connections.
+        Set <strong>both</strong> and every record is written to both; set <strong>one</strong> and only that one is
+        used; set <strong>neither</strong> and it falls back to the built-in SQLite as before. The two writes are
+        <strong>fully independent</strong>: if one database is down or unreachable, the write to the other still
+        completes and your session is never interrupted — only the failing side is noted in the server log. You can
+        check the current configuration via <code>dual_mirror</code> and <code>mirror_targets</code> in
+        <code>GET /v1/db/info</code>. <strong>Honest caveats</strong>: what is implemented is sending each write to
+        both targets. <strong>There is no self-healing catch-up</strong> that replays rows missed while one side was
+        down (you would restore from a backup instead). TLS support was added on 2026-08-24, but this
+        development machine has no cargo/psql/Docker available to test it end to end (see the section above).
+        <strong>Backups (rsync)</strong>: the learning-history
+        database <em>can be added</em> to an rsync backup to an external drive, another PC, or a VPS from the
+        "💾 Data &amp; Model Storage" panel (it is not backed up automatically). General rsync usage — commands,
+        syncing to Google Drive with rclone, syncing to shared hosting or a VPS, scheduling and restoring — is
+        documented on its own page:
+        <a href="https://easy-web.tokyo/rsync" target="_blank" rel="noopener noreferrer">https://easy-web.tokyo/rsync</a>
+        (<strong>honest caveat</strong>: that is a <strong>usage guide</strong> for rsync; it does not mean
+        open-easy-web contains an rsync synchronisation mechanism).
+      </p>
+      <p class="setup-honest">
+        <strong>Googleドライブ・レンタルサーバー・VPSへの同期もできます(要セットアップ)</strong><br />
+        rsync でローカルフォルダへバックアップしたあと、<a href="https://rclone.org/drive/" target="_blank"
+        rel="noopener noreferrer">rclone</a> を使えばそのフォルダを Googleドライブへ同期できます。
+        SSHが使えるレンタルサーバー(ロリポップ、さくらインターネット等のSSH対応プラン)やVPS
+        (ConoHa、さくらのVPS等)であれば、rsync でそのまま同期できます。
+        <strong>具体的なコマンド例・rclone の設定手順・SSH鍵の準備・cron やタスク スケジューラでの定期実行・
+        復元のしかたは、独立したガイドページにまとめました</strong>:
+        <a href="https://easy-web.tokyo/rsync" target="_blank" rel="noopener noreferrer">https://easy-web.tokyo/rsync</a><br />
+        <strong>正直な但し書き</strong>: open-english に Googleドライブ連携は実装していません——
+        <strong>自動的にGoogleドライブやVPSへ同期されるわけではなく</strong>、接続先の設定・SSH鍵の配置は
+        ご自身で行っていただく必要があります。ご案内しているのは「セットアップすれば同期先として使えます」
+        という一般的な手順です。<br /><br />
+        <strong>You can also sync to Google Drive, shared hosting, or a VPS (with a little setup).</strong> After the
+        rsync backup has written to a local folder, <a href="https://rclone.org/drive/" target="_blank"
+        rel="noopener noreferrer">rclone</a> can sync that folder to Google Drive. Any host you can reach over SSH —
+        shared hosting plans with SSH access, or a VPS — works directly with rsync.
+        <strong>The actual commands, rclone configuration, SSH key setup, scheduling with cron or Task Scheduler, and
+        how to restore are all documented on a dedicated guide page</strong>:
+        <a href="https://easy-web.tokyo/rsync" target="_blank" rel="noopener noreferrer">https://easy-web.tokyo/rsync</a><br />
+        <strong>Honest caveat</strong>: open-english has no Google Drive integration —
+        <strong>nothing is synced to Google Drive or a VPS automatically</strong>, and you configure the destination
+        and SSH keys yourself. What we provide is the general procedure you can choose to follow.
+      </p>
+      <p class="setup-note">
+        本機能をより快適にご利用いただくには、<strong>Google検索</strong>(上部の「🔎 Setup Google Search」)と
+        <strong>aruaru-db(学習履歴データベース)</strong>(上部の「🗄 Setup aruaru-db」)を併せてセットアップして
+        ご利用いただくことを推奨します。どちらも未設定のままでも本コースは動作します(採点結果はローカルに保存されます)。<br />
+        For the best experience with this feature, we recommend also setting up <strong>Google Search</strong>
+        (see "🔎 Setup Google Search" above) and <strong>aruaru-db</strong>, the learning-history database
+        (see "🗄 Setup aruaru-db"). The course works without either of them; scores are then kept locally.
+      </p>
+      <p class="setup-note">
+        まちがえたときは、採点のあとに続けてもっと易しい問題へ進めます(落ちこぼれ防止)。仕組みは<strong>2段構え</strong>です:
+        まず<strong>同じ学年の中で</strong>用意されている易しい類題へ順に下がり、その学年ぶんを使い切ったら
+        <strong>1つ下の学年</strong>の同じ教科の問題へ切り替わります(問題が用意されていない学年は飛ばします)。
+        <strong>下げられる回数に上限は設けていません</strong>——用意されているデータがある限り何度でも下がり続け、
+        <strong>保育園児・幼稚園児レベルが下限</strong>です。そこでも解けない場合は、それ以上は下げずに正解を示して
+        「トレーナーと復習」へご案内します。「🍼 もっとずっと易しい問題」を押せば、一気に一番下の学年まで下げることもできます。
+        学年内の類題の数は問題ごとに異なり、現在は<strong>5段階が2問・2段階が16問・1段階が33問・類題なしが20問
+        (教科の練習問題71問、ほかに保育園児・幼稚園児向け14問)</strong>です(このほかプログラミングの基礎問題6問には1段階が3問)。
+        図解(イラスト)は、図があると分かりやすい問題にだけ付いています——<strong>全問には付いていません</strong>。<br />
+        When you miss a question you can keep going easier, in <strong>two tiers</strong>: first through the easier
+        versions available <strong>within the same grade</strong>, and once those run out, on to the same subject
+        <strong>one grade lower</strong> (grades with no questions are skipped). <strong>There is no fixed limit on
+        how many times you can step down</strong> — it continues for as long as prepared material exists, with
+        <strong>preschool/kindergarten as the floor</strong>, where the app stops, shows the answer, and hands you to
+        the trainer. "🍼 Much easier" jumps straight to the lowest grade available. How many in-grade steps exist
+        differs per question: currently <strong>2 questions have 5, 16 have 2, 33 have 1, and 20 have none
+        (71 subject questions, plus 14 preschool ones)</strong>, and 3 of the 6 programming basics questions have one.
+        Diagrams are included only for questions where a picture helps — <strong>not for every question</strong>.
+      </p>
+
+      <p class="setup-note">
+        <strong>英語は小学3年生から</strong>ご利用いただけます(学習指導要領でも小3から外国語活動が始まります)。
+        小1・小2でも国語・算数の練習問題はご利用いただけます。<br />
+        <strong>English is available from elementary grade 3</strong> (matching when foreign-language
+        activities start in the Japanese curriculum); grades 1–2 can still practise Japanese and arithmetic.
+      </p>
+      <p class="setup-note">
+        <strong>プログラミングの授業について</strong>: プログラミングの授業については、open-englishのAIエンジン
+        (aruaru-llm)単体では対応力が弱いため、CLAUDE CODE DESKTOPの有料版を合わせてお申し込みいただくことを
+        お勧めします。ご利用可能時間はご契約のプランによって変動いたします。
+        (そのため本コースの「プログラミング」は練習問題ではなく、この案内の表示のみとなります。)<br />
+        <strong>About programming lessons</strong>: open-english's own AI engine (aruaru-llm) is not strong
+        enough on its own for programming tuition, so we recommend subscribing to the paid version of Claude
+        Code Desktop alongside it; available usage time depends on your plan. The "Programming" subject here
+        therefore shows this guidance instead of practice questions.
+      </p>
+
+      <h3>1. あなたの学年は? / Which grade are you in?</h3>
+      <div id="tutor-grade-list" class="tutor-choice-grid"></div>
+
+      <div id="tutor-subject-section" class="hidden">
+        <h3>2. 教科を選んでください / Choose your subjects</h3>
+        <p class="setup-note" id="tutor-selected-grade"></p>
+        <div id="tutor-subject-list" class="tutor-choice-grid"></div>
+        <div class="settings-buttons">
+          <button type="button" id="tutor-install-selected" class="setup-btn">⬇ 選んだ教科をインストール / Install selected subjects</button>
+          <button type="button" id="tutor-install-all" class="setup-btn">⬇ 全教科をインストール / Install all subjects</button>
+        </div>
+        <p class="setup-note" id="tutor-install-status"></p>
+      </div>
+
+      <div id="tutor-practice-section" class="hidden">
+        <h3>3. 練習問題 / Practice questions</h3>
+        <label class="settings-field">
+          出題する教科 / Subject to practise
+          <select id="tutor-practice-subject"></select>
+        </label>
+        <div class="settings-buttons">
+          <button type="button" id="tutor-start" class="setup-btn">▶ 開始 / Start</button>
+          <button type="button" id="tutor-submit" class="setup-btn hidden">✅ 採点 / Submit</button>
+        </div>
+        <!-- 教科ごとの案内文(現在はプログラミングのみ)。 -->
+        <p id="tutor-subject-notice" class="setup-honest hidden"></p>
+        <!--
+          キャリアガイダンス(2026-08-24新設)。選んだ教科について
+          「役立つかもしれない業界・職種」「さらに極めると目指せる
+          可能性のある上級職種」を補足表示する。app.jsが組み立てる。
+        -->
+        <div id="tutor-career-guidance" class="tutor-career-box hidden"></div>
+        <!--
+          プログラミング教科を選んだときだけ表示する教材エリア
+          (サンプルコード+改造課題)。中身は app.js が組み立てる。
+        -->
+        <div id="tutor-programming-materials" class="hidden"></div>
+        <div id="tutor-quiz"></div>
+        <p id="tutor-result" class="setup-note"></p>
+        <button type="button" id="tutor-easier-btn" class="setup-btn hidden">
+          🌱 もう少し易しい問題に挑戦 / Try an easier version
+        </button>
+        <button type="button" id="tutor-much-easier-btn" class="setup-btn hidden">
+          🍼 もっとずっと易しい問題 / Much easier
+        </button>
+        <!--
+          いつでも学年を変え直せる導線(ユーザー指示、2026-08-23)。
+          学年選択パネルへスクロールで戻るだけの軽い実装。
+        -->
+        <button type="button" id="tutor-change-grade-btn" class="setup-btn">
+          🔁 学年を変更する / Change grade
+        </button>
+        <button type="button" id="tutor-practice-btn" class="setup-btn hidden">
+          💬 この結果をトレーナーと復習する / Review these with your trainer
+        </button>
+      </div>
+    </div>
+  </div>
+  <!--
+    バーチャルスクール / バーチャルオンライン職業訓練校(ユーザー指示、2026-08-24)。
+    高等教育(専門学校・短大・大学・大学院)と職業訓練分野を「区分 → 分野 →
+    インストール → 出題 → 採点」の流れで扱う。UI・採点・履歴保存の作りは
+    既存の学生向け家庭教師コース(#tutor-course-modal)をそのまま踏襲しており、
+    新しい仕組みは増やしていない。同じモーダルを、上部の2つのボタンから
+    「高等教育モード」「職業訓練モード」として開き分ける。
+  -->
+  <div id="vschool-modal" class="setup-modal hidden">
+    <div class="setup-panel">
+      <button type="button" id="vschool-close" class="setup-close">✕</button>
+      <h2 id="vschool-title">🏫 バーチャルスクール / Virtual school</h2>
+      <p class="setup-honest">
+        <strong>正直な開示:</strong> ここに収録している問題は、すべて本アプリ用に書き下ろした
+        <strong>オリジナルの模擬問題</strong>です。実際の入学試験問題・市販の問題集・教科書は
+        一切転載していません(いずれも著作権保護の対象です)。区分や分野の分け方は日本の高等教育・
+        公的職業訓練のおおまかな一般像を目安にしたもので、特定の学校・特定の入試・特定の資格試験に
+        準拠したものではありません。<strong>合否や資格取得を予測・保証するものではありません。</strong>
+        <strong>現時点で問題を用意できているのは一部の分野だけ</strong>で、それ以外を選んだ場合は
+        「準備中」と正直に表示します(用意できていないものを「対応済み」に見せることはしません)。
+        小論文・面接・実技は自動採点になじまないため<strong>4択の知識問題としてのみ</strong>扱っており、
+        本物の小論文添削や面接練習の代わりにはなりません。<br /><br />
+        <strong>Honest disclosure:</strong> every question here is an <strong>original mock question
+        written for this app</strong>; nothing is copied from real entrance exams, textbooks, or
+        commercial workbooks. The categories are a rough sketch of Japanese higher education and public
+        vocational training, not a match to any specific school or qualification, and results predict
+        nothing about real admissions. <strong>Only some fields have questions so far</strong>; the rest
+        honestly say "not ready yet". Essays, interviews, and practical skills are only approximated as
+        multiple-choice knowledge questions and are no substitute for real practice.
+      </p>
+      <p class="setup-honest">
+        採点結果は既存の学習履歴の仕組み(<code>/v1/db/history</code>)に保存されます。
+        aruaru-db / PostgreSQL を設定していない場合はアプリ内蔵のローカルDB(SQLite)にのみ残ります。<br />
+        Scores are stored through the existing history endpoint; without aruaru-db/PostgreSQL they stay
+        in the app's local SQLite only.
+      </p>
+
+      <h3 id="vschool-step1-title">1. 区分を選んでください / Choose a category</h3>
+      <div id="vschool-track-list" class="tutor-choice-grid"></div>
+
+      <div id="vschool-field-section" class="hidden">
+        <h3>2. 分野を選んでください / Choose your fields</h3>
+        <p class="setup-note" id="vschool-selected-track"></p>
+        <div id="vschool-field-list" class="tutor-choice-grid"></div>
+        <div class="settings-buttons">
+          <button type="button" id="vschool-install-selected" class="setup-btn">⬇ 選んだ分野をインストール / Install selected fields</button>
+          <button type="button" id="vschool-install-all" class="setup-btn">⬇ 収録済みの全分野をインストール / Install all available fields</button>
+        </div>
+        <p class="setup-note" id="vschool-install-status"></p>
+      </div>
+
+      <div id="vschool-practice-section" class="hidden">
+        <h3>3. 模擬問題 / Mock questions</h3>
+        <label class="settings-field">
+          出題する分野 / Field to practise
+          <select id="vschool-practice-field"></select>
+        </label>
+        <div class="settings-buttons">
+          <button type="button" id="vschool-start" class="setup-btn">▶ 開始 / Start</button>
+          <button type="button" id="vschool-submit" class="setup-btn hidden">✅ 採点 / Submit</button>
+        </div>
+        <p id="vschool-field-notice" class="setup-note"></p>
+        <div id="vschool-quiz"></div>
+        <p id="vschool-result" class="setup-note"></p>
+        <button type="button" id="vschool-practice-btn" class="setup-btn hidden">
+          💬 この結果をトレーナーと復習する / Review these with your trainer
+        </button>
+      </div>
+    </div>
+  </div>
+  <!--
+    追加言語パック選択モーダル(ユーザー指示、2026-08-22「メンテナンス中に
+    英語と日本語以外の言語を追加しますか?どの言語を追加しますか?と表示し、
+    対応言語一覧から利用者自身がチェックで選べるように」への対応)。
+    メンテナンスバナー表示中は app.js が自動でこのモーダルを開く。
+  -->
+  <div id="language-pack-modal" class="setup-modal hidden">
+    <div class="setup-card">
+      <button type="button" id="language-pack-close" class="setup-close">✕</button>
+      <h2>🌐 言語のインストール / アンインストール — Install / uninstall languages</h2>
+      <p class="setup-note">
+        <strong>チェックを入れる = その言語をインストール(追加)</strong>、<strong>チェックを外す = アンインストール(削除)</strong>です。
+        インストールした言語だけが「学びたい言語」メニュー・資格対策コーナーの模擬試験メニュー・多言語の連続読み上げに現れます。
+        インストール・アンインストールはいつでも何度でも行え、メンテナンスや自動アップデートの後もその状態が保たれます。<br />
+        <strong>Checking a box installs (adds) that language; unchecking it uninstalls (removes) it.</strong>
+        Only installed languages appear in the "Learn" menu, the practice-exam menu, and the multilingual read-aloud.
+        You can install or uninstall at any time, as often as you like, and your choices are kept across maintenance and automatic updates.
+      </p>
+      <p class="setup-honest">
+        <strong>Honest disclosure:</strong> the multilingual quizzes are original practice questions written for this app.
+        They are not past questions from, and are not affiliated with or endorsed by, any official language certification
+        exam (DELE, DELF, Goethe-Zertifikat, HSK, TOPIK, etc.). Levels are loose CEFR-style approximations only, and the
+        number of questions per language is uneven (currently 3–6 items per language) — the count is shown next to each language.<br />
+        <strong>正直な開示:</strong> 多言語クイズは本アプリ用に書き下ろしたオリジナル練習問題です。実在の語学資格試験
+        (DELE・DELF・Goethe-Zertifikat・HSK・TOPIK等)の過去問ではなく、それらとは一切無関係で、公認も受けていません。
+        レベル表記はCEFR風の大まかな目安に過ぎず、収録問題数も言語ごとに不均一(現状3〜6問)です——各言語の横に実際の問題数を表示しています。
+      </p>
+      <!--
+        母国語(ネイティブ)の指定(ユーザー指示、2026-08-22追加要望)。
+        既存の「日本語/英語がデフォルト」という話とは別に、「自分の母語は
+        どれか」を1つだけ明示的に選ぶ項目。連続表示・読み上げの既定の
+        先頭言語になり、AI講師へのプロンプトにも母語として伝えられる。
+      -->
+      <label class="settings-field">
+        🏠 母国語(ネイティブ) / My native language
+        <select id="native-language"></select>
+      </label>
+      <p class="setup-note">
+        母国語・言語の組み合わせ・表示順の設定は、メンテナンスや自動アップデートを挟んでも保持されます(ブラウザのlocalStorage +
+        ローカルSQLite DBの二重保存。localStorageが消えてもDB側から復元します)。<br />
+        Your native language, language selection, and display order are kept across maintenance and automatic updates
+        (stored both in the browser's localStorage and in the local SQLite database; if localStorage is cleared, the settings are restored from the database).
+      </p>
+      <div class="settings-buttons">
+        <button type="button" id="language-pack-select-all" class="setup-btn">✅ 上限までまとめてインストール / Install up to the limit</button>
+        <button type="button" id="language-pack-clear-others" class="setup-btn">
+          ␡ 日本語と英語以外を全部アンインストール / Uninstall all except EN &amp; JA
+        </button>
+      </div>
+      <label class="settings-field">
+        🔎 言語名・国名で絞り込み / Filter by language or country
+        <input type="text" id="language-pack-filter" class="setup-input" placeholder="例: France / フランス / fr" />
+      </label>
+      <div id="language-pack-list" class="language-pack-list"></div>
+      <div class="settings-buttons">
+        <button type="button" id="language-pack-save" class="setup-btn">💾 保存 / Save</button>
+      </div>
+      <p id="language-pack-status" class="setup-note"></p>
+
+      <!--
+        多言語の連続表示・連続読み上げ(ユーザー指示、2026-08-22
+        「選択した2〜5か国語について同じ内容を順番に画面表示しながら
+        音声で読み上げ、テキストはコピペ・ファイル保存・DB保存でき、
+        何度でも再生し直せるように」への対応)。音声は既存のWeb Speech API
+        (`speechSynthesis`)の仕組みをそのまま流用する。
+      -->
+      <hr />
+      <h3>🔊 多言語で連続表示・読み上げ / Sequential multilingual display &amp; read-aloud</h3>
+      <p class="setup-note">
+        選択した言語(英語・日本語を含めて<strong>最低2か国語・最大5か国語</strong>)の順に、同じ内容を画面へ表示しながら音声で読み上げます。
+        英語・日本語は常に有効なので、追加できるのは<strong>最大3言語</strong>までです。<br />
+        The same content is shown and read aloud in each selected language, in order
+        (<strong>minimum 2, maximum 5 languages including English and Japanese</strong>; since those two are always on,
+        you can add up to <strong>3</strong> more).
+      </p>
+      <!--
+        表示順のカスタマイズ(ユーザー指示、2026-08-22追加要望)。実装方式は
+        上下移動ボタン(ドラッグ&ドロップよりタッチ端末でも確実に操作でき、
+        既存UIへの追加も小さい)。並び順は設定として保存され、次回以降の
+        連続表示・読み上げにもそのまま使われる。
+      -->
+      <h4>↕ 表示・読み上げの順番 / Display &amp; read-aloud order</h4>
+      <p class="setup-note">
+        順番は3つの方法で指定でき、どれを操作しても互いに連動します: <strong>①数字を直接入力</strong>(1〜6)、
+        <strong>②1(左)〜6(右)のラジオボタン</strong>、<strong>③▲▼ボタン</strong>。
+        既に他の言語が使っている番号を指定した場合は、その言語と順番を入れ替えます(同じ番号が重複することはありません)。
+        母国語には🏠が付きます。並び順も保存され、次回以降も同じ順番で表示・読み上げされます。<br />
+        You can set the order in three interlinked ways: <strong>(1) type the number</strong> (1–6),
+        <strong>(2) pick a radio button from 1 (left) to 6 (right)</strong>, or <strong>(3) use ▲ / ▼</strong>.
+        Choosing a number already used by another language swaps the two, so numbers never collide.
+        Your native language is marked with 🏠, and the order is saved for next time.
+      </p>
+      <div id="language-order-list" class="language-order-list"></div>
+      <label class="settings-field">
+        フレーズ / Phrase
+        <select id="multi-speak-phrase"></select>
+      </label>
+      <div class="settings-buttons">
+        <button type="button" id="multi-speak-play" class="setup-btn">▶ 連続再生 / Play all</button>
+        <button type="button" id="multi-speak-replay" class="setup-btn">🔁 もう一度最初から / Replay all</button>
+        <button type="button" id="multi-speak-stop" class="setup-btn">⏹ 停止 / Stop</button>
+      </div>
+      <div id="multi-speak-output" class="multi-speak-output"></div>
+      <div class="settings-buttons">
+        <button type="button" id="multi-speak-copy" class="setup-btn">📋 全部コピー / Copy all</button>
+        <button type="button" id="multi-speak-download" class="setup-btn">⬇ ファイル保存 / Download .txt</button>
+        <button type="button" id="multi-speak-save-db" class="setup-btn">🗄 データベースに保存 / Save to DB</button>
+      </div>
+      <p id="multi-speak-status" class="setup-note"></p>
+      <p class="setup-honest">
+        <strong>Honest disclosure:</strong> read-aloud uses the browser's built-in Web Speech API. If your browser/OS has no
+        installed voice for a language, that line is displayed but may be read with a wrong-language voice or skipped
+        silently — this app does not bundle its own speech engine. The phrase translations are best-effort and may sound
+        stiff to native speakers.<br />
+        <strong>正直な開示:</strong> 読み上げはブラウザ内蔵のWeb Speech APIを使います。その言語の音声がOS/ブラウザに入っていない場合、
+        文章は表示されますが別言語の声で読まれたり無音でスキップされたりします(本アプリは独自の音声合成エンジンを同梱していません)。
+        フレーズの訳文は最善努力ベースで、母語話者には硬く聞こえる場合があります。
+      </p>
+    </div>
+  </div>
+
+  <!--
+    話題ブリーフィング(ユーザー指示、2026-08-22「言語を選んだ後、メンテナンス中の
+    案内を出しつつ、その言語圏のニュース・首都・主要都市・観光名所・名物・有名人・
+    有名な会社を集めて、その言語での話題についていけるようにする」への対応)。
+    ニュースだけは実際にインターネット(公開RSS)から取得し、それ以外は静的な
+    基礎データを表示する——どちらであるかをUI上で明示する。
+  -->
+  <div id="briefing-modal" class="setup-modal hidden">
+    <div class="setup-card">
+      <button type="button" id="briefing-close" class="setup-close">✕</button>
+      <h2>🗞 話題ブリーフィング / Topic briefing</h2>
+      <div id="briefing-progress"></div>
+      <p class="setup-honest">
+        <strong>Honest disclosure:</strong> the news headlines are fetched live from a public Google News RSS feed each
+        time you run this — headlines only, never the article text (open the original story to read it). Everything else
+        (capital, major cities, sights, food, people, companies) is <strong>static background knowledge written for this
+        app</strong>: it is not fetched from the internet, it is not real-time, and it can be out of date. Company
+        descriptions are short factual summaries written here, not copied from company marketing material.<br />
+        <strong>正直な開示:</strong> ニュース見出しは実行のたびに公開のGoogleニュースRSSから実際に取得しています(見出しのみで、
+        記事本文は取得・転載していません——本文は元記事でお読みください)。それ以外(首都・主要都市・観光名所・名物・有名人・企業)は
+        <strong>本アプリ用に記述した静的な基礎知識</strong>で、インターネットから取得したリアルタイム情報ではなく、古くなっている場合があります。
+        企業の説明文も本アプリで書き下ろした簡潔な事実ベースの要約であり、各社の宣伝文の転載ではありません。
+      </p>
+      <div id="briefing-body"></div>
+      <button type="button" id="briefing-practice-btn" class="setup-btn">
+        💬 この話題でAI講師と練習する / Practise these topics with the tutor
+      </button>
+    </div>
+  </div>
+
+  <p class="level-hint">You can change the level and reply language above at any time, before or during the conversation. / レベル・応答言語はいつでも(会話の前でも途中でも)上のメニューから変更できます。</p>
+
+  <main class="stage">
+    <div class="trainer" id="trainer">
+      <svg id="trainer-svg" viewBox="0 0 200 280" xmlns="http://www.w3.org/2000/svg">
+        <defs>
+          <radialGradient id="iris-l" cx="45%" cy="35%" r="65%">
+            <stop offset="0%" stop-color="#7a5ee0" />
+            <stop offset="60%" stop-color="#4a2e9e" />
+            <stop offset="100%" stop-color="#2a1a5e" />
+          </radialGradient>
+          <radialGradient id="iris-r" cx="55%" cy="35%" r="65%">
+            <stop offset="0%" stop-color="#7a5ee0" />
+            <stop offset="60%" stop-color="#4a2e9e" />
+            <stop offset="100%" stop-color="#2a1a5e" />
+          </radialGradient>
+        </defs>
+        <ellipse cx="100" cy="270" rx="55" ry="8" fill="#000000" opacity="0.15" />
+        <!-- ===== メイドカフェ魔法少女(独自デザイン) ===== -->
+        <g id="char-maid">
+          <!-- twin-tail hair (back) -->
+          <path d="M60 60 Q20 90 30 150 Q45 160 55 140 Q45 95 68 65 Z" fill="#241f1c" />
+          <path d="M140 60 Q180 90 170 150 Q155 160 145 140 Q155 95 132 65 Z" fill="#241f1c" />
+          <!-- head -->
+          <circle cx="100" cy="70" r="46" fill="#f0cfa0" />
+          <!-- hair front -->
+          <path d="M52 62 Q52 18 100 16 Q148 18 148 62 Q100 44 52 62 Z" fill="#241f1c" />
+          <path d="M70 40 Q100 26 130 40 Q100 34 70 40 Z" fill="#3a332f" opacity="0.6" />
+          <path d="M52 60 Q60 40 80 38 Q65 55 62 78 Q54 72 52 60 Z" fill="#3a332f" />
+          <path d="M148 60 Q140 40 120 38 Q135 55 138 78 Q146 72 148 60 Z" fill="#3a332f" />
+          <!-- ribbon -->
+          <path d="M78 34 l10 -10 l4 8 l-8 8 Z" fill="#ff5e8e" />
+          <path d="M78 34 l-10 -10 l-4 8 l8 8 Z" fill="#ff5e8e" />
+          <circle cx="78" cy="34" r="4" fill="#ff2e6e" />
+          <!-- eyebrows -->
+          <path d="M72 56 Q80 51 90 55" stroke="#2a2420" stroke-width="2.4" fill="none" stroke-linecap="round" />
+          <path d="M110 55 Q120 51 128 56" stroke="#2a2420" stroke-width="2.4" fill="none" stroke-linecap="round" />
+          <!-- blush -->
+          <ellipse cx="72" cy="82" rx="8" ry="5" fill="#e8916a" opacity="0.6" />
+          <ellipse cx="128" cy="82" rx="8" ry="5" fill="#e8916a" opacity="0.6" />
+          <!-- big anime eyes: white, iris gradient, highlight, lower lash -->
+          <ellipse cx="80" cy="73" rx="10" ry="13" fill="#ffffff" />
+          <ellipse cx="120" cy="73" rx="10" ry="13" fill="#ffffff" />
+          <g id="eye-left">
+            <ellipse cx="80" cy="74" rx="7.5" ry="10.5" fill="url(#iris-l)" />
+            <circle cx="80" cy="74" r="3.2" fill="#1a0f3e" />
+            <circle cx="83" cy="68" r="2.6" fill="#ffffff" />
+            <circle cx="77" cy="79" r="1.3" fill="#ffffff" opacity="0.85" />
+          </g>
+          <g id="eye-right">
+            <ellipse cx="120" cy="74" rx="7.5" ry="10.5" fill="url(#iris-r)" />
+            <circle cx="120" cy="74" r="3.2" fill="#1a0f3e" />
+            <circle cx="123" cy="68" r="2.6" fill="#ffffff" />
+            <circle cx="117" cy="79" r="1.3" fill="#ffffff" opacity="0.85" />
+          </g>
+          <path d="M71 65 Q80 61 89 65" stroke="#2a1a3e" stroke-width="1.6" fill="none" stroke-linecap="round" />
+          <path d="M111 65 Q120 61 129 65" stroke="#2a1a3e" stroke-width="1.6" fill="none" stroke-linecap="round" />
+          <!-- eyelids (used for blinking, hidden above the eyes normally) -->
+          <rect id="eyelid-left" x="69" y="61" width="22" height="0" fill="#f0cfa0" />
+          <rect id="eyelid-right" x="109" y="61" width="22" height="0" fill="#f0cfa0" />
+          <!-- small nose -->
+          <path d="M99 82 Q100 86 98 88" stroke="#c98858" stroke-width="1.4" fill="none" stroke-linecap="round" />
+          <!-- mouth -->
+          <path id="mouth" d="M92 94 Q100 100 108 94" stroke="#c05070" stroke-width="3" fill="none" stroke-linecap="round" />
+          <!-- classic maid-cafe uniform: black dress + white apron/frills (ユーザー指示、2026-08-10「ピンクメインではなくメイドカフェのイメージに」) -->
+          <rect x="55" y="118" width="90" height="95" rx="16" fill="#2b2622" />
+          <!-- white collar -->
+          <path d="M78 118 L100 132 L122 118 L122 126 L100 140 L78 126 Z" fill="#ffffff" />
+          <!-- white apron bib+skirt -->
+          <path d="M82 138 L118 138 L124 150 L112 150 L112 205 L88 205 L88 150 L76 150 Z" fill="#ffffff" />
+          <rect x="45" y="205" width="110" height="16" rx="6" fill="#ffffff" />
+          <!-- apron frill trim -->
+          <path d="M45 205 q5 -6 10 0 q5 -6 10 0 q5 -6 10 0 q5 -6 10 0 q5 -6 10 0 q5 -6 10 0 q5 -6 10 0 q5 -6 10 0 q5 -6 10 0 q5 -6 10 0 l0 4 L45 209 Z" fill="#ffffff" />
+          <!-- small red ribbon accent (not pink-dominant, just a bow at the collar) -->
+          <path d="M96 132 l-6 -5 l0 10 Z" fill="#c0392b" />
+          <path d="M104 132 l6 -5 l0 10 Z" fill="#c0392b" />
+          <circle cx="100" cy="132" r="2.5" fill="#8e2a1e" />
+          <rect x="60" y="221" width="32" height="42" rx="6" fill="#3a2e28" />
+          <rect x="108" y="221" width="32" height="42" rx="6" fill="#3a2e28" />
+          <!-- magic wand sparkle -->
+          <circle cx="165" cy="150" r="4" fill="#ffe066" />
+          <circle cx="172" cy="140" r="2.5" fill="#ffe066" />
+          <circle cx="160" cy="135" r="2" fill="#ffe066" />
+        </g>
+        <!-- ===== 助っ人「風天のトラさん」(車寅次郎風キャラのオマージュ、
+             独自デザイン。初音ミク風フィギュアを常に持っている設定——実際の
+             意匠再現ではなくオリジナルの造形) ===== -->
+        <g id="char-helper" style="display:none">
+          <!-- hat -->
+          <ellipse cx="100" cy="42" rx="42" ry="8" fill="#3a2a20" />
+          <path d="M68 42 Q68 15 100 15 Q132 15 132 42 Z" fill="#4a3628" />
+          <!-- head -->
+          <circle cx="100" cy="72" r="40" fill="#f0cfa0" />
+          <!-- ears -->
+          <circle cx="63" cy="74" r="7" fill="#f0cfa0" />
+          <circle cx="137" cy="74" r="7" fill="#f0cfa0" />
+          <!-- eyebrows (thick, friendly) -->
+          <path d="M75 62 Q84 56 94 61" stroke="#3a2a20" stroke-width="3.2" fill="none" stroke-linecap="round" />
+          <path d="M106 61 Q116 56 125 62" stroke="#3a2a20" stroke-width="3.2" fill="none" stroke-linecap="round" />
+          <!-- simple friendly eyes -->
+          <ellipse cx="84" cy="74" rx="5" ry="6" fill="#2a1a10" />
+          <ellipse cx="116" cy="74" rx="5" ry="6" fill="#2a1a10" />
+          <circle cx="86" cy="71" r="1.5" fill="#ffffff" />
+          <circle cx="118" cy="71" r="1.5" fill="#ffffff" />
+          <rect id="eyelid-left-helper" x="76" y="65" width="16" height="0" fill="#f0cfa0" />
+          <rect id="eyelid-right-helper" x="108" y="65" width="16" height="0" fill="#f0cfa0" />
+          <!-- nose -->
+          <ellipse cx="100" cy="82" rx="4" ry="3" fill="#e0b888" />
+          <!-- mustache (friendly, not identity-specific) -->
+          <path d="M84 90 Q100 96 116 90" stroke="#4a3628" stroke-width="3.5" fill="none" stroke-linecap="round" />
+          <!-- mouth -->
+          <path id="mouth-helper" d="M90 96 Q100 101 110 96" stroke="#8a4a30" stroke-width="2.6" fill="none" stroke-linecap="round" />
+          <!-- neckerchief -->
+          <path d="M70 112 L100 128 L130 112 L130 122 L100 140 L70 122 Z" fill="#c0392b" />
+          <!-- traveling coat -->
+          <rect x="52" y="118" width="96" height="95" rx="14" fill="#8a6a3a" />
+          <path d="M100 118 L100 213" stroke="#6a4e28" stroke-width="2" />
+          <rect x="52" y="118" width="14" height="95" rx="6" fill="#7a5a2e" />
+          <rect x="134" y="118" width="14" height="95" rx="6" fill="#7a5a2e" />
+          <!-- 腹巻き(ユーザー指示、2026-08-10「腹巻きをしている感じに」、
+               コートの前が少し開いていて腹巻きが見えている表現) -->
+          <rect x="72" y="152" width="56" height="38" rx="6" fill="#e8ddb8" />
+          <rect x="72" y="160" width="56" height="4" fill="#c0392b" opacity="0.75" />
+          <rect x="72" y="170" width="56" height="4" fill="#c0392b" opacity="0.75" />
+          <rect x="72" y="180" width="56" height="4" fill="#c0392b" opacity="0.75" />
+          <!-- 腕・手(ユーザー指示、2026-08-10) -->
+          <!-- left arm (down at his side) -->
+          <rect x="34" y="128" width="18" height="55" rx="8" fill="#8a6a3a" />
+          <circle cx="43" cy="188" r="10" fill="#f0cfa0" />
+          <!-- right arm (raised, holding the figure) -->
+          <path d="M148 128 Q168 132 148 150" stroke="#8a6a3a" stroke-width="18" fill="none" stroke-linecap="round" />
+          <circle cx="148" cy="150" r="10" fill="#f0cfa0" />
+          <!-- 足(ユーザー指示、2026-08-10) -->
+          <rect x="66" y="213" width="20" height="30" fill="#4a3a24" />
+          <rect x="114" y="213" width="20" height="30" fill="#4a3a24" />
+          <!-- わらじの様なサンダル(ユーザー指示、2026-08-10「靴じゃなくて
+               わらじの様なサンダルに」、編み目のあるわら草履+足の甲を
+               留める鼻緒ベルトで、靴ではなく履物であることを表現) -->
+          <ellipse cx="76" cy="246" rx="17" ry="6" fill="#c9a876" />
+          <path d="M64 246 Q76 249 88 246" stroke="#9c7a4a" stroke-width="1.4" fill="none" opacity="0.7" />
+          <path d="M65 243 Q76 246 87 243" stroke="#9c7a4a" stroke-width="1.2" fill="none" opacity="0.6" />
+          <path d="M76 234 L70 244 M76 234 L82 244" stroke="#5a4020" stroke-width="2.2" fill="none" stroke-linecap="round" />
+          <ellipse cx="124" cy="246" rx="17" ry="6" fill="#c9a876" />
+          <path d="M112 246 Q124 249 136 246" stroke="#9c7a4a" stroke-width="1.4" fill="none" opacity="0.7" />
+          <path d="M113 243 Q124 246 135 243" stroke="#9c7a4a" stroke-width="1.2" fill="none" opacity="0.6" />
+          <path d="M124 234 L118 244 M124 234 L130 244" stroke="#5a4020" stroke-width="2.2" fill="none" stroke-linecap="round" />
+          <!-- 四角いカバン(ユーザー指示、2026-08-10「片手に初音ミク、
+               もう片手(=左手側)に四角いカバンを床に置く」、2026-08-10
+               追記「もっと大きく、薄茶色に」で拡大+色調変更) -->
+          <g transform="translate(16,208)">
+            <rect x="0" y="0" width="46" height="38" rx="3" fill="#c9a876" />
+            <rect x="0" y="0" width="46" height="9" fill="#dcc198" />
+            <rect x="18" y="-9" width="10" height="12" fill="#a9895a" />
+          </g>
+          <!-- 初音ミク風フィギュア(独自デザイン、常に手に持っている設定) -->
+          <g transform="translate(148,150)">
+            <path d="M-6 10 Q-14 -6 -2 -10 Q10 -14 12 0 Q13 10 4 14 Z" fill="#3ab5c9" />
+            <circle cx="2" cy="0" r="9" fill="#ffe0d0" />
+            <path d="M-6 -4 Q-2 -14 8 -12 Q14 -8 10 -2 Q6 4 -2 2 Z" fill="#3ab5c9" />
+            <circle cx="0" cy="-1" r="1.3" fill="#1a1a2a" />
+            <circle cx="5" cy="-1" r="1.3" fill="#1a1a2a" />
+            <rect x="-2" y="8" width="8" height="14" rx="3" fill="#2a2a3a" />
+          </g>
+        </g>
+      </svg>
+      <div class="speech-bubble" id="speech-bubble">Hi! I'm your English trainer. Choose your level above, then type or press the mic to start! / レベルを選んで、話すか入力してね!</div>
+      <button type="button" id="character-switch-btn" class="character-switch-btn">🔄 Switch Character / キャラ変更</button>
+      <div class="voice-controls">
+        <button type="button" id="mic-btn" title="Speak / 話す">🎙 Speak</button>
+        <label class="voice-toggle"><input type="checkbox" id="voice-out" checked /> Voice reply / 音声で返答</label>
+      </div>
+    </div>
+
+    <div class="chat-panel">
+      <button type="button" id="disclosure-toggle-btn" class="setup-btn disclosure-toggle-btn">
+        ✕ Hide disclosure / 開示を閉じる
+      </button>
+      <div class="disclosure" id="disclosure-box">
+        <strong>Honest disclosure:</strong> AI responses are generated by a base
+        GPT-2 language model (via <code>aruaru-llm</code>'s <code>/v1/generate</code>)
+        with no dialogue fine-tuning. Response quality and level-matching are not
+        guaranteed. Voice input/output uses the browser's built-in Web Speech API
+        (not all browsers support it). This is a Phase 0 prototype, not a
+        production tutor.<br /><br />
+        <strong>正直な開示:</strong> AIの応答は、対話用のファインチューニングを
+        受けていない素のGPT-2言語モデル(<code>aruaru-llm</code>の
+        <code>/v1/generate</code>経由)が生成しています。応答の品質・
+        指定レベルへの適合は保証されません。声の入出力はブラウザ標準の
+        Web Speech API(対応ブラウザのみ)を使用します。これはPhase 0の
+        試作品であり、本番運用レベルの講師ではありません。<br /><br />
+        秋葉原メイドカフェ(@ほぉ～むカフェ)の接客技法・英会話研修の
+        ブログを参考にさせて頂きました:
+        <a href="https://president.jp/articles/-/26332" target="_blank" rel="noopener noreferrer">
+          「訪日客に人気な秋葉原のメイドカフェ、カタコトでも単語を軸に話しかけ」(PRESIDENT Online)
+        </a>
+        /
+        <a href="https://news.livedoor.com/article/detail/15438655/" target="_blank" rel="noopener noreferrer">
+          同記事再編集版(livedoorニュース、2018年10月13日)
+        </a>
+        <br />
+        <a
+          href="https://www.youtube.com/results?search_query=%E7%A7%8B%E8%91%89%E5%8E%9F%E3%83%A1%E3%82%A4%E3%83%89%E3%82%AB%E3%83%95%E3%82%A7(%40%E3%81%BB%E3%81%88%EF%BD%9E%E3%82%80%E3%82%AB%E3%83%95%E3%82%A7)%E3%81%AE%E6%8E%A5%E5%AE%A2%E6%8A%80%E6%B3%95%E3%83%BB%E8%8B%B1%E4%BC%9A%E8%A9%B1%E7%A0%94%E4%BF%AE"
+          target="_blank"
+          rel="noopener noreferrer"
+        >
+          🎥 Related YouTube search results (Akihabara maid cafe hospitality/English training) / 関連YouTube検索結果(秋葉原メイドカフェの接客・英会話研修)
+        </a>
+      </div>
+
+      <div id="log" class="log" aria-live="polite"></div>
+
+      <form id="chat-form" class="chat-form">
+        <input id="chat-input" type="text" placeholder="Type in English or Japanese... / 英語または日本語で入力" autocomplete="off" required />
+        <button type="submit">Send</button>
+      </form>
+
+      <div class="settings">
+        <label>
+          aruaru-llm API base:
+          <input id="api-base" type="text" value="http://localhost:4600" />
+        </label>
+        <span id="status" class="status">not checked</span>
+        <!-- 実行基盤バッジ(2026-08-22追加): aruaru-llmの GET /v1/runtime が
+             報告した内容(open-cudaのデバイスプールがCPUのみかGPUを含むか・
+             アクティブなモデル)をそのまま表示する。誇張はしない——既定
+             ビルドはCPUのみで、GPU高速化は効いていない。 -->
+        <span id="runtime-badge" class="runtime-badge unknown" title="aruaru-llmの実行基盤(CPU/GPU・モデル)">compute: unknown / 実行基盤: 不明</span>
+      </div>
+    </div>
+  </main>
+
+  <footer class="app-version">
+    <span id="app-version-label">v...</span>
+    · <a href="facebook.html">Access via Facebook / Facebook経由でアクセス</a>
+  </footer>
+
+  <script src="app.js"></script>
+  <script src="auto-update.js"></script>
+</body>
+</html>
