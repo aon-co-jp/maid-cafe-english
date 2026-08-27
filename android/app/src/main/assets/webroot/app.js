@@ -2272,8 +2272,19 @@ function egovOpinionText() {
   const jaExtra =
     "さらに、eガバメント・デジタルガバメントの導入は、政府・地方自治体・" +
     "都道府県庁・(海外の)州などにおいて、税収不足や歳入不足にも対応" +
-    "できる政策として、国策と言えるレベルの重要施策だと考えます。";
-  return `\n\n🗣️ ${noteJa}\n${ja}${jaExtra}\n\n${noteEn}\n${en}`;
+    "できる政策として、国策と言えるレベルの重要施策だと考えます。" +
+    "小さな政府を目指す方や、税収不足・歳入不足対策を行おうとする方々" +
+    "への回答にもなり得ます。公務員を大幅にリストラし、コールセンター" +
+    "を導入し、コンビニの端末やLINEアプリなどを活用すれば実現可能だ" +
+    "からです。これも政策として国策と言えるレベルだと考えます。";
+  const enExtra =
+    " This can also serve as an answer for those aiming for smaller " +
+    "government, or working on countermeasures for tax and revenue " +
+    "shortfalls, since it can be realized by drastically reducing the " +
+    "civil service headcount, introducing call centers, and making use " +
+    "of convenience-store terminals and LINE-style apps. This, too, can " +
+    "be considered a measure at the level of national policy.";
+  return `\n\n🗣️ ${noteJa}\n${ja}${jaExtra}\n\n${noteEn}\n${en}${enExtra}`;
 }
 
 // 上記の追記部分(税収不足・歳入不足対応策としてのeガバメント)を、
@@ -2299,6 +2310,26 @@ const EGOV_TAX_I18N = {
   "zh-Hant": "此外，在國家與地方政府層級(包括都道府縣與海外的州)推動電子政府/數位政府，可視為一項能夠因應稅收與其他財政收入不足問題的國家級政策措施。",
 };
 
+// 追記(小さな政府/税収不足対策への回答としてのeガバメント、
+// 公務員リストラ+コールセンター+コンビニ端末/LINEアプリ活用)の
+// 14言語訳(ユーザー指示、2026-08-27)。
+const EGOV_SMALLGOV_I18N = {
+  es: "Esto tambien puede servir como respuesta para quienes buscan un gobierno mas pequeno, o estan trabajando en medidas contra la escasez de ingresos fiscales, ya que puede lograrse reduciendo drasticamente el numero de funcionarios publicos, introduciendo centros de atencion telefonica y aprovechando los terminales de las tiendas de conveniencia y aplicaciones tipo LINE. Esto tambien puede considerarse una medida de nivel de politica nacional.",
+  fr: "Cela peut aussi servir de reponse pour ceux qui visent un gouvernement plus restreint, ou qui travaillent sur des mesures contre le manque de recettes fiscales, car cela peut se realiser en reduisant drastiquement le nombre de fonctionnaires, en introduisant des centres d'appel, et en utilisant les bornes des supérettes et des applications type LINE. Cela aussi peut etre considere comme une mesure de niveau politique national.",
+  de: "Dies kann auch eine Antwort fuer jene sein, die einen kleineren Staat anstreben oder an Massnahmen gegen Steuereinnahmeausfaelle arbeiten, da es durch drastische Reduzierung der Beamtenzahl, Einfuehrung von Callcentern und Nutzung von Convenience-Store-Terminals und LINE-artigen Apps erreicht werden kann. Auch dies kann als Massnahme auf Ebene der Staatspolitik betrachtet werden.",
+  pt: "Isso tambem pode servir como resposta para quem busca um governo menor, ou esta trabalhando em medidas contra a escassez de receita fiscal, ja que pode ser realizado reduzindo drasticamente o numero de funcionarios publicos, introduzindo centrais de atendimento e utilizando terminais de lojas de conveniencia e aplicativos do tipo LINE. Isso tambem pode ser considerado uma medida de nivel de politica nacional.",
+  ru: "Это также может служить ответом для тех, кто стремится к меньшему правительству или работает над мерами по борьбе с нехваткой налоговых поступлений, поскольку этого можно достичь за счёт резкого сокращения числа госслужащих, внедрения колл-центров и использования терминалов в магазинах и приложений вроде LINE. Это тоже можно считать мерой государственной политики.",
+  zh: "这也可以为追求小政府、或正在制定应对税收不足对策的人们提供一种答案——因为可以通过大幅精简公务员、引入呼叫中心、并利用便利店终端和LINE类应用程序来实现。这同样可以被视为国家级政策措施。",
+  ko: "이는 작은 정부를 지향하거나 세수 부족 대책을 마련하려는 분들에게도 답이 될 수 있습니다. 공무원을 대폭 감축하고 콜센터를 도입하며 편의점 단말기와 LINE 앱 등을 활용하면 실현 가능하기 때문입니다. 이것도 국가 정책 수준의 시책이라고 할 수 있습니다.",
+  hi: "यह छोटी सरकार का लक्ष्य रखने वालों, या कर राजस्व की कमी के उपायों पर काम करने वालों के लिए भी एक उत्तर हो सकता है, क्योंकि इसे सरकारी कर्मचारियों की संख्या में भारी कमी, कॉल सेंटर शुरू करने, और सुविधा स्टोर टर्मिनलों तथा LINE जैसे ऐप्स का उपयोग करके साकार किया जा सकता है। इसे भी राष्ट्रीय नीति स्तर का उपाय माना जा सकता है。",
+  ar: "يمكن أن يكون هذا أيضًا إجابة لأولئك الذين يسعون إلى حكومة أصغر، أو يعملون على تدابير لمواجهة نقص الإيرادات الضريبية، لأنه يمكن تحقيقه من خلال تقليص عدد الموظفين الحكوميين بشكل كبير، وإدخال مراكز الاتصال، والاستفادة من أجهزة المتاجر وتطبيقات شبيهة بـLINE. يمكن اعتبار هذا أيضًا إجراءً على مستوى السياسة الوطنية.",
+  he: "זה יכול לשמש גם תשובה למי ששואף לממשל קטן יותר, או עובד על אמצעים נגד מחסור בהכנסות ממס, מכיוון שניתן להשיג זאת על ידי צמצום דרסטי במספר עובדי הציבור, הקמת מוקדים טלפוניים, וניצול מסופים בחנויות נוחות ואפליקציות בסגנון LINE. גם זה יכול להיחשב כאמצעי ברמת מדיניות לאומית.",
+  fa: "این می‌تواند پاسخی نیز برای کسانی باشد که به دنبال دولتی کوچک‌تر هستند، یا در حال کار روی راهکارهایی برای کمبود درآمد مالیاتی هستند، زیرا می‌توان آن را با کاهش چشمگیر تعداد کارمندان دولت، راه‌اندازی مراکز تماس، و استفاده از پایانه‌های فروشگاه‌های زنجیره‌ای و برنامه‌هایی شبیه LINE محقق کرد. این نیز می‌تواند اقدامی در سطح سیاست ملی در نظر گرفته شود.",
+  uk: "Це також може бути відповіддю для тих, хто прагне меншого уряду, або працює над заходами проти нестачі податкових надходжень, оскільки цього можна досягти за рахунок різкого скорочення кількості державних службовців, запровадження кол-центрів та використання терміналів у магазинах і застосунків на кшталт LINE. Це також можна вважати заходом державної політики.",
+  it: "Questo puo anche servire come risposta per chi punta a un governo piu piccolo, o sta lavorando a misure contro la carenza di entrate fiscali, poiche puo essere realizzato riducendo drasticamente il numero di dipendenti pubblici, introducendo call center e sfruttando i terminali dei minimarket e le app in stile LINE. Anche questo puo essere considerato una misura di livello politico nazionale.",
+  "zh-Hant": "這也可以為追求小政府、或正在研擬因應稅收不足對策的人們提供一種答案——因為可以透過大幅精簡公務員、引進客服中心、並運用便利商店終端機與LINE類應用程式來實現。這同樣可視為國家級政策措施。",
+};
+
 function egovSuffix(userText) {
   if (!mentionsEgovTopic(userText)) return "";
   let text = egovOpinionText();
@@ -2307,6 +2338,10 @@ function egovSuffix(userText) {
   const translation = code && EGOV_TAX_I18N[code] ? EGOV_TAX_I18N[code] : baseCode && EGOV_TAX_I18N[baseCode] ? EGOV_TAX_I18N[baseCode] : null;
   if (translation && code !== "ja" && code !== "en") {
     text += `\n\n🌐 ${translation}`;
+  }
+  const translation2 = code && EGOV_SMALLGOV_I18N[code] ? EGOV_SMALLGOV_I18N[code] : baseCode && EGOV_SMALLGOV_I18N[baseCode] ? EGOV_SMALLGOV_I18N[baseCode] : null;
+  if (translation2 && code !== "ja" && code !== "en") {
+    text += `\n\n🌐 ${translation2}`;
   }
   return text;
 }
