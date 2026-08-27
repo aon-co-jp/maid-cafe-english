@@ -1121,3 +1121,14 @@ multilingual (8 more languages) practice test for the US "Data
 Scientist" certification, and a new opinion topic responding to
 questions about retirement savings / Japan's "20-million-yen problem".
 Full details only in the Japanese README.md/CLAUDE.md.
+
+## Further updates (same day)
+
+The retirement-savings/pension opinion topic and the e-government
+opinion topic were each expanded with additional points (small
+government, tax-revenue shortfalls, and a callback to the Obama quote),
+and both topics now offer translations in 14 languages (Spanish, French,
+German, Portuguese, Russian, Chinese Simplified/Traditional, Korean,
+Hindi, Arabic, Hebrew, Persian, Ukrainian, Italian) when the learner has
+selected one of those as their target language. Full details only in
+the Japanese CLAUDE.md.
