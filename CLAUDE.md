@@ -1075,6 +1075,69 @@ AIコーディング支援パネル)にとどめている。
 
 ## HANDOFF
 
+- **2026-08-27(続き28) 実SMSワンタイムパスワード(WebOTP自動入力対応)+
+  QRコード(TOTP)方式の並存(ユーザー指示「ワンタイムパスワード+携帯
+  電話でSMSを自動受取」→「自動入力、自動認証として」→「QRコード撮影は
+  中止して」→「SMSが無料/格安で出来ないならQRコード方式に変更」への
+  対応、指示が段階的に変化したため最終的にSMS+QRの両方を用意する形で
+  決着)**:
+  1. **実SMS送信(`server/src/auth.rs`新設`request_sms_otp`)**:
+     既存のメールOTP(`request_otp`/`verify_otp`)と全く同じ
+     `state().otps`マップを再利用し、識別子を電話番号にしただけ——
+     `verify_otp`はメール専用の処理を含まないため新しい検証エンド
+     ポイントは追加していない(既存`/v1/auth/verify-otp`をそのまま
+     流用)。SMS送信はTwilio REST APIへ`reqwest`で直接POST
+     (`OPEN_ENGLISH_TWILIO_ACCOUNT_SID`/`_AUTH_TOKEN`/`_FROM_NUMBER`の
+     3環境変数、既存のSMTP設定パターンと同じ「持ち込み型」設計)。
+     未設定時は`is_sms_configured() == false`を返し生成すら行わない。
+  2. **WebOTP自動入力・自動認証**: ブラウザ標準のWebOTP API
+     (`navigator.credentials.get({otp:{transport:['sms']}})`)を使い、
+     SMS送信直後に自動的にコード到着を待ち受け、届いたらコード欄への
+     自動入力+Verifyボタンの自動クリックまで行う。WebOTP仕様が要求する
+     「本文の最後の行が`@ドメイン #コード`形式」に対応するため、
+     `OPEN_ENGLISH_WEBOTP_DOMAIN`環境変数(例: `easy-web.tokyo`)を
+     新設。**正直な開示**: WebOTPはAndroid版Chrome等の一部ブラウザの
+     みの対応(iOS Safari・デスクトップは非対応)——非対応環境では
+     コードの手入力が必要になる旨をSMS送信後のステータスメッセージに
+     明記。
+  3. **【重要な経緯】QRコード(TOTP)方式を一度撤去→SMS費用の正直な
+     開示を受けてユーザーが復活を指示→両方式を並存させる形で決着**:
+     ユーザーから「QRコード撮影は中止して」との指示を受け、いったん
+     専用UIごと削除しSMS方式のみへ一本化したが、続けて「SMSが無料/
+     格安で利用者の契約無しで出来ないなら、QRコード方式に変更」との
+     条件付き指示があった。**正直な回答**: サーバーからのSMS送信は、
+     受信側(利用者)の携帯電話の契約内容に関わらず、必ず送信側
+     (このアプリの運用者)がSMSゲートウェイ(Twilio等)の有料アカウント
+     契約を持つ必要があり、「無料」「利用者の契約でまかなう」という
+     形は技術的に成立しない(SMS送信費用は常に送信元アカウントへ
+     課金される)。この技術的制約を踏まえ、**費用が一切かからない
+     QRコード(TOTP)方式のUI・JSを復元し、SMS方式と並行して常時
+     利用可能な状態にした**(email1・email2・SMS・QRコードの
+     いずれか1つでログイン可能、という既存の可用性優先設計は
+     変更していない)。復元したQR方式のUI内にも、このSMS費用に関する
+     正直な開示を日英併記で明記した。
+  4. **実機検証**: 実際にサーバーを起動し、Claude Browserで
+     (a) `GET /v1/auth/config`が`sms_configured`/
+     `webotp_domain_configured`を含む正しいJSONを返すこと、
+     (b) SMS未設定状態で`POST /v1/auth/request-sms-otp`が正直な
+     `SERVICE_UNAVAILABLE`エラーを返すこと、(c) 携帯電話番号欄が空の
+     うちは「SMSでコードを送信」ボタンが非表示で、入力すると表示
+     されること、(d) QRコード(TOTP)欄は常時表示されており、メール1に
+     アドレスを入力して「QRコードを表示」を押すと**実際にQRコードが
+     生成される**こと(SMTP/SMS設定に一切依存しない、費用ゼロで動く
+     ことの実証)、を確認した。**未検証**: 実際のTwilioアカウント
+     経由でのSMS送信・実機Android ChromeでのWebOTP自動入力(いずれも
+     実認証情報・実機Android端末が必要、次回課題)。
+  5. `node --check app.js`成功。`cargo build --release`成功(server側)。
+     `android/app/src/main/assets/webroot/`へも`app.js`/`index.html`を
+     同期コピー済み。
+  - 次にすべきこと: (1) 実際のTwilioアカウントを用意してのSMS送信
+    E2E検証、(2) 実機Android ChromeでのWebOTP自動入力・自動ログイン
+    のE2E検証、(3) `OPEN_ENGLISH_WEBOTP_DOMAIN`の実際の設定
+    (easy-web.tokyoデプロイ時)、(4) ユーザーからの別の依頼「パスワード
+    でログインする私のリポジトリの全てを修正して」は引き続き対象範囲が
+    不明確なため未着手。
+
 - **2026-08-27(続き27) ログインゲートの表示バグ修正+携帯電話番号欄の
   再配置(ユーザー報告「文字の上が消えて見えないBUG」+指示「二つの
   e-mailアドレス入力欄に携帯電話番号入力欄も並べて」への対応)**:

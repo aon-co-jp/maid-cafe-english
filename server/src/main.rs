@@ -422,6 +422,8 @@ async fn auth_config(db: Arc<Db>) -> Response {
         &serde_json::json!({
             "login_required": login_required,
             "smtp_configured": auth::is_smtp_configured(),
+            "sms_configured": auth::is_sms_configured(),
+            "webotp_domain_configured": auth::is_webotp_domain_configured(),
         }),
     )
 }
@@ -467,6 +469,36 @@ async fn auth_request_otp(req: Request) -> Response {
     }
     match auth::request_otp(&body.email, body.email2.as_deref()).await {
         Ok(()) => rs_json_response(StatusCode::OK, &serde_json::json!({"sent": true})),
+        Err(e) => rs_json_response(StatusCode::BAD_REQUEST, &serde_json::json!({"error": format!("{e:#}")})),
+    }
+}
+
+#[derive(serde::Deserialize)]
+struct RequestSmsOtpRequest {
+    phone: String,
+}
+
+/// `POST /v1/auth/request-sms-otp`(2026-08-27新設、ユーザー指示
+/// 「ワンタイムパスワード+携帯電話でSMSを自動受取」への対応)。
+/// 検証は既存の`/v1/auth/verify-otp`をそのまま流用する(`auth::
+/// verify_otp`はメール専用の処理を含まない、識別子文字列とコードの
+/// 照合のみのため、電話番号をそのまま渡せば動く——新しい検証
+/// エンドポイントは追加していない)。
+async fn auth_request_sms_otp(req: Request) -> Response {
+    let body: RequestSmsOtpRequest = match read_rs_json_body(req).await {
+        Ok(v) => v,
+        Err(resp) => return resp,
+    };
+    if !auth::is_sms_configured() {
+        return rs_json_response(
+            StatusCode::SERVICE_UNAVAILABLE,
+            &serde_json::json!({
+                "error": "SMS is not configured on this server. Set OPEN_ENGLISH_TWILIO_ACCOUNT_SID/_AUTH_TOKEN/_FROM_NUMBER. / このサーバーではSMSが未設定です。OPEN_ENGLISH_TWILIO_ACCOUNT_SID/_AUTH_TOKEN/_FROM_NUMBERを設定してください。"
+            }),
+        );
+    }
+    match auth::request_sms_otp(&body.phone).await {
+        Ok(()) => rs_json_response(StatusCode::OK, &serde_json::json!({"sent": true, "webotp_domain_configured": auth::is_webotp_domain_configured()})),
         Err(e) => rs_json_response(StatusCode::BAD_REQUEST, &serde_json::json!({"error": format!("{e:#}")})),
     }
 }
@@ -1916,6 +1948,7 @@ async fn main() {
             })),
         );
         app = app.at("/v1/auth/request-otp", post(handler_fn(move |req, _p| async move { auth_request_otp(req).await })));
+        app = app.at("/v1/auth/request-sms-otp", post(handler_fn(move |req, _p| async move { auth_request_sms_otp(req).await })));
         app = app.at("/v1/auth/verify-otp", post(handler_fn(move |req, _p| async move { auth_verify_otp(req).await })));
         app = app.at("/v1/auth/session", get(handler_fn(move |req, _p| async move { auth_session(req).await })));
         app = app.at("/v1/auth/logout", post(handler_fn(move |req, _p| async move { auth_logout(req).await })));

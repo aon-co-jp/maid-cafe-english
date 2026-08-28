@@ -50,14 +50,15 @@
         <input type="email" id="login-email2" autocomplete="email" placeholder="backup@example.com" />
       </label>
       <label class="settings-field">
-        Phone number (optional, for QR login) / 携帯電話番号(任意、QRログイン用)
-        <input type="tel" id="login-totp-phone-label" autocomplete="tel" placeholder="090-xxxx-xxxx" />
+        Phone number (optional, for SMS code) / 携帯電話番号(任意、SMSコード用)
+        <input type="tel" id="login-phone" autocomplete="tel" placeholder="+819012345678" />
       </label>
       <button type="button" id="login-send-code-btn" class="setup-btn">Send code / コードを送信</button>
+      <button type="button" id="login-send-sms-code-btn" class="setup-btn hidden">📱 Send SMS code / SMSでコードを送信</button>
       <div id="login-code-section" class="hidden">
         <label class="settings-field">
-          Which email did you receive the code at? / どちらのメールアドレスでコードを受け取りましたか?
-          <input type="email" id="login-verify-email" autocomplete="email" placeholder="you@example.com" />
+          Which email/phone did you receive the code at? / どちらでコードを受け取りましたか?(メールまたは携帯電話番号)
+          <input type="text" id="login-verify-email" autocomplete="off" placeholder="you@example.com or +819012345678" />
         </label>
         <label class="settings-field">
           Code / コード
@@ -67,27 +68,29 @@
       </div>
       <p id="login-status" class="setup-note"></p>
 
-      <div id="login-totp-section" class="hidden">
+      <div id="login-totp-section">
         <hr />
         <p class="setup-honest">
-          Once a phone number is entered above, you can log in by scanning a QR code with your
-          phone or tablet instead of waiting for an email code — any one of email 1, email 2, or
-          this QR code works to log in. <strong>Honest disclosure:</strong> no SMS is sent to the
-          phone number; it is only a label. The QR code is scanned into an authenticator app
-          (Google Authenticator, Authy, etc.), the same as most other services' "authenticator
-          app" 2FA. /
-          携帯電話番号を上に入力すると、メールのコードを待つ代わりに、携帯電話やタブレットで
-          QRコードを撮影してログインできます——メール1・メール2・このQRコードのいずれか1つで
-          ログイン可能です。<strong>正直な開示:</strong>この携帯電話番号にSMSは送信されません
-          (ラベルとしてのみ使用)。QRコードは認証アプリ(Google Authenticator・Authy等)へ
-          撮影・登録します(他の多くのサービスの「認証アプリ」型2FAと同じ仕組みです)。
+          <strong>Honest disclosure about SMS cost:</strong> sending an SMS from a server always
+          requires an account with a paid SMS gateway (e.g. Twilio) — there is no way for this to
+          be free, and it is not something your own phone plan can cover, because the cost is
+          billed to whoever operates the sending account, not the receiving phone. If the SMS
+          option above is not configured, this QR-code method costs nothing and works instead —
+          any one of email 1, email 2, SMS, or this QR code logs you in; you don't need all of
+          them. /
+          <strong>SMS費用についての正直な開示：</strong>サーバーからSMSを送信するには、必ず
+          有料のSMSゲートウェイ(Twilio等)のアカウントが必要です——無料にする方法は無く、
+          利用者ご自身の携帯電話の契約でこの費用をまかなうこともできません(費用は受信側の
+          電話ではなく、送信側のアカウントを運用する側に課金されるため)。上のSMS方式が未設定の
+          場合、この費用がかからないQRコード方式で代わりにログインできます——メール1・
+          メール2・SMS・このQRコードのいずれか1つでログイン可能で、全部揃える必要はありません。
         </p>
-        <button type="button" id="login-totp-setup-btn" class="setup-btn">📷 Show QR code / QRコードを表示</button>
-        <div id="login-totp-qr-container" style="margin-top:8px;"></div>
         <label class="settings-field">
           Code from your authenticator app / 認証アプリのコード
           <input type="text" id="login-totp-code" autocomplete="one-time-code" placeholder="123456" maxlength="6" />
         </label>
+        <button type="button" id="login-totp-setup-btn" class="setup-btn">📷 Show QR code / QRコードを表示</button>
+        <div id="login-totp-qr-container" style="margin-top:8px;"></div>
         <button type="button" id="login-totp-verify-btn" class="setup-btn">🔐 Log in with authenticator code / 認証アプリのコードでログイン</button>
         <p id="login-totp-status" class="setup-note"></p>
       </div>

@@ -504,40 +504,103 @@ if (loginVerifyBtn) {
   });
 }
 
-// 2026-08-27新設、同日中に再構成: 携帯電話でQRコードを撮影する方式
-// (認証アプリ、TOTP)でのログイン(既存のemail1/email2ログインの
-// 「もう1つの入口」、いずれか1つでログイン完了する設計——3つ全部の
-// 入力を要求するものではない)。
-// **再構成の経緯(ユーザー報告への対応)**: 当初は専用のメール入力欄
-// (`login-totp-email`)を別に持っていたが、ユーザー指示「二つのe-mail
-// アドレス入力欄に携帯電話番号入力欄も並べて」を受け、携帯電話番号欄を
-// メール1・メール2と同じ並びへ移動し、専用メール欄は廃止して既存の
-// メール1(`loginEmailEl`)の値をそのまま紐付け先として使うよう変更した
-// (利用者がメールを3回入力させられる手間を無くすため)。またQR
-// ログイン欄自体も、携帯電話番号が入力されて初めて意味を持つため、
-// 空欄のうちは非表示にし、入力されたら表示する設計に変更した。
-const loginTotpPhoneLabelEl = document.getElementById("login-totp-phone-label");
-const loginTotpSection = document.getElementById("login-totp-section");
+// 2026-08-27新設(同日中に再構成、さらにQRコード方式は中止して実SMS方式へ
+// 置き換え、ユーザー指示「ワンタイムパスワード+携帯電話でSMSを自動受取」
+// 「QRコード撮影は中止して」への対応)。
+// **経緯**: 当初は認証アプリのQRコード撮影方式(TOTP)を実装したが、
+// ユーザー指示により中止し、代わりに携帯電話番号へ実際にSMSでワンタイム
+// コードを送る方式へ置き換えた(サーバー側`auth::request_sms_otp`、
+// Twilio等のSMSゲートウェイの持ち込みが必要——正直な開示は下記メッセージ
+// 参照)。検証は既存の`/v1/auth/verify-otp`をそのまま使う(電話番号も
+// メールも同じ仕組みで検証できる、サーバー側`verify_otp`のdoc参照)。
+// **自動入力・自動認証(WebOTP API)**: 「自動入力、自動認証として」との
+// 指示に対応するため、ブラウザ標準のWebOTP API
+// (`navigator.credentials.get({otp:...})`)を使い、SMSが届いたら自動で
+// コード欄へ入力し、そのまま自動でログインを試みる。**正直な開示**:
+// WebOTPはAndroid版Chrome等の一部ブラウザのみ対応(iOS Safari・
+// デスクトップは非対応)——非対応環境では従来通り手入力が必要になる。
+const loginPhoneEl = document.getElementById("login-phone");
+const loginSendSmsCodeBtn = document.getElementById("login-send-sms-code-btn");
+
+function refreshLoginSendSmsCodeBtnVisibility() {
+  if (!loginSendSmsCodeBtn || !loginPhoneEl) return;
+  loginSendSmsCodeBtn.classList.toggle("hidden", loginPhoneEl.value.trim() === "");
+}
+if (loginPhoneEl) {
+  refreshLoginSendSmsCodeBtnVisibility();
+  loginPhoneEl.addEventListener("input", refreshLoginSendSmsCodeBtnVisibility);
+}
+
+// WebOTP: コード入力欄が表示されたタイミングで、対応ブラウザなら自動的に
+// SMSの到着を待ち受け、届いたら自動入力+自動でVerifyボタンを押す。
+// `AbortController`で他の待ち受けと衝突しないよう1つだけ保持する。
+let webOtpAbortController = null;
+function startWebOtpListenIfSupported() {
+  if (!("OTPCredential" in window) || !navigator.credentials || typeof navigator.credentials.get !== "function") {
+    return; // 正直な開示: 非対応ブラウザでは何もしない(手入力に委ねる)
+  }
+  if (webOtpAbortController) webOtpAbortController.abort();
+  webOtpAbortController = new AbortController();
+  navigator.credentials
+    .get({ otp: { transport: ["sms"] }, signal: webOtpAbortController.signal })
+    .then((otp) => {
+      if (!otp || !otp.code) return;
+      if (loginCodeEl) loginCodeEl.value = otp.code;
+      if (loginVerifyBtn) loginVerifyBtn.click(); // 自動認証
+    })
+    .catch(() => {
+      /* 利用者がキャンセルした、非対応、タイムアウト等——手入力に委ねる */
+    });
+}
+
+if (loginSendSmsCodeBtn) {
+  loginSendSmsCodeBtn.addEventListener("click", async () => {
+    const phone = (loginPhoneEl?.value || "").trim();
+    if (!phone) {
+      loginStatusEl.textContent = "Please enter your phone number / 携帯電話番号を入力してください";
+      return;
+    }
+    loginStatusEl.textContent = "Sending SMS... / SMS送信中...";
+    try {
+      const res = await fetch("/v1/auth/request-sms-otp", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ phone }),
+      });
+      const data = await res.json();
+      if (res.ok && data.sent) {
+        loginStatusEl.textContent = data.webotp_domain_configured
+          ? "📱 SMS sent — on supported browsers (Android Chrome, etc.) the code will be entered automatically. / SMSを送信しました——対応ブラウザ(Android Chrome等)では自動的にコードが入力されます。"
+          : "📱 SMS sent — please enter the code below. (Automatic entry is not configured on this server.) / SMSを送信しました——下にコードを入力してください(このサーバーでは自動入力は未設定です)。";
+        loginCodeSection.classList.remove("hidden");
+        if (loginVerifyEmailEl) loginVerifyEmailEl.value = phone;
+        startWebOtpListenIfSupported();
+      } else {
+        loginStatusEl.textContent = `⚠ ${data.error || "Failed to send SMS / SMS送信に失敗しました"}`;
+      }
+    } catch (e) {
+      loginStatusEl.textContent = `⚠ ${e.message}`;
+    }
+  });
+}
+
+// 認証アプリQRコード方式(TOTP、ユーザー指示「QRコード撮影は中止して」で
+// 一度撤去したが、続く指示「SMSが無料/格安で出来ないならQRコード方式に」
+// を受けて復活させた)。**正直な開示**: サーバーからのSMS送信は必ず
+// 有料ゲートウェイ契約が必要で無料化できないため、費用のかからない
+// この方式を並行して用意し続ける——email1/email2/SMS/QRのいずれか1つで
+// ログインできる設計は変えていない。
 const loginTotpSetupBtn = document.getElementById("login-totp-setup-btn");
 const loginTotpQrContainer = document.getElementById("login-totp-qr-container");
 const loginTotpCodeEl = document.getElementById("login-totp-code");
 const loginTotpVerifyBtn = document.getElementById("login-totp-verify-btn");
 const loginTotpStatusEl = document.getElementById("login-totp-status");
 
-function refreshLoginTotpSectionVisibility() {
-  if (!loginTotpSection || !loginTotpPhoneLabelEl) return;
-  loginTotpSection.classList.toggle("hidden", loginTotpPhoneLabelEl.value.trim() === "");
-}
-if (loginTotpPhoneLabelEl) {
-  refreshLoginTotpSectionVisibility();
-  loginTotpPhoneLabelEl.addEventListener("input", refreshLoginTotpSectionVisibility);
-}
-
 if (loginTotpSetupBtn) {
   loginTotpSetupBtn.addEventListener("click", async () => {
     const email = (loginEmailEl?.value || "").trim();
     if (!email) {
-      if (loginTotpStatusEl) loginTotpStatusEl.textContent = "Please enter your email / メールアドレスを入力してください";
+      if (loginTotpStatusEl) loginTotpStatusEl.textContent = "Please enter your email (Email 1 above) / メールアドレス(上のメール1)を入力してください";
       return;
     }
     if (loginTotpStatusEl) loginTotpStatusEl.textContent = "Generating QR code… / QRコード生成中…";
@@ -545,13 +608,13 @@ if (loginTotpSetupBtn) {
       const res = await fetch("/v1/auth/totp-setup", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email, phone_label: (loginTotpPhoneLabelEl?.value || "").trim() || undefined }),
+        body: JSON.stringify({ email }),
       });
       const data = await res.json();
       if (res.ok && data.ok) {
         if (loginTotpQrContainer) loginTotpQrContainer.innerHTML = data.qr_svg || "";
         if (loginTotpStatusEl) {
-          loginTotpStatusEl.textContent = "✅ Scan this with your authenticator app (Google Authenticator, Authy, etc.), then enter the 6-digit code below. / 表示されたQRコードを認証アプリ(Google Authenticator・Authy等)で撮影し、下に6桁のコードを入力してください。";
+          loginTotpStatusEl.textContent = "✅ Scan this with your authenticator app (Google Authenticator, Authy, etc.), then enter the 6-digit code above. / 表示されたQRコードを認証アプリ(Google Authenticator・Authy等)で撮影し、上に6桁のコードを入力してください。";
         }
       } else {
         if (loginTotpStatusEl) loginTotpStatusEl.textContent = `⚠ ${data.error || "Failed to set up / 設定に失敗しました"}`;

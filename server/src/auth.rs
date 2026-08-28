@@ -239,6 +239,122 @@ pub fn verify_otp(email: &str, code: &str) -> Result<String> {
 }
 
 // ----------------------------------------------------------------------------
+// 携帯電話番号への実SMS送信によるワンタイムパスワード(2026-08-27新設、
+// ユーザー指示「ワンタイムパスワード+携帯電話でSMSを自動受取」への
+// 対応)。既存のメールOTP(`request_otp`/`verify_otp`)と全く同じ
+// `state().otps`(識別子文字列→OTPエントリのマップ)を再利用し、識別子を
+// 電話番号にしただけ——`verify_otp`はメール専用の処理を含んでいない
+// ため、コード変更無しでそのまま電話番号でも動く。
+//
+// **正直な開示(最重要)**: 実際のSMS送信にはTwilio(または互換の
+// SMSゲートウェイ)のアカウントが必要。このアプリ自身はSMSゲートウェイ
+// を持たない——利用者自身のTwilioアカウント(Account SID・Auth Token・
+// 送信元電話番号)を環境変数で設定して初めて動作する、既存のSMTP設定
+// (BYOメールサーバー)と同じ「持ち込み型」設計。未設定の場合は
+// `is_sms_configured() == false`を返し、生成すら行わない(黙って
+// 失敗したふりをしない)。
+// ----------------------------------------------------------------------------
+
+struct SmsConfig {
+    account_sid: String,
+    auth_token: String,
+    from_number: String,
+}
+
+fn sms_config() -> Result<SmsConfig> {
+    let account_sid = std::env::var("OPEN_ENGLISH_TWILIO_ACCOUNT_SID").ok().filter(|s| !s.trim().is_empty());
+    let auth_token = std::env::var("OPEN_ENGLISH_TWILIO_AUTH_TOKEN").ok().filter(|s| !s.trim().is_empty());
+    let from_number = std::env::var("OPEN_ENGLISH_TWILIO_FROM_NUMBER").ok().filter(|s| !s.trim().is_empty());
+    match (account_sid, auth_token, from_number) {
+        (Some(account_sid), Some(auth_token), Some(from_number)) => Ok(SmsConfig { account_sid, auth_token, from_number }),
+        _ => bail!("SMS is not configured (set OPEN_ENGLISH_TWILIO_ACCOUNT_SID/_AUTH_TOKEN/_FROM_NUMBER)"),
+    }
+}
+
+pub fn is_sms_configured() -> bool {
+    sms_config().is_ok()
+}
+
+/// WebOTP自動入力に必要なドメイン設定が済んでいるか(UIの正直な開示用、
+/// 未設定でもSMS送信自体は行えるが手入力が必要になる)。
+pub fn is_webotp_domain_configured() -> bool {
+    std::env::var("OPEN_ENGLISH_WEBOTP_DOMAIN").ok().filter(|s| !s.trim().is_empty()).is_some()
+}
+
+/// ごく簡易な電話番号の妥当性チェック(E.164に近い形式を推奨するのみ、
+/// 厳密なバリデーションは行わない——実際の可否はTwilio API自体が
+/// 判定する)。数字・空白・ハイフン・括弧・先頭の`+`のみを許可する。
+fn looks_like_phone_number(s: &str) -> bool {
+    let s = s.trim();
+    if s.len() < 6 || s.len() > 20 {
+        return false;
+    }
+    s.chars().enumerate().all(|(i, c)| c.is_ascii_digit() || c == ' ' || c == '-' || c == '(' || c == ')' || (i == 0 && c == '+'))
+}
+
+/// OTPコードを生成し、Twilio REST API経由で実際にSMS送信する。
+/// **正直な開示**: Twilio未設定の場合は生成すら行わずエラーを返す
+/// (`request_otp`のSMTP版と同じ設計)。
+pub async fn request_sms_otp(phone: &str) -> Result<()> {
+    let phone = phone.trim().to_string();
+    if !looks_like_phone_number(&phone) {
+        bail!("invalid phone number (use digits, spaces, -, (), and an optional leading + for the country code)");
+    }
+    let cfg = sms_config().context("SMS not configured")?;
+
+    let now = SystemTime::now();
+    {
+        let otps = state().otps.lock().unwrap();
+        if let Some(existing) = otps.get(&phone) {
+            if let Ok(elapsed) = now.duration_since(existing.last_sent_at) {
+                if elapsed < OTP_RESEND_COOLDOWN {
+                    bail!("please wait before requesting another code");
+                }
+            }
+        }
+    }
+
+    let code = random_otp_code();
+    {
+        let mut otps = state().otps.lock().unwrap();
+        otps.insert(phone.clone(), OtpEntry { code: code.clone(), expires_at: now + OTP_TTL, last_sent_at: now });
+    }
+
+    // WebOTP API(ブラウザがSMSを自動的に読み取りコード欄へ自動入力する
+    // 標準機能、Android Chrome等が対応)に対応するため、本文の**最後の
+    // 行**を`@<ドメイン> #<コード>`という規定フォーマットにする
+    // (WebOTP仕様が要求する形式、これが無いと自動入力は機能しない)。
+    // ドメインは`OPEN_ENGLISH_WEBOTP_DOMAIN`環境変数で指定
+    // (例: "easy-web.tokyo")——未設定でもSMS自体は送信されるが、
+    // その場合はブラウザの自動入力は効かず手入力が必要になる
+    // (正直な開示、`is_webotp_domain_configured`経由でUIにも表示)。
+    let webotp_line = std::env::var("OPEN_ENGLISH_WEBOTP_DOMAIN")
+        .ok()
+        .filter(|s| !s.trim().is_empty())
+        .map(|domain| format!("\n@{} #{}", domain.trim(), code))
+        .unwrap_or_default();
+    let body = format!("Your open-english login code / open-englishのログインコード: {code}{webotp_line}");
+    let client = reqwest::Client::new();
+    let url = format!("https://api.twilio.com/2010-04-01/Accounts/{}/Messages.json", cfg.account_sid);
+    let resp = client
+        .post(&url)
+        .basic_auth(&cfg.account_sid, Some(&cfg.auth_token))
+        .form(&[("To", phone.as_str()), ("From", cfg.from_number.as_str()), ("Body", body.as_str())])
+        .send()
+        .await
+        .context("Twilio API request failed")?;
+    if !resp.status().is_success() {
+        let status = resp.status();
+        let text = resp.text().await.unwrap_or_default();
+        // 送信に失敗したのでOTPエントリを取り消す(利用者に「送った」と
+        // 偽った状態で待たせないため)。
+        state().otps.lock().unwrap().remove(&phone);
+        bail!("Twilio returned {status}: {text}");
+    }
+    Ok(())
+}
+
+// ----------------------------------------------------------------------------
 // 携帯電話番号+QRコード撮影による2FA(2026-08-27新設、`totp.rs`参照)。
 // ユーザー指示「メールアドレス1と2と携帯電話番号の3種類を入力するように
 // 仕様変更して、携帯電話番号はQRコードを撮影する2FAとして」+「その3種類の
