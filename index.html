@@ -30,69 +30,73 @@
         この端末はログイン保護が有効になっています。メールアドレスを入力してワンタイムコードを受け取ってください。
       </p>
       <p class="setup-honest">
-        <strong>📩 2026-08-27新設、新しいセキュアなシステムへお乗り換えください: メール
-        アドレスを2つ登録できるようになりました。</strong>両方に同じワンタイムコードが
-        送られ、どちらか一方が受信できれば十分ログインできます(2つ目は予備の連絡先)——
-        普段お使いのメールアドレスが一時的に使えなくなった場合でも、もう一方でログイン
-        できるようにするためのものです。2つ目の入力は任意です。<br /><br />
-        <strong>📩 Added 2026-08-27, please switch to this new, more secure system: you can now
-        register two email addresses.</strong> The same one-time code is sent to both; receiving
-        it at either one is enough to log in (the second address is a backup). It's there so that
-        if your usual email address becomes temporarily unavailable, you can still log in through
-        the other one. Entering a second address is optional.
+        <strong>🔐 2026-08-28: this is now two-factor login (2FA).</strong> Step 1: verify a
+        one-time code sent to email 1, email 2, or SMS (any one of these works as the first
+        factor — the second address/phone is just a backup channel). Step 2: a QR code appears —
+        scan it with your phone, tablet, or a webcam-equipped device and tap Confirm there. Both
+        steps are required; entering just the code is no longer enough to log in. /
+        <strong>🔐 2026-08-28: 二段階認証(2FA)に変更しました。</strong>ステップ1として、
+        メール1・メール2・SMSのいずれかへ送られるワンタイムコードを確認します(どれか1つで
+        第一要素として十分です——2つ目のメール/電話番号はあくまで予備の受信経路です)。
+        ステップ2として、QRコードが表示されるので、スマホ・タブレット・WEBカメラ搭載端末で
+        撮影し、そちらの画面で「確認」を押してください。両方のステップが必須で、コードの
+        入力だけではログインは完了しません。
       </p>
-      <label class="settings-field">
-        Email 1 / メールアドレス1
-        <input type="email" id="login-email" autocomplete="email" placeholder="you@example.com" />
-      </label>
-      <label class="settings-field">
-        Email 2 (optional, backup) / メールアドレス2(任意、予備)
-        <input type="email" id="login-email2" autocomplete="email" placeholder="backup@example.com" />
-      </label>
-      <label class="settings-field">
-        Phone number (optional, for SMS code) / 携帯電話番号(任意、SMSコード用)
-        <input type="tel" id="login-phone" autocomplete="tel" placeholder="+819012345678" />
-      </label>
-      <button type="button" id="login-send-code-btn" class="setup-btn">Send code / コードを送信</button>
-      <button type="button" id="login-send-sms-code-btn" class="setup-btn hidden">📱 Send SMS code / SMSでコードを送信</button>
-      <div id="login-code-section" class="hidden">
+      <div id="login-otp-fields">
         <label class="settings-field">
-          Which email/phone did you receive the code at? / どちらでコードを受け取りましたか?(メールまたは携帯電話番号)
-          <input type="text" id="login-verify-email" autocomplete="off" placeholder="you@example.com or +819012345678" />
+          Email 1 / メールアドレス1
+          <input type="email" id="login-email" autocomplete="email" placeholder="you@example.com" />
         </label>
         <label class="settings-field">
-          Code / コード
-          <input type="text" id="login-code" autocomplete="one-time-code" placeholder="123456" maxlength="6" />
+          Email 2 (optional, backup) / メールアドレス2(任意、予備)
+          <input type="email" id="login-email2" autocomplete="email" placeholder="backup@example.com" />
         </label>
-        <button type="button" id="login-verify-btn" class="setup-btn">Verify / ログイン</button>
+        <label class="settings-field">
+          Phone number (optional, for SMS code) / 携帯電話番号(任意、SMSコード用)
+          <input type="tel" id="login-phone" autocomplete="tel" placeholder="+819012345678" />
+        </label>
+        <button type="button" id="login-send-code-btn" class="setup-btn">Send code / コードを送信</button>
+        <button type="button" id="login-send-sms-code-btn" class="setup-btn hidden">📱 Send SMS code / SMSでコードを送信</button>
+        <div id="login-code-section" class="hidden">
+          <label class="settings-field">
+            Which email/phone did you receive the code at? / どちらでコードを受け取りましたか?(メールまたは携帯電話番号)
+            <input type="text" id="login-verify-email" autocomplete="off" placeholder="you@example.com or +819012345678" />
+          </label>
+          <label class="settings-field">
+            Code / コード
+            <input type="text" id="login-code" autocomplete="one-time-code" placeholder="123456" maxlength="6" />
+          </label>
+          <button type="button" id="login-verify-btn" class="setup-btn">Verify / ログイン</button>
+        </div>
+      </div>
+      <div id="login-qr-only-fields" class="hidden">
+        <p class="setup-note">
+          No email needed for this mode — tap the button below to show a QR code. /
+          この方式ではメールアドレスは不要です——下のボタンを押すとQRコードが表示されます。
+        </p>
+        <button type="button" id="login-qr-only-start-btn" class="setup-btn">📷 Show QR code / QRコードを表示</button>
       </div>
       <p id="login-status" class="setup-note"></p>
 
-      <div id="login-totp-section">
+      <div id="qr-login-section" class="hidden">
         <hr />
         <p class="setup-honest">
-          <strong>Honest disclosure about SMS cost:</strong> sending an SMS from a server always
-          requires an account with a paid SMS gateway (e.g. Twilio) — there is no way for this to
-          be free, and it is not something your own phone plan can cover, because the cost is
-          billed to whoever operates the sending account, not the receiving phone. If the SMS
-          option above is not configured, this QR-code method costs nothing and works instead —
-          any one of email 1, email 2, SMS, or this QR code logs you in; you don't need all of
-          them. /
-          <strong>SMS費用についての正直な開示：</strong>サーバーからSMSを送信するには、必ず
-          有料のSMSゲートウェイ(Twilio等)のアカウントが必要です——無料にする方法は無く、
-          利用者ご自身の携帯電話の契約でこの費用をまかなうこともできません(費用は受信側の
-          電話ではなく、送信側のアカウントを運用する側に課金されるため)。上のSMS方式が未設定の
-          場合、この費用がかからないQRコード方式で代わりにログインできます——メール1・
-          メール2・SMS・このQRコードのいずれか1つでログイン可能で、全部揃える必要はありません。
+          <strong>Step 2 of 2: scan to confirm.</strong> This QR code is a one-time, short-lived
+          link (valid a few minutes, usable once). Scanning it and tapping Confirm proves you have
+          physical access to a second device — it is not the same strength as biometric or
+          cryptographic proof, so please don't share this screen with anyone. /
+          <strong>ステップ2/2: 撮影して確認してください。</strong>このQRコードは短命な
+          使い捨てのリンクです(数分で失効・1回のみ使用可)。撮影して「確認」を押すことは、
+          第二の端末を物理的に操作できることの証明になりますが、生体認証や暗号学的な証明と
+          同水準の強度ではありません——この画面を他人と共有しないでください。
         </p>
-        <label class="settings-field">
-          Code from your authenticator app / 認証アプリのコード
-          <input type="text" id="login-totp-code" autocomplete="one-time-code" placeholder="123456" maxlength="6" />
-        </label>
-        <button type="button" id="login-totp-setup-btn" class="setup-btn">📷 Show QR code / QRコードを表示</button>
-        <div id="login-totp-qr-container" style="margin-top:8px;"></div>
-        <button type="button" id="login-totp-verify-btn" class="setup-btn">🔐 Log in with authenticator code / 認証アプリのコードでログイン</button>
-        <p id="login-totp-status" class="setup-note"></p>
+        <div id="qr-login-container" style="margin-top:8px;"></div>
+        <p class="setup-note">
+          Can't scan? Open this link directly on the confirming device: /
+          撮影できない場合は、確認に使う端末で直接このリンクを開いてください:<br />
+          <code id="qr-login-url" style="word-break: break-all;"></code>
+        </p>
+        <p id="qr-login-status" class="setup-note"></p>
       </div>
     </div>
   </div>
@@ -112,14 +116,28 @@
         機能はそれより前(2026-08-26)に追加されたもので、目的も異なります(この端末を誰が
         使えるかを制限する機能です)。暗号化機能はこのブラウザに保存されるAPIキー・トークン
         を保護するためのものです。</strong><br /><br />
-        This PC/tablet/phone may be shared with family or coworkers. Would you like to enable login
-        security (email + one-time code)? You can change this later in settings. /
-        このPC・タブレット・スマホなどは、家族や会社で共有する場合もあります。ログインセキュリティ(メール+ワンタイムコード)を導入しますか?
-        後から設定でいつでも変更できます。
+        This PC/tablet/phone may be shared with family or coworkers. Choose a login method. You can
+        change this later in settings. /
+        このPC・タブレット・スマホなどは、家族や会社で共有する場合もあります。ログイン方式を選択してください。後から設定でいつでも変更できます。
+      </p>
+      <div class="settings-field">
+        <label><input type="radio" name="login-mode-choice" value="none" checked />
+          1. No login (password-less) / パスワード無し</label><br />
+        <label><input type="radio" name="login-mode-choice" value="otp" />
+          2. Email one-time password / emailワンタイムパスワード</label><br />
+        <label><input type="radio" name="login-mode-choice" value="qr" />
+          3. QR code scan only (auto-confirm) / QRコード撮影のみ(自動承認)</label><br />
+        <label><input type="radio" name="login-mode-choice" value="otp_qr" />
+          4. Email OTP + QR code scan (2FA, auto-confirm) / emailワンタイムパスワード＋QRコード撮影(二段階認証、自動承認)</label>
+      </div>
+      <p class="setup-note">
+        For modes 3/4, once the QR is scanned and the confirm page opens, that device's code is
+        sent/received and approved automatically — no extra button press is needed there. /
+        方式3・4では、QRを撮影して確認ページが開いた時点で、その端末のワンタイムコードは
+        自動的に送受信・承認されます——追加のボタン操作は不要です。
       </p>
       <div class="settings-buttons">
-        <button type="button" id="login-setup-enable-btn" class="setup-btn">Enable / 導入する</button>
-        <button type="button" id="login-setup-skip-btn" class="setup-btn">Use without login / ログインせずに利用する</button>
+        <button type="button" id="login-setup-enable-btn" class="setup-btn">Apply / 適用する</button>
       </div>
     </div>
   </div>

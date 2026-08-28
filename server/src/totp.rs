@@ -114,12 +114,17 @@ pub fn otpauth_uri(secret: &str, account_label: &str, issuer: &str) -> String {
 
 /// 上記`otpauth_uri`をQRコードとしてSVG文字列へレンダリングする。
 pub fn totp_qr_svg(secret: &str, account_label: &str, issuer: &str) -> Result<String, String> {
-    let uri = otpauth_uri(secret, account_label, issuer);
-    let code = qrcode::QrCode::with_error_correction_level(&uri, qrcode::EcLevel::M)
+    text_qr_svg(&otpauth_uri(secret, account_label, issuer))
+}
+
+/// 任意のテキスト(URL等)をQRコードとしてSVG文字列へレンダリングする
+/// 汎用ヘルパー(2026-08-28新設、QR確認ログイン方式で使用)。
+pub fn text_qr_svg(text: &str) -> Result<String, String> {
+    let code = qrcode::QrCode::with_error_correction_level(text, qrcode::EcLevel::M)
         .map_err(|e| format!("QRコード生成に失敗しました / QR code generation failed: {e}"))?;
     let svg = code
         .render()
-        .min_dimensions(200, 200)
+        .min_dimensions(220, 220)
         .dark_color(qrcode::render::svg::Color("#000000"))
         .light_color(qrcode::render::svg::Color("#ffffff"))
         .build();

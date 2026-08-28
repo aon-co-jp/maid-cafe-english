@@ -421,9 +421,11 @@ const LOGIN_PROMPT_SHOWN_KEY = "open-english.loginPromptShown";
       const session = await res.json();
       if (!session.logged_in) {
         gateEl.classList.remove("hidden");
+        applyLoginModeToGate(config.login_mode);
       }
     } catch (e) {
       gateEl.classList.remove("hidden");
+      applyLoginModeToGate(config.login_mode);
     }
     return;
   }
@@ -439,6 +441,21 @@ const LOGIN_PROMPT_SHOWN_KEY = "open-english.loginPromptShown";
     promptEl.classList.remove("hidden");
   }
 })();
+
+// 2026-08-28新設: ログイン方式(1.パスワード無し・2.email OTP・
+// 3.QR撮影のみ・4.email OTP+QR)に応じて、ゲート内のどのフィールドを
+// 見せるかを切り替える。
+function applyLoginModeToGate(mode) {
+  const otpFields = document.getElementById("login-otp-fields");
+  const qrOnlyFields = document.getElementById("login-qr-only-fields");
+  if (mode === "qr") {
+    if (otpFields) otpFields.classList.add("hidden");
+    if (qrOnlyFields) qrOnlyFields.classList.remove("hidden");
+  } else {
+    if (otpFields) otpFields.classList.remove("hidden");
+    if (qrOnlyFields) qrOnlyFields.classList.add("hidden");
+  }
+}
 
 const loginEmailEl = document.getElementById("login-email");
 const loginEmail2El = document.getElementById("login-email2");
@@ -481,25 +498,120 @@ if (loginSendCodeBtn) {
     }
   });
 }
+// 2026-08-28変更(ユーザー指示「email OTP+QRコードを毎回その場で
+// スキャンして即ログイン、という二段階ログインへ統一」への対応)。
+// `/v1/auth/verify-otp`は第一要素(email/SMSコード)の検証成功時に
+// もうセッションを発行しない——`second_factor_required:true`+QR確認
+// セッションを返すので、ここでQRを表示してポーリングを開始する。
+const qrLoginSection = document.getElementById("qr-login-section");
+const qrLoginContainer = document.getElementById("qr-login-container");
+const qrLoginUrlEl = document.getElementById("qr-login-url");
+const qrLoginStatusEl = document.getElementById("qr-login-status");
+let qrLoginPollTimer = null;
+
+function stopQrLoginPoll() {
+  if (qrLoginPollTimer) {
+    clearInterval(qrLoginPollTimer);
+    qrLoginPollTimer = null;
+  }
+}
+
+function startQrLoginPoll(qrLoginId) {
+  stopQrLoginPoll();
+  qrLoginPollTimer = setInterval(async () => {
+    try {
+      const res = await fetch(`/v1/auth/qr-login/status?id=${encodeURIComponent(qrLoginId)}`);
+      const data = await res.json();
+      if (!res.ok) {
+        stopQrLoginPoll();
+        if (qrLoginStatusEl) qrLoginStatusEl.textContent = `⚠ ${data.error || "This QR code has expired / QRコードの有効期限が切れました"}`;
+        return;
+      }
+      if (data.confirmed) {
+        stopQrLoginPoll();
+        if (qrLoginStatusEl) qrLoginStatusEl.textContent = "Confirmed! Logging in... / 確認されました！ログインしています...";
+        const finishRes = await fetch("/v1/auth/qr-login/finish", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ id: qrLoginId }),
+        });
+        const finishData = await finishRes.json();
+        if (finishRes.ok && finishData.ok) {
+          document.getElementById("login-gate").classList.add("hidden");
+        } else {
+          if (qrLoginStatusEl) qrLoginStatusEl.textContent = `⚠ ${finishData.error || "Failed to finish login / ログイン完了に失敗しました"}`;
+        }
+      }
+    } catch (e) {
+      // ネットワーク瞬断等でポーリング1回が失敗しても、次のtickで再試行する
+      // (握りつぶす、ユーザー体験を止めないための意図的な設計)。
+    }
+  }, 2000);
+}
+
+function showQrLoginStep(qrSvg, confirmUrl) {
+  if (loginCodeSection) loginCodeSection.classList.add("hidden");
+  if (qrLoginContainer) qrLoginContainer.innerHTML = qrSvg || "";
+  if (qrLoginUrlEl) qrLoginUrlEl.textContent = confirmUrl || "";
+  if (qrLoginSection) qrLoginSection.classList.remove("hidden");
+  if (qrLoginStatusEl) {
+    qrLoginStatusEl.textContent =
+      "Scan this QR code with your phone, tablet, or a webcam-equipped device, then tap Confirm there. / このQRコードをスマホ・タブレット・WEBカメラ端末で撮影し、そちらで「確認」を押してください。";
+  }
+}
+
+async function verifyOtpFactorOne(identifier, code) {
+  loginStatusEl.textContent = "Verifying... / 確認中...";
+  try {
+    const res = await fetch("/v1/auth/verify-otp", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ email: identifier, code }),
+    });
+    const data = await res.json();
+    if (res.ok && data.second_factor_required && data.qr_login_id) {
+      loginStatusEl.textContent = "✅ Code confirmed — now scan the QR code below to finish logging in. / コードを確認しました——続けて下のQRコードを撮影してログインを完了してください。";
+      showQrLoginStep(data.qr_svg, data.confirm_url);
+      startQrLoginPoll(data.qr_login_id);
+    } else if (res.ok) {
+      // 旧サーバー(2FA導入前)との後方互換フォールバック
+      document.getElementById("login-gate").classList.add("hidden");
+    } else {
+      loginStatusEl.textContent = `⚠ ${data.error || "Incorrect code / コードが正しくありません"}`;
+    }
+  } catch (e) {
+    loginStatusEl.textContent = `⚠ ${e.message}`;
+  }
+}
+
 if (loginVerifyBtn) {
-  loginVerifyBtn.addEventListener("click", async () => {
+  loginVerifyBtn.addEventListener("click", () => {
     const email = (loginVerifyEmailEl?.value || loginEmailEl.value).trim();
     const code = loginCodeEl.value.trim();
-    loginStatusEl.textContent = "Verifying... / 確認中...";
+    verifyOtpFactorOne(email, code);
+  });
+}
+
+// 2026-08-28新設: 方式3(QR撮影のみ、事前のメール確認なし)専用ボタン。
+const loginQrOnlyStartBtn = document.getElementById("login-qr-only-start-btn");
+if (loginQrOnlyStartBtn) {
+  loginQrOnlyStartBtn.addEventListener("click", async () => {
+    loginQrOnlyStartBtn.disabled = true;
+    loginStatusEl.textContent = "Generating QR code... / QRコード生成中...";
     try {
-      const res = await fetch("/v1/auth/verify-otp", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email, code }),
-      });
+      const res = await fetch("/v1/auth/qr-login/start", { method: "POST" });
       const data = await res.json();
-      if (res.ok) {
-        document.getElementById("login-gate").classList.add("hidden");
+      if (res.ok && data.qr_login_id) {
+        loginStatusEl.textContent = "";
+        showQrLoginStep(data.qr_svg, data.confirm_url);
+        startQrLoginPoll(data.qr_login_id);
       } else {
-        loginStatusEl.textContent = `⚠ ${data.error || "Incorrect code / コードが正しくありません"}`;
+        loginStatusEl.textContent = `⚠ ${data.error || "Failed to generate QR code / QRコード生成に失敗しました"}`;
       }
     } catch (e) {
       loginStatusEl.textContent = `⚠ ${e.message}`;
+    } finally {
+      loginQrOnlyStartBtn.disabled = false;
     }
   });
 }
@@ -584,73 +696,12 @@ if (loginSendSmsCodeBtn) {
   });
 }
 
-// 認証アプリQRコード方式(TOTP、ユーザー指示「QRコード撮影は中止して」で
-// 一度撤去したが、続く指示「SMSが無料/格安で出来ないならQRコード方式に」
-// を受けて復活させた)。**正直な開示**: サーバーからのSMS送信は必ず
-// 有料ゲートウェイ契約が必要で無料化できないため、費用のかからない
-// この方式を並行して用意し続ける——email1/email2/SMS/QRのいずれか1つで
-// ログインできる設計は変えていない。
-const loginTotpSetupBtn = document.getElementById("login-totp-setup-btn");
-const loginTotpQrContainer = document.getElementById("login-totp-qr-container");
-const loginTotpCodeEl = document.getElementById("login-totp-code");
-const loginTotpVerifyBtn = document.getElementById("login-totp-verify-btn");
-const loginTotpStatusEl = document.getElementById("login-totp-status");
-
-if (loginTotpSetupBtn) {
-  loginTotpSetupBtn.addEventListener("click", async () => {
-    const email = (loginEmailEl?.value || "").trim();
-    if (!email) {
-      if (loginTotpStatusEl) loginTotpStatusEl.textContent = "Please enter your email (Email 1 above) / メールアドレス(上のメール1)を入力してください";
-      return;
-    }
-    if (loginTotpStatusEl) loginTotpStatusEl.textContent = "Generating QR code… / QRコード生成中…";
-    try {
-      const res = await fetch("/v1/auth/totp-setup", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email }),
-      });
-      const data = await res.json();
-      if (res.ok && data.ok) {
-        if (loginTotpQrContainer) loginTotpQrContainer.innerHTML = data.qr_svg || "";
-        if (loginTotpStatusEl) {
-          loginTotpStatusEl.textContent = "✅ Scan this with your authenticator app (Google Authenticator, Authy, etc.), then enter the 6-digit code above. / 表示されたQRコードを認証アプリ(Google Authenticator・Authy等)で撮影し、上に6桁のコードを入力してください。";
-        }
-      } else {
-        if (loginTotpStatusEl) loginTotpStatusEl.textContent = `⚠ ${data.error || "Failed to set up / 設定に失敗しました"}`;
-      }
-    } catch (e) {
-      if (loginTotpStatusEl) loginTotpStatusEl.textContent = `⚠ ${e.message}`;
-    }
-  });
-}
-
-if (loginTotpVerifyBtn) {
-  loginTotpVerifyBtn.addEventListener("click", async () => {
-    const email = (loginEmailEl?.value || "").trim();
-    const code = (loginTotpCodeEl?.value || "").trim();
-    if (!email || !code) {
-      if (loginTotpStatusEl) loginTotpStatusEl.textContent = "Email and code are both required / メールアドレスとコードの両方が必要です";
-      return;
-    }
-    if (loginTotpStatusEl) loginTotpStatusEl.textContent = "Verifying... / 確認中...";
-    try {
-      const res = await fetch("/v1/auth/totp-verify", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email, code }),
-      });
-      const data = await res.json();
-      if (res.ok && data.ok) {
-        document.getElementById("login-gate").classList.add("hidden");
-      } else {
-        if (loginTotpStatusEl) loginTotpStatusEl.textContent = `⚠ ${data.error || "Incorrect code / コードが正しくありません"}`;
-      }
-    } catch (e) {
-      if (loginTotpStatusEl) loginTotpStatusEl.textContent = `⚠ ${e.message}`;
-    }
-  });
-}
+// 2026-08-28: 旧TOTP(認証アプリへの秘密鍵事前登録)方式は廃止し、上記
+// `showQrLoginStep`/`startQrLoginPoll`の「毎回その場でQRを撮影して確認」
+// 方式へ統一した(ユーザー指示)。email1/email2/SMSいずれも第一要素として
+// 使え、続けて必ずQR確認(第二要素)が必要になる——email/SMS OTP単体では
+// ログインが完了しない設計に変更した(以前の「どれか1つでログイン可」
+// という可用性優先の設計から、真の二段階認証〈2FA〉へ変更)。
 
 const loginSetupEnableBtn = document.getElementById("login-setup-enable-btn");
 const loginSetupSkipBtn = document.getElementById("login-setup-skip-btn");
@@ -664,14 +715,16 @@ function dismissLoginSetupPrompt() {
 }
 if (loginSetupEnableBtn) {
   loginSetupEnableBtn.addEventListener("click", async () => {
+    const selected = document.querySelector('input[name="login-mode-choice"]:checked');
+    const loginMode = selected ? selected.value : "none";
     try {
       await fetch("/v1/auth/config", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ login_required: true }),
+        body: JSON.stringify({ login_mode: loginMode }),
       });
     } catch (e) {
-      /* 失敗しても案内は閉じる、次回起動時に再度有効化を試せる */
+      /* 失敗しても案内は閉じる、次回起動時に設定パネルから再設定できる */
     }
     dismissLoginSetupPrompt();
     location.reload();

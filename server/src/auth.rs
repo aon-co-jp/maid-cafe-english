@@ -55,6 +55,18 @@ const OTP_RESEND_COOLDOWN: Duration = Duration::from_secs(60);
 const SESSION_TTL: Duration = Duration::from_secs(24 * 60 * 60);
 pub const SESSION_COOKIE_NAME: &str = "oe_session";
 pub const LOGIN_REQUIRED_SETTING_KEY: &str = "login_required";
+/// ログイン方式の選択(2026-08-28新設、ユーザー指示「パスワード無し・
+/// email OTP・QR撮影のみ・email OTP+QR撮影、と選べるように」への対応)。
+/// 値は`"none"`(ログイン不要)・`"otp"`(email/SMSワンタイムパスワード
+/// 単体)・`"qr"`(QR撮影のみ、事前のメール確認なし)・`"otp_qr"`
+/// (email/SMS OTP+QR撮影の二段階認証)のいずれか。未設定の場合は
+/// 旧`LOGIN_REQUIRED_SETTING_KEY`(真偽値)から後方互換で導出する
+/// (`true`→`"otp"`〈2FA導入前の元の挙動〉、`false`→`"none"`)。
+pub const LOGIN_MODE_SETTING_KEY: &str = "login_mode";
+
+pub fn is_valid_login_mode(s: &str) -> bool {
+    matches!(s, "none" | "otp" | "qr" | "otp_qr")
+}
 
 struct OtpEntry {
     code: String,
@@ -70,12 +82,17 @@ struct SessionEntry {
 struct AuthState {
     otps: Mutex<HashMap<String, OtpEntry>>,
     sessions: Mutex<HashMap<String, SessionEntry>>,
+    qr_logins: Mutex<HashMap<String, QrLoginEntry>>,
 }
 
 static AUTH_STATE: std::sync::OnceLock<AuthState> = std::sync::OnceLock::new();
 
 fn state() -> &'static AuthState {
-    AUTH_STATE.get_or_init(|| AuthState { otps: Mutex::new(HashMap::new()), sessions: Mutex::new(HashMap::new()) })
+    AUTH_STATE.get_or_init(|| AuthState {
+        otps: Mutex::new(HashMap::new()),
+        sessions: Mutex::new(HashMap::new()),
+        qr_logins: Mutex::new(HashMap::new()),
+    })
 }
 
 fn rng() -> &'static SystemRandom {
@@ -216,25 +233,162 @@ pub async fn request_otp(email1: &str, email2: Option<&str>) -> Result<()> {
     Ok(())
 }
 
-/// OTPコードを検証し、成功すればセッショントークンを発行する。
-pub fn verify_otp(email: &str, code: &str) -> Result<String> {
-    let email = email.trim().to_lowercase();
+/// OTPコードを検証するだけで、セッションは発行しない
+/// (2026-08-28新設、二段階認証の第一要素として使う内部ヘルパー)。
+fn verify_otp_code_only(identifier: &str, code: &str) -> Result<String> {
+    let identifier = identifier.trim().to_lowercase();
     let now = SystemTime::now();
     let mut otps = state().otps.lock().unwrap();
-    let entry = otps.get(&email).context("no pending code for this email (request one first)")?;
+    let entry = otps.get(&identifier).context("no pending code for this identifier (request one first)")?;
     if now > entry.expires_at {
-        otps.remove(&email);
+        otps.remove(&identifier);
         bail!("code expired, please request a new one");
     }
     if !constant_time_eq(&entry.code, code.trim()) {
         bail!("incorrect code");
     }
-    otps.remove(&email);
-    drop(otps);
+    otps.remove(&identifier);
+    Ok(identifier)
+}
+
+/// OTPコードを検証し、成功すればセッショントークンを発行する。
+/// **2026-08-28時点の位置づけ**: 二段階認証(email/SMS OTP+QRスキャン
+/// 確認)を導入したため、通常のログインゲートはこの関数を直接使わず
+/// `verify_otp_start_2fa`(下記)経由でQR確認セッションへ進む。この関数
+/// 自体は後方互換のため残してある(単体テスト・将来2FAを無効化した
+/// 場合のフォールバック用途)。
+pub fn verify_otp(email: &str, code: &str) -> Result<String> {
+    let identifier = verify_otp_code_only(email, code)?;
+    let token = random_hex(32);
+    let mut sessions = state().sessions.lock().unwrap();
+    sessions.insert(token.clone(), SessionEntry { email: identifier, expires_at: SystemTime::now() + SESSION_TTL });
+    Ok(token)
+}
+
+// ----------------------------------------------------------------------------
+// 二段階認証: email/SMS OTP(第一要素)+ QRコード確認(第二要素、
+// 2026-08-28新設、ユーザー指示「email OTP+QRコードを毎回その場で
+// スキャンして即ログイン、という二段階ログインへ統一」への対応)。
+//
+// **設計(旧TOTP方式との違い、重要)**: 旧方式(`totp_setup`/
+// `totp_verify`、下記)は認証アプリへ秘密鍵を1回登録し、以降は
+// 30秒ごとに変わる6桁コードを手入力する仕組みだった。今回のQR確認方式は
+// **秘密鍵の事前登録が一切不要**——ログインのたびに使い捨てのQR
+// コード(短い有効期限のセッションIDを含むURL)を生成し、スマホ/
+// タブレット/WEBカメラ搭載端末でそのURLを開いて「確認」ボタンを押す
+// だけで完了する。
+//
+// **正直な開示(誇張しないこと)**: これは「その場でQR画像を解析して
+// 生体認証や暗号署名を行う」ような強い証明ではない——QRは単に
+// 短命なURLを画面上に表示しているだけで、確認端末はそのURLを開いて
+// ボタンを押すという単純な操作をするに過ぎない。したがって、もし
+// 画面が他人に見える状態でQRを共有してしまった場合(画面共有・
+// 覗き見等)、そのURLを知った第三者も確認ボタンを押せてしまう
+// (有効期限3分+1回限りの消費で被害範囲を抑える設計だが、真の
+// 生体・暗号学的な第二要素と同水準の強度ではない)。
+const QR_LOGIN_TTL: Duration = Duration::from_secs(3 * 60);
+
+struct QrLoginEntry {
+    identifier: String,
+    confirmed: bool,
+    expires_at: SystemTime,
+}
+
+/// OTPコード検証(第一要素)に成功した後、QR確認セッション(第二要素)を
+/// 開始する。返り値はQRコードに埋め込むURLの末尾に付ける短命なID。
+pub fn verify_otp_start_2fa(identifier: &str, code: &str) -> Result<String> {
+    let identifier = verify_otp_code_only(identifier, code)?;
+    let mut logins = state().qr_logins.lock().unwrap();
+    logins.retain(|_, v| v.expires_at > SystemTime::now());
+    let id = random_hex(16);
+    logins.insert(id.clone(), QrLoginEntry { identifier, confirmed: false, expires_at: SystemTime::now() + QR_LOGIN_TTL });
+    Ok(id)
+}
+
+/// QR単体ログイン(第一要素なし、事前のメール確認は不要、2026-08-28
+/// 新設)のセッションを開始する。**正直な開示**: この方式では、QRを
+/// 見てURLを開ける人なら誰でもログインできてしまう(誰の識別子とも
+/// 紐付いていない)——email OTPを一切要求しない最も緩い方式であり、
+/// 「同じ部屋にいる人以外には見せない」程度の運用を前提とする。
+pub fn start_qr_only_login() -> String {
+    let mut logins = state().qr_logins.lock().unwrap();
+    logins.retain(|_, v| v.expires_at > SystemTime::now());
+    let id = random_hex(16);
+    logins.insert(
+        id.clone(),
+        QrLoginEntry { identifier: "(qr-only login)".to_string(), confirmed: false, expires_at: SystemTime::now() + QR_LOGIN_TTL },
+    );
+    id
+}
+
+fn mask_identifier(s: &str) -> String {
+    if s.starts_with('(') {
+        // QR単体ログイン等、実在の識別子を持たないプレースホルダーは
+        // そのまま表示する(マスクする対象が無いため)。
+        return s.to_string();
+    }
+    if let Some(at) = s.find('@') {
+        let (local, domain) = s.split_at(at);
+        let visible: String = local.chars().take(2).collect();
+        format!("{visible}***{domain}")
+    } else if s.chars().count() > 4 {
+        let chars: Vec<char> = s.chars().collect();
+        let head: String = chars[..2].iter().collect();
+        let tail: String = chars[chars.len() - 2..].iter().collect();
+        format!("{head}***{tail}")
+    } else {
+        "***".to_string()
+    }
+}
+
+/// QR確認ページ(`qr-confirm.html`)がユーザーへ「どのアカウントの
+/// ログインを確認しようとしているか」を表示するための、マスク済み
+/// 識別子(メールアドレス/電話番号の一部を伏せた文字列)。
+pub fn qr_login_masked_identifier(id: &str) -> Option<String> {
+    let logins = state().qr_logins.lock().unwrap();
+    logins.get(id).filter(|e| e.expires_at > SystemTime::now()).map(|e| mask_identifier(&e.identifier))
+}
+
+/// QR確認ページの「確認」ボタン押下時に呼ぶ——このQRセッションを
+/// 「確認済み」にする(まだセッションCookieは発行しない、プライマリ
+/// 端末側の`qr_login_finish`が発行する)。
+pub fn qr_login_confirm(id: &str) -> Result<()> {
+    let mut logins = state().qr_logins.lock().unwrap();
+    let entry = logins.get_mut(id).context("this QR login link is invalid or has expired")?;
+    if SystemTime::now() > entry.expires_at {
+        logins.remove(id);
+        bail!("this QR login link has expired, please try again");
+    }
+    entry.confirmed = true;
+    Ok(())
+}
+
+/// プライマリ端末が数秒おきにポーリングして、確認済みになったかを見る。
+pub fn qr_login_status(id: &str) -> Option<bool> {
+    let logins = state().qr_logins.lock().unwrap();
+    logins.get(id).filter(|e| e.expires_at > SystemTime::now()).map(|e| e.confirmed)
+}
+
+/// 確認済みであることを見たプライマリ端末が呼ぶ——実際のセッション
+/// Cookieトークンをここで初めて発行する(QRセッション自体は使い捨てで
+/// 直後に消費・削除する)。
+pub fn qr_login_finish(id: &str) -> Result<String> {
+    let mut logins = state().qr_logins.lock().unwrap();
+    let entry = logins.get(id).context("this QR login link is invalid or has expired")?;
+    if SystemTime::now() > entry.expires_at {
+        logins.remove(id);
+        bail!("this QR login link has expired, please try again");
+    }
+    if !entry.confirmed {
+        bail!("not confirmed yet");
+    }
+    let identifier = entry.identifier.clone();
+    logins.remove(id);
+    drop(logins);
 
     let token = random_hex(32);
     let mut sessions = state().sessions.lock().unwrap();
-    sessions.insert(token.clone(), SessionEntry { email, expires_at: now + SESSION_TTL });
+    sessions.insert(token.clone(), SessionEntry { email: identifier, expires_at: SystemTime::now() + SESSION_TTL });
     Ok(token)
 }
 

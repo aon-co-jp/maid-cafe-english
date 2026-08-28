@@ -44,6 +44,10 @@ const STATIC_FILES: &[(&str, &str, &str)] = &[
     // ある——同一オリジンで配信している間は分離の効果は無い(詳細は
     // vault.html冒頭のコメント、CLAUDE.mdの2026-08-27エントリ参照)。
     ("/vault.html", "vault.html", "text/html; charset=utf-8"),
+    // 2026-08-28新設: QRコード確認ログイン(第二要素)のページ。スマホ/
+    // タブレット/WEBカメラ搭載端末で開き、「確認」ボタンを押すだけの
+    // 単体完結ページ。詳細は`auth.rs`の「二段階認証」節参照。
+    ("/qr-confirm.html", "qr-confirm.html", "text/html; charset=utf-8"),
     ("/style.css", "style.css", "text/css; charset=utf-8"),
     ("/app.js", "app.js", "application/javascript; charset=utf-8"),
     ("/auto-update.js", "auto-update.js", "application/javascript; charset=utf-8"),
@@ -414,13 +418,26 @@ async fn db_get_settings(db: Arc<Db>) -> Response {
 /// doc参照)。`login_required`はDB設定(既定false)、`smtp_configured`は
 /// 環境変数の有無から判定する(実際にメール送信が可能かどうかの正直な
 /// 開示)。
+/// 現在有効なログイン方式を返す(2026-08-28新設)。`login_mode`設定が
+/// あればそれを使い、無ければ旧`login_required`真偽値から後方互換で
+/// 導出する(`auth::LOGIN_MODE_SETTING_KEY`のdoc参照)。
+fn login_mode(db: &Db) -> String {
+    if let Ok(Some(m)) = db.get_setting(auth::LOGIN_MODE_SETTING_KEY) {
+        if auth::is_valid_login_mode(&m) {
+            return m;
+        }
+    }
+    let legacy = db.get_setting(auth::LOGIN_REQUIRED_SETTING_KEY).ok().flatten().map(|v| v == "true").unwrap_or(false);
+    if legacy { "otp".to_string() } else { "none".to_string() }
+}
+
 async fn auth_config(db: Arc<Db>) -> Response {
-    let login_required =
-        db.get_setting(auth::LOGIN_REQUIRED_SETTING_KEY).ok().flatten().map(|v| v == "true").unwrap_or(false);
+    let mode = login_mode(&db);
     rs_json_response(
         StatusCode::OK,
         &serde_json::json!({
-            "login_required": login_required,
+            "login_mode": mode,
+            "login_required": mode != "none",
             "smtp_configured": auth::is_smtp_configured(),
             "sms_configured": auth::is_sms_configured(),
             "webotp_domain_configured": auth::is_webotp_domain_configured(),
@@ -430,7 +447,12 @@ async fn auth_config(db: Arc<Db>) -> Response {
 
 #[derive(serde::Deserialize)]
 struct SetAuthConfigRequest {
-    login_required: bool,
+    /// 新方式(2026-08-28新設): `"none"`/`"otp"`/`"qr"`/`"otp_qr"`のいずれか。
+    #[serde(default)]
+    login_mode: Option<String>,
+    /// 旧方式との後方互換用(`login_mode`未指定時のみ参照、`true`→`"otp"`)。
+    #[serde(default)]
+    login_required: Option<bool>,
 }
 
 async fn auth_set_config(req: Request, db: Arc<Db>) -> Response {
@@ -438,10 +460,28 @@ async fn auth_set_config(req: Request, db: Arc<Db>) -> Response {
         Ok(v) => v,
         Err(resp) => return resp,
     };
-    match db.set_setting(auth::LOGIN_REQUIRED_SETTING_KEY, if body.login_required { "true" } else { "false" }) {
-        Ok(()) => rs_json_response(StatusCode::OK, &serde_json::json!({"ok": true, "login_required": body.login_required})),
-        Err(e) => rs_json_response(StatusCode::INTERNAL_SERVER_ERROR, &serde_json::json!({"error": e.to_string()})),
+    let mode = match (&body.login_mode, body.login_required) {
+        (Some(m), _) => {
+            if !auth::is_valid_login_mode(m) {
+                return rs_json_response(
+                    StatusCode::BAD_REQUEST,
+                    &serde_json::json!({"error": "login_mode must be one of: none, otp, qr, otp_qr"}),
+                );
+            }
+            m.clone()
+        }
+        (None, Some(true)) => "otp".to_string(),
+        (None, Some(false)) => "none".to_string(),
+        (None, None) => {
+            return rs_json_response(StatusCode::BAD_REQUEST, &serde_json::json!({"error": "login_mode or login_required is required"}))
+        }
+    };
+    if let Err(e) = db.set_setting(auth::LOGIN_MODE_SETTING_KEY, &mode) {
+        return rs_json_response(StatusCode::INTERNAL_SERVER_ERROR, &serde_json::json!({"error": e.to_string()}));
     }
+    // 旧クライアント/旧設定読み取りとの整合のため、真偽値も併せて更新する。
+    let _ = db.set_setting(auth::LOGIN_REQUIRED_SETTING_KEY, if mode != "none" { "true" } else { "false" });
+    rs_json_response(StatusCode::OK, &serde_json::json!({"ok": true, "login_mode": mode, "login_required": mode != "none"}))
 }
 
 #[derive(serde::Deserialize)]
@@ -509,32 +549,145 @@ struct VerifyOtpRequest {
     code: String,
 }
 
-async fn auth_verify_otp(req: Request) -> Response {
+fn request_host_scheme(req: &Request) -> (String, &'static str) {
+    let host = req.headers().get("host").and_then(|v| v.to_str().ok()).unwrap_or("localhost").to_string();
+    let scheme =
+        if req.headers().get("x-forwarded-proto").and_then(|v| v.to_str().ok()) == Some("https") { "https" } else { "http" };
+    (host, scheme)
+}
+
+/// QR確認セッションの開始レスポンスを組み立てる共通ヘルパー
+/// (2026-08-28新設、`otp_qr`モード・`qr`モードの両方から使う)。
+fn qr_login_start_response(host: &str, scheme: &str, qr_login_id: String) -> Response {
+    let confirm_url = format!("{scheme}://{host}/qr-confirm.html?id={qr_login_id}");
+    match totp::text_qr_svg(&confirm_url) {
+        Ok(qr_svg) => rs_json_response(
+            StatusCode::OK,
+            &serde_json::json!({
+                "ok": true,
+                "second_factor_required": true,
+                "qr_login_id": qr_login_id,
+                "qr_svg": qr_svg,
+                "confirm_url": confirm_url,
+            }),
+        ),
+        Err(e) => {
+            rs_json_response(StatusCode::INTERNAL_SERVER_ERROR, &serde_json::json!({"error": format!("failed to generate QR code: {e}")}))
+        }
+    }
+}
+
+/// `POST /v1/auth/verify-otp`(2026-08-28変更: ログイン方式選択に対応)。
+/// `login_mode`設定に応じて挙動が変わる: `"otp"`なら従来通りコード検証
+/// 成功時に即セッションCookieを発行、`"otp_qr"`ならコード検証は第一要素に
+/// 過ぎず、続けてQRコード確認(第二要素)が必要——QR確認用のセッションID・
+/// QRコードSVG・確認用URLを返す(このリクエストのHostヘッダーから絶対
+/// URLを組み立てる、スマホ/タブレット/別端末で開ける必要があるため相対
+/// パスでは不十分)。
+async fn auth_verify_otp(req: Request, db: Arc<Db>) -> Response {
+    let (host, scheme) = request_host_scheme(&req);
+    let mode = login_mode(&db);
     let body: VerifyOtpRequest = match read_rs_json_body(req).await {
         Ok(v) => v,
         Err(resp) => return resp,
     };
-    match auth::verify_otp(&body.email, &body.code) {
+    if mode == "otp_qr" {
+        match auth::verify_otp_start_2fa(&body.email, &body.code) {
+            Ok(qr_login_id) => qr_login_start_response(&host, scheme, qr_login_id),
+            Err(e) => rs_json_response(StatusCode::UNAUTHORIZED, &serde_json::json!({"error": format!("{e:#}")})),
+        }
+    } else {
+        // "otp"(単体)・"none"/"qr"(本来この経路は使われないが、呼ばれても
+        // 安全側に倒す)いずれも、コード検証成功で即セッション発行する
+        // 従来通りの単一要素ログイン。
+        match auth::verify_otp(&body.email, &body.code) {
+            Ok(token) => {
+                let resp_body = rust_json::to_vec_strict(&serde_json::json!({"ok": true})).unwrap_or_else(|_| b"{}".to_vec());
+                hyper::Response::builder()
+                    .status(StatusCode::OK)
+                    .header("content-type", "application/json")
+                    .header("set-cookie", format!("{}={token}; HttpOnly; SameSite=Lax; Path=/; Max-Age=86400", auth::SESSION_COOKIE_NAME))
+                    .body(open_runo_poem_compat::hyper_compat::fixed_body(bytes::Bytes::from(resp_body)))
+                    .expect("building a response from a fixed set of valid headers cannot fail")
+            }
+            Err(e) => rs_json_response(StatusCode::UNAUTHORIZED, &serde_json::json!({"error": format!("{e:#}")})),
+        }
+    }
+}
+
+/// `POST /v1/auth/qr-login/start`(2026-08-28新設): `"qr"`モード
+/// (QR撮影のみ、事前のメール確認なし)専用の開始エンドポイント。
+async fn auth_qr_login_start(req: Request) -> Response {
+    let (host, scheme) = request_host_scheme(&req);
+    let qr_login_id = auth::start_qr_only_login();
+    qr_login_start_response(&host, scheme, qr_login_id)
+}
+
+#[derive(serde::Deserialize)]
+struct QrLoginIdRequest {
+    id: String,
+}
+
+/// `POST /v1/auth/qr-login/confirm`(2026-08-28新設): QR確認ページ
+/// (`qr-confirm.html`、スマホ/タブレット/WEBカメラ搭載端末で開く)から
+/// 呼ばれる。このQRセッションを「確認済み」にするだけで、まだ
+/// セッションCookieは発行しない(この端末とプライマリ端末が別物のため、
+/// Cookieはプライマリ端末側の`qr-login/finish`で発行する設計)。
+async fn auth_qr_login_confirm(req: Request) -> Response {
+    let body: QrLoginIdRequest = match read_rs_json_body(req).await {
+        Ok(v) => v,
+        Err(resp) => return resp,
+    };
+    match auth::qr_login_confirm(&body.id) {
+        Ok(()) => rs_json_response(StatusCode::OK, &serde_json::json!({"ok": true})),
+        Err(e) => rs_json_response(StatusCode::BAD_REQUEST, &serde_json::json!({"error": format!("{e:#}")})),
+    }
+}
+
+/// `GET /v1/auth/qr-login/status?id=`(2026-08-28新設): プライマリ端末が
+/// 数秒おきにポーリングし、別端末での確認が済んだかを見る。
+async fn auth_qr_login_status(req: Request) -> Response {
+    let id = query_param(&req, "id").unwrap_or_default();
+    if id.is_empty() {
+        return rs_json_response(StatusCode::BAD_REQUEST, &serde_json::json!({"error": "missing id"}));
+    }
+    match auth::qr_login_status(&id) {
+        Some(confirmed) => rs_json_response(StatusCode::OK, &serde_json::json!({"confirmed": confirmed})),
+        None => rs_json_response(StatusCode::NOT_FOUND, &serde_json::json!({"error": "this QR login link is invalid or has expired"})),
+    }
+}
+
+/// `POST /v1/auth/qr-login/finish`(2026-08-28新設): 別端末での確認が
+/// 済んだことをポーリングで確認したプライマリ端末が呼ぶ。ここで初めて
+/// 実際のセッションCookieを発行する。
+async fn auth_qr_login_finish(req: Request) -> Response {
+    let body: QrLoginIdRequest = match read_rs_json_body(req).await {
+        Ok(v) => v,
+        Err(resp) => return resp,
+    };
+    match auth::qr_login_finish(&body.id) {
         Ok(token) => {
-            let body = rust_json::to_vec_strict(&serde_json::json!({"ok": true})).unwrap_or_else(|_| b"{}".to_vec());
-            // HttpOnly+SameSite=Laxでクッキーを発行する(XSS経由の窃取を
-            // 難しくする、CSRF対策としてはSameSite=Laxが最低限の防御)。
-            // `Secure`属性は付けていない(このアプリは既定で平文HTTPの
-            // localhost/LAN向けであり、TLS未使用環境でSecureを付けると
-            // クッキーが一切送信されなくなるため——TLS有効時
-            // 〈OPEN_ENGLISH_TLS_ENABLED〉に限定してSecureを付ける改善は
-            // 次回以降の課題)。
+            let resp_body = rust_json::to_vec_strict(&serde_json::json!({"ok": true})).unwrap_or_else(|_| b"{}".to_vec());
             hyper::Response::builder()
                 .status(StatusCode::OK)
                 .header("content-type", "application/json")
-                .header(
-                    "set-cookie",
-                    format!("{}={token}; HttpOnly; SameSite=Lax; Path=/; Max-Age=86400", auth::SESSION_COOKIE_NAME),
-                )
-                .body(open_runo_poem_compat::hyper_compat::fixed_body(bytes::Bytes::from(body)))
+                .header("set-cookie", format!("{}={token}; HttpOnly; SameSite=Lax; Path=/; Max-Age=86400", auth::SESSION_COOKIE_NAME))
+                .body(open_runo_poem_compat::hyper_compat::fixed_body(bytes::Bytes::from(resp_body)))
                 .expect("building a response from a fixed set of valid headers cannot fail")
         }
-        Err(e) => rs_json_response(StatusCode::UNAUTHORIZED, &serde_json::json!({"error": format!("{e:#}")})),
+        Err(e) => rs_json_response(StatusCode::BAD_REQUEST, &serde_json::json!({"error": format!("{e:#}")})),
+    }
+}
+
+/// `GET /v1/auth/qr-login/whoami?id=`(2026-08-28新設): QR確認ページが
+/// 「どのアカウントのログインを確認しようとしているか」を、マスク済み
+/// 識別子(メールアドレス/電話番号の一部を伏せた文字列)で表示するため
+/// に使う。
+async fn auth_qr_login_whoami(req: Request) -> Response {
+    let id = query_param(&req, "id").unwrap_or_default();
+    match auth::qr_login_masked_identifier(&id) {
+        Some(masked) => rs_json_response(StatusCode::OK, &serde_json::json!({"ok": true, "masked_identifier": masked})),
+        None => rs_json_response(StatusCode::NOT_FOUND, &serde_json::json!({"ok": false, "error": "this QR login link is invalid or has expired"})),
     }
 }
 
@@ -614,9 +767,7 @@ async fn auth_logout(req: Request) -> Response {
 /// **正直な開示**: 現時点で実際にこのゲートを適用しているのは
 /// `/v1/db/*`(会話履歴・設定)のみ(auth.rsモジュールdoc参照)。
 async fn require_session(req: &Request, db: &Arc<Db>) -> Result<(), Response> {
-    let login_required =
-        db.get_setting(auth::LOGIN_REQUIRED_SETTING_KEY).ok().flatten().map(|v| v == "true").unwrap_or(false);
-    if !login_required {
+    if login_mode(db) == "none" {
         return Ok(());
     }
     let cookie_header = req.headers().get("cookie").and_then(|v| v.to_str().ok());
@@ -1949,7 +2100,19 @@ async fn main() {
         );
         app = app.at("/v1/auth/request-otp", post(handler_fn(move |req, _p| async move { auth_request_otp(req).await })));
         app = app.at("/v1/auth/request-sms-otp", post(handler_fn(move |req, _p| async move { auth_request_sms_otp(req).await })));
-        app = app.at("/v1/auth/verify-otp", post(handler_fn(move |req, _p| async move { auth_verify_otp(req).await })));
+        let db_for_verify_otp = Arc::clone(&db);
+        app = app.at(
+            "/v1/auth/verify-otp",
+            post(handler_fn(move |req, _p| {
+                let db = Arc::clone(&db_for_verify_otp);
+                async move { auth_verify_otp(req, db).await }
+            })),
+        );
+        app = app.at("/v1/auth/qr-login/start", post(handler_fn(move |req, _p| async move { auth_qr_login_start(req).await })));
+        app = app.at("/v1/auth/qr-login/confirm", post(handler_fn(move |req, _p| async move { auth_qr_login_confirm(req).await })));
+        app = app.at("/v1/auth/qr-login/status", get(handler_fn(move |req, _p| async move { auth_qr_login_status(req).await })));
+        app = app.at("/v1/auth/qr-login/finish", post(handler_fn(move |req, _p| async move { auth_qr_login_finish(req).await })));
+        app = app.at("/v1/auth/qr-login/whoami", get(handler_fn(move |req, _p| async move { auth_qr_login_whoami(req).await })));
         app = app.at("/v1/auth/session", get(handler_fn(move |req, _p| async move { auth_session(req).await })));
         app = app.at("/v1/auth/logout", post(handler_fn(move |req, _p| async move { auth_logout(req).await })));
         app = app.at(
