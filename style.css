@@ -385,9 +385,18 @@ body {
   inset: 0;
   background: rgba(20, 14, 24, 0.92);
   display: flex;
-  align-items: center;
+  align-items: flex-start;
   justify-content: center;
   z-index: 9999;
+  /* 2026-08-27修正(ユーザー報告「文字の上が消えて見えないBUG」):
+     ボックスの中身(メール2件・携帯電話・QR案内等)が増えて縦に長く
+     なった結果、align-items:centerで垂直中央寄せしていたボックスの
+     上端がビューポート外(y<0)へはみ出し、スクロールする手段も
+     無かったため上部が事実上見えなくなっていた。align-items:
+     flex-start+この要素自体にoverflow-y:autoを与えて、縦に長い
+     場合は画面内でスクロールできるようにした。 */
+  overflow-y: auto;
+  padding: 24px 0;
 }
 .login-gate.hidden {
   display: none;
@@ -400,6 +409,7 @@ body {
   max-width: 420px;
   width: 90%;
   box-shadow: 0 8px 32px rgba(0, 0, 0, 0.5);
+  margin: auto;
 }
 .login-gate-box h2 {
   margin-top: 0;

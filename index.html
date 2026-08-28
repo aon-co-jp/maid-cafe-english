@@ -49,6 +49,10 @@
         Email 2 (optional, backup) / メールアドレス2(任意、予備)
         <input type="email" id="login-email2" autocomplete="email" placeholder="backup@example.com" />
       </label>
+      <label class="settings-field">
+        Phone number (optional, for QR login) / 携帯電話番号(任意、QRログイン用)
+        <input type="tel" id="login-totp-phone-label" autocomplete="tel" placeholder="090-xxxx-xxxx" />
+      </label>
       <button type="button" id="login-send-code-btn" class="setup-btn">Send code / コードを送信</button>
       <div id="login-code-section" class="hidden">
         <label class="settings-field">
@@ -63,38 +67,30 @@
       </div>
       <p id="login-status" class="setup-note"></p>
 
-      <hr />
-      <p class="setup-honest">
-        <strong>📱 New (2026-08-27): log in with a phone/authenticator app QR code instead.</strong>
-        This is a third way in — email 1, email 2, or this QR/authenticator-app code all work; you
-        don't need all three, just one. <strong>Honest disclosure:</strong> the "phone number" field
-        below is just a label to help you remember which device you set this up on — no SMS is
-        sent to it. The actual 6-digit codes come from a QR code scanned into an authenticator app
-        (Google Authenticator, Authy, etc.), the same way as most other services' "authenticator
-        app" 2FA.<br /><br />
-        <strong>📱 新設(2026-08-27): 携帯電話でQRコードを撮影する方式でもログインできます。</strong>
-        これは第3の入口です——メール1・メール2・このQR/認証アプリコードのいずれか1つで
-        ログインでき、3つとも揃える必要はありません。<strong>正直な開示:</strong>下の「携帯電話
-        番号」欄は、どの端末でこれを設定したか思い出すためのラベルに過ぎません——SMSは送信され
-        ません。実際の6桁コードは、QRコードを認証アプリ(Google Authenticator・Authy等)へ
-        撮影・登録することで生成されます(他の多くのサービスの「認証アプリ」型2FAと同じ仕組み)。
-      </p>
-      <label class="settings-field">
-        Email (to associate this QR code with) / メールアドレス(このQRコードを紐付ける先)
-        <input type="email" id="login-totp-email" autocomplete="email" placeholder="you@example.com" />
-      </label>
-      <label class="settings-field">
-        Phone number (label only, no SMS sent) / 携帯電話番号(ラベルのみ、SMS送信なし)
-        <input type="tel" id="login-totp-phone-label" autocomplete="tel" placeholder="090-xxxx-xxxx" />
-      </label>
-      <button type="button" id="login-totp-setup-btn" class="setup-btn">📷 Show QR code / QRコードを表示</button>
-      <div id="login-totp-qr-container" style="margin-top:8px;"></div>
-      <label class="settings-field">
-        Code from your authenticator app / 認証アプリのコード
-        <input type="text" id="login-totp-code" autocomplete="one-time-code" placeholder="123456" maxlength="6" />
-      </label>
-      <button type="button" id="login-totp-verify-btn" class="setup-btn">🔐 Log in with authenticator code / 認証アプリのコードでログイン</button>
-      <p id="login-totp-status" class="setup-note"></p>
+      <div id="login-totp-section" class="hidden">
+        <hr />
+        <p class="setup-honest">
+          Once a phone number is entered above, you can log in by scanning a QR code with your
+          phone or tablet instead of waiting for an email code — any one of email 1, email 2, or
+          this QR code works to log in. <strong>Honest disclosure:</strong> no SMS is sent to the
+          phone number; it is only a label. The QR code is scanned into an authenticator app
+          (Google Authenticator, Authy, etc.), the same as most other services' "authenticator
+          app" 2FA. /
+          携帯電話番号を上に入力すると、メールのコードを待つ代わりに、携帯電話やタブレットで
+          QRコードを撮影してログインできます——メール1・メール2・このQRコードのいずれか1つで
+          ログイン可能です。<strong>正直な開示:</strong>この携帯電話番号にSMSは送信されません
+          (ラベルとしてのみ使用)。QRコードは認証アプリ(Google Authenticator・Authy等)へ
+          撮影・登録します(他の多くのサービスの「認証アプリ」型2FAと同じ仕組みです)。
+        </p>
+        <button type="button" id="login-totp-setup-btn" class="setup-btn">📷 Show QR code / QRコードを表示</button>
+        <div id="login-totp-qr-container" style="margin-top:8px;"></div>
+        <label class="settings-field">
+          Code from your authenticator app / 認証アプリのコード
+          <input type="text" id="login-totp-code" autocomplete="one-time-code" placeholder="123456" maxlength="6" />
+        </label>
+        <button type="button" id="login-totp-verify-btn" class="setup-btn">🔐 Log in with authenticator code / 認証アプリのコードでログイン</button>
+        <p id="login-totp-status" class="setup-note"></p>
+      </div>
     </div>
   </div>
   <!-- 初回案内(2026-08-26新設): ログイン保護を導入するかどうかを日英

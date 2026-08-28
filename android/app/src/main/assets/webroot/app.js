@@ -504,20 +504,38 @@ if (loginVerifyBtn) {
   });
 }
 
-// 2026-08-27新設: 携帯電話でQRコードを撮影する方式(認証アプリ、TOTP)での
-// ログイン(既存のemail1/email2ログインの「もう1つの入口」、いずれか1つで
-// ログイン完了する設計——3つ全部の入力を要求するものではない)。
-const loginTotpEmailEl = document.getElementById("login-totp-email");
+// 2026-08-27新設、同日中に再構成: 携帯電話でQRコードを撮影する方式
+// (認証アプリ、TOTP)でのログイン(既存のemail1/email2ログインの
+// 「もう1つの入口」、いずれか1つでログイン完了する設計——3つ全部の
+// 入力を要求するものではない)。
+// **再構成の経緯(ユーザー報告への対応)**: 当初は専用のメール入力欄
+// (`login-totp-email`)を別に持っていたが、ユーザー指示「二つのe-mail
+// アドレス入力欄に携帯電話番号入力欄も並べて」を受け、携帯電話番号欄を
+// メール1・メール2と同じ並びへ移動し、専用メール欄は廃止して既存の
+// メール1(`loginEmailEl`)の値をそのまま紐付け先として使うよう変更した
+// (利用者がメールを3回入力させられる手間を無くすため)。またQR
+// ログイン欄自体も、携帯電話番号が入力されて初めて意味を持つため、
+// 空欄のうちは非表示にし、入力されたら表示する設計に変更した。
 const loginTotpPhoneLabelEl = document.getElementById("login-totp-phone-label");
+const loginTotpSection = document.getElementById("login-totp-section");
 const loginTotpSetupBtn = document.getElementById("login-totp-setup-btn");
 const loginTotpQrContainer = document.getElementById("login-totp-qr-container");
 const loginTotpCodeEl = document.getElementById("login-totp-code");
 const loginTotpVerifyBtn = document.getElementById("login-totp-verify-btn");
 const loginTotpStatusEl = document.getElementById("login-totp-status");
 
+function refreshLoginTotpSectionVisibility() {
+  if (!loginTotpSection || !loginTotpPhoneLabelEl) return;
+  loginTotpSection.classList.toggle("hidden", loginTotpPhoneLabelEl.value.trim() === "");
+}
+if (loginTotpPhoneLabelEl) {
+  refreshLoginTotpSectionVisibility();
+  loginTotpPhoneLabelEl.addEventListener("input", refreshLoginTotpSectionVisibility);
+}
+
 if (loginTotpSetupBtn) {
   loginTotpSetupBtn.addEventListener("click", async () => {
-    const email = (loginTotpEmailEl?.value || "").trim();
+    const email = (loginEmailEl?.value || "").trim();
     if (!email) {
       if (loginTotpStatusEl) loginTotpStatusEl.textContent = "Please enter your email / メールアドレスを入力してください";
       return;
@@ -546,7 +564,7 @@ if (loginTotpSetupBtn) {
 
 if (loginTotpVerifyBtn) {
   loginTotpVerifyBtn.addEventListener("click", async () => {
-    const email = (loginTotpEmailEl?.value || "").trim();
+    const email = (loginEmailEl?.value || "").trim();
     const code = (loginTotpCodeEl?.value || "").trim();
     if (!email || !code) {
       if (loginTotpStatusEl) loginTotpStatusEl.textContent = "Email and code are both required / メールアドレスとコードの両方が必要です";
