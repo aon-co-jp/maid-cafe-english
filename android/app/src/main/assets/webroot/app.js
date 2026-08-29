@@ -3198,6 +3198,14 @@ const RELIGION_HISTORY_TEXTS = {
     "are all contested. I'd present it as \"some scholars argue this\", not as " +
     "settled fact, and I'd avoid sweeping claims about a single shared origin " +
     "behind all these religions.\n\n" +
+    "5) A cultural and tourism note.\n" +
+    "Iran was long known internationally as \"Persia\"; the government asked " +
+    "foreign countries to use the name \"Iran\" in official international " +
+    "usage starting in 1935 (the name \"Iran\" itself is an old endonym that " +
+    "had long been used domestically). Modern Iran is home to numerous " +
+    "UNESCO World Heritage sites — Persepolis and the historic city of " +
+    "Isfahan among them — and is widely known for Persian carpets, a " +
+    "handicraft tradition with a history spanning many centuries.\n\n" +
     "If you'd like to go deeper, good things to look up are: pre-Islamic " +
     "Arabia, the Ghassanids and the Christians of Najran, the Sasanian Empire, " +
     "the history of Zoroastrianism, and the academic study of the Qur'an's " +
@@ -3264,6 +3272,13 @@ const RELIGION_HISTORY_TEXTS = {
     "という形でご紹介するにとどめ、確定した事実としては述べません。" +
     "これらの宗教すべての背後に単一の共通起源がある、といった断定的な" +
     "言い方も避けます。\n\n" +
+    "5) 文化・観光についての補足。\n" +
+    "イランは長く国際的に「ペルシャ」の名で知られており、政府が対外的な" +
+    "呼称として「イラン」を用いるよう各国へ求めたのは1935年からです" +
+    "(「イラン」という呼び方自体は、国内では古くから使われてきた自称" +
+    "です)。現代のイランには、ペルセポリスやイスファハーンの歴史地区を" +
+    "はじめ多数のユネスコ世界遺産があり、何世紀もの歴史を持つ手工芸" +
+    "であるペルシャ絨毯でも広く知られています。\n\n" +
     "さらに深く知りたい場合は、「イスラム以前のアラビア」「ガッサーン朝」" +
     "「ナジュラーンのキリスト教徒」「サーサーン朝」「ゾロアスター教の歴史」" +
     "「クルアーン編纂の学術研究」などについて調べてみてください。" +
