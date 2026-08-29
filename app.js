@@ -874,10 +874,52 @@ function playToraSanJingle() {
   }
 }
 
+// メッセージ本文中の特定URLだけをクリック可能な`<a>`要素へ変換する
+// (ユーザー指示「audiocafe.tokyoのURLをクリックできるように」
+// 2026-08-29対応、および同日「AmazonのURLも」への対応で商品URLを
+// 1件追加)。**任意のHTMLを解釈するわけではない**——`innerHTML`は
+// 一切使わず、この正規表現に一致した部分文字列だけを
+// `document.createElement("a")`で安全に置き換える設計(XSS対策として、
+// AI生成テキストや他の外部由来テキストをHTMLとして解釈することは
+// 既存方針〈`appendMessage`が元々`textContent`のみを使う設計〉のまま
+// 維持する)。ホワイトリストは(1)`audiocafe.tokyo`ドメイン全体、
+// (2) HiFiGo MUSEHiFi M3 Ultraの実際のAmazon商品ページ(ASIN
+// `B0H14VXGCC`固定、ユーザー提供のアメブロ記事内リンクから追跡用の
+// 検索パラメータ〈`ref=sr_1_1_sspa`等〉を除いた正規URLへ整形済み)の
+// 2件のみ——広く`amazon.co.jp`全体を許可するとAI生成テキストが将来
+// 別の(未検証の)Amazon URLを生成した場合にもリンク化してしまうため、
+// 意図的に個別URL単位のホワイトリストにしている。他の紹介リンクを
+// クリック可能にしたい場合はこのパターンへ追加すればよい。
+const AUDIOCAFE_LINK_PATTERN =
+  /https:\/\/audiocafe\.tokyo(?:\/[^\s)]*)?|https:\/\/www\.amazon\.co\.jp\/dp\/B0H14VXGCC\/?|https:\/\/ameblo\.jp\/www-aon\/entry-12977122655\.html/g;
+
+/** テキストを、既知ドメインのURLだけ`<a>`化した上で`container`へ描画する。 */
+function renderMessageBody(container, text) {
+  container.textContent = "";
+  AUDIOCAFE_LINK_PATTERN.lastIndex = 0;
+  let lastIndex = 0;
+  let match;
+  while ((match = AUDIOCAFE_LINK_PATTERN.exec(text)) !== null) {
+    if (match.index > lastIndex) {
+      container.appendChild(document.createTextNode(text.slice(lastIndex, match.index)));
+    }
+    const a = document.createElement("a");
+    a.href = match[0];
+    a.textContent = match[0];
+    a.target = "_blank";
+    a.rel = "noopener noreferrer";
+    container.appendChild(a);
+    lastIndex = match.index + match[0].length;
+  }
+  if (lastIndex < text.length) {
+    container.appendChild(document.createTextNode(text.slice(lastIndex)));
+  }
+}
+
 function appendMessage(role, text) {
   const div = document.createElement("div");
   div.className = `msg ${role}`;
-  div.textContent = text;
+  renderMessageBody(div, text);
   div.dataset.role = role;
   // RTL(右書き)対応(2026-08-25追加): アプリ全体のLTRレイアウトは
   // 変えず、このメッセージ吹き出し単体にだけdir="rtl"を設定する。
@@ -901,7 +943,7 @@ function replaceLastMessage(role, text) {
   const nodes = logEl.querySelectorAll(`.msg.${role}`);
   const last = nodes[nodes.length - 1];
   if (last) {
-    last.textContent = text;
+    renderMessageBody(last, text);
     logEl.scrollTop = logEl.scrollHeight;
     return true;
   }
@@ -1454,6 +1496,8 @@ async function advanceTrainingMode(userText) {
   reply += await newsSuffix(userText);
   reply += troubledSuffix(userText);
   reply += nuclearDeterrenceSuffix(userText);
+  reply += audioUsbDacJourneySuffix(userText);
+  reply += audioHeadphoneManiaSuffix(userText);
   reply += egovSuffix(userText);
   appendMessage("trainer", reply);
   speakBilingual(reply);
@@ -1803,6 +1847,8 @@ async function askTrainer(userText) {
   reply += await newsSuffix(userText);
   reply += troubledSuffix(userText);
   reply += nuclearDeterrenceSuffix(userText);
+  reply += audioUsbDacJourneySuffix(userText);
+  reply += audioHeadphoneManiaSuffix(userText);
   reply += egovSuffix(userText);
   return reply;
 }
@@ -2349,6 +2395,359 @@ function nuclearDeterrenceOpinionText() {
 function nuclearDeterrenceSuffix(userText) {
   if (!mentionsNuclearDeterrenceTopic(userText)) return "";
   return nuclearDeterrenceOpinionText();
+}
+
+// AUDIO(オーディオ趣味)の会話ネタ(ユーザー提供、2026-08-29追加)。
+// `nuclearDeterrenceSuffix`等と同じ「キーワード検出→固定文を末尾に
+// 追記」設計だが、政治的テーマではなくユーザー(作者)自身の趣味の
+// ブログ原稿・雑談ネタであるため「一意見であり客観的事実ではない」
+// という断り書きは付けていない——代わりに「ブログ用ネタ・会話練習
+// 用の話題」という位置づけを明記する。第1弾: ¥110のUSB-Type-C to
+// 3.5mmアダプターから本格的な二チャンネルHi-Fiシステムへ発展させる
+// 趣味の話(英語原文のブログ全文+日本語の要約、ユーザー提供)。
+const AUDIO_USB_DAC_KEYWORDS_JA = [
+  "USB-DAC", "USBDAC", "USB DAC", "USB-Type-C to 3.5mm", "USB-C to 3.5mm",
+  "DDC", "GUSTARD", "SMSL", "ヘッドフォンアンプ", "100円ショップ",
+];
+const AUDIO_USB_DAC_KEYWORDS_EN = [
+  "usb-dac", "usb dac", "usb type-c to 3.5", "usb-c to 3.5", "ddc",
+  "gustard", "smsl", "headphone amplifier", "headphone amp",
+];
+
+function mentionsAudioUsbDacTopic(userText) {
+  const lower = userText.toLowerCase();
+  return (
+    AUDIO_USB_DAC_KEYWORDS_JA.some((k) => userText.includes(k)) ||
+    AUDIO_USB_DAC_KEYWORDS_EN.some((k) => lower.includes(k))
+  );
+}
+
+function audioUsbDacJourneyText() {
+  const en =
+    "One of the most interesting things about getting into audio is " +
+    "that you can start with an incredibly inexpensive setup and " +
+    "gradually work your way toward a much more sophisticated system.\n\n" +
+    "For example, you can buy a USB Type-C to 3.5 mm stereo mini-jack " +
+    "adapter at a Japanese 100-yen shop for only ¥110. By connecting " +
+    "this inexpensive adapter to a smartphone or PC, you can use it to " +
+    "listen through a pair of earphones or headphones. Despite its " +
+    "extremely low price, it can provide surprisingly enjoyable sound, " +
+    "making it a fascinating starting point for anyone interested in " +
+    "exploring digital audio.\n\n" +
+    "From there, you can move up to a higher-quality USB DAC/headphone " +
+    "amplifier combination. Many of these units are essentially two " +
+    "devices in one: the DAC converts the digital audio signal from " +
+    "your smartphone or PC into an analog signal, while the built-in " +
+    "headphone amplifier provides the necessary drive for headphones or " +
+    "earphones. If the unit also has a proper variable-volume line " +
+    "output, it can sometimes be used as a preamplifier as well.\n\n" +
+    "This opens up several interesting system configurations. For " +
+    "example, the DAC/headphone amplifier can feed a power amplifier, " +
+    "which then drives a pair of passive loudspeakers. Alternatively, " +
+    "you can connect it directly to an integrated amplifier and use the " +
+    "integrated amplifier to drive your speakers. In other words, a " +
+    "relatively small USB DAC can become the digital front end of a " +
+    "much larger two-channel hi-fi system.\n\n" +
+    "Once you have experienced this kind of setup, it becomes very " +
+    "interesting to compare it with USB Type-C to 4.4 mm balanced " +
+    "solutions, many of which are available from Amazon and specialist " +
+    "earphone and headphone retailers.\n\n" +
+    "The 3.5 mm connection is normally a single-ended connection, " +
+    "whereas 4.4 mm is widely used for balanced headphone output. A " +
+    "properly implemented balanced output can provide greater channel " +
+    "separation and, depending on the amplifier design, substantially " +
+    "more voltage swing and power than a conventional single-ended " +
+    "output. However, it is important to understand that the 4.4 mm " +
+    "connector itself does not magically improve sound quality. What " +
+    "really matters is the design of the DAC, the headphone amplifier, " +
+    "the output stage, the power supply, the circuit topology, and how " +
+    "well the amplifier matches the headphones or earphones being " +
+    "driven.\n\n" +
+    "This makes a direct comparison particularly interesting. You can " +
+    "listen to the same headphones or earphones through a basic 3.5 mm " +
+    "USB-C adapter and then compare them with a higher-end 4.4 mm " +
+    "balanced DAC/headphone amplifier. At that point, you can start " +
+    "listening critically for differences in resolution, transparency, " +
+    "dynamics, soundstage, imaging, channel separation, bass control, " +
+    "treble extension, micro-detail, and overall tonal balance.\n\n" +
+    "And once you start going down this rabbit hole, there is an even " +
+    "more ambitious level of digital audio to explore.\n\n" +
+    "For example, a system based around a Gustard U18 DDC, an SMSL VMV " +
+    "D3R DAC, and a dedicated headphone amplifier can form a very " +
+    "serious digital front end. Instead of using the headphone " +
+    "amplifier as the final stage, the DAC's analog output can also be " +
+    "connected to a preamplifier, power amplifier, or high-quality " +
+    "integrated amplifier and then used to drive a conventional " +
+    "loudspeaker system.\n\n" +
+    "A DDC, or digital-to-digital converter, occupies a different role " +
+    "from a DAC. Rather than converting digital audio into analog, it " +
+    "processes and reformats the digital signal before it reaches the " +
+    "DAC. Depending on the system, this can involve different digital " +
+    "inputs and outputs, clocking arrangements, and approaches to " +
+    "managing the digital signal path. The DAC then performs the actual " +
+    "digital-to-analog conversion, after which the analog output stage " +
+    "and amplifier determine how that signal is ultimately delivered to " +
+    "the headphones or loudspeakers.\n\n" +
+    "This is where the hobby becomes particularly fascinating for " +
+    "serious audiophiles. Instead of simply asking whether one " +
+    "headphone sounds better than another, you can begin evaluating the " +
+    "entire signal chain: the source device, USB interface, DDC, DAC " +
+    "architecture, clocking, analog output stage, preamplification, " +
+    "power amplification, and finally the headphones or loudspeakers " +
+    "themselves.\n\n" +
+    "There are many audiophiles and enthusiasts online who have spent " +
+    "years experimenting with systems of this kind, and high-end " +
+    "combinations such as these receive a great deal of attention and " +
+    "positive feedback from dedicated audio enthusiasts.\n\n" +
+    "Personally, I think one of the most enjoyable aspects of this " +
+    "hobby is the ability to start with something as simple as a ¥110 " +
+    "USB Type-C to 3.5 mm adapter and gradually work your way upward. " +
+    "You can begin with a basic dongle, move to a dedicated USB DAC and " +
+    "headphone amplifier, experiment with 4.4 mm balanced output, and " +
+    "eventually build a complete two-channel hi-fi system around a " +
+    "dedicated DDC, DAC, preamplifier, power amplifier, and " +
+    "loudspeakers.\n\n" +
+    "The fascinating part is not necessarily how much money you spend, " +
+    "but how much you can learn by comparing each stage of the signal " +
+    "chain and listening carefully to what actually changes. That " +
+    "journey—from a ¥110 adapter all the way to a serious high-end " +
+    "digital front end—is what makes the world of audio so endlessly " +
+    "interesting.";
+  const ja =
+    "100円ショップで、110円で販売されております、USB-Type-C to 3.5mm " +
+    "STEREO mini JackをスマホやPCに接続してイヤフォンやヘッドフォンや" +
+    "これとは違って高級品のUSB-DAC＋ヘッドフォンアンプのハイブリッドで" +
+    "音量ボリュームの付いているものならプリアンプとしても機能致します" +
+    "ので、パワーアンプと接続したり、もしくは、プリメインアンプと更に" +
+    "スピーカーを接続して、そこそこ良い音を楽しめたら、アマゾンや" +
+    "イヤフォン専門SHOPなどで販売されております、USB-Type-C to 4.4mm" +
+    "バランスのイヤフォンやヘッドフォンの音質との違いを確かめたり、" +
+    "もっと高級な、Gustard　DDC　U18＋SMSL　D3R（D2Rの後継機種）＋" +
+    "ヘッドフォンアンプもしくは、プリメインアンプなども高評価で、" +
+    "マニアでファンの方もネット上で大勢いらっしゃる様で御座います。";
+  return (
+    "\n\n🎧 [Audio hobby topic / オーディオ趣味の会話ネタ — テーマ: ブログ]\n\n" +
+    en + "\n\n---\n\n" + ja
+  );
+}
+
+// オーディオ好きの方向けに、作者のホームページ(audiocafe.tokyo)を
+// クリック可能なリンク付きで紹介する(ユーザー指示、2026-08-29追加)。
+// URLをクリック可能にするため`appendMessage`/`replaceLastMessage`側に
+// 限定的なリンク化(`AUDIOCAFE_LINK_PATTERN`、下記参照)を実装している
+// ——任意のHTMLを許可するのではなく、この特定ドメインのURL文字列だけを
+// 安全な`<a>`要素へ変換する設計(XSSを避けるため`innerHTML`は使わない)。
+function audioHomepagePromoText() {
+  const en =
+    "By the way, if you enjoy this kind of audio talk, you might enjoy " +
+    "my website too: https://audiocafe.tokyo";
+  const ja =
+    "ちなみに、こういうオーディオの話がお好きでしたら、私のホームページ " +
+    "https://audiocafe.tokyo もぜひどうぞ。";
+  return `\n\n🔗 ${en}\n${ja}`;
+}
+
+function audioUsbDacJourneySuffix(userText) {
+  if (!mentionsAudioUsbDacTopic(userText)) return "";
+  return audioUsbDacJourneyText() + audioHomepagePromoText();
+}
+
+// AUDIO(オーディオ趣味)の会話ネタ 第2弾(ユーザー提供、2026-08-29追加):
+// (a) 3.5mm/4.4mm/6.35mmのバランス/アンバランス対応状況のQ&A
+// (ユーザー指示「Blogの作者の原文のまま」——日本語原文を一切書き換え
+// ずにそのまま収録)、(b) FOCAL UTOPIAヘッドフォンの世代ごとの音質の
+// 違い、(c) LUXMAN P-100 CENTENNIALの2台使い・DDC+USB-DACのトレンド。
+// (b)(c)はユーザー指示「AUDIO専門家でマニア風に翻訳して記録して」に
+// 従い、日本語原文(要点を保持しつつGoogle検索結果の断片リンク列挙は
+// 除いた)+audio専門家/マニア風の英語訳を併記する。
+const AUDIO_HEADPHONE_MANIA_KEYWORDS_JA = [
+  "UTOPIA", "ユートピア", "LUXMAN", "ラックスマン", "P-100 CENTENNIAL",
+  "CENTENNIAL", "4.4mm", "6.35mm", "バランス接続", "フォーカル",
+];
+const AUDIO_HEADPHONE_MANIA_KEYWORDS_EN = [
+  "utopia headphone", "luxman", "p-100 centennial", "4.4mm", "6.35mm",
+  "balanced connection", "focal headphone",
+];
+
+function mentionsAudioHeadphoneManiaTopic(userText) {
+  const lower = userText.toLowerCase();
+  return (
+    AUDIO_HEADPHONE_MANIA_KEYWORDS_JA.some((k) => userText.includes(k)) ||
+    AUDIO_HEADPHONE_MANIA_KEYWORDS_EN.some((k) => lower.includes(k))
+  );
+}
+
+function audioBalancedConnectorQnaText() {
+  const q = "3.5 mm 4.4 mm 6.35 mm は、全部バランスとアンバランスの両方あるのですか？";
+  const a =
+    "いいえ、3.5mm、4.4mm、6.35mmの各プラグ・端子は、すべてにバランスと" +
+    "アンバランスの両方があるわけではありません。それぞれの規格で対応" +
+    "状況が異なります。\n\n" +
+    "【各サイズの対応状況】\n" +
+    "3.5mm（ミニプラグ）基本はアンバランスです（3極のTRSが主流）。" +
+    "ただし、ごく一部のポータブル機器や特例として「3.5mm 4極（または" +
+    "2極×2）」を用いたバランス接続規格も存在しますが、一般的ではあり" +
+    "ません。\n" +
+    "4.4mm（5極プラグ）バランス専用（バランス接続用）として普及した" +
+    "規格です。アンバランス接続として使われることは基本的にありません。\n" +
+    "6.35mm（標準プラグ）基本はアンバランスです（3極のTRS、または2極の" +
+    "TS）。プロ用オーディオ機器などで、2つの端子（LとR）を使って疑似的" +
+    "にバランス（TRS×2本）として扱うことはありますが、単体の6.35mm端子" +
+    "自体はアンバランスが基本です。";
+  return (
+    "\n\n🎧 [Audio hobby Q&A / オーディオ趣味の会話ネタ — テーマ: ブログ、" +
+    "Blogの作者の原文のまま]\n\nQ: " + q + "\nA: " + a
+  );
+}
+
+function audioUtopiaAndLuxmanManiaText() {
+  const ja =
+    "【FOCAL UTOPIAヘッドフォンの世代ごとの音質の違い】\n" +
+    "フランスの高級オーディオブランドFocal(フォーカル)のフラグシップ" +
+    "ヘッドホン「UTOPIA(ユートピア)」は、初期型(初代UTOPIA、2016年" +
+    "登場)・中期型(初代の2020年仕様変更後)・最新型(UTOPIA SG、2022年" +
+    "秋〜現在)の3世代に大別されます。初期型は超刺激的で剃刀のような" +
+    "切れ味・強烈なリアリズムが特徴ですが、極限まで軽量化したボイス" +
+    "コイルが災いし、大音量や経年劣化で「片耳が聞こえなくなる」断線が" +
+    "世界中で多発しました。それでも初期型にしか無い麻薬的な音の鮮烈さを" +
+    "求めて、断線リスクや修理費を承知の上で予備の個体まで探し回るマニア" +
+    "が中古市場に大勢いらっしゃいます。最新型のUTOPIA SGは銅とアルミを" +
+    "ブレンドした新ボイスコイルで耐久性を大幅に向上させ、低域の深みも" +
+    "増しましたが、その代わりに初代ほどの刺激・生々しさはやや薄れた、" +
+    "という声もあります。\n\n" +
+    "【LUXMAN P-100 CENTENNIALの2台使い】\n" +
+    "LUXMANの創業100周年記念フラグシップヘッドフォンアンプ「P-100 " +
+    "CENTENNIAL」(メーカー希望小売価格990,000円、実勢価格は約891,000円" +
+    "〜)は、1台でも4チャンネル分のフルバランスアンプ回路を搭載した" +
+    "モンスターマシンですが、2台接続することで合計8チャンネル分の増幅" +
+    "回路を使った「パラレルBTLバランス駆動」が可能になり、左右チャン" +
+    "ネルを完全に物理独立(モノラル2台構成)させることでチャンネル" +
+    "セパレーションが極限まで高まり歪みが激減します。2台で約180万〜" +
+    "200万円という価格になりますが、ヘッドフォン再生の「究極の極地」を" +
+    "目指すオーディオファイルにとっては他に代えがたいロマンとなって" +
+    "います。あわせて、PC→DDC→高性能USB-DAC→ハイエンドアンプ→超" +
+    "高級ヘッドフォンという構成で、ジッター(時間軸のズレ)を徹底的に" +
+    "排除するデスクトップ・オーディオのトレンドも盛り上がっています。";
+  const en =
+    "[Audio expert / mania take — Focal UTOPIA generations & the " +
+    "LUXMAN P-100 CENTENNIAL \"buy two\" phenomenon]\n\n" +
+    "Focal's flagship UTOPIA headphone comes in three broad generations: " +
+    "the original OG UTOPIA (2016), a mid-cycle 2020 revision, and the " +
+    "current UTOPIA SG (2022-present). The OG UTOPIA is famous for a " +
+    "razor-sharp, almost feral top end and a jump-out-of-the-mix sense " +
+    "of realism, but that came at a cost: Focal pushed the voice-coil " +
+    "mass so low for transient speed that a not-insignificant number of " +
+    "units eventually suffered voice-coil breakage and went mono. And " +
+    "yet — this is the part that separates casual listeners from true " +
+    "mania — plenty of collectors will happily pay for a driver rebuild, " +
+    "or even hoard a spare OG pair, because nothing since has quite " +
+    "replicated that razor-edged transient bite. The UTOPIA SG fixed the " +
+    "reliability problem with a new copper/aluminum voice coil and dug " +
+    "up noticeably richer, deeper bass, but a fair number of veteran " +
+    "listeners feel it traded away a sliver of that untamed, live-wire " +
+    "excitement for polish and durability.\n\n" +
+    "On the amplification side, LUXMAN's 100th-anniversary flagship " +
+    "headphone amp, the P-100 CENTENNIAL (list price ¥990,000, street " +
+    "price from roughly ¥891,000), is already a fully-balanced " +
+    "4-channel monster on its own. But run two of them together and you " +
+    "unlock parallel-BTL balanced drive across a combined 8 channels — " +
+    "with each channel running as a fully separate monoblock, channel " +
+    "separation goes through the roof and distortion drops accordingly. " +
+    "Yes, that's roughly ¥1.8-2 million for the pair, but for headphone " +
+    "audiophiles chasing the absolute end-game, that kind of extravagance " +
+    "is treated less as overkill and more as pure romance. It fits a " +
+    "broader trend, too: flagship headphones now routinely cross the " +
+    "¥500,000 mark and demand serious current to drive properly, which " +
+    "is exactly why setups like PC → DDC → high-end USB-DAC → flagship " +
+    "amp → flagship headphone — built specifically to squeeze out every " +
+    "last trace of jitter — have become the hot topic among desktop " +
+    "audio obsessives.";
+  return `\n\n🎧 ${en}\n\n---\n\n${ja}`;
+}
+
+function audioHeadphoneManiaSuffix(userText) {
+  if (!mentionsAudioHeadphoneManiaTopic(userText)) return "";
+  return (
+    audioBalancedConnectorQnaText() +
+    audioUtopiaAndLuxmanManiaText() +
+    audioHomepagePromoText()
+  );
+}
+
+// AUDIO(オーディオ趣味)の会話ネタ 第3弾(ユーザー提供、2026-08-29追加):
+// HiFiGo MUSEHiFi M3 Ultra(ポータブルUSB-DAC＋真空管ヘッドフォンアンプ)
+// を紹介するユーザー自身のブログ記事の話題(英語原文+日本語原文、
+// いずれもユーザー提供)。**正直な開示**: ユーザーからAmazonの実際の
+// 商品URLは提供されていない(「AMAZON URLはこちら」という見出しのみ)
+// ため、推測でURLを作らずAmazon商品名の言及に留めている——実URLを
+// 頂き次第、`AUDIOCAFE_LINK_PATTERN`と同じ方式でホワイトリストへ追加し
+// クリック可能にする想定。
+const AUDIO_TUBE_DAC_KEYWORDS_JA = [
+  "MUSEHiFi", "M3 Ultra", "HiFiGo", "真空管ヘッドフォンアンプ", "真空管DAC",
+];
+const AUDIO_TUBE_DAC_KEYWORDS_EN = [
+  "musehifi", "m3 ultra", "hifigo", "vacuum tube headphone", "tube preamp",
+  "tube dac",
+];
+
+function mentionsAudioTubeDacTopic(userText) {
+  const lower = userText.toLowerCase();
+  return (
+    AUDIO_TUBE_DAC_KEYWORDS_JA.some((k) => userText.includes(k)) ||
+    AUDIO_TUBE_DAC_KEYWORDS_EN.some((k) => lower.includes(k))
+  );
+}
+
+function audioTubeDacPreampText() {
+  const introJa =
+    "ご紹介したいブログ記事の一つが、HiFiGo MUSEHiFi M3 Ultra" +
+    "(ポータブルUSB-DAC＋真空管ヘッドフォンアンプ)です。";
+  const introEn =
+    "One of the products I've written about on my blog is the HiFiGo " +
+    "MUSEHiFi M3 Ultra — a portable USB-DAC + vacuum-tube headphone " +
+    "amplifier.";
+  const en =
+    "It also features a built-in volume control, so you can actually " +
+    "use it as a preamp in your audio system.\n\n" +
+    "For example, with a simple stereo mini-jack-to-RCA adapter, you " +
+    "can connect it directly to a power amplifier or an integrated " +
+    "amplifier, and then drive a pair of speakers through the " +
+    "amplifier.\n\n" +
+    "This means you're not limited to using it on its own—you can also " +
+    "incorporate it into a more traditional hi-fi system and enjoy your " +
+    "music through a proper speaker setup.\n\n" +
+    "For audio enthusiasts, it's a particularly interesting way to " +
+    "experiment with different amplifiers and speakers and explore how " +
+    "the overall sound can change depending on the system you pair it " +
+    "with.";
+  const ja =
+    "音量ボリュームが付いておりますので、ステレオミニジャックからRCA" +
+    "へ変換コネクターも一緒にご購入して御利用になりますと、プリアンプ" +
+    "としても機能致しますので、パワーアンプやプリメインアンプ経由で" +
+    "スピーカーも接続して音楽を楽しむ方法も御座います。";
+  const amazonNoteEn =
+    "You can find it on Amazon Japan here: " +
+    "https://www.amazon.co.jp/dp/B0H14VXGCC";
+  const amazonNoteJa =
+    "Amazon商品ページはこちらです: " +
+    "https://www.amazon.co.jp/dp/B0H14VXGCC";
+  const blogNoteEn =
+    "I wrote about it in more detail on my blog: " +
+    "https://ameblo.jp/www-aon/entry-12977122655.html";
+  const blogNoteJa =
+    "この商品についての詳しいブログ記事はこちらです: " +
+    "https://ameblo.jp/www-aon/entry-12977122655.html";
+  return (
+    "\n\n🎧 " + introEn + "\n" + introJa + "\n\n" +
+    en + "\n\n---\n\n" + ja + "\n\n" +
+    amazonNoteEn + "\n" + amazonNoteJa + "\n\n" +
+    blogNoteEn + "\n" + blogNoteJa
+  );
+}
+
+function audioTubeDacPreampSuffix(userText) {
+  if (!mentionsAudioTubeDacTopic(userText)) return "";
+  return audioTubeDacPreampText() + audioHomepagePromoText();
 }
 
 // 政府の機能性・eガバメントについての議論トピック例(ユーザー指示、
