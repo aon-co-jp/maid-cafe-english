@@ -385,9 +385,31 @@ n-best を融合する**。各エンジンの強みを組み合わせる:
   API と `MediaRecorder` を**並行起動**、`end` で融合(`finalizeVoiceInput`:
   Whisper 候補 + Web Speech n-best を 1 リストにして `refineTranscript`)。
   vendor/model 未配置なら静かに無効化 → Web Speech API 単独(回帰ゼロ)。
-- ⏳ 実機検証待ち: (1) ps1 が実際に HF から取得できるか、
-  (2) transformers.js v3 の ORT ファイル名が想定どおりか、
-  (3) 実マイクでの WebGPU/WebNN/WASM 各段の動作と WER 計測。
+- ✅ **VPS 本番(`https://easy-web.tokyo/open-english/`)へ実配信・実ブラウザ
+  検証済み(2026-08-29)**。デプロイで判明・修正した 3 点:
+  1. **モデル/ランタイム取得は Linux でも動く必要がある**。`server` の
+     `maybe_fetch_whisper_model()` は Windows 専用だった → `installer/unix/
+     fetch-whisper-model.sh`(curl/wget 版)を新設し、非 Windows では
+     `sh` でこれを起動するようにした。VPS で実行し model 9/9 取得。
+  2. **transformers.js の ORT 配布物は `ort-wasm-simd-threaded.jsep.{mjs,wasm}`
+     のみ**(WASM/WebGPU/WebNN を 1 つで賄う JSEP 統合ビルド)。非 jsep 版は
+     jsdelivr で 404。ps1/sh/STATIC_FILES をこの 2 ファイル + `transformers.min.js`
+     の 3 点に修正。
+  3. **リバースプロキシがアプリを `/open-english/` プレフィックス配下で配信**
+     (`strip_prefix=true`)しており、`/vendor/...` `/models/...` を
+     ドメイン直下の絶対パスにするとバックエンドへ転送されず 404。
+     `app.js` が自身の読み込み URL からアプリのベース(`/` or
+     `/open-english/`)を導出し、そこからの相対で `WHISPER_VENDOR_URL` /
+     `localModelPath` / `wasmPaths` を組み立てるよう変更(ローカル/
+     インストーラー版=`/` でも VPS でも正しく解決)。
+  - 実ブラウザ確認: `loadWhisperModule()` が同一オリジンの
+    `/open-english/vendor/transformers.min.js` を dynamic import 成功、
+    `env.localModelPath` = `/open-english/models/`、`numThreads` = 4
+    (`/v1/cpu-runtime` 経由)、`config.json` fetch = 200。以前は 404 で
+    静かに無効化 → Web Speech API のみだったのが、**本番でブラウザ
+    Whisper が実際に engage できる状態になった**。
+- ⏳ 実機検証待ち: 実マイクでの WebGPU/WebNN/WASM 各段の動作と WER 計測
+  (マイクのある環境でユーザーが実施)。
 
 **P2-α = ブラウザ Whisper を先に**。理由:
 - `app.js` だけで完結(C++ ビルド不要・サーバー変更不要・新バックエンド不要)

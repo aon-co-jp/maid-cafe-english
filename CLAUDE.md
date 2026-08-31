@@ -7187,6 +7187,43 @@ feature 無効時は `503` +「rebuild with --features whisper-transcribe」。
 詳細は `aruaru-llm/CLAUDE.md` 2026-08-29 エントリ・
 `docs/SPEECH_RECOGNITION_REDESIGN.md` §P2-β。
 
+**P2-α を VPS 本番(`https://easy-web.tokyo/open-english/`)へ実配信・
+実ブラウザ検証済み(2026-08-29)**。「未着手のまま」だったサーバー
+再ビルド + モデル/ランタイム配信を完了させた。デプロイで判明・修正した
+3 点(いずれもコミット済み・push 済み):
+1. `maybe_fetch_whisper_model()` が Windows 専用だった → `installer/unix/
+   fetch-whisper-model.sh`(curl/wget 版)新設、非 Windows では `sh` で
+   起動。VPS で実行し model 9/9 取得(fp32 encoder 82MB + q4 decoder
+   123MB + q8 フォールバック + config 等)。
+2. transformers.js の ORT 配布物は `ort-wasm-simd-threaded.jsep.{mjs,wasm}`
+   のみ(JSEP 統合ビルド)。非 jsep 版は jsdelivr で 404 → ps1/sh/
+   STATIC_FILES を 3 点(`transformers.min.js` + jsep 2 個)に修正。
+3. VPS のリバースプロキシがアプリを `/open-english/` プレフィックス配下で
+   配信(`strip_prefix=true`)しており、`/vendor/...` `/models/...` を
+   ドメイン直下絶対パスにすると 404 → `app.js` が自身の読み込み URL から
+   アプリのベース(`/` or `/open-english/`)を導出して相対で組み立てる
+   よう変更(`WHISPER_APP_BASE`)。ローカル/インストーラー版でも VPS でも
+   正しく解決。
+実ブラウザ確認: `loadWhisperModule()` が同一オリジンの
+`/open-english/vendor/transformers.min.js` を dynamic import 成功、
+`env.localModelPath` = `/open-english/models/`、`numThreads` = 4、
+`config.json` fetch = 200。**以前は 404 → 静かに無効化 → Web Speech API
+のみだったのが、本番でブラウザ Whisper が実際に engage できる状態に
+なった**(サービス向上)。VPS 側 `open-english.service` 再ビルド・再起動
+済み、`/healthz` 200、`/open-english/` 200 を確認。
+
+- **正直な開示・残る既知バグ(今回のスコープ外)**: 実ブラウザの
+  コンソールに `Mixed Content: ...http://easy-web.tokyo:4600/healthz`
+  (aruaru-llm ヘルスチェックが HTTPS ページから平文 HTTP を叩いて
+  ブロックされる)が出る。これは「VPS には aruaru-llm を置かず利用者の
+  PC で起動する」というアーキテクチャ上、本番では常に未接続表示になる
+  想定挙動の一部で、今回の ASR 変更とは無関係。次に触る機会に
+  `location.protocol` を見て `https`/`localhost` を出し分ける改善余地あり。
+- **VPS の `open-english.service` 定義に SMTP パスワードが平文で環境変数
+  として書かれている**(`systemctl cat` で見える)。今回は変更していない
+  が、資格情報の扱いとしては `EnvironmentFile=` + 権限 600 のファイルへ
+  移すのが望ましい(ユーザー判断)。
+
 **次のプロトタイプ P2-γ**: `app.js` に Web Speech API(即時)+ ブラウザ
 Whisper(P2-α)+ サーバー `POST /v1/transcribe`(到達時)の 3 経路を
 並行実行し、全 n-best を `refineTranscript()` へ集約する完全ハイブリッド
