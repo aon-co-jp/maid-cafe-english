@@ -7212,17 +7212,25 @@ feature 無効時は `503` +「rebuild with --features whisper-transcribe」。
 なった**(サービス向上)。VPS 側 `open-english.service` 再ビルド・再起動
 済み、`/healthz` 200、`/open-english/` 200 を確認。
 
-- **正直な開示・残る既知バグ(今回のスコープ外)**: 実ブラウザの
-  コンソールに `Mixed Content: ...http://easy-web.tokyo:4600/healthz`
-  (aruaru-llm ヘルスチェックが HTTPS ページから平文 HTTP を叩いて
-  ブロックされる)が出る。これは「VPS には aruaru-llm を置かず利用者の
-  PC で起動する」というアーキテクチャ上、本番では常に未接続表示になる
-  想定挙動の一部で、今回の ASR 変更とは無関係。次に触る機会に
-  `location.protocol` を見て `https`/`localhost` を出し分ける改善余地あり。
-- **VPS の `open-english.service` 定義に SMTP パスワードが平文で環境変数
-  として書かれている**(`systemctl cat` で見える)。今回は変更していない
-  が、資格情報の扱いとしては `EnvironmentFile=` + 権限 600 のファイルへ
-  移すのが望ましい(ユーザー判断)。
+- **✅ 対応済み(2026-08-29 続き、ユーザー確認を受けて実施)**:
+  1. **Mixed Content**: `autoDetectAruaruLlmBase()`(app.js)が HTTPS
+     ページから `http://<ページホスト名>:4600/healthz` をプローブして
+     ブラウザにブロックされコンソールへエラーを撒いていた。`location.
+     protocol !== "https:"` のときだけ LAN ヒューリスティック候補
+     (`http://<hostname>:4600`)を試すよう修正(コミット `fcf517f`)。
+     `http://localhost` / `127.0.0.1` は "potentially trustworthy" 例外で
+     HTTPS からも許可されるため、利用者が自分の PC で起動する
+     aruaru-llm への本来の接続経路(localhost 候補)はそのまま。VPS へ
+     `git pull` 反映済み。
+  2. **SMTP 秘密情報**: VPS の `/etc/systemd/system/open-english.service`
+     に 5 つの `Environment=OPEN_ENGLISH_SMTP_*`(パスワード含む)が
+     world-readable な unit ファイルへ平文で書かれていた。**5 変数を
+     `/etc/open-english.env`(mode `600`、root 専用)へ移し、unit は
+     `EnvironmentFile=/etc/open-english.env` を参照するだけ**に変更
+     (`systemctl cat` にパスワードが出なくなった)。`daemon-reload` +
+     `restart` 済み、`/healthz` 200、`POST /v1/auth/request-otp` が
+     `{"sent":true}` を返し SMTP 送信が引き続き機能することを確認。
+     unit のバックアップは `open-english.service.bak-20260831-smtp`。
 
 **次のプロトタイプ P2-γ**: `app.js` に Web Speech API(即時)+ ブラウザ
 Whisper(P2-α)+ サーバー `POST /v1/transcribe`(到達時)の 3 経路を
