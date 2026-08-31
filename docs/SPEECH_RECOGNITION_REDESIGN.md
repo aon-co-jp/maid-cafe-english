@@ -470,8 +470,18 @@ GPU(open-cuda が使うのと同じ物理 GPU 上で whisper.cpp が走る)だ�
   `serverAlts.concat(whisperAlts).concat(speechAlts)`(精度が高い順)を
   1 リストにして `refineTranscript()`(= MPA GER の縮小版)へ渡す。
   `node --check` OK、VPS 配信済み。
-- ⏳ 未実施: **Silero VAD**(ブラウザで ORT-web 実行、無音除去 = 幻覚
-  対策として最も効果が高い)。次段の必須項目。
+- ✅ **無音トリム(第一段の VAD)を実装**(`app.js` `trimSilenceVad()`)。
+  依存ゼロ・ダウンロードゼロの RMS ベース。30ms フレーム/10ms ホップで
+  各フレームの RMS を出し、適応しきい値(ノイズフロア ×3、ピーク ×8%、
+  絶対下限 -40dBFS)で先頭/末尾の無音を刈る(前後 100ms パディング、
+  刈りすぎ防止ガード付き)。`finalizeVoiceInput()` が PCM を1回だけ
+  デコード → `trimSilenceVad()` → **同じ PCM** をブラウザ Whisper と
+  サーバー `/v1/transcribe` の両方へ渡す(`whisperTranscribePcm` /
+  `serverTranscribePcm` へリネーム)。幻覚のいちばん多いトリガー(先頭/
+  末尾の無音)に効く。`node --check` OK。
+- ⏳ 次段: **Silero VAD**(ONNX、`@ricky0123/vad-web` または
+  `onnx-community/silero-vad` を vendor)で内部の無音ギャップ検出・雑音
+  頑健性まで対応。現状の RMS 版はその手前の軽量版。
 - ⏳ 実機検証待ち: 実マイク + 利用者 PC の aruaru-llm(whisper-cli +
   GGML)を用意した 3 経路同時の WER/CER 計測。
 

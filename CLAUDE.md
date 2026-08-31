@@ -7244,8 +7244,16 @@ model_present` も許容)で判定、到達不可なら静かにスキップ(回
 高い順)を 1 リストにして `refineTranscript()` へ。`node --check` OK、
 android webroot 同期、VPS 配信済み。
 
-**次のプロトタイプ P2-γ の残り = Silero VAD**: ブラウザで ORT-web 実行、
-認識前に無音区間を落とす(§3.6 の多言語調査で「幻覚対策として最も効果が
-高い」と一致)。`@ricky0123/vad-web` または `onnx-community/silero-vad` を
-vendor して `blobToPcm16k()` の後段に挟む。あわせて Moonshine(27M、
-日本語版あり)を低遅延経路の候補エンジンに。
+**P2-γ 無音トリム(第一段 VAD)実装済み(2026-08-29 続き)**: `app.js`
+`trimSilenceVad(pcm, sampleRate)` — 依存ゼロ・DLゼロの RMS ベース。
+30ms/10ms フレームで RMS → 適応しきい値(ノイズフロア×3・ピーク×8%・
+下限 -40dBFS)で先頭/末尾の無音を刈る(前後 100ms 残す、刈りすぎ防止)。
+`finalizeVoiceInput()` は PCM を1回デコード→`trimSilenceVad()`→**同じ
+PCM** を `whisperTranscribePcm` / `serverTranscribePcm`(リネーム)へ渡す。
+`node --check` OK、android 同期、VPS 配信予定。
+
+**次のプロトタイプ = Silero VAD(ONNX)**: 内部の無音ギャップ検出・雑音
+頑健性は RMS 版では届かない。`@ricky0123/vad-web` または
+`onnx-community/silero-vad` を vendor(ORT は既に `/vendor/ort/` に
+jsep ビルドあり)。あわせて Moonshine(27M、日本語版あり)を低遅延経路の
+候補エンジンに。

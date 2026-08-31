@@ -4399,22 +4399,63 @@ async function blobToPcm16k(blob) {
   }
 }
 
-/**
- * 録音 Blob を Whisper で書き起こし、候補配列(1件)を返す。
- * 失敗時は空配列(融合側は Web Speech API 候補だけで進む)。
- */
-async function whisperTranscribeBlob(blob, langTag) {
+// ══════════════════════════════════════════════════════════════════════
+// 【2026-08-29 P2-γ】無音トリム(エネルギーベース VAD)。
+// 多言語調査(docs/SPEECH_RECOGNITION_REDESIGN.md §3.6)で「認識前に無音
+// 区間を落とすと幻覚が減り速くもなる」が日中露で一致。本命は Silero VAD
+// (ONNX、内部の無音ギャップ・雑音頑健性まで対応)だが、まずは依存ゼロ・
+// ダウンロードゼロで**先頭/末尾の無音**を刈る RMS ベースの第一段を入れる
+// (幻覚のいちばん多いトリガーが先頭/末尾の無音のため、これだけでも効く)。
+// Silero VAD の vendor 導入は次段。
+function trimSilenceVad(pcm, sampleRate) {
   try {
-    if (!blob || !blob.size) return [];
+    if (!pcm || pcm.length < sampleRate * 0.3) return pcm; // 0.3s 未満はそのまま
+    const frame = Math.round(sampleRate * 0.03); // 30ms
+    const hop = Math.round(sampleRate * 0.01); // 10ms
+    const rms = [];
+    for (let i = 0; i + frame <= pcm.length; i += hop) {
+      let s = 0;
+      for (let j = i; j < i + frame; j++) s += pcm[j] * pcm[j];
+      rms.push(Math.sqrt(s / frame));
+    }
+    if (rms.length < 4) return pcm;
+    const sorted = rms.slice().sort((a, b) => a - b);
+    const noiseFloor = sorted[Math.floor(sorted.length * 0.1)] || 0;
+    const peak = sorted[sorted.length - 1] || 0;
+    // 適応しきい値: ノイズフロアの 3 倍、ただしピークの 8% は下回らない、
+    // 絶対下限 0.01(-40dBFS 相当)。
+    const thresh = Math.max(0.01, noiseFloor * 3, peak * 0.08);
+    let first = rms.findIndex((v) => v >= thresh);
+    let last = -1;
+    for (let k = rms.length - 1; k >= 0; k--) {
+      if (rms[k] >= thresh) { last = k; break; }
+    }
+    if (first < 0 || last < first) return pcm; // 全部無音 → そのまま(Whisper に委ねる)
+    const pad = Math.round(sampleRate * 0.1); // 前後 100ms 残す
+    const start = Math.max(0, first * hop - pad);
+    const end = Math.min(pcm.length, last * hop + frame + pad);
+    if (end - start < sampleRate * 0.2) return pcm; // 刈りすぎ防止(0.2s 未満)
+    if (end - start >= pcm.length * 0.98) return pcm; // ほぼ無変化
+    return pcm.subarray(start, end);
+  } catch (_) {
+    return pcm;
+  }
+}
+
+/**
+ * 16kHz mono f32 PCM を ブラウザ内 Whisper で書き起こし、候補配列(1件)を返す。
+ * 失敗時は空配列(融合側は他エンジンの候補だけで進む)。
+ */
+async function whisperTranscribePcm(pcm, langTag) {
+  try {
+    if (!pcm || !pcm.length) return [];
     const pipe = await getWhisperPipeline();
     if (!pipe) return [];
-    const pcm = await blobToPcm16k(blob);
-    if (!pcm || !pcm.length) return [];
     const langCode = String(langTag || "en").split("-")[0];
     // 2026-08-29 調査反映: 幻覚(無音区間で存在しない語を出す)対策として
     // (1) 直前トークンに条件付けしない、(2) 無音/圧縮率しきい値で温度上げ
-    // 再試行を許可。VAD による無音除去(最も効果が高い)は次段(P2-γ)で
-    // Silero VAD を導入予定。
+    // 再試行を許可。呼び出し前に trimSilenceVad() で先頭/末尾の無音は
+    // 既に刈られている。
     const out = await pipe(pcm, {
       chunk_length_s: 30,
       language: langCode,
@@ -4460,14 +4501,12 @@ function f32ToBase64(f32) {
   return btoa(bin);
 }
 
-async function serverTranscribeBlob(blob, langTag) {
+async function serverTranscribePcm(pcm, langTag) {
   try {
-    if (!blob || !blob.size) return [];
+    if (!pcm || !pcm.length) return [];
     if (!serverWhisperReachable()) return [];
     const base = (typeof apiBaseEl !== "undefined" && apiBaseEl && apiBaseEl.value.trim()) || "";
     if (!base) return [];
-    let pcm = await blobToPcm16k(blob);
-    if (!pcm || !pcm.length) return [];
     if (!(pcm instanceof Float32Array)) pcm = new Float32Array(pcm);
     const langCode = String(langTag || "auto").split("-")[0] || "auto";
     const res = await fetchWithTimeout(
@@ -4539,16 +4578,28 @@ if (SpeechRecognitionImpl) {
     mediaRecorder = null;
 
     micBtn.textContent = "✨ Refining...";
-    // P2-γ: ブラウザ Whisper と サーバー Whisper(到達時)を**並行**実行。
+    // P2-γ: PCM を1回だけデコード → 無音トリム(VAD)→ ブラウザ Whisper と
+    // サーバー Whisper(到達時)へ**同じ PCM**を渡して並行実行。
     let whisperAlts = [];
     let serverAlts = [];
     if (blob) {
-      micBtn.textContent = "🧠 Whisper...";
-      [whisperAlts, serverAlts] = await Promise.all([
-        whisperTranscribeBlob(blob, activeSpeechLang),
-        serverTranscribeBlob(blob, activeSpeechLang),
-      ]);
-      micBtn.textContent = "✨ Refining...";
+      let pcm = null;
+      try {
+        pcm = await blobToPcm16k(blob);
+      } catch (_) {
+        pcm = null;
+      }
+      if (pcm && pcm.length) {
+        pcm = trimSilenceVad(pcm, 16000);
+      }
+      if (pcm && pcm.length) {
+        micBtn.textContent = "🧠 Whisper...";
+        [whisperAlts, serverAlts] = await Promise.all([
+          whisperTranscribePcm(pcm, activeSpeechLang),
+          serverTranscribePcm(pcm, activeSpeechLang),
+        ]);
+        micBtn.textContent = "✨ Refining...";
+      }
     }
 
     // §4.4 融合: 全エンジン(サーバー Whisper・ブラウザ Whisper・
