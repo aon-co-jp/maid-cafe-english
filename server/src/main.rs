@@ -105,6 +105,20 @@ const STATIC_FILES: &[(&str, &str, &str)] = &[
         "models/onnx-community/whisper-base/tokenizer_config.json",
         "application/json; charset=utf-8",
     ),
+    // 2026-08-29 調査反映(§3.6): WebGPU + q8 デコーダは出力が壊れるため
+    // **fp32 エンコーダ + q4 デコーダのハイブリッド**を第一候補にする。
+    // q8 版も後方互換・フォールバック用に配信する(app.js が見つかった
+    // dtype を使う)。
+    (
+        "/models/onnx-community/whisper-base/onnx/encoder_model.onnx",
+        "models/onnx-community/whisper-base/onnx/encoder_model.onnx",
+        "application/octet-stream",
+    ),
+    (
+        "/models/onnx-community/whisper-base/onnx/decoder_model_merged_q4.onnx",
+        "models/onnx-community/whisper-base/onnx/decoder_model_merged_q4.onnx",
+        "application/octet-stream",
+    ),
     (
         "/models/onnx-community/whisper-base/onnx/encoder_model_quantized.onnx",
         "models/onnx-community/whisper-base/onnx/encoder_model_quantized.onnx",
@@ -291,48 +305,70 @@ async fn maybe_launch_aruaru_llm() {
 /// ONNX モデルが無ければ、起動時の自動メンテナンスで取得する
 /// (2026-08-29新設、ユーザー指示「メンテナンスで自動インストールして」への対応)。
 ///
-/// **正直な開示**: 取得処理は `fetch-whisper-model.ps1`(インストーラー同梱)
-/// に委ねる Windows 専用の best-effort 処理。スクリプトが見つからない
-/// (開発中の `cargo run`、または Linux/macOS)場合・既にモデルが存在する
-/// 場合は何もしない。取得に失敗しても open-english は組み込みの
-/// Web Speech API で動き続ける(`app.js` 側が同一オリジンの `/models/...`
-/// が 404 ならフォールバックする設計)。
+/// **正直な開示**: 取得処理は取得スクリプト(`fetch-whisper-model.ps1`
+/// = Windows、`fetch-whisper-model.sh` = Linux/macOS)に委ねる
+/// best-effort 処理。実行ファイルの隣、または `installer/unix/` /
+/// `installer/windows/` にスクリプトを探す。既にモデルが存在する場合・
+/// スクリプトが見つからない場合は何もしない。取得に失敗しても
+/// open-english は組み込みの Web Speech API で動き続ける(`app.js` 側が
+/// 同一オリジンの `/models/...` が 404 ならフォールバックする設計)。
 async fn maybe_fetch_whisper_model() {
     let root = repo_root();
-    let marker = root
+    let onnx_dir = root
         .join("models")
         .join("onnx-community")
         .join("whisper-base")
-        .join("onnx")
-        .join("encoder_model_quantized.onnx");
-    if marker.exists() {
-        return; // 既に取得済み
-    }
-    if !cfg!(target_os = "windows") {
-        println!("whisper-model auto-fetch: skipped (Windows-only; on other OSes add the model under {}/models manually or via transformers.js remote load)", root.display());
-        return;
-    }
-    let script = root.join("fetch-whisper-model.ps1");
-    if !script.exists() {
-        println!("whisper-model auto-fetch: skipped (fetch-whisper-model.ps1 not found next to the server — expected in installed builds)");
+        .join("onnx");
+    // ハイブリッド(fp32 encoder)か q8 版のどちらかが揃っていれば取得済み。
+    if onnx_dir.join("encoder_model.onnx").exists()
+        || onnx_dir.join("encoder_model_quantized.onnx").exists()
+    {
         return;
     }
     let dest = root.join("models");
-    println!("whisper-model auto-fetch: model missing, running fetch-whisper-model.ps1 -> {}", dest.display());
-    match std::process::Command::new("powershell.exe")
-        .args([
-            "-NoProfile",
-            "-ExecutionPolicy",
-            "Bypass",
-            "-File",
-        ])
-        .arg(&script)
-        .arg("-DestDir")
-        .arg(&dest)
-        .spawn()
+
+    #[cfg(target_os = "windows")]
     {
-        Ok(child) => println!("whisper-model auto-fetch: started (pid {})", child.id()),
-        Err(e) => println!("whisper-model auto-fetch: failed to start powershell: {e}"),
+        let script = ["fetch-whisper-model.ps1", "installer/windows/fetch-whisper-model.ps1"]
+            .iter()
+            .map(|p| root.join(p))
+            .find(|p| p.exists());
+        let Some(script) = script else {
+            println!("whisper-model auto-fetch: skipped (fetch-whisper-model.ps1 not found)");
+            return;
+        };
+        println!("whisper-model auto-fetch: model missing, running {} -> {}", script.display(), dest.display());
+        match std::process::Command::new("powershell.exe")
+            .args(["-NoProfile", "-ExecutionPolicy", "Bypass", "-File"])
+            .arg(&script)
+            .arg("-DestDir")
+            .arg(&dest)
+            .spawn()
+        {
+            Ok(child) => println!("whisper-model auto-fetch: started (pid {})", child.id()),
+            Err(e) => println!("whisper-model auto-fetch: failed to start powershell: {e}"),
+        }
+    }
+
+    #[cfg(not(target_os = "windows"))]
+    {
+        let script = ["fetch-whisper-model.sh", "installer/unix/fetch-whisper-model.sh"]
+            .iter()
+            .map(|p| root.join(p))
+            .find(|p| p.exists());
+        let Some(script) = script else {
+            println!("whisper-model auto-fetch: skipped (fetch-whisper-model.sh not found; add the model under {}/models manually)", root.display());
+            return;
+        };
+        println!("whisper-model auto-fetch: model missing, running {} -> {}", script.display(), dest.display());
+        match std::process::Command::new("sh")
+            .arg(&script)
+            .arg(&dest)
+            .spawn()
+        {
+            Ok(child) => println!("whisper-model auto-fetch: started (pid {})", child.id()),
+            Err(e) => println!("whisper-model auto-fetch: failed to start sh: {e}"),
+        }
     }
 }
 
