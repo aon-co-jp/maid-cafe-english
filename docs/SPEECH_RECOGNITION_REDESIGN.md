@@ -1,7 +1,8 @@
 # 音声認識(ASR)精度の抜本改善 — 設計文書
 
-> ステータス: **P1-α / P1-β 実装済み(2026-08-29)。次は実機マイク検証 →
-> P1-β2(練習語彙バイアス)/ P1-γ(翻訳機能)/ P2(本物の Whisper)**
+> ステータス: **P1-α / P1-β / P1-β2 実装済み(2026-08-29)。P1 コア完了。
+> 次は実機マイク検証(ユーザー) → P1-γ(翻訳機能・要判断)/ P2(ハイブリッド
+> Whisper・要判断)**
 > 対象: `open-english` + `aruaru-llm` + `open-cuda` + `open-directx` +
 > `open-cpu` の連携
 > 決定者: masahiro ishizuka(AON CEO)
@@ -252,8 +253,9 @@ n-best を融合する**。各エンジンの強みを組み合わせる:
 |---|---|---|
 | **P1-α** ✅ | §4.1 A(BCP-47 言語修正、`speechLangTag()`) | 非英日言語の WER が明確に低下。**実装済み**(コミット `7d99656`)。実機マイク検証待ち |
 | **P1-β** ✅ | + B/C(`maxAlternatives=5` n-best + `refineTranscript()` の外部LLMプロバイダ訂正 + 信頼度フォールバック) | R-WER が低下。全体 WER は非悪化。**実装済み**(コミット `0ddb87e`)。実機・外部プロバイダ検証待ち |
-| **P1-β2** | + D(練習問題の期待語彙バイアス) | 固有名詞・専門語の R-WER がさらに低下。**未着手**(練習問題の状態がどこに保持されるか要特定) |
-| **P1-γ** | + E(NLLB `/v1/translate` へ接続) | **調査で判明**: open-english フロントには `/v1/translate` 呼び出しが**皆無**。P1-γ は「音声→他言語翻訳」機能の**新規追加**であり、単なる配線ではない。着手はユーザーの機能判断待ち |
+| **P1-β2** ✅ | + D(直近トレーナー発話を訂正文脈に) | 固有名詞・話題語の R-WER 低下。**実装済み**(コミット `0dd2d29`)。`lastTrainerUtterance()` が DOM の最後の `.msg.trainer` から話題を拾い訂正プロンプト末尾へ付与。実機検証待ち。※練習問題(4択クイズ)はマイクではなくクリック回答のため、マイク文脈としては会話練習の「直前の話題」を採用した |
+| **P1-γ** | + E(NLLB `/v1/translate` へ接続) | 要・機能判断。open-english フロントには `/v1/translate` 呼び出しが**皆無** → 「音声→他言語翻訳」機能の**新規追加**。かつ aruaru-llm は既定ビルドで `nllb-translate` feature がオフのため NLLB は使えず GPT-2 品質へフォールバック(要ビルド設定 or ユーザーの外部プロバイダ)。着手前に「翻訳ヘルパーを付けるか/どの UI か」をユーザーへ確認 |
+| **P2 ハイブリッド** | §4.4 の多エンジン融合(Web Speech API + ブラウザ Whisper WebGPU + aruaru-llm whisper.cpp) | 要・依存判断。ブラウザ Whisper は ~240MB モデル DL、aruaru-llm `/v1/transcribe` は whisper-rs(C++ ビルド)。どちらを先に入れるか(両方が理想)をユーザーへ確認 |
 | **P2-α** | ブラウザ Whisper WebGPU(small)を**選択可能エンジン**として追加 | 対応ブラウザで WER が Web Speech API 比で低下。非対応時は自動フォールバック |
 | **P2-β** | `aruaru-llm /v1/transcribe`(whisper.cpp、open-cpu 経路のみ先行) | サーバー経路で WER 低下。`/v1/runtime` に `whisper` 段が出る |
 | **P2-γ** | + open-cuda / open-directx バックエンド、VAD、ストリーミング窓 | RTF・初回遅延が実用域(会話のテンポを崩さない) |
