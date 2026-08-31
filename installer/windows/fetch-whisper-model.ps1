@@ -83,6 +83,10 @@ try {
         if (Get-File "$base/$f" (Join-Path $modelDir $f)) { $ok++ }
     }
 
+    # Silero VAD(ONNX、v5、~2.2MB)。認識前の無音除去用(P2-γ)。失敗しても
+    # app.js は RMS ベースのトリムへフォールバックする。
+    Get-File "https://huggingface.co/onnx-community/silero-vad/resolve/main/onnx/model.onnx" (Join-Path $DestDir "silero-vad/model.onnx") | Out-Null
+
     # transformers.js + ORT ランタイム(dist 直下の ort ファイル名は
     # バージョンで変わりうるため、取得できたものだけ使う)。
     $vok = 0

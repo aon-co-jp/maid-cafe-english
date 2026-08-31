@@ -129,6 +129,14 @@ const STATIC_FILES: &[(&str, &str, &str)] = &[
         "models/onnx-community/whisper-base/onnx/decoder_model_merged_quantized.onnx",
         "application/octet-stream",
     ),
+    // Silero VAD(ONNX、v5、~2.2MB)。ブラウザ内で認識前の無音除去に使う
+    // (P2-γ、docs/SPEECH_RECOGNITION_REDESIGN.md §3.6)。未取得なら app.js は
+    // RMS ベースの `trimSilenceVad()` へフォールバックする。
+    (
+        "/models/silero-vad/model.onnx",
+        "models/silero-vad/model.onnx",
+        "application/octet-stream",
+    ),
     // transformers.js 本体 + ONNX Runtime Web ランタイム。
     // `fetch-whisper-model.{ps1,sh}` が `vendor/` へ取得する。app.js は
     // `/vendor/transformers.min.js` を dynamic import し、ORT の wasmPaths を

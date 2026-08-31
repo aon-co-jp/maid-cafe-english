@@ -4442,6 +4442,138 @@ function trimSilenceVad(pcm, sampleRate) {
   }
 }
 
+// ── Silero VAD(ONNX)本命の第二段 ──────────────────────────────────
+// `onnx-community/silero-vad`(v5、~2.2MB)を、既に vendor 済みの ORT
+// (transformers.js の `env.backends.onnx`)経由で走らせる。512 サンプル
+// (16kHz で 32ms)ごとに発話確率を出し、しきい値 + 最小発話/最小無音長で
+// 発話セグメントへまとめる。内部の無音ギャップも落とせるので、RMS 版
+// (`trimSilenceVad`)より幻覚に強い。モデル未配置・実行失敗なら null を
+// 返し、呼び出し側は `trimSilenceVad` へフォールバック(回帰ゼロ)。
+const SILERO_VAD_URL = WHISPER_APP_BASE + "models/silero-vad/model.onnx";
+const sileroState = { sessionPromise: null, disabled: false };
+
+async function getSileroSession() {
+  if (sileroState.disabled) return null;
+  if (sileroState.sessionPromise) return sileroState.sessionPromise;
+  sileroState.sessionPromise = (async () => {
+    try {
+      const mod = await loadWhisperModule();
+      if (!mod || !mod.env || !mod.env.backends || !mod.env.backends.onnx) return null;
+      const ort = mod.env.backends.onnx;
+      if (!ort.InferenceSession) return null;
+      const head = await fetch(SILERO_VAD_URL, { method: "HEAD" });
+      if (!head.ok) {
+        sileroState.disabled = true;
+        return null;
+      }
+      const session = await ort.InferenceSession.create(SILERO_VAD_URL, { executionProviders: ["wasm"] });
+      return { session, ort };
+    } catch (_) {
+      sileroState.disabled = true;
+      return null;
+    }
+  })();
+  return sileroState.sessionPromise;
+}
+
+/**
+ * Silero VAD で発話セグメントだけを連結した PCM を返す。無音ギャップも
+ * 落とす。失敗時は null(呼び出し側は trimSilenceVad へ)。
+ */
+async function sileroVadTrim(pcm, sampleRate) {
+  try {
+    if (!pcm || pcm.length < sampleRate * 0.3) return null;
+    const s = await getSileroSession();
+    if (!s) return null;
+    const { session, ort } = s;
+    const WIN = 512; // v5: 16kHz は 512 サンプル固定
+    const inName = session.inputNames.includes("input") ? "input" : session.inputNames[0];
+    const srName = session.inputNames.find((n) => /sr/i.test(n)) || "sr";
+    const stName = session.inputNames.find((n) => /state|^h$/i.test(n)) || "state";
+    const outName = session.outputNames.find((n) => !/state|stateN|hn|cn/i.test(n)) || session.outputNames[0];
+    const stOutName = session.outputNames.find((n) => /state|stateN|hn/i.test(n)) || session.outputNames[1];
+
+    let state = new ort.Tensor("float32", new Float32Array(2 * 1 * 128), [2, 1, 128]);
+    const sr = new ort.Tensor("int64", BigInt64Array.from([BigInt(sampleRate)]), [1]);
+    const probs = [];
+    for (let off = 0; off + WIN <= pcm.length; off += WIN) {
+      const chunk = new Float32Array(WIN);
+      chunk.set(pcm.subarray(off, off + WIN));
+      const feeds = {};
+      feeds[inName] = new ort.Tensor("float32", chunk, [1, WIN]);
+      feeds[srName] = sr;
+      feeds[stName] = state;
+      const out = await session.run(feeds);
+      probs.push(out[outName].data[0]);
+      state = out[stOutName];
+    }
+    if (probs.length < 4) return null;
+
+    // しきい値 + ヒステリシス(開始 0.5 / 終了 0.35)、最小発話 120ms、
+    // ギャップ 200ms 未満は繋ぐ、前後 100ms パディング。
+    const onT = 0.5;
+    const offT = 0.35;
+    const minSpeech = Math.round((0.12 * sampleRate) / WIN);
+    const maxGap = Math.round((0.2 * sampleRate) / WIN);
+    const padWin = Math.round((0.1 * sampleRate) / WIN);
+    const segs = [];
+    let inSeg = false;
+    let segStart = 0;
+    let silence = 0;
+    for (let i = 0; i < probs.length; i++) {
+      if (!inSeg) {
+        if (probs[i] >= onT) {
+          inSeg = true;
+          segStart = i;
+          silence = 0;
+        }
+      } else if (probs[i] < offT) {
+        silence++;
+        if (silence > maxGap) {
+          segs.push([segStart, i - silence + 1]);
+          inSeg = false;
+        }
+      } else {
+        silence = 0;
+      }
+    }
+    if (inSeg) segs.push([segStart, probs.length]);
+
+    const kept = segs
+      .filter(([a, b]) => b - a >= minSpeech)
+      .map(([a, b]) => [Math.max(0, (a - padWin) * WIN), Math.min(pcm.length, (b + padWin) * WIN)]);
+    if (!kept.length) return null;
+
+    // 重なり/近接をマージ
+    kept.sort((x, y) => x[0] - y[0]);
+    const merged = [kept[0].slice()];
+    for (let i = 1; i < kept.length; i++) {
+      const last = merged[merged.length - 1];
+      if (kept[i][0] <= last[1]) last[1] = Math.max(last[1], kept[i][1]);
+      else merged.push(kept[i].slice());
+    }
+    const totalLen = merged.reduce((n, [a, b]) => n + (b - a), 0);
+    if (totalLen < sampleRate * 0.2) return null; // 刈りすぎ
+    if (totalLen >= pcm.length * 0.98) return pcm; // ほぼ無変化
+    const outPcm = new Float32Array(totalLen);
+    let w = 0;
+    for (const [a, b] of merged) {
+      outPcm.set(pcm.subarray(a, b), w);
+      w += b - a;
+    }
+    return outPcm;
+  } catch (_) {
+    return null;
+  }
+}
+
+/** VAD: Silero(あれば)→ RMS フォールバック。返り値は必ず有効な PCM。 */
+async function vadTrim(pcm, sampleRate) {
+  const silero = await sileroVadTrim(pcm, sampleRate);
+  if (silero && silero.length) return silero;
+  return trimSilenceVad(pcm, sampleRate);
+}
+
 /**
  * 16kHz mono f32 PCM を ブラウザ内 Whisper で書き起こし、候補配列(1件)を返す。
  * 失敗時は空配列(融合側は他エンジンの候補だけで進む)。
@@ -4590,7 +4722,7 @@ if (SpeechRecognitionImpl) {
         pcm = null;
       }
       if (pcm && pcm.length) {
-        pcm = trimSilenceVad(pcm, 16000);
+        pcm = await vadTrim(pcm, 16000); // Silero(あれば)→ RMS フォールバック
       }
       if (pcm && pcm.length) {
         micBtn.textContent = "🧠 Whisper...";

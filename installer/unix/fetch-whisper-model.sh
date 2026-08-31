@@ -71,6 +71,11 @@ for f in $MODEL_FILES; do
     fi
 done
 
+# Silero VAD(ONNX、v5、~2.2MB)。認識前の無音除去用(P2-γ)。失敗しても
+# app.js は RMS ベースのトリムへフォールバックするので致命的ではない。
+get_file "https://huggingface.co/onnx-community/silero-vad/resolve/main/onnx/model.onnx" \
+    "$DEST_DIR/silero-vad/model.onnx" || true
+
 # transformers.js 本体 + ORT ランタイム。`-DestDir` 直下ではなくその親
 # (= open-english の配信ルート)の vendor/ へ置く——app.js の
 # `WHISPER_VENDOR_URL` / `wasmPaths` が `/vendor/` を指すため。
