@@ -129,24 +129,17 @@ const STATIC_FILES: &[(&str, &str, &str)] = &[
         "models/onnx-community/whisper-base/onnx/decoder_model_merged_quantized.onnx",
         "application/octet-stream",
     ),
-    // transformers.js 本体 + ONNX Runtime Web(WASM/WebGPU/WebNN)ランタイム。
-    // `fetch-whisper-model.ps1` が `vendor/` へ取得する。app.js は
+    // transformers.js 本体 + ONNX Runtime Web ランタイム。
+    // `fetch-whisper-model.{ps1,sh}` が `vendor/` へ取得する。app.js は
     // `/vendor/transformers.min.js` を dynamic import し、ORT の wasmPaths を
     // `/vendor/ort/` に向ける。未取得なら 404 → Web Speech API へフォールバック。
+    // 2026-08-29 実配信で判明: transformers.js の配布物は
+    // `ort-wasm-simd-threaded.jsep.{mjs,wasm}`(JSEP 統合ビルド、WASM/WebGPU/
+    // WebNN を 1 つで賄う)**のみ**を同梱しており、非 jsep 版は存在しない。
     (
         "/vendor/transformers.min.js",
         "vendor/transformers.min.js",
         "application/javascript; charset=utf-8",
-    ),
-    (
-        "/vendor/ort/ort-wasm-simd-threaded.mjs",
-        "vendor/ort/ort-wasm-simd-threaded.mjs",
-        "application/javascript; charset=utf-8",
-    ),
-    (
-        "/vendor/ort/ort-wasm-simd-threaded.wasm",
-        "vendor/ort/ort-wasm-simd-threaded.wasm",
-        "application/wasm",
     ),
     (
         "/vendor/ort/ort-wasm-simd-threaded.jsep.mjs",

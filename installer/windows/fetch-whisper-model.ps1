@@ -64,10 +64,11 @@ $vendorDir = Join-Path $appDir "vendor"
 # 固定する。3.8.1 が既知の安定版。
 $tfjsVersion = "3.8.1"
 $tfjsBase = "https://cdn.jsdelivr.net/npm/@huggingface/transformers@$tfjsVersion/dist"
+# 2026-08-29 実配信で判明: transformers.js の配布物は
+# `ort-wasm-simd-threaded.jsep.{mjs,wasm}`(JSEP 統合ビルド、WASM/WebGPU/
+# WebNN を 1 つで賄う)のみを同梱しており、非 jsep 版は 404 になる。
 $ortFiles = @(
     "transformers.min.js",
-    "ort/ort-wasm-simd-threaded.mjs",
-    "ort/ort-wasm-simd-threaded.wasm",
     "ort/ort-wasm-simd-threaded.jsep.mjs",
     "ort/ort-wasm-simd-threaded.jsep.wasm"
 )

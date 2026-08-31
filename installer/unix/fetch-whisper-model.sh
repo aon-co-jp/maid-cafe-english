@@ -83,7 +83,9 @@ TFJS_BASE="https://cdn.jsdelivr.net/npm/@huggingface/transformers@$TFJS_VERSION/
 
 vok=0
 get_file "$TFJS_BASE/transformers.min.js" "$VENDOR_DIR/transformers.min.js" && vok=$((vok + 1))
-for f in ort-wasm-simd-threaded.mjs ort-wasm-simd-threaded.wasm ort-wasm-simd-threaded.jsep.mjs ort-wasm-simd-threaded.jsep.wasm; do
+# transformers.js の配布物は JSEP 統合ビルド(WASM/WebGPU/WebNN を 1 つで
+# 賄う)`ort-wasm-simd-threaded.jsep.{mjs,wasm}` のみを同梱している。
+for f in ort-wasm-simd-threaded.jsep.mjs ort-wasm-simd-threaded.jsep.wasm; do
     get_file "$TFJS_BASE/$f" "$VENDOR_DIR/ort/$f" && vok=$((vok + 1))
 done
 
@@ -95,9 +97,9 @@ dec_ok=0
 [ -f "$MODEL_DIR/onnx/decoder_model_merged_q4.onnx" ] && dec_ok=1
 [ -f "$MODEL_DIR/onnx/decoder_model_merged_quantized.onnx" ] && dec_ok=1
 
-if [ "$enc_ok" -eq 1 ] && [ "$dec_ok" -eq 1 ] && [ -f "$VENDOR_DIR/transformers.min.js" ] && [ "$ok" -ge 6 ]; then
-    echo "whisper-model: $MODEL + transformers.js runtime downloaded (model $ok/$total, vendor $vok/5). Browser Whisper is now available offline."
+if [ "$enc_ok" -eq 1 ] && [ "$dec_ok" -eq 1 ] && [ -f "$VENDOR_DIR/transformers.min.js" ] && [ "$vok" -ge 3 ] && [ "$ok" -ge 6 ]; then
+    echo "whisper-model: $MODEL + transformers.js runtime downloaded (model $ok/$total, vendor $vok/3). Browser Whisper is now available offline."
 else
-    echo "whisper-model: download incomplete (model $ok/$total, vendor $vok/5). Browser Whisper will fall back to the built-in Web Speech API until model + runtime are present."
+    echo "whisper-model: download incomplete (model $ok/$total, vendor $vok/3). Browser Whisper will fall back to the built-in Web Speech API until model + runtime are present."
 fi
 exit 0
