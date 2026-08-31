@@ -5992,6 +5992,28 @@ if (googleSearchBtn && googleSearchModal) {
   }
   renderList();
 
+  // プロバイダごとのAPIキー入力欄の隣に、このブラウザのlocalStorageへ
+  // 既に保存済みかどうかを即座に(サーバーへ問い合わせず)表示する
+  // (2026-09-01追記、ユーザー指示「Geminiなどを選択してもSETUPも
+  // 簡単にしてSETUP済みならその様に表示する機能」への対応)。下の
+  // `refreshProviderPriorityStatus`(サーバー側の実状態を問い合わせる
+  // 既存機能)とは独立——こちらはネットワーク往復無しで即座に
+  // わかる「このブラウザ内の保存有無」のみを示す。
+  function refreshLocalProviderKeyStatus() {
+    for (const provider of ["openai", "deepseek", "gemini", "claude"]) {
+      const el = document.getElementById(`provider-key-status-${provider}`);
+      if (!el) continue;
+      let hasKey = false;
+      try {
+        hasKey = !!localStorage.getItem(PROVIDER_KEY_LOCAL_PREFIX + provider);
+      } catch (e) {
+        /* ignore */
+      }
+      el.textContent = hasKey ? "✅ SETUP済み / Already set up" : "未SETUP / Not set up";
+    }
+  }
+  refreshLocalProviderKeyStatus();
+
   // パネルを開くたびaruaru-llm側の実際の現状(有効/無効・順序・設定済み
   // プロバイダ)を取得して表示する(2026-08-26追記、実機TEST中に発見した
   // 使いやすさの粗——従来は保存操作をするまでサーバー側の実状態が
@@ -6029,6 +6051,7 @@ if (googleSearchBtn && googleSearchModal) {
   if (btn && modal) {
     btn.addEventListener("click", () => {
       modal.classList.remove("hidden");
+      refreshLocalProviderKeyStatus();
       refreshProviderPriorityStatus();
     });
     closeBtn.addEventListener("click", () => modal.classList.add("hidden"));
@@ -6096,6 +6119,7 @@ if (googleSearchBtn && googleSearchModal) {
       }
       el.value = "";
     }
+    refreshLocalProviderKeyStatus();
 
     await maybeOfferProviderKeyDbSave(savedValues);
 
@@ -6305,6 +6329,7 @@ if (googleSearchBtn && googleSearchModal) {
       if (githubTokenEl) githubTokenEl.value = "";
       if (youtubeKeyEl) youtubeKeyEl.value = "";
       renderList();
+      refreshLocalProviderKeyStatus();
       if (base) {
         try {
           await fetchWithTimeout(`${base}/v1/settings/chat-providers`, { method: "DELETE" }, 8000);
