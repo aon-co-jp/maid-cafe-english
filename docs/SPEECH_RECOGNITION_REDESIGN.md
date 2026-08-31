@@ -492,11 +492,26 @@ GPU(open-cuda が使うのと同じ物理 GPU 上で whisper.cpp が走る)だ�
   サーバー `/v1/transcribe` の両方へ渡す(`whisperTranscribePcm` /
   `serverTranscribePcm` へリネーム)。幻覚のいちばん多いトリガー(先頭/
   末尾の無音)に効く。`node --check` OK。
-- ⏳ 次段: **Silero VAD**(ONNX、`@ricky0123/vad-web` または
-  `onnx-community/silero-vad` を vendor)で内部の無音ギャップ検出・雑音
-  頑健性まで対応。現状の RMS 版はその手前の軽量版。
-- ⏳ 実機検証待ち: 実マイク + 利用者 PC の aruaru-llm(whisper-cli +
-  GGML)を用意した 3 経路同時の WER/CER 計測。
+- ✅ **Silero VAD(ONNX v5)を第二段として実装**(`app.js`
+  `sileroVadTrim()` / `getSileroSession()` / `vadTrim()`)。
+  `onnx-community/silero-vad`(~2.2MB)を standalone の
+  `onnxruntime-web@1.22.0`(非 jsep wasm ビルド一式を `/vendor/ort-vad/` へ
+  **完全隔離** — transformers.js の jsep ビルドと ABI/バージョンが混ざら
+  ないように)経由で実行。512 サンプル(32ms)ごとに発話確率 →
+  ヒステリシス(on 0.5 / off 0.35)+ 最小発話 120ms + ギャップ 200ms
+  未満は連結 + 前後 100ms パディングで発話セグメントへまとめ、**内部の
+  無音ギャップも落とした** PCM を返す。モデル/ローダー未配置・バージョン
+  不整合・実行失敗は catch → RMS 版へフォールバック(`vadTrim` は必ず
+  有効な PCM を返す、回帰ゼロ)。**VPS 本番で実ブラウザ検証済み**:
+  セッションロード 849ms(初回のみ)、I/O 名は `input`/`state`/`sr` →
+  `output`/`stateN` を自動検出、3s 音声で推論 89ms、フレーム間で state
+  を carry、エネルギーに追従した graded な発話確率を返す。合成音
+  (正弦波 + 雑音)は Silero が正しく「非発話」と判定 → null → RMS へ
+  フォールバックすることも確認(誤検出しない)。
+- ⏳ 実機検証待ち: **実発話**での Silero セグメント抽出(合成音では
+  Silero が発話と判定しないため、実マイクが要る)+ 利用者 PC の
+  aruaru-llm(whisper-cli + GGML)を用意した 3 経路同時の WER/CER 計測。
+  `tools/asr-bench/` のハーネスで数値化する。
 
 **P2-α の唯一の未決事項 = Whisper モデル(ONNX、~240MB)のホスト先**:
 - リポジトリに 240MB は入れられない

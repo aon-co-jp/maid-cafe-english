@@ -7263,8 +7263,22 @@ wer.mjs`(依存ゼロ Node、NFKC 正規化 + 語/文字 Levenshtein で WER/CER
 **実マイクでの初回計測はまだ**(マイクのある環境でユーザーが実施 →
 結果表を `docs/asr-eval/README.md` の結果ログへ)。
 
-**次のプロトタイプ = Silero VAD(ONNX)**: 内部の無音ギャップ検出・雑音
-頑健性は RMS 版では届かない。`@ricky0123/vad-web` または
-`onnx-community/silero-vad` を vendor(ORT は既に `/vendor/ort/` に
-jsep ビルドあり)。あわせて Moonshine(27M、日本語版あり)を低遅延経路の
-候補エンジンに。
+**Silero VAD(ONNX v5)実装済み(2026-08-29 続き、コミット `da8d960`→
+`3310bd4`)**: `onnx-community/silero-vad`(~2.2MB)を standalone の
+`onnxruntime-web@1.22.0`(非 jsep wasm 一式を `/vendor/ort-vad/` へ完全
+隔離)経由で実行。**実配信で 2 つ罠を踏んで修正**: (1) transformers.js の
+`env.backends.onnx` は ORT のバックエンド設定オブジェクトであって ORT
+モジュールではない(`InferenceSession` が無い)→ standalone ORT を vendor。
+(2) stable `ort.wasm.min.mjs` は非 jsep の `ort-wasm-simd-threaded.{mjs,wasm}`
+を要求 → transformers.js の jsep 版とは別物なので専用ディレクトリで隔離。
+`sileroVadTrim()` は 512 サンプルごとに発話確率 → ヒステリシス + 最小
+発話長 + ギャップ連結で発話セグメントへまとめ**内部の無音も落とす**。
+`vadTrim()` = Silero(あれば)→ RMS(`trimSilenceVad`)フォールバック。
+**VPS 実ブラウザ検証**: セッションロード 849ms、I/O 名自動検出
+(`input`/`state`/`sr`→`output`/`stateN`)、3s 音声で推論 89ms、合成音は
+非発話と正しく判定(誤検出なし)。**実発話でのセグメント抽出は実マイク
+待ち**。
+
+**次のプロトタイプ**: Moonshine(27M、日本語版あり)を低遅延経路の候補
+エンジンに(Whisper より軽く速い、短発話向け)。あわせて `tools/asr-bench/`
+で実マイク初回計測 → `docs/asr-eval/README.md` の結果ログへ。
