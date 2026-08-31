@@ -189,6 +189,40 @@
     </p>
   </div>
   <!--
+    GitHub/ローカルドライブ/VPSの自動読み書きSETUP状況を一目で示す
+    パネル(ユーザー指示、2026-09-01「ページの一緒に、GITHUBとローカル
+    ドライブとVPSの自動読み書きのSETUPとSETUP済みになる表示と機能を
+    搭載して」への対応)。
+  -->
+  <button type="button" id="autorw-status-banner-toggle" class="collapsible-toggle-btn">✕ CLOSE</button>
+  <div id="autorw-status-banner" class="setup-note" style="display:block; margin:8px 20px;">
+    <strong>🔌 自動読み書きSETUP状況 / Auto read/write setup status</strong>
+    <ul style="margin:6px 0 0; padding-left:20px;">
+      <li>
+        GitHub: <span id="autorw-github-status">確認中... / Checking...</span>
+        <button type="button" id="autorw-github-setup-btn" class="setup-btn">SETUPする / Set up</button>
+      </li>
+      <li>
+        ローカルドライブ / Local drive: <span id="autorw-localdrive-status">確認中... / Checking...</span>
+        <button type="button" id="autorw-localdrive-setup-btn" class="setup-btn">SETUPする / Set up</button>
+      </li>
+      <li>
+        VPS: <span id="autorw-vps-status">未SETUP(未実装) / Not set up (not implemented)</span>
+        <button type="button" id="autorw-vps-setup-btn" class="setup-btn">詳細 / Details</button>
+      </li>
+    </ul>
+    <p id="autorw-vps-detail" class="setup-honest hidden" style="margin-top:8px;">
+      <strong>正直な開示:</strong> VPSへの自動読み書きは、ブラウザが生のSSHソケットを
+      直接開けないという技術的制約により、GitHub連携と同じ「ブラウザから直接」方式では
+      実現できません。実現するにはサーバー側(open-english-server)でSSH認証情報を
+      安全に扱う新しい仕組みが必要で、その安全設計はまだ完了していないため未実装です。<br />
+      <strong>Honest disclosure:</strong> Automatic VPS read/write can't work the same way as
+      the GitHub integration (calling an API directly from the browser), because browsers
+      cannot open a raw SSH socket. It would require a new server-side design for handling SSH
+      credentials safely, which hasn't been completed yet — so this is not implemented.
+    </p>
+  </div>
+  <!--
     世界中の言語も選べることを大きく案内するバナー(ユーザー指示、
     2026-08-22「日本語と英語をデフォルトとして選択できますが、世界中の
     言語も選択可能ですと、日本語と英語で大きく表示して」への対応)。
@@ -1187,7 +1221,25 @@ cd aruaru-db
         <label>
           <input type="radio" name="freelance-develop-mode" id="freelance-develop-mode-lesson" value="lesson" checked />
           プログラムレッスンを受けながら一緒に開発する / Develop together while taking programming lessons
-        </label><br />
+        </label>
+        <div id="freelance-develop-level-group" style="margin:6px 0 6px 24px;">
+          <label>
+            <input type="radio" name="freelance-develop-level" value="super-beginner" checked />
+            超初心者 / Super beginner
+          </label>
+          <label>
+            <input type="radio" name="freelance-develop-level" value="beginner" />
+            初心者 / Beginner
+          </label>
+          <label>
+            <input type="radio" name="freelance-develop-level" value="intermediate" />
+            中級者 / Intermediate
+          </label>
+          <label>
+            <input type="radio" name="freelance-develop-level" value="veteran" />
+            ベテラン / Veteran
+          </label>
+        </div>
         <label>
           <input type="radio" name="freelance-develop-mode" id="freelance-develop-mode-together" value="together" />
           レッスンなしで一緒に開発する / Just develop together, no lessons

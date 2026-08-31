@@ -391,6 +391,138 @@ makeCollapsiblePanel("world-language-banner", "world-language-banner-toggle", "w
 makeCollapsiblePanel("topbar", "topbar-toggle", "topbar", "✕ CLOSE", "＋ OPEN");
 makeCollapsiblePanel("maintenance-banner-detail", "maintenance-banner-toggle", "maintenanceBannerDetail", "✕ CLOSE", "＋ OPEN");
 makeCollapsiblePanel("download-recommend-banner", "download-recommend-banner-toggle", "downloadRecommendBanner", "✕ CLOSE", "＋ OPEN");
+makeCollapsiblePanel("autorw-status-banner", "autorw-status-banner-toggle", "autorwStatusBanner", "✕ CLOSE", "＋ OPEN");
+
+// GitHub/ローカルドライブ/VPSの自動読み書きSETUP状況パネル(2026-09-01新設)。
+// GitHubは既存のフリーランス開発コーナーのトークン設定を判定に流用する
+// (専用の資格情報入力欄は増やさない)。ローカルドライブはFile System
+// Access API(Chromium系のみ)で実際にディレクトリ選択+読み書き往復
+// テストまで行い、成功して初めて「SETUP済み」と表示する(見せかけの
+// 完了表示にしない)。VPSは技術的制約により未実装のまま正直に開示する。
+const AUTORW_DB_NAME = "open-english-autorw";
+const AUTORW_DB_STORE = "handles";
+const AUTORW_LOCAL_DRIVE_KEY = "localDriveDirHandle";
+
+function autorwOpenDb() {
+  return new Promise((resolve, reject) => {
+    const req = indexedDB.open(AUTORW_DB_NAME, 1);
+    req.onupgradeneeded = () => {
+      req.result.createObjectStore(AUTORW_DB_STORE);
+    };
+    req.onsuccess = () => resolve(req.result);
+    req.onerror = () => reject(req.error);
+  });
+}
+
+async function autorwIdbGet(key) {
+  const db = await autorwOpenDb();
+  return new Promise((resolve, reject) => {
+    const tx = db.transaction(AUTORW_DB_STORE, "readonly");
+    const req = tx.objectStore(AUTORW_DB_STORE).get(key);
+    req.onsuccess = () => resolve(req.result);
+    req.onerror = () => reject(req.error);
+  });
+}
+
+async function autorwIdbSet(key, value) {
+  const db = await autorwOpenDb();
+  return new Promise((resolve, reject) => {
+    const tx = db.transaction(AUTORW_DB_STORE, "readwrite");
+    tx.objectStore(AUTORW_DB_STORE).put(value, key);
+    tx.oncomplete = () => resolve();
+    tx.onerror = () => reject(tx.error);
+  });
+}
+
+// GitHubトークンの受け渡し方法(file/encrypted/plain/vault)いずれかで
+// 実際に使える状態かを判定する(freelanceRefreshGithubTokenStatusと
+// 同じ4分岐のロジックを、真偽値だけを返す形に切り出したもの)。
+function autorwIsGithubConfigured() {
+  const mode = freelanceGithubTokenModeEl?.value || "file";
+  if (mode === "file") return !!freelanceGithubFileToken;
+  if (mode === "encrypted") return !!freelanceGithubUnlockedToken;
+  if (mode === "vault") return !!freelanceVaultOrigin;
+  try {
+    return !!window.localStorage.getItem(FREELANCE_GITHUB_TOKEN_LOCAL_KEY);
+  } catch {
+    return false;
+  }
+}
+
+function autorwRefreshGithubStatus() {
+  const el = document.getElementById("autorw-github-status");
+  if (!el) return;
+  el.textContent = autorwIsGithubConfigured()
+    ? "✅ SETUP済み / Already set up"
+    : "未SETUP / Not set up";
+}
+
+async function autorwRefreshLocalDriveStatus() {
+  const el = document.getElementById("autorw-localdrive-status");
+  if (!el) return;
+  if (!("showDirectoryPicker" in window)) {
+    el.textContent = "このブラウザは未対応(Chromium系ブラウザが必要) / Not supported in this browser (needs a Chromium-based browser)";
+    return;
+  }
+  try {
+    const handle = await autorwIdbGet(AUTORW_LOCAL_DRIVE_KEY);
+    if (!handle) {
+      el.textContent = "未SETUP / Not set up";
+      return;
+    }
+    const perm = await handle.queryPermission({ mode: "readwrite" });
+    el.textContent = perm === "granted"
+      ? `✅ SETUP済み(フォルダ: ${handle.name}) / Already set up (folder: ${handle.name})`
+      : "許可が失効しました。再度SETUPしてください。 / Permission was revoked — please set up again.";
+  } catch {
+    el.textContent = "未SETUP / Not set up";
+  }
+}
+
+async function autorwSetupLocalDrive() {
+  const el = document.getElementById("autorw-localdrive-status");
+  if (!("showDirectoryPicker" in window)) {
+    alert("このブラウザはFile System Access APIに対応していません(Chrome/Edge等をお使いください)。 / This browser doesn't support the File System Access API (try Chrome/Edge).");
+    return;
+  }
+  try {
+    const handle = await window.showDirectoryPicker({ mode: "readwrite" });
+    const perm = await handle.requestPermission({ mode: "readwrite" });
+    if (perm !== "granted") {
+      if (el) el.textContent = "許可が得られませんでした。 / Permission was not granted.";
+      return;
+    }
+    // 見せかけの完了表示にしないため、実際に書き込み→読み込みの往復
+    // テストを行ってから初めて「SETUP済み」とする。
+    const testFileName = "open-english-autorw-test.txt";
+    const testContent = `open-english auto read/write test — ${new Date().toISOString()}`;
+    const fileHandle = await handle.getFileHandle(testFileName, { create: true });
+    const writable = await fileHandle.createWritable();
+    await writable.write(testContent);
+    await writable.close();
+    const file = await fileHandle.getFile();
+    const readBack = await file.text();
+    if (readBack !== testContent) {
+      if (el) el.textContent = "読み書きテストに失敗しました(内容不一致)。 / Read/write test failed (content mismatch).";
+      return;
+    }
+    await autorwIdbSet(AUTORW_LOCAL_DRIVE_KEY, handle);
+    if (el) el.textContent = `✅ SETUP済み(フォルダ: ${handle.name}、読み書きテスト成功) / Already set up (folder: ${handle.name}, read/write test passed)`;
+  } catch (err) {
+    if (err && err.name === "AbortError") return; // ユーザーがフォルダ選択をキャンセルした場合は何もしない
+    if (el) el.textContent = `SETUPに失敗しました / Setup failed: ${err.message || err}`;
+  }
+}
+
+document.getElementById("autorw-github-setup-btn")?.addEventListener("click", () => {
+  freelanceCornerBtn?.click();
+});
+document.getElementById("autorw-localdrive-setup-btn")?.addEventListener("click", () => {
+  autorwSetupLocalDrive();
+});
+document.getElementById("autorw-vps-setup-btn")?.addEventListener("click", () => {
+  document.getElementById("autorw-vps-detail")?.classList.toggle("hidden");
+});
 
 // ログインゲート(2026-08-26新設、ユーザー指示「家族や会社で共有する
 // 場合もあるので、ログインセキュリティシステムを導入しますか?」への
@@ -13471,6 +13603,15 @@ if (freelanceIndustryAddBtn) {
     if (freelanceIndustrySuggestionEl) freelanceIndustrySuggestionEl.style.display = "none";
   });
 }
+document.querySelectorAll('input[name="freelance-develop-mode"]').forEach((radio) => {
+  radio.addEventListener("change", () => {
+    const levelGroup = document.getElementById("freelance-develop-level-group");
+    if (levelGroup) {
+      levelGroup.style.display = radio.value === "lesson" && radio.checked ? "" : "none";
+    }
+  });
+});
+
 if (freelanceCornerClose && freelanceCornerModal) {
   freelanceCornerClose.addEventListener("click", () => {
     freelanceCornerModal.classList.add("hidden");
@@ -13527,6 +13668,13 @@ if (freelanceAskTeacherBtn) {
       return;
     }
     const developMode = document.querySelector('input[name="freelance-develop-mode"]:checked')?.value || "lesson";
+    const developLevelLabels = {
+      "super-beginner": "超初心者(プログラミング未経験者向け) / super beginner (no programming experience)",
+      "beginner": "初心者 / beginner",
+      "intermediate": "中級者 / intermediate",
+      "veteran": "ベテラン(経験豊富な開発者向け) / veteran (experienced developer)",
+    };
+    const developLevel = document.querySelector('input[name="freelance-develop-level"]:checked')?.value || "super-beginner";
     let question = `${lang}`;
     if (fw) question += ` + ${fw}`;
     if (web) question += ` + ${web}`;
@@ -13534,7 +13682,7 @@ if (freelanceAskTeacherBtn) {
     if (industry) question += `(${industry}分野)`;
     question += " を使ったフリーランス案件について、";
     question += developMode === "lesson"
-      ? "プログラムレッスンを受けながら一緒に開発したいです。学ぶべき基礎から順に教えながら、この案件の開発を一緒に進めてください。"
+      ? `プログラムレッスンを受けながら一緒に開発したいです。私のレベルは「${developLevelLabels[developLevel]}」です。このレベルに合わせて、学ぶべき基礎から順に教えながら、この案件の開発を一緒に進めてください。`
       : "レッスンは不要なので、この案件の開発を一緒に進めてください(基礎の説明は省略で構いません)。";
     if (notes) question += `\n\n参考にしている案件メモ:\n${notes}`;
     if (inputEl && formEl) {
@@ -13641,3 +13789,10 @@ if (freelanceGithubPushBtn) {
     }
   });
 }
+
+// autorw初期状態の反映(全ての定数・関数定義が済んだ後、ファイル末尾で
+// 呼ぶ——freelanceGithubTokenModeEl等より前で呼ぶとTDZ(Temporal Dead
+// Zone)のReferenceErrorでスクリプト全体の初期化が止まる実バグを起こす
+// ため、このファイルの最後に置くこと)。
+autorwRefreshGithubStatus();
+autorwRefreshLocalDriveStatus();
