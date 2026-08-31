@@ -254,8 +254,33 @@ n-best を融合する**。各エンジンの強みを組み合わせる:
 | **P1-α** ✅ | §4.1 A(BCP-47 言語修正、`speechLangTag()`) | 非英日言語の WER が明確に低下。**実装済み**(コミット `7d99656`)。実機マイク検証待ち |
 | **P1-β** ✅ | + B/C(`maxAlternatives=5` n-best + `refineTranscript()` の外部LLMプロバイダ訂正 + 信頼度フォールバック) | R-WER が低下。全体 WER は非悪化。**実装済み**(コミット `0ddb87e`)。実機・外部プロバイダ検証待ち |
 | **P1-β2** ✅ | + D(直近トレーナー発話を訂正文脈に) | 固有名詞・話題語の R-WER 低下。**実装済み**(コミット `0dd2d29`)。`lastTrainerUtterance()` が DOM の最後の `.msg.trainer` から話題を拾い訂正プロンプト末尾へ付与。実機検証待ち。※練習問題(4択クイズ)はマイクではなくクリック回答のため、マイク文脈としては会話練習の「直前の話題」を採用した |
-| **P1-γ** | + E(NLLB `/v1/translate` へ接続) | 要・機能判断。open-english フロントには `/v1/translate` 呼び出しが**皆無** → 「音声→他言語翻訳」機能の**新規追加**。かつ aruaru-llm は既定ビルドで `nllb-translate` feature がオフのため NLLB は使えず GPT-2 品質へフォールバック(要ビルド設定 or ユーザーの外部プロバイダ)。着手前に「翻訳ヘルパーを付けるか/どの UI か」をユーザーへ確認 |
-| **P2 ハイブリッド** | §4.4 の多エンジン融合(Web Speech API + ブラウザ Whisper WebGPU + aruaru-llm whisper.cpp) | 要・依存判断。ブラウザ Whisper は ~240MB モデル DL、aruaru-llm `/v1/transcribe` は whisper-rs(C++ ビルド)。どちらを先に入れるか(両方が理想)をユーザーへ確認 |
+| **P1-γ** ✅ | + E(NLLB `/v1/translate` へ接続) | **実装済み**(コミット `1001346`)。`speechTranslationHelper()` がマイクの訂正済みトランスクリプトを母国語へ翻訳し「🌐 Japanese: …」のシステムメッセージで補助表示。engine が `m2m100` で始まらなければ「簡易翻訳」バッジを日英併記。fire-and-forget・失敗時スキップ。**制約**: aruaru-llm 既定ビルドは `nllb-translate` オフ → GPT-2 品質。実用には aruaru-llm を `--features nllb-translate` で再ビルド。実機検証待ち |
+
+### P2 の着手順(AI 判断、ユーザー承認 2026-08-29「AIの判断で良い所どり」)
+
+**P2-α = ブラウザ Whisper WebGPU を先に**。理由:
+- `app.js` だけで完結(C++ ビルド不要・サーバー変更不要・新バックエンド不要)
+- open-english の「PC/Linux サーバー不要・オフライン動作」方針(Android 単体
+  ビルド、aruaru-llm 無しでも動く設計)と最も整合
+- transformers.js は単一 ES モジュールで vendor 可能
+- Chrome/Edge 利用者に即座に精度向上が届く
+- 融合の受け皿(`refineTranscript` が多エンジン候補を受ける)は既に P1-β で完成
+
+**P2-β = aruaru-llm `/v1/transcribe`(whisper-rs)を後に**。最高精度・GPU
+(open-cuda/open-directx/open-cpu)だが、C++ 依存・`/v1/runtime` 配線・
+サーバー側実装と規模が大きくビルド基盤に依存する。
+
+**融合(P2-γ)**: Web Speech API(即時)+ ブラウザ Whisper(WebGPU 時)+
+サーバー `/v1/transcribe`(到達時)を並行実行し、全 n-best を
+`refineTranscript` へ集約。
+
+**P2-α の唯一の未決事項 = Whisper モデル(ONNX、~240MB)のホスト先**:
+- リポジトリに 240MB は入れられない
+- 「オフライン優先・外部依存ゼロ」方針上、HF CDN 直リンクは CSP・方針に反する
+- 候補: (a) aruaru-llm / open-english-server が `/models/whisper/` として
+  静的配信(利用者が一度取得すれば SW キャッシュ)、(b) 初回のみ HF CDN
+  から取得しキャッシュ + 正直な開示、(c) インストーラー同梱オプション
+  (`fetch-aruaru-llm.ps1` と同型)。→ ここだけユーザー判断が要る。
 | **P2-α** | ブラウザ Whisper WebGPU(small)を**選択可能エンジン**として追加 | 対応ブラウザで WER が Web Speech API 比で低下。非対応時は自動フォールバック |
 | **P2-β** | `aruaru-llm /v1/transcribe`(whisper.cpp、open-cpu 経路のみ先行) | サーバー経路で WER 低下。`/v1/runtime` に `whisper` 段が出る |
 | **P2-γ** | + open-cuda / open-directx バックエンド、VAD、ストリーミング窓 | RTF・初回遅延が実用域(会話のテンポを崩さない) |
