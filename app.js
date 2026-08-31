@@ -4071,6 +4071,60 @@ apiBaseEl.addEventListener("change", checkHealth);
 // 音声入力(ユーザー指示、2026-08-10「声でも文字でも」への対応)。
 // ブラウザ標準のWeb Speech API(SpeechRecognition)を使う——対応ブラウザ
 // (Chrome系等)でのみ動作する、Firefox等では非対応(正直な開示)。
+//
+// 【2026-08-29 P1-α: docs/SPEECH_RECOGNITION_REDESIGN.md】従来は
+// `recognition.lang`を`replyLangEl.value === "ja" ? "ja-JP" : "en-US"`と
+// **英日固定**にしていた。アプリは130言語対応なのに認識器へ常に英語か
+// 日本語しか伝えておらず、それ以外の言語の発話はほぼ全滅していた
+// (設計文書§2 原因1)。ここでは**学習対象言語**(`learnTargetEl`。
+// 学習者はその言語を練習=話す)を優先し、BCP-47タグへ正しく変換する。
+
+// 学習対象セレクタ(`learn-target`)の語句値 → 言語コード。
+// `world:<code>`形式(ユーザーが追加した世界の言語)はそのまま`<code>`を使う。
+const LEARN_TARGET_TO_LANG_CODE = {
+  english: "en", japanese: "ja", german: "de", french: "fr", spanish: "es",
+  italian: "it", russian: "ru", arabic: "ar", persian: "fa", hebrew: "he",
+};
+// 言語コード → BCP-47タグ。Chromeの音声認識は多くの言語で裸のサブタグ
+// (`es`/`fr`等)も受理するが、地域を明示した方が精度・可用性が安定する
+// ものだけ明示する(それ以外は裸のコードをそのまま使う)。
+const LANG_CODE_TO_BCP47 = {
+  en: "en-US", ja: "ja-JP", es: "es-ES", pt: "pt-BR", fr: "fr-FR",
+  de: "de-DE", it: "it-IT", ru: "ru-RU", ar: "ar-SA", fa: "fa-IR",
+  he: "he-IL", zh: "zh-CN", "zh-Hant": "zh-TW", yue: "zh-HK", ko: "ko-KR",
+  hi: "hi-IN", bn: "bn-BD", ta: "ta-IN", ur: "ur-PK", nl: "nl-NL",
+  sv: "sv-SE", nb: "nb-NO", no: "nb-NO", da: "da-DK", fi: "fi-FI",
+  pl: "pl-PL", cs: "cs-CZ", el: "el-GR", tr: "tr-TR", th: "th-TH",
+  vi: "vi-VN", id: "id-ID", ms: "ms-MY", uk: "uk-UA", ro: "ro-RO",
+  hu: "hu-HU", tl: "fil-PH", fil: "fil-PH",
+};
+
+/**
+ * いま音声入力に使うべきBCP-47言語タグを決める(P1-α)。
+ * 優先順位: 学習対象言語 → 返信言語(hybrid以外) → ブラウザ設定 → en-US。
+ * @returns {string} 例 "en-US" / "de-DE" / "sw"
+ */
+function speechLangTag() {
+  const codeToTag = (code) =>
+    code ? LANG_CODE_TO_BCP47[code] || code : null;
+
+  // 1) 学習対象言語(学習者はこの言語を話して練習する)
+  const lt = (learnTargetEl && learnTargetEl.value) || "";
+  let code = lt.startsWith("world:")
+    ? lt.slice(6)
+    : LEARN_TARGET_TO_LANG_CODE[lt] || null;
+
+  // 2) 返信言語(hybridは方向が定まらないので除外)
+  if (!code && replyLangEl && replyLangEl.value && replyLangEl.value !== "hybrid") {
+    code = replyLangEl.value;
+  }
+  const tag = codeToTag(code);
+  if (tag) return tag;
+
+  // 3) ブラウザのUI言語 → 4) 最後の砦
+  return (navigator.languages && navigator.languages[0]) || navigator.language || "en-US";
+}
+
 const SpeechRecognitionImpl = window.SpeechRecognition || window.webkitSpeechRecognition;
 if (SpeechRecognitionImpl) {
   const recognition = new SpeechRecognitionImpl();
@@ -4078,9 +4132,10 @@ if (SpeechRecognitionImpl) {
   recognition.maxAlternatives = 1;
 
   micBtn.addEventListener("click", () => {
-    recognition.lang = replyLangEl.value === "ja" ? "ja-JP" : "en-US";
+    const tag = speechLangTag();
+    recognition.lang = tag;
     micBtn.classList.add("listening");
-    micBtn.textContent = "🎙 Listening...";
+    micBtn.textContent = `🎙 Listening (${tag})...`;
     try {
       recognition.start();
     } catch (err) {
