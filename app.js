@@ -4616,6 +4616,26 @@ if (SpeechRecognitionImpl) {
     } catch (_) {
       text = (fused[0] && fused[0].transcript) || "";
     }
+
+    // 評価用ダンプ(docs/asr-eval、tools/asr-bench)。
+    // `localStorage.setItem("openEnglish.asrBench","1")` で有効化。
+    // 計測時は devtools で `copy(JSON.stringify(window.__asrBench))`。
+    try {
+      if (window.localStorage && localStorage.getItem("openEnglish.asrBench") === "1") {
+        window.__asrBench = window.__asrBench || [];
+        const seq = window.__asrBench.length + 1;
+        window.__asrBench.push({
+          id: "u" + String(seq).padStart(3, "0"),
+          lang: String(activeSpeechLang || "").split("-")[0],
+          webspeech: (speechAlts[0] && speechAlts[0].transcript) || "",
+          whisper: (whisperAlts[0] && whisperAlts[0].transcript) || "",
+          server: (serverAlts[0] && serverAlts[0].transcript) || "",
+          fused: text,
+        });
+        console.log("[asrBench] captured utterance #" + seq, window.__asrBench[window.__asrBench.length - 1]);
+      }
+    } catch (_) {}
+
     inputEl.value = text;
     formEl.requestSubmit();
     speechTranslationHelper(text, activeSpeechLang); // P1-γ

@@ -356,10 +356,23 @@ n-best を融合する**。各エンジンの強みを組み合わせる:
     される音声は入れない。読み上げは TTS で合成してもよい(その旨を記録)。
 - **メトリクス**: WER(単語誤り率)/ CER(文字誤り率、CJK 向け)/
   **R-WER**(固有名詞・専門語だけの誤り率)/ 実時間比(RTF)/ 初回遅延。
-- **ハーネス**: `tools/asr-bench/`(小さな Node か Rust スクリプト)。
-  各エンジン(Web Speech API 記録 / ブラウザ Whisper / `/v1/transcribe`)の
-  出力を `sample.ref.txt` と突き合わせて表を出す。CI では音声を回せない
-  ため**ローカル実行**(結果表を PR/コミットメッセージに貼る)。
+- **ハーネス = 実装済み(2026-08-29)**:
+  - [`tools/asr-bench/wer.mjs`](../../tools/asr-bench/wer.mjs) — 依存ゼロの
+    Node。`--ref refs.jsonl --hyp hyp-*.jsonl [--keywords kw.jsonl] [--md]`。
+    NFKC 正規化 → 語 or 文字(`lang` と空白率で CJK 自動判定)Levenshtein で
+    WER/CER、`keywords` から kw-recall(R-WER 近似)、`missing`(取りこぼし数)。
+    言語別内訳も出す。自己テスト済み。
+  - [`tools/asr-bench/split-bench.mjs`](../../tools/asr-bench/split-bench.mjs)
+    — ブラウザで集めた `window.__asrBench` を `hyp-{webspeech,whisper,server,
+    fused}.jsonl` へ切り出す。
+  - `app.js`: `localStorage["openEnglish.asrBench"]="1"` で
+    `finalizeVoiceInput()` が各発話の 4 エンジン出力 + 融合結果を
+    `window.__asrBench` へ記録(計測時のみ)。
+  - [`docs/asr-eval/README.md`](../asr-eval/README.md) に手順・形式・
+    受け入れ基準・結果ログ欄。`refs.example.jsonl` / `keywords.example.jsonl`
+    をサンプルとして同梱。実音声(`audio/`)と生出力(`hyp-*.jsonl`)は
+    `.gitignore`(結果表だけコミット)。CI では音声を回せないため
+    **ローカル実行**(結果表をコミットメッセージ or README の結果ログへ)。
 
 ### 5.3 各フェーズのプロトタイプと受け入れ基準
 

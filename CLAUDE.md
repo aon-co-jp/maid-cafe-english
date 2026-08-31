@@ -7252,6 +7252,17 @@ android webroot 同期、VPS 配信済み。
 PCM** を `whisperTranscribePcm` / `serverTranscribePcm`(リネーム)へ渡す。
 `node --check` OK、android 同期、VPS 配信予定。
 
+**評価ハーネスを実装済み(2026-08-29 続き、§5.2)**: `tools/asr-bench/
+wer.mjs`(依存ゼロ Node、NFKC 正規化 + 語/文字 Levenshtein で WER/CER、
+`lang` と空白率で CJK 自動判定、kw-recall = R-WER 近似、`missing` =
+取りこぼし数、言語別内訳)+ `tools/asr-bench/split-bench.mjs`(ブラウザの
+`window.__asrBench` → `hyp-*.jsonl`)+ `app.js` の
+`localStorage["openEnglish.asrBench"]="1"` ダンプ + `docs/asr-eval/`
+(README・`refs.example.jsonl`・`keywords.example.jsonl`・`.gitignore`)。
+自己テスト済み(合成 hyp で WER/CER/kw-recall/言語別が正しく出る)。
+**実マイクでの初回計測はまだ**(マイクのある環境でユーザーが実施 →
+結果表を `docs/asr-eval/README.md` の結果ログへ)。
+
 **次のプロトタイプ = Silero VAD(ONNX)**: 内部の無音ギャップ検出・雑音
 頑健性は RMS 版では届かない。`@ricky0123/vad-web` または
 `onnx-community/silero-vad` を vendor(ORT は既に `/vendor/ort/` に
