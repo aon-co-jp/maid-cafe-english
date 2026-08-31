@@ -1138,10 +1138,20 @@ cd aruaru-db
       </p>
       <button type="button" id="freelance-search-official-btn" class="setup-btn">🔎 公式情報を検索 / Search official info</button>
       <button type="button" id="freelance-copy-official-url-btn" class="setup-btn">📋 検索URLをコピー / Copy search URL</button>
+      <div id="freelance-official-results" class="setup-note"></div>
 
       <h3>4. フリーランス案件・IT求人を検索 / Search freelance &amp; IT job listings</h3>
       <button type="button" id="freelance-search-jobs-btn" class="setup-btn">🔎 案件・求人を検索 / Search jobs</button>
       <button type="button" id="freelance-copy-jobs-url-btn" class="setup-btn">📋 検索URLをコピー / Copy search URL</button>
+      <p class="setup-note">
+        以前セットアップ済みのGoogle検索APIキーがあれば、自動的にそれを使って検索結果を
+        ここに表示します(再入力は不要です)。未設定の場合は上のボタンで新しいタブから
+        ご自身で確認してください。<br />
+        If you have already set up a Google Search API key (locally or in the web version), it
+        will be reused automatically to show results below — no need to enter it again. If none
+        is configured, use the button above to check results in a new tab instead.
+      </p>
+      <div id="freelance-job-results" class="setup-note"></div>
       <p class="setup-note">
         検索結果ページで気になった案件があれば、URLやテキスト・画像を通常のブラウザ操作で
         コピーし、下の「案件メモ」欄に貼り付けてください。<br />

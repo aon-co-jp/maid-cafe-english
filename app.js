@@ -12922,6 +12922,62 @@ async function freelanceCopyText(text, statusEl) {
   }
 }
 
+// 既にセットアップ済みのGoogle検索APIキー(平文localStorage、または
+// 復号済みメモリ上の暗号化/ファイル資格情報)を自動的に再利用して検索し、
+// 結果を指定コンテナへ描画する。キー未設定の場合は正直にその旨を表示し
+// (新規に入力させることはしない、既存の「新しいタブで開く」ボタンで
+// 代替できる旨を案内する)、既存の`loadOwnGoogleSearchCredentials`/
+// `googleSearchDirect`(2026-08-26/27新設、Google検索設定パネルと共用)を
+// そのまま呼ぶだけで、この機能専用の資格情報入力欄は追加しない。
+async function freelanceAutoSearch(query, containerId) {
+  const container = document.getElementById(containerId);
+  if (!container) return;
+  container.innerHTML = "";
+  const creds = typeof loadOwnGoogleSearchCredentials === "function" ? loadOwnGoogleSearchCredentials() : null;
+  if (!creds || !creds.api_key || !creds.cx) {
+    container.textContent =
+      "(Google検索APIキー未設定のため、自動検索結果はここに表示されません。上のボタンで新しいタブからご確認ください。 / " +
+      "No Google Search API key configured, so results can't be shown here automatically — use the button above to check in a new tab.)";
+    return;
+  }
+  const statusLine = document.createElement("p");
+  statusLine.innerHTML = "<strong>✅ SETUP済み(以前設定したGoogle検索APIキーを自動使用中) / Already set up (auto-using your previously configured Google Search API key)</strong>";
+  container.appendChild(statusLine);
+  const searching = document.createElement("p");
+  searching.textContent = "検索中... / Searching...";
+  container.appendChild(searching);
+  try {
+    const results = await googleSearchDirect(query, creds.api_key, creds.cx, 5);
+    searching.remove();
+    if (results.length === 0) {
+      const none = document.createElement("p");
+      none.textContent = "該当する検索結果が見つかりませんでした。 / No results found.";
+      container.appendChild(none);
+      return;
+    }
+    for (const r of results) {
+      const item = document.createElement("p");
+      const link = document.createElement("a");
+      link.href = r.link;
+      link.target = "_blank";
+      link.rel = "noopener noreferrer";
+      link.textContent = r.title || r.link;
+      item.appendChild(link);
+      if (r.snippet) {
+        const snippet = document.createElement("div");
+        snippet.textContent = r.snippet;
+        item.appendChild(snippet);
+      }
+      container.appendChild(item);
+    }
+  } catch (err) {
+    searching.remove();
+    const failed = document.createElement("p");
+    failed.textContent = `検索に失敗しました / Search failed: ${err.message || err}`;
+    container.appendChild(failed);
+  }
+}
+
 function freelanceBuildOfficialSearchUrl() {
   const lang = freelanceSelectedLanguage();
   const fw = (freelanceFrameworkInputEl?.value || "").trim();
@@ -13285,6 +13341,10 @@ if (freelanceCornerBtn && freelanceCornerModal) {
     freelancePopulateLanguageSelect();
     freelanceRenderSamples();
     freelanceUpdateGithubTokenModeSections();
+    const officialResults = document.getElementById("freelance-official-results");
+    const jobResults = document.getElementById("freelance-job-results");
+    if (officialResults) officialResults.innerHTML = "";
+    if (jobResults) jobResults.innerHTML = "";
     freelanceCornerModal.classList.remove("hidden");
   });
 }
@@ -13350,6 +13410,10 @@ if (freelanceCornerClose && freelanceCornerModal) {
 if (freelanceSearchOfficialBtn) {
   freelanceSearchOfficialBtn.addEventListener("click", () => {
     window.open(freelanceBuildOfficialSearchUrl(), "_blank", "noopener,noreferrer");
+    const lang = freelanceSelectedLanguage();
+    const fw = (freelanceFrameworkInputEl?.value || "").trim();
+    const query = [lang, fw, "official site OR github.com OR blog"].filter(Boolean).join(" ");
+    freelanceAutoSearch(query, "freelance-official-results");
   });
 }
 if (freelanceCopyOfficialUrlBtn) {
@@ -13360,6 +13424,11 @@ if (freelanceCopyOfficialUrlBtn) {
 if (freelanceSearchJobsBtn) {
   freelanceSearchJobsBtn.addEventListener("click", () => {
     window.open(freelanceBuildJobSearchUrl(), "_blank", "noopener,noreferrer");
+    const industry = freelanceSelectedIndustry();
+    const lang = freelanceSelectedLanguage();
+    const fw = (freelanceFrameworkInputEl?.value || "").trim();
+    const query = [industry, lang, fw, "フリーランス 案件 OR freelance job"].filter(Boolean).join(" ");
+    freelanceAutoSearch(query, "freelance-job-results");
   });
 }
 if (freelanceCopyJobsUrlBtn) {
