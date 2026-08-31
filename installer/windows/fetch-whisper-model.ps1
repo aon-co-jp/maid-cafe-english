@@ -94,6 +94,8 @@ try {
         $src = if ($f -eq "transformers.min.js") { "$tfjsBase/transformers.min.js" } else { "$tfjsBase/$($f -replace '^ort/','')" }
         if (Get-File $src (Join-Path $vendorDir $f)) { $vok++ }
     }
+    # standalone ORT ローダー(Silero VAD 用、~48KB。wasm 本体は上の jsep を再利用)。
+    Get-File "https://cdn.jsdelivr.net/npm/onnxruntime-web@1.22.0/dist/ort.wasm.min.mjs" (Join-Path $vendorDir "ort/ort.wasm.min.mjs") | Out-Null
 
     # 推奨(fp32 encoder + q4 decoder)か、少なくとも q8 版のどちらかが
     # 揃っていれば「利用可能」とみなす。

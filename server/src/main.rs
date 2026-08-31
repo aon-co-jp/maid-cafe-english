@@ -159,6 +159,13 @@ const STATIC_FILES: &[(&str, &str, &str)] = &[
         "vendor/ort/ort-wasm-simd-threaded.jsep.wasm",
         "application/wasm",
     ),
+    // standalone ORT ローダー(Silero VAD 用、transformers.js は
+    // InferenceSession を公開しないため。wasm 本体は上の jsep を再利用)。
+    (
+        "/vendor/ort/ort.wasm.min.mjs",
+        "vendor/ort/ort.wasm.min.mjs",
+        "application/javascript; charset=utf-8",
+    ),
 ];
 
 /// 静的ファイルへの`HEAD`リクエスト用ハンドラ(2026-08-24新設)。
