@@ -4653,12 +4653,23 @@ async function serverTranscribePcm(pcm, langTag) {
     if (!base) return [];
     if (!(pcm instanceof Float32Array)) pcm = new Float32Array(pcm);
     const langCode = String(langTag || "auto").split("-")[0] || "auto";
+    // P2-β: contextual biasing — 直前のトレーナー発話を whisper-cli の
+    // --prompt へ渡す(用語・固有名詞の認識が上がる、§3.6)。
+    let prompt = "";
+    try {
+      prompt = (typeof lastTrainerUtterance === "function" && lastTrainerUtterance()) || "";
+    } catch (_) {}
     const res = await fetchWithTimeout(
       `${base}/v1/transcribe`,
       {
         method: "POST",
         headers: { "content-type": "application/json" },
-        body: JSON.stringify({ pcm_f32_base64: f32ToBase64(pcm), sample_rate: 16000, language: langCode }),
+        body: JSON.stringify({
+          pcm_f32_base64: f32ToBase64(pcm),
+          sample_rate: 16000,
+          language: langCode,
+          prompt: prompt || undefined,
+        }),
       },
       60000,
     );
