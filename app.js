@@ -13526,12 +13526,16 @@ if (freelanceAskTeacherBtn) {
       alert("言語を選択または入力してください。 / Please choose or type a language first.");
       return;
     }
+    const developMode = document.querySelector('input[name="freelance-develop-mode"]:checked')?.value || "lesson";
     let question = `${lang}`;
     if (fw) question += ` + ${fw}`;
     if (web) question += ` + ${web}`;
     if (db) question += ` + ${db}`;
     if (industry) question += `(${industry}分野)`;
-    question += " を使ったフリーランス案件について、学ぶべき基礎とレッスンの進め方を教えてください。";
+    question += " を使ったフリーランス案件について、";
+    question += developMode === "lesson"
+      ? "プログラムレッスンを受けながら一緒に開発したいです。学ぶべき基礎から順に教えながら、この案件の開発を一緒に進めてください。"
+      : "レッスンは不要なので、この案件の開発を一緒に進めてください(基礎の説明は省略で構いません)。";
     if (notes) question += `\n\n参考にしている案件メモ:\n${notes}`;
     if (inputEl && formEl) {
       inputEl.value = question;
