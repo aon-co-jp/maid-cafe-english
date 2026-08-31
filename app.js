@@ -4274,7 +4274,7 @@ async function speechTranslationHelper(text, spokenTag) {
 const WHISPER_VENDOR_URL = "/vendor/transformers.min.js";
 const WHISPER_MODEL_BASE = "/models/"; // 末尾スラッシュ必須(localModelPath)
 const WHISPER_MODEL_ID = "onnx-community/whisper-base";
-const whisperState = { loadPromise: null, pipelinePromise: null, disabled: false, deviceLabel: "" };
+const whisperState = { loadPromise: null, pipelinePromise: null, disabled: false, deviceLabel: "", dtypeLabel: "" };
 
 /** WASM 実行段のスレッド数ヒント(open-cpu の検出結果を server 経由で)。 */
 async function whisperWasmThreadHint() {
@@ -4325,16 +4325,22 @@ function getWhisperPipeline() {
     if (navigator.gpu) candidates.push("webgpu");
     if (navigator.ml) candidates.push("webnn-npu", "webnn-gpu", "webnn-cpu");
     candidates.push("wasm");
+    // 2026-08-29 多言語調査(docs/SPEECH_RECOGNITION_REDESIGN.md §3)反映:
+    // transformers.js の既知の実測で「WebGPU + q8 デコーダ → 出力が壊れる
+    // (gibberish)」「q8 エンコーダ → 特徴量が劣化」。**fp32 エンコーダ +
+    // q4 デコーダのハイブリッド**が精度を保つ推奨構成。ファイルが未取得の
+    // 環境向けに、失敗したら q8 単一 dtype へ 1 度だけリトライする。
+    const dtypeAttempts = [{ encoder_model: "fp32", decoder_model_merged: "q4" }, "q8"];
     for (const device of candidates) {
-      try {
-        const pipe = await mod.pipeline("automatic-speech-recognition", WHISPER_MODEL_ID, {
-          device,
-          dtype: device === "webgpu" ? "fp16" : "q8",
-        });
-        whisperState.deviceLabel = device;
-        return pipe;
-      } catch (e) {
-        /* 次の候補へ */
+      for (const dtype of dtypeAttempts) {
+        try {
+          const pipe = await mod.pipeline("automatic-speech-recognition", WHISPER_MODEL_ID, { device, dtype });
+          whisperState.deviceLabel = device;
+          whisperState.dtypeLabel = typeof dtype === "string" ? dtype : "fp32enc+q4dec";
+          return pipe;
+        } catch (e) {
+          /* 次の dtype / 次の device へ */
+        }
       }
     }
     whisperState.disabled = true;
@@ -4376,11 +4382,19 @@ async function whisperTranscribeBlob(blob, langTag) {
     const pcm = await blobToPcm16k(blob);
     if (!pcm || !pcm.length) return [];
     const langCode = String(langTag || "en").split("-")[0];
+    // 2026-08-29 調査反映: 幻覚(無音区間で存在しない語を出す)対策として
+    // (1) 直前トークンに条件付けしない、(2) 無音/圧縮率しきい値で温度上げ
+    // 再試行を許可。VAD による無音除去(最も効果が高い)は次段(P2-γ)で
+    // Silero VAD を導入予定。
     const out = await pipe(pcm, {
       chunk_length_s: 30,
       language: langCode,
       task: "transcribe",
       return_timestamps: false,
+      condition_on_previous_text: false,
+      no_speech_threshold: 0.6,
+      compression_ratio_threshold: 2.4,
+      temperature: [0, 0.2, 0.4],
     });
     const text = (out && (typeof out.text === "string" ? out.text : "")) || "";
     const t = text.trim();

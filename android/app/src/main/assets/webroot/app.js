@@ -4071,16 +4071,423 @@ apiBaseEl.addEventListener("change", checkHealth);
 // 音声入力(ユーザー指示、2026-08-10「声でも文字でも」への対応)。
 // ブラウザ標準のWeb Speech API(SpeechRecognition)を使う——対応ブラウザ
 // (Chrome系等)でのみ動作する、Firefox等では非対応(正直な開示)。
+//
+// 【2026-08-29 P1-α: docs/SPEECH_RECOGNITION_REDESIGN.md】従来は
+// `recognition.lang`を`replyLangEl.value === "ja" ? "ja-JP" : "en-US"`と
+// **英日固定**にしていた。アプリは130言語対応なのに認識器へ常に英語か
+// 日本語しか伝えておらず、それ以外の言語の発話はほぼ全滅していた
+// (設計文書§2 原因1)。ここでは**学習対象言語**(`learnTargetEl`。
+// 学習者はその言語を練習=話す)を優先し、BCP-47タグへ正しく変換する。
+
+// 学習対象セレクタ(`learn-target`)の語句値 → 言語コード。
+// `world:<code>`形式(ユーザーが追加した世界の言語)はそのまま`<code>`を使う。
+const LEARN_TARGET_TO_LANG_CODE = {
+  english: "en", japanese: "ja", german: "de", french: "fr", spanish: "es",
+  italian: "it", russian: "ru", arabic: "ar", persian: "fa", hebrew: "he",
+};
+// 言語コード → BCP-47タグ。**既存の `SPEECH_LANG_TAGS`(読み上げ用、
+// この下の方で定義)を正とし**、そこに無い言語だけをここで補う
+// (地域明示が音声認識の精度・可用性に効くもの)。Chrome は多くの言語で
+// 裸のサブタグも受理するため、未知コードはそのまま渡す。
+const SPEECH_LANG_TAGS_EXTRA = {
+  "zh-Hant": "zh-TW", yue: "zh-HK", ta: "ta-IN", ur: "ur-PK", nb: "nb-NO",
+  hu: "hu-HU", fil: "fil-PH", ca: "ca-ES", gl: "gl-ES", eu: "eu-ES",
+};
+
+/**
+ * いま音声入力に使うべきBCP-47言語タグを決める(P1-α)。
+ * 優先順位: 学習対象言語 → 返信言語(hybrid以外) → ブラウザ設定 → en-US。
+ * @returns {string} 例 "en-US" / "de-DE" / "sw"
+ */
+function speechLangTag() {
+  // 呼び出し時点では `SPEECH_LANG_TAGS`(下方の const)は評価済み。
+  const table = typeof SPEECH_LANG_TAGS === "object" && SPEECH_LANG_TAGS ? SPEECH_LANG_TAGS : {};
+  const codeToTag = (code) =>
+    code ? table[code] || SPEECH_LANG_TAGS_EXTRA[code] || code : null;
+
+  // 1) 学習対象言語(学習者はこの言語を話して練習する)
+  const lt = (learnTargetEl && learnTargetEl.value) || "";
+  let code = lt.startsWith("world:")
+    ? lt.slice(6)
+    : LEARN_TARGET_TO_LANG_CODE[lt] || null;
+
+  // 2) 返信言語(hybridは方向が定まらないので除外)
+  if (!code && replyLangEl && replyLangEl.value && replyLangEl.value !== "hybrid") {
+    code = replyLangEl.value;
+  }
+  const tag = codeToTag(code);
+  if (tag) return tag;
+
+  // 3) ブラウザのUI言語 → 4) 最後の砦
+  return (navigator.languages && navigator.languages[0]) || navigator.language || "en-US";
+}
+
+// 【2026-08-29 P1-β: docs/SPEECH_RECOGNITION_REDESIGN.md】n-best 収集 +
+// LLM による訂正パス。認識器の第1候補を無補正で入力欄へ直行させていた
+// (設計文書§2 原因2・3)のを、複数候補を取り、外部LLMプロバイダ経路
+// (`tryPriorityProviderReply`、ユーザーが設定済みなら)で最も意図に近い
+// 一文へ訂正する。訂正が使えない/怪しい場合は必ず第1候補へフォールバック
+// (回帰ゼロ)。内蔵GPT-2は指示追従できないため訂正には使わない。
+
+/** BCP-47タグ("de-DE")から人間向けの言語名を得る(訂正プロンプト用)。 */
+function speechLangDisplayName(tag) {
+  const code = String(tag || "").split("-")[0];
+  const info = typeof worldLanguageByCode === "function" ? worldLanguageByCode(code) : null;
+  if (info && info.en) return info.en;
+  try {
+    const dn = new Intl.DisplayNames(["en"], { type: "language" });
+    return dn.of(code) || code;
+  } catch (_) {
+    return code;
+  }
+}
+
+/**
+ * 直近のトレーナー発話(会話の話題)を訂正プロンプトの文脈に使う(P1-β2)。
+ * 会話履歴は配列で持っていないため DOM の最後の `.msg.trainer` から拾う。
+ * 「トレーナーが何を尋ねたか」が分かると、学習者の返答に出やすい語彙へ
+ * 訂正を寄せられる(設計文書§4.1 D の contextual biasing を、Web Speech
+ * API には prompt 引数が無いため LLM 訂正段で行う)。
+ * @returns {string} 末尾200字程度に丸めたトレーナー発話(無ければ空)
+ */
+function lastTrainerUtterance() {
+  try {
+    const nodes = logEl.querySelectorAll(".msg.trainer");
+    const last = nodes[nodes.length - 1];
+    if (!last) return "";
+    const t = (last.textContent || "").replace(/\s+/g, " ").trim();
+    return t.length > 200 ? t.slice(-200) : t;
+  } catch (_) {
+    return "";
+  }
+}
+
+/**
+ * n-best 認識候補を、文脈を与えて最も意図に近い一文へ訂正する(P1-β/β2)。
+ * @param {{transcript:string,confidence:number}[]} alts 信頼度降順でなくてよい
+ * @param {string} langTag BCP-47
+ * @returns {Promise<string>} 訂正済み(または第1候補)テキスト
+ */
+async function refineTranscript(alts, langTag) {
+  const clean = alts
+    .map((a) => (a && a.transcript ? String(a.transcript).trim() : ""))
+    .filter(Boolean);
+  const first = clean[0] || "";
+  if (clean.length <= 1) return first;
+
+  // 信頼度が取れるブラウザでは、最有力候補も先頭へ寄せておく
+  // (訂正が使えない時のフォールバック先をより良くする)。
+  const byConf = alts
+    .filter((a) => a && a.transcript)
+    .slice()
+    .sort((a, b) => (b.confidence || 0) - (a.confidence || 0));
+  const bestByConf = (byConf[0] && String(byConf[0].transcript).trim()) || first;
+
+  // 訂正は外部LLMプロバイダ経路が有効なときだけ(内蔵GPT-2は指示追従不可)。
+  if (typeof window.tryPriorityProviderReply !== "function") return bestByConf;
+
+  const langName = speechLangDisplayName(langTag);
+  const level = (typeof levelEl !== "undefined" && levelEl && levelEl.value) || "";
+  const numbered = clean.slice(0, 5).map((t, i) => `${i + 1}) ${t}`).join("\n");
+  // P1-β2: 直近のトレーナー発話を文脈として与える(語彙バイアス)。
+  const topic = lastTrainerUtterance();
+  const prompt =
+    `You are cleaning up a speech-to-text transcript from a ${langName} language learner` +
+    (level ? ` (${level} level)` : "") +
+    `. Below are the recognizer's top hypotheses for one short spoken utterance. ` +
+    `Pick or reconstruct the single most likely intended sentence in ${langName}. ` +
+    `Fix mishearings, spacing and punctuation. Do NOT translate, do NOT add words, ` +
+    `do NOT explain. Reply with only that one sentence.\n\n${numbered}` +
+    (topic ? `\n\nContext — the trainer just said/asked: "${topic}"` : "");
+
+  try {
+    const r = await window.tryPriorityProviderReply(prompt);
+    if (!r || typeof r.text !== "string") return bestByConf;
+    let out = r.text.trim().replace(/^["'「]|["'」]$/g, "").split(/\r?\n/)[0].trim();
+    // サニティチェック: 空 / 極端に長い(最長候補の2.5倍超) → 訂正を捨てる。
+    const longest = clean.reduce((m, t) => Math.max(m, t.length), 0);
+    if (!out || out.length > Math.max(40, longest * 2.5)) return bestByConf;
+    return out;
+  } catch (_) {
+    return bestByConf;
+  }
+}
+
+/**
+ * 【2026-08-29 P1-γ: docs/SPEECH_RECOGNITION_REDESIGN.md】音声で話した内容
+ * (訂正済みトランスクリプト)を、学習者の母国語へ翻訳して**チャットログの
+ * システムメッセージ**として補助表示する(既存の appendMessage を再利用、
+ * 新規 UI ウィジェットは足さない)。翻訳は aruaru-llm `/v1/translate`(NLLB/
+ * M2M100)。既定ビルドでは `nllb-translate` feature がオフで GPT-2 品質へ
+ * フォールバックするため、その場合は正直に「低品質」バッジを付ける。
+ * 母国語 == 話した言語 のときは無意味なのでスキップ。失敗時は静かに何も
+ * しない(回帰ゼロ)。
+ */
+async function speechTranslationHelper(text, spokenTag) {
+  try {
+    if (!text || !text.trim()) return;
+    const fromCode = String(spokenTag || "").split("-")[0] || "en";
+    const toCode = (typeof loadNativeLanguage === "function" && loadNativeLanguage()) || "ja";
+    if (fromCode === toCode) return; // 同じ言語なら翻訳不要
+
+    const fromName = speechLangDisplayName(spokenTag);
+    const toName = speechLangDisplayName(toCode);
+    const base = (typeof apiBaseEl !== "undefined" && apiBaseEl && apiBaseEl.value.trim()) || "";
+    if (!base) return;
+
+    const res = await fetchWithTimeout(
+      `${base}/v1/translate`,
+      {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ text, target_lang: toName, source_lang: fromName }),
+      },
+      15000
+    );
+    if (!res.ok) return;
+    const data = await res.json();
+    const translation = (data && typeof data.translation === "string" && data.translation.trim()) || "";
+    if (!translation) return;
+
+    const engine = (data && data.engine) || "";
+    const lowQuality = !/^m2m100/i.test(engine);
+    const badge = lowQuality
+      ? "\n⚠ 内蔵GPT-2による簡易翻訳です(専用翻訳モデル未搭載のため品質は保証できません) / rough GPT-2 translation — dedicated model not installed"
+      : "";
+    appendMessage("system", `🌐 ${toName}: ${translation}${badge}`);
+  } catch (_) {
+    /* 静かにスキップ(回帰ゼロ) */
+  }
+}
+
+// ══════════════════════════════════════════════════════════════════════
+// 【2026-08-29 P2-α: docs/SPEECH_RECOGNITION_REDESIGN.md】ブラウザ内 Whisper。
+// transformers.js(ONNX Runtime Web)で Whisper を走らせ、実行段は
+// 利用可能なハードウェアアクセラレータへ自動カスケードする:
+//   WebGPU(GPU) → WebNN(NPU/統合アクセラレータ) → WASM(SIMD128、
+//   スレッド数は /v1/cpu-runtime = open-cpu の検出結果をヒントに)。
+// モデル・ランタイム(`/vendor/transformers.min.js`・`/models/...`)が
+// まだ配置されていなければ、この経路は静かに無効化され、Web Speech API
+// 単独へフォールバックする(回帰ゼロ)。得られた仮説は Web Speech API の
+// n-best と統合して `refineTranscript()` へ渡す(§4.4 の融合)。
+// ══════════════════════════════════════════════════════════════════════
+const WHISPER_VENDOR_URL = "/vendor/transformers.min.js";
+const WHISPER_MODEL_BASE = "/models/"; // 末尾スラッシュ必須(localModelPath)
+const WHISPER_MODEL_ID = "onnx-community/whisper-base";
+const whisperState = { loadPromise: null, pipelinePromise: null, disabled: false, deviceLabel: "", dtypeLabel: "" };
+
+/** WASM 実行段のスレッド数ヒント(open-cpu の検出結果を server 経由で)。 */
+async function whisperWasmThreadHint() {
+  try {
+    const res = await fetchWithTimeout("/v1/cpu-runtime", { cache: "no-store" }, 2000);
+    if (!res.ok) return 1;
+    const d = await res.json();
+    const hasSimd = !!(d && (d.avx2 || d.simd128 || d.neon || /avx2|neon|simd/i.test(JSON.stringify(d))));
+    const hw = (navigator.hardwareConcurrency || 2);
+    return hasSimd ? Math.max(1, Math.min(4, hw - 1)) : 1;
+  } catch (_) {
+    return 1;
+  }
+}
+
+/** transformers.js を遅延ロードして設定する。失敗したら null。 */
+function loadWhisperModule() {
+  if (whisperState.disabled) return Promise.resolve(null);
+  if (whisperState.loadPromise) return whisperState.loadPromise;
+  whisperState.loadPromise = (async () => {
+    try {
+      const mod = await import(/* @vite-ignore */ WHISPER_VENDOR_URL);
+      const env = mod.env;
+      env.allowRemoteModels = false; // 外部CDNへ取りに行かない(オフライン優先)
+      env.localModelPath = WHISPER_MODEL_BASE;
+      if (env.backends && env.backends.onnx && env.backends.onnx.wasm) {
+        env.backends.onnx.wasm.wasmPaths = "/vendor/ort/";
+        env.backends.onnx.wasm.numThreads = await whisperWasmThreadHint();
+      }
+      return mod;
+    } catch (e) {
+      // vendor ファイルが未配置 → この経路を諦める(静かに)。
+      whisperState.disabled = true;
+      return null;
+    }
+  })();
+  return whisperState.loadPromise;
+}
+
+/** 実行段カスケードでパイプラインを1回だけ構築する。 */
+function getWhisperPipeline() {
+  if (whisperState.pipelinePromise) return whisperState.pipelinePromise;
+  whisperState.pipelinePromise = (async () => {
+    const mod = await loadWhisperModule();
+    if (!mod) return null;
+    // 優先順: WebGPU → WebNN(npu→gpu→cpu) → WASM。
+    const candidates = [];
+    if (navigator.gpu) candidates.push("webgpu");
+    if (navigator.ml) candidates.push("webnn-npu", "webnn-gpu", "webnn-cpu");
+    candidates.push("wasm");
+    // 2026-08-29 多言語調査(docs/SPEECH_RECOGNITION_REDESIGN.md §3)反映:
+    // transformers.js の既知の実測で「WebGPU + q8 デコーダ → 出力が壊れる
+    // (gibberish)」「q8 エンコーダ → 特徴量が劣化」。**fp32 エンコーダ +
+    // q4 デコーダのハイブリッド**が精度を保つ推奨構成。ファイルが未取得の
+    // 環境向けに、失敗したら q8 単一 dtype へ 1 度だけリトライする。
+    const dtypeAttempts = [{ encoder_model: "fp32", decoder_model_merged: "q4" }, "q8"];
+    for (const device of candidates) {
+      for (const dtype of dtypeAttempts) {
+        try {
+          const pipe = await mod.pipeline("automatic-speech-recognition", WHISPER_MODEL_ID, { device, dtype });
+          whisperState.deviceLabel = device;
+          whisperState.dtypeLabel = typeof dtype === "string" ? dtype : "fp32enc+q4dec";
+          return pipe;
+        } catch (e) {
+          /* 次の dtype / 次の device へ */
+        }
+      }
+    }
+    whisperState.disabled = true;
+    return null;
+  })();
+  return whisperState.pipelinePromise;
+}
+
+/** webm/opus 等の Blob を 16kHz mono Float32 PCM へデコード・リサンプル。 */
+async function blobToPcm16k(blob) {
+  const AC = window.AudioContext || window.webkitAudioContext;
+  if (!AC) return null;
+  const buf = await blob.arrayBuffer();
+  const ac = new AC();
+  try {
+    const decoded = await ac.decodeAudioData(buf);
+    const targetRate = 16000;
+    const off = new OfflineAudioContext(1, Math.ceil(decoded.duration * targetRate), targetRate);
+    const src = off.createBufferSource();
+    src.buffer = decoded;
+    src.connect(off.destination);
+    src.start();
+    const rendered = await off.startRendering();
+    return rendered.getChannelData(0);
+  } finally {
+    ac.close && ac.close();
+  }
+}
+
+/**
+ * 録音 Blob を Whisper で書き起こし、候補配列(1件)を返す。
+ * 失敗時は空配列(融合側は Web Speech API 候補だけで進む)。
+ */
+async function whisperTranscribeBlob(blob, langTag) {
+  try {
+    if (!blob || !blob.size) return [];
+    const pipe = await getWhisperPipeline();
+    if (!pipe) return [];
+    const pcm = await blobToPcm16k(blob);
+    if (!pcm || !pcm.length) return [];
+    const langCode = String(langTag || "en").split("-")[0];
+    // 2026-08-29 調査反映: 幻覚(無音区間で存在しない語を出す)対策として
+    // (1) 直前トークンに条件付けしない、(2) 無音/圧縮率しきい値で温度上げ
+    // 再試行を許可。VAD による無音除去(最も効果が高い)は次段(P2-γ)で
+    // Silero VAD を導入予定。
+    const out = await pipe(pcm, {
+      chunk_length_s: 30,
+      language: langCode,
+      task: "transcribe",
+      return_timestamps: false,
+      condition_on_previous_text: false,
+      no_speech_threshold: 0.6,
+      compression_ratio_threshold: 2.4,
+      temperature: [0, 0.2, 0.4],
+    });
+    const text = (out && (typeof out.text === "string" ? out.text : "")) || "";
+    const t = text.trim();
+    if (!t) return [];
+    return [{ transcript: t, confidence: 0.95, engine: "whisper-" + (whisperState.deviceLabel || "wasm") }];
+  } catch (_) {
+    return [];
+  }
+}
+
 const SpeechRecognitionImpl = window.SpeechRecognition || window.webkitSpeechRecognition;
 if (SpeechRecognitionImpl) {
   const recognition = new SpeechRecognitionImpl();
   recognition.interimResults = false;
-  recognition.maxAlternatives = 1;
+  // P1-β: 第1候補だけでなく上位候補を取り、後段の訂正/再選択に使う。
+  recognition.maxAlternatives = 5;
+  let activeSpeechLang = "en-US";
+
+  // P2-α: マイク押下中の並行録音(Whisper 用)。getUserMedia/MediaRecorder が
+  // 使えない環境ではこれらは null のままで、従来どおり Web Speech API 単独。
+  let mediaRecorder = null;
+  let recordedChunks = [];
+  let pendingSpeechAlts = null; // Web Speech API の result を融合まで保持
+
+  async function startParallelRecording() {
+    mediaRecorder = null;
+    recordedChunks = [];
+    try {
+      if (!navigator.mediaDevices || !window.MediaRecorder) return;
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      mediaRecorder = new MediaRecorder(stream);
+      mediaRecorder.addEventListener("dataavailable", (e) => {
+        if (e.data && e.data.size) recordedChunks.push(e.data);
+      });
+      mediaRecorder.addEventListener("stop", () => {
+        stream.getTracks().forEach((t) => t.stop());
+      });
+      mediaRecorder.start();
+    } catch (_) {
+      mediaRecorder = null;
+    }
+  }
+
+  // Web Speech API と Whisper の候補を融合し、訂正 → 送信 → 翻訳補助。
+  async function finalizeVoiceInput() {
+    const speechAlts = pendingSpeechAlts || [];
+    pendingSpeechAlts = null;
+
+    let blob = null;
+    if (mediaRecorder && recordedChunks.length) {
+      try {
+        blob = new Blob(recordedChunks, { type: mediaRecorder.mimeType || "audio/webm" });
+      } catch (_) {
+        blob = null;
+      }
+    }
+    recordedChunks = [];
+    mediaRecorder = null;
+
+    micBtn.textContent = "✨ Refining...";
+    let whisperAlts = [];
+    if (blob) {
+      micBtn.textContent = "🧠 Whisper...";
+      whisperAlts = await whisperTranscribeBlob(blob, activeSpeechLang);
+      micBtn.textContent = "✨ Refining...";
+    }
+
+    // §4.4 融合: 全エンジンの候補を1リストへ。
+    const fused = whisperAlts.concat(speechAlts);
+    if (!fused.length) {
+      resetMicButton();
+      return;
+    }
+    let text;
+    try {
+      text = await refineTranscript(fused, activeSpeechLang);
+    } catch (_) {
+      text = (fused[0] && fused[0].transcript) || "";
+    }
+    inputEl.value = text;
+    formEl.requestSubmit();
+    speechTranslationHelper(text, activeSpeechLang); // P1-γ
+    resetMicButton();
+  }
 
   micBtn.addEventListener("click", () => {
-    recognition.lang = replyLangEl.value === "ja" ? "ja-JP" : "en-US";
+    const tag = speechLangTag();
+    activeSpeechLang = tag;
+    recognition.lang = tag;
+    pendingSpeechAlts = null;
     micBtn.classList.add("listening");
-    micBtn.textContent = "🎙 Listening...";
+    micBtn.textContent = `🎙 Listening (${tag})...`;
+    startParallelRecording(); // fire-and-forget(失敗しても Web Speech API は動く)
     try {
       recognition.start();
     } catch (err) {
@@ -4089,17 +4496,45 @@ if (SpeechRecognitionImpl) {
   });
 
   recognition.addEventListener("result", (event) => {
-    const transcript = event.results[0][0].transcript;
-    inputEl.value = transcript;
-    formEl.requestSubmit();
+    const res0 = event.results[0];
+    const alts = [];
+    for (let i = 0; i < res0.length; i++) {
+      alts.push({ transcript: res0[i].transcript, confidence: res0[i].confidence });
+    }
+    pendingSpeechAlts = alts;
   });
 
   const resetMicButton = () => {
     micBtn.classList.remove("listening");
     micBtn.textContent = "🎙 Speak";
   };
-  recognition.addEventListener("end", resetMicButton);
-  recognition.addEventListener("error", resetMicButton);
+
+  recognition.addEventListener("end", () => {
+    // 録音を止めてから融合・確定へ。MediaRecorder が無い場合も
+    // finalizeVoiceInput が pendingSpeechAlts だけで進める。
+    if (mediaRecorder && mediaRecorder.state === "recording") {
+      const mr = mediaRecorder;
+      mr.addEventListener("stop", () => {
+        finalizeVoiceInput();
+      });
+      try {
+        mr.stop();
+      } catch (_) {
+        finalizeVoiceInput();
+      }
+    } else {
+      finalizeVoiceInput();
+    }
+  });
+  recognition.addEventListener("error", () => {
+    if (mediaRecorder && mediaRecorder.state === "recording") {
+      try {
+        mediaRecorder.stop();
+      } catch (_) {}
+    }
+    // エラーでも録音があれば Whisper だけで拾える可能性がある。
+    finalizeVoiceInput();
+  });
 } else {
   micBtn.disabled = true;
   micBtn.title = "Voice input not supported in this browser / このブラウザは音声入力に対応していません";

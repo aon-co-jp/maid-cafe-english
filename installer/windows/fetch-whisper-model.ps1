@@ -32,13 +32,24 @@ function Get-File($url, $out) {
 }
 
 # transformers.js が Whisper を初期化する際に実際に要求するファイル群。
-# onnx/ 配下は量子化版のみ(fp32 のフル重みは取得しない — サイズ削減)。
+#
+# 2026-08-29 調査反映(多言語 Google/GitHub 調査、docs/SPEECH_RECOGNITION_
+# REDESIGN.md §3): transformers.js の既知の実測で
+#   - WebGPU + q8(量子化)デコーダ → 出力が gibberish(壊れる)
+#   - q8 エンコーダ → 特徴量の質が劣化
+#   - **fp32 エンコーダ + q4 デコーダのハイブリッド**が精度を保ちつつ
+#     サイズも許容範囲、が推奨。
+# そのため fp32 エンコーダ(`encoder_model.onnx`)と q4 デコーダ
+# (`decoder_model_merged_q4.onnx`)を取得する。q8 版も後方互換・
+# フォールバック用に残す(app.js 側が見つかった dtype を使う)。
 $files = @(
     "config.json",
     "generation_config.json",
     "preprocessor_config.json",
     "tokenizer.json",
     "tokenizer_config.json",
+    "onnx/encoder_model.onnx",
+    "onnx/decoder_model_merged_q4.onnx",
     "onnx/encoder_model_quantized.onnx",
     "onnx/decoder_model_merged_quantized.onnx"
 )
@@ -48,7 +59,10 @@ $files = @(
 # ——app.js の `WHISPER_VENDOR_URL` / `wasmPaths` が `/vendor/` を指すため。
 $appDir = Split-Path -Parent $DestDir
 $vendorDir = Join-Path $appDir "vendor"
-$tfjsVersion = "3.7.5"
+# 2026-08-29 調査反映: transformers.js v4.0.0-next 系はタイムスタンプ/
+# セグメント分割に既知の回帰があるため、当面は v3 系(3.8.x)を上限に
+# 固定する。3.8.1 が既知の安定版。
+$tfjsVersion = "3.8.1"
 $tfjsBase = "https://cdn.jsdelivr.net/npm/@huggingface/transformers@$tfjsVersion/dist"
 $ortFiles = @(
     "transformers.min.js",
@@ -76,10 +90,12 @@ try {
         if (Get-File $src (Join-Path $vendorDir $f)) { $vok++ }
     }
 
-    $encoder = Join-Path $modelDir "onnx/encoder_model_quantized.onnx"
-    $decoder = Join-Path $modelDir "onnx/decoder_model_merged_quantized.onnx"
+    # 推奨(fp32 encoder + q4 decoder)か、少なくとも q8 版のどちらかが
+    # 揃っていれば「利用可能」とみなす。
+    $encoderOk = (Test-Path (Join-Path $modelDir "onnx/encoder_model.onnx")) -or (Test-Path (Join-Path $modelDir "onnx/encoder_model_quantized.onnx"))
+    $decoderOk = (Test-Path (Join-Path $modelDir "onnx/decoder_model_merged_q4.onnx")) -or (Test-Path (Join-Path $modelDir "onnx/decoder_model_merged_quantized.onnx"))
     $tfjs = Join-Path $vendorDir "transformers.min.js"
-    if ((Test-Path $encoder) -and (Test-Path $decoder) -and (Test-Path $tfjs) -and $ok -ge 5) {
+    if ($encoderOk -and $decoderOk -and (Test-Path $tfjs) -and $ok -ge 6) {
         Write-Output "whisper-model: $Model + transformers.js runtime downloaded (model $ok/$($files.Count), vendor $vok/$($ortFiles.Count)). Browser Whisper is now available offline."
     } else {
         Write-Output "whisper-model: download incomplete. Browser Whisper will fall back to the built-in Web Speech API until model + runtime are present. Retry later, or fetch manually: model https://huggingface.co/$Model , runtime $tfjsBase"

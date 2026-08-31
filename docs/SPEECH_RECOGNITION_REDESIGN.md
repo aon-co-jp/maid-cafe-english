@@ -124,6 +124,101 @@ recognition.addEventListener("result", (event) => {
   出典: [WhisperPipe](https://arxiv.org/abs/2604.25611) ・
   [Whisper-Streaming](https://www.emergentmind.com/topics/whisper-streaming)
 
+### 3.6 追加調査(2026-08-29、試作 P1〜P2 の実装・TEST を踏まえた再調査、多言語)
+
+試作でぶつかった具体的な問題を軸に、日英中露で Google/GitHub を再調査した。
+
+- **【P2-α に直結・要修正】transformers.js の dtype 落とし穴**(実測報告多数):
+  - **WebGPU + q8(量子化)デコーダ → 出力が gibberish**(壊れる)。WASM では
+    正しいのに WebGPU だと壊れる、が tiny/base/small/large-v3-turbo 全てで再現。
+  - **q8 エンコーダ → 特徴量の質が劣化**。fp16 エンコーダも WebGPU で精度問題
+    (issue #1590)。
+  - **推奨 = fp32 エンコーダ + q4 デコーダのハイブリッド**(精度維持 + サイズ許容)。
+  - **transformers.js は 3.8.x に固定**。v4.0.0-next 系はタイムスタンプ/
+    セグメント分割に回帰(3.8.1 は複数の短いセグメントを正しく返すが v4-next は
+    全体 1 セグメントになる)。3.8.1 では `SuppressTokensLogitsProcessor` が
+    コメントアウトされており幻覚しやすいトークン(90 個)が抑制されない点は
+    `suppress_tokens` 明示で補う。
+  - → **本コミットで対応**: `fetch-whisper-model.ps1` を fp32 encoder +
+    q4 decoder 取得 + tfjs 3.8.1 へ、`app.js` の dtype を
+    `{encoder_model:"fp32", decoder_model_merged:"q4"}`(失敗時 q8 リトライ)へ、
+    `pipe()` に `condition_on_previous_text:false` /
+    `no_speech_threshold` / `compression_ratio_threshold` / 温度フォールバックを
+    追加。
+  - 出典: [tfjs #1317(WebGPU q8 gibberish)](https://github.com/huggingface/transformers.js/issues/1317) ・
+    [#1590(WebGPU fp16 encoder 精度)](https://github.com/huggingface/transformers.js/issues/1590) ・
+    [v4 timestamp 回帰の報告](https://github.com/huggingface/transformers.js/issues/1590)
+
+- **【P2-β に直結・設計変更が必要】`whisper-rs` は Windows(MSVC)で現状ビルド不能**:
+  `whisper-rs-sys` の bindgen が glibc 固有型を生成し、`whisper_full_params`
+  等のサイズ表明が MSVC のレイアウトと食い違う(`1_usize - 264_usize overflow`)。
+  **`whisper-rs 0.16.0` でも `WHISPER_DONT_GENERATE_BINDINGS=1` でも解消しない**
+  (事前生成バインディング自体が glibc 生成)。issue は 2026-04-21 報告、
+  公式 fix 未提供。open-english の主対象は **Windows 上で利用者が起動する
+  aruaru-llm** なので、これは P2-β の設計前提を崩す。
+  - **→ P2-β の方針変更**: `whisper-rs` を直接リンクするのではなく、
+    **whisper.cpp のプレビルド CLI(`whisper-cli.exe` 等、公式リリース同梱)を
+    サブプロセス起動**する方式へ切り替える(このエコシステムが `pg_dump` /
+    `Expand-Archive` / PowerShell / `adb` で既に多用している「外部バイナリを
+    子プロセスで呼ぶ」パターン)。C++ リンク・bindgen を完全に回避でき、
+    GPU バックエンド(Vulkan/CUDA)はプレビルド CLI 側の feature で選べる。
+    `whisper-transcribe` feature は残し、feature 有効時に CLI パスを
+    `ARUARU_LLM_WHISPER_CLI` で受ける(既定は `<crate>/models/whisper/whisper-cli.exe`)。
+  - 出典: [whisper-rs-sys MSVC bindgen 問題(全版で再現)](https://github.com/Dimillian/CodexMonitor/issues/599) ・
+    [whisper-rs-sys の `WHISPER_DONT_GENERATE_BINDINGS`](https://lib.rs/crates/whisper-rs-sys)
+
+- **contextual biasing は Whisper 自身のプロンプトでも効く**(中露の実務記事で一致):
+  ドメイン語(専門用語・固有名詞)を `initial_prompt` / `prompt` に入れるだけで
+  用語認識が上がる。現状 P1-β2 は「事後 LLM 訂正」で直前トレーナー発話を使う
+  のみ。**Whisper 呼び出し時の `prompt` にも直前トレーナー発話 + 練習問題の
+  期待語彙を渡す**のが低コストで確実(transformers.js 側の対応可否は要確認、
+  whisper.cpp CLI は `--prompt` で確実)。
+
+- **VAD(無音除去)が幻覚対策として最も効果が高い**(日中露で一致):
+  認識前に無音区間を落とすと、幻覚が減り・速くもなる。ブラウザは
+  **Silero VAD(ONNX、`@ricky0123/vad-web` または `onnx-community/silero-vad`)**
+  を transformers.js/ORT-web で動かせる(参照実装: Silero VAD + Whisper +
+  SmolLM2 + Kokoro を全て tfjs で動かすデモが存在)。→ **P2-γ の必須項目に格上げ**。
+
+- **Moonshine(27M、量子化 ONNX ~50MB)= 低遅延経路の有力候補**:
+  リアルタイム/短発話向けに設計され WebGPU 加速 + WASM フォールバック、
+  ORT-web + tfjs で動く。**日本語版 `moonshine-tiny-ja-ONNX` も存在**。
+  Whisper-base より軽く速いため、**「即時に出す」低遅延エンジンとして
+  Moonshine、精度確認用に Whisper**、という二枚看板が組める(§4.4 融合の
+  受け皿は既にあるので候補を増やすだけ)。
+  出典: [Moonshine Web](https://huggingface.co/posts/Xenova/486935205804807) ・
+  [moonshine-tiny-ja-ONNX](https://huggingface.co/wmoto-ai/moonshine-tiny-ja-ONNX)
+
+- **WebNN(NPU)は 2026 時点でまだフラグ裏**: Chrome/Edge で
+  「Enables WebNN API」フラグ + Windows 11 24H2 + `kWebNNOnnxRuntime` フラグが
+  必要、GPU/NPU は preview。→ P2-α の WebNN カスケードは**残すが、実際に
+  効くのは限定的**と正直に注記。Whisper Tiny クラスなら near-native
+  スループットの実証はある。
+  出典: [ONNX Runtime WebNN EP](https://onnxruntime.ai/docs/tutorials/web/ep-webnn.html) ・
+  [WebNN Overview(Microsoft)](https://learn.microsoft.com/en-us/windows/ai/directml/webnn-overview)
+
+- **P3 多言語 SoTA の 2026 最新**: **Parakeet-TDT-0.6B-v3**(25 言語、平均 WER
+  6.34%、自動言語判定、TDT デコーダで 10〜100× 高速)、**Canary-1B-v2**
+  (25 言語 + 音声翻訳)、**Omnilingual ASR LLM 7B v2**(1000+ 言語、多言語
+  ベンチで上位、ただし専用エンコーダには劣る)、**Fast Conformer**(2× 高速)。
+  評価は **Open ASR Leaderboard**(多言語 + long-form トラック新設)を
+  `docs/asr-eval/` の基準に採用する。
+  出典: [Canary-1B-v2 & Parakeet-TDT-0.6B-v3](https://arxiv.org/pdf/2509.14128) ・
+  [Open ASR Leaderboard(多言語/long-form)](https://arxiv.org/pdf/2510.06961) ・
+  [HF blog: Open ASR Leaderboard trends](https://huggingface.co/blog/open-asr-leaderboard)
+
+- **LLM GER の最新 = MPA GER(多パス増強生成訂正)**: 入力側で複数 ASR
+  システムの仮説をまとめ、出力側で複数 LLM の訂正をマージする。**日本語
+  専用ベンチ**(arXiv:2408.16180)あり。ProGRes(プロンプト生成リスコア)、
+  HyPoradise(オープンベースライン)、Denoising GER(雑音頑健)。現状 P1-β の
+  `refineTranscript` は単一 LLM・単一 ASR 仮説群 → **複数エンジン(Web Speech
+  + Whisper + サーバー)の n-best を 1 リストに束ねて 1 回の LLM 訂正へ**
+  という現行設計は MPA GER の縮小版として妥当。
+  出典: [HyPoradise](https://arxiv.org/abs/2309.15701) ・
+  [ProGRes](https://arxiv.org/pdf/2409.00217) ・
+  [日本語 ASR-LLM MPA GER ベンチ](https://arxiv.org/html/2408.16180) ・
+  [Denoising GER](https://arxiv.org/html/2509.04392)
+
 ---
 
 ## 4. 改善設計(3 フェーズ)
@@ -320,14 +415,24 @@ n-best を融合する**。各エンジンの強みを組み合わせる:
   `model_path` / `model_present` / `detail`)。モデルは
   `ARUARU_LLM_WHISPER_MODEL`(既定 `<crate>/models/whisper/ggml-base.bin`、
   非同梱)。既定ビルド + 実 HTTP で検証済み(97 テスト全 green)。
-- ⏳ 実機検証待ち: `--features whisper-transcribe` の実ビルドは C++
-  ツールチェーン(CMake/libclang/bindgen)自体は動いたが、上流
-  `whisper-rs-sys v0.13.1` の事前生成バインディングのサイズ表明が
-  ローカルビルドの whisper.cpp と食い違い `1_usize - 264_usize overflow`
-  でビルド失敗(このリポジトリのコードではなく上流のパッケージング
-  問題)。次周: 動作する `whisper-rs` バージョンへのピン留め or 上流
-  修正追従 → feature ブロックの実コンパイル + 実 GGML モデルでの
-  `POST /v1/transcribe` 実 HTTP 検証。
+- ⚠️ **方針変更(2026-08-29 追加調査、§3.6)**: `--features whisper-transcribe`
+  の実ビルドは C++ ツールチェーン(CMake/libclang/bindgen)自体は動いたが、
+  `whisper-rs-sys` の bindgen が **Windows(MSVC)で glibc 固有型を生成**し
+  `whisper_full_params` 等のサイズ表明が食い違って
+  `1_usize - 264_usize overflow` でビルド失敗する。再調査の結果、これは
+  **`whisper-rs 0.16.0` でも `WHISPER_DONT_GENERATE_BINDINGS=1` でも解消
+  しない**既知の Windows ブロッカー(issue 2026-04-21、公式 fix 未提供)。
+  open-english の主対象は Windows 上で利用者が起動する aruaru-llm なので、
+  `whisper-rs` を直接リンクする現行 P2-β の前提が崩れる。
+  - **→ 次周の P2-β 実装**: `whisper-rs` リンクをやめ、**whisper.cpp の
+    プレビルド CLI(`whisper-cli.exe`、公式リリース同梱)をサブプロセス
+    起動**する方式へ切り替える(`pg_dump` / `Expand-Archive` / `adb` と
+    同じ「外部バイナリを子プロセスで呼ぶ」既存パターン、C++ リンク・
+    bindgen を完全回避、GPU は CLI 側 feature で選択)。`whisper-transcribe`
+    feature と `POST /v1/transcribe` / `GET /v1/runtime` の `whisper` 段は
+    そのまま残し、実装を CLI 呼び出しへ差し替える。CLI パスは
+    `ARUARU_LLM_WHISPER_CLI`。
+  - 現状(feature 無効・既定ビルド)は 97 テスト全 green で影響ゼロ。
 
 **融合(P2-γ)**: Web Speech API(即時)+ ブラウザ Whisper(WebGPU 時)+
 サーバー `/v1/transcribe`(到達時)を並行実行し、全 n-best を
