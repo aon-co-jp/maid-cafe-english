@@ -157,10 +157,29 @@ recognition.addEventListener("result", (event) => {
 
 ### 4.2 Phase 2 — 本物の Whisper(要・方針決定)
 
-- **(a) ブラウザ内 Whisper WebGPU**: `transformers.js` + `whisper-turbo`
-  (ONNX、~240MB、Service Worker キャッシュ)。`MediaRecorder` で録音 →
-  ローカル推論 → n-best。WebGPU 非対応は WASM、それも無ければ Web Speech API。
-  長所: サーバー不要・オフライン・プライバシー。短所: 初回 240MB DL。
+- **(a) ブラウザ内 Whisper(ハードウェアアクセラレータ対応の実行段カスケード)**:
+  `transformers.js`(ONNX Runtime Web)+ `onnx-community/whisper-base`
+  (量子化 ONNX、約 40〜80MB、Service Worker キャッシュ。より高精度が
+  必要なら `whisper-small` ~240MB を選択可)。`MediaRecorder` で録音 →
+  ローカル推論 → n-best。
+  **実行段(execution provider)は利用可能なものへ自動カスケード**
+  (ユーザー指示 2026-08-29「GPU だけでなく NPU や open-cpu の CPU 命令でも
+  ハードウェアアクセラレータ対応に」):
+  1. **WebGPU**(GPU)— `device: "webgpu"`
+  2. **WebNN**(NPU/統合アクセラレータ — OS の Neural API 経由。Chrome
+     で実験的)— `executionProviders: ["webnn"]`(`deviceType: "npu"` →
+     失敗時 `"gpu"` → `"cpu"`)
+  3. **WASM**(CPU)— ONNX Runtime Web の WASM バックエンド。**WASM SIMD128
+     を有効化**し、ブラウザの JIT が CPU の SIMD 命令(AVX2/NEON 等)へ
+     マップする。スレッド数は `open-english-server` の既存
+     `GET /v1/cpu-runtime`(open-cpu の検出結果 — `avx2+fma3` 等)を
+     ヒントに決める(SIMD 非対応なら 1 スレッド + シングル)。
+  4. どれも駄目なら **Web Speech API**、最後は手入力。
+  長所: サーバー不要・オフライン・プライバシー。短所: 初回モデル DL。
+  → open-cpu は「ブラウザ内から直接呼ぶ」ものではなく、**サーバーが
+    報告する CPU 能力を app.js が WASM 実行段のチューニングに使う**形で
+    連携する(ネイティブ推論の open-cpu 直結は P2-β の `/v1/transcribe`
+    側)。
 - **(b) aruaru-llm に `POST /v1/transcribe`**: `whisper-rs`(whisper.cpp
   バインディング)で新設。**open-cuda(CUDA)/ open-directx(Vulkan)/
   open-cpu(SIMD)** に自動で乗る。`/v1/runtime` の `acceleration` に

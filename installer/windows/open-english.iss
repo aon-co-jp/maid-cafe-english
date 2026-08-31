@@ -86,6 +86,11 @@ Source: "..\..\icons\*"; DestDir: "{app}\icons"; Flags: ignoreversion recursesub
 Source: "README-INSTALLED.txt"; DestDir: "{app}"; Flags: ignoreversion
 Source: "fetch-aruaru-llm.ps1"; DestDir: "{app}"; Flags: ignoreversion
 Source: "fetch-aruaru-db.ps1"; DestDir: "{app}"; Flags: ignoreversion
+; ブラウザ内 Whisper 音声認識(P2-α)用の ONNX モデル取得
+; スクリプト + 単体GUIインストーラー(2026-08-29新設)。exe も {app} へ
+; 同梱し、あとからモデルだけ再取得/更新したい利用者が使えるようにする。
+Source: "fetch-whisper-model.ps1"; DestDir: "{app}"; Flags: ignoreversion
+Source: "whisper-model-installer.exe"; DestDir: "{app}"; Flags: ignoreversion
 Source: "fetch-open-easy-web.ps1"; DestDir: "{app}"; Flags: ignoreversion
 Source: "fetch-open-web-server.ps1"; DestDir: "{app}"; Flags: ignoreversion
 Source: "fetch-open-cg-cad.ps1"; DestDir: "{app}"; Flags: ignoreversion
@@ -134,6 +139,11 @@ Name: "desktopicon"; Description: "{cm:CreateDesktopIcon}"; GroupDescription: "{
 ; `OPEN_ENGLISH_DATABASE_URL`を設定する必要がある、手順はfetch-aruaru-db.ps1
 ; の出力メッセージとREADME-INSTALLED.txtに記載)。
 Name: "installaruarudb"; Description: "Also install aruaru-db (optional PostgreSQL-wire mirror DB, not required) / aruaru-db(任意のPostgreSQL互換ミラーDB、必須ではありません)も一緒にインストール"; Flags: unchecked
+; ブラウザ内 Whisper 音声認識モデル(P2-α、~40-80MB)。既定は未チェック
+; ——チェックしなくても、open-english-server が起動時の自動メンテナンスで
+; モデルが無ければ自動取得する(server/src/main.rs)。ここでチェックすると
+; インストール時に先に取得しておく(初回起動を速くしたい場合向け)。
+Name: "installwhispermodel"; Description: "Also download the browser Whisper speech-recognition model now (~40-80 MB; otherwise fetched automatically on first run) / ブラウザ内 Whisper 音声認識モデル(約40〜80MB)を今ダウンロード(未選択でも初回起動時に自動取得)"; Flags: unchecked
 ; open-easy-web/open-web-server同梱タスク(ユーザー指示「open-easy-web も
 ; open-web-serverもopen-englishの同梱に含めて」への対応、2026-08-19。
 ; 2026-08-26追記: ユーザー指摘「必要なのか?一緒にインストールする
@@ -210,6 +220,11 @@ Filename: "powershell.exe"; \
     StatusMsg: "Downloading aruaru-db (optional)... / aruaru-db(任意)をダウンロード中..."; \
     Flags: runhidden waituntilterminated; \
     Tasks: installaruarudb
+Filename: "powershell.exe"; \
+    Parameters: "-NoProfile -ExecutionPolicy Bypass -File ""{app}\fetch-whisper-model.ps1"" -DestDir ""{app}\models"""; \
+    StatusMsg: "Downloading the browser Whisper model (~40-80 MB)... / ブラウザ内 Whisper モデル(約40〜80MB)をダウンロード中..."; \
+    Flags: runhidden waituntilterminated; \
+    Tasks: installwhispermodel
 Filename: "powershell.exe"; \
     Parameters: "-NoProfile -ExecutionPolicy Bypass -File ""{app}\fetch-open-easy-web.ps1"" -DestDir ""{app}\open-easy-web"""; \
     StatusMsg: "Downloading open-easy-web (optional)... / open-easy-web(任意)をダウンロード中..."; \

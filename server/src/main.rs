@@ -71,6 +71,50 @@ const STATIC_FILES: &[(&str, &str, &str)] = &[
     ("/icons/icon-192.png", "icons/icon-192.png", "image/png"),
     ("/icons/icon-512.png", "icons/icon-512.png", "image/png"),
     ("/icons/open-english.ico", "icons/open-english.ico", "image/x-icon"),
+    // 2026-08-29新設: ブラウザ内 Whisper 音声認識(P2-α、
+    // docs/SPEECH_RECOGNITION_REDESIGN.md)用の ONNX モデルを同一
+    // オリジンで配信する。ファイルは `models/onnx-community/whisper-base/`
+    // 配下に、`fetch-whisper-model.ps1`(インストーラー同梱)または
+    // 起動時の自動メンテナンス(`maybe_fetch_whisper_model`)が取得する。
+    // 未取得のうちは各パスが 404 を返し、app.js は組み込みの
+    // Web Speech API へフォールバックする(回帰ゼロ)。この compat
+    // ルーターは可変長パスに対応しないため、transformers.js が実際に
+    // 要求する固定ファイル集合を明示列挙する。
+    (
+        "/models/onnx-community/whisper-base/config.json",
+        "models/onnx-community/whisper-base/config.json",
+        "application/json; charset=utf-8",
+    ),
+    (
+        "/models/onnx-community/whisper-base/generation_config.json",
+        "models/onnx-community/whisper-base/generation_config.json",
+        "application/json; charset=utf-8",
+    ),
+    (
+        "/models/onnx-community/whisper-base/preprocessor_config.json",
+        "models/onnx-community/whisper-base/preprocessor_config.json",
+        "application/json; charset=utf-8",
+    ),
+    (
+        "/models/onnx-community/whisper-base/tokenizer.json",
+        "models/onnx-community/whisper-base/tokenizer.json",
+        "application/json; charset=utf-8",
+    ),
+    (
+        "/models/onnx-community/whisper-base/tokenizer_config.json",
+        "models/onnx-community/whisper-base/tokenizer_config.json",
+        "application/json; charset=utf-8",
+    ),
+    (
+        "/models/onnx-community/whisper-base/onnx/encoder_model_quantized.onnx",
+        "models/onnx-community/whisper-base/onnx/encoder_model_quantized.onnx",
+        "application/octet-stream",
+    ),
+    (
+        "/models/onnx-community/whisper-base/onnx/decoder_model_merged_quantized.onnx",
+        "models/onnx-community/whisper-base/onnx/decoder_model_merged_quantized.onnx",
+        "application/octet-stream",
+    ),
 ];
 
 /// 静的ファイルへの`HEAD`リクエスト用ハンドラ(2026-08-24新設)。
@@ -211,6 +255,55 @@ async fn maybe_launch_aruaru_llm() {
             candidate.display()
         ),
         Err(e) => println!("failed to auto-launch aruaru-llm from {}: {e}", candidate.display()),
+    }
+}
+
+/// ブラウザ内 Whisper 音声認識(P2-α、docs/SPEECH_RECOGNITION_REDESIGN.md)用の
+/// ONNX モデルが無ければ、起動時の自動メンテナンスで取得する
+/// (2026-08-29新設、ユーザー指示「メンテナンスで自動インストールして」への対応)。
+///
+/// **正直な開示**: 取得処理は `fetch-whisper-model.ps1`(インストーラー同梱)
+/// に委ねる Windows 専用の best-effort 処理。スクリプトが見つからない
+/// (開発中の `cargo run`、または Linux/macOS)場合・既にモデルが存在する
+/// 場合は何もしない。取得に失敗しても open-english は組み込みの
+/// Web Speech API で動き続ける(`app.js` 側が同一オリジンの `/models/...`
+/// が 404 ならフォールバックする設計)。
+async fn maybe_fetch_whisper_model() {
+    let root = repo_root();
+    let marker = root
+        .join("models")
+        .join("onnx-community")
+        .join("whisper-base")
+        .join("onnx")
+        .join("encoder_model_quantized.onnx");
+    if marker.exists() {
+        return; // 既に取得済み
+    }
+    if !cfg!(target_os = "windows") {
+        println!("whisper-model auto-fetch: skipped (Windows-only; on other OSes add the model under {}/models manually or via transformers.js remote load)", root.display());
+        return;
+    }
+    let script = root.join("fetch-whisper-model.ps1");
+    if !script.exists() {
+        println!("whisper-model auto-fetch: skipped (fetch-whisper-model.ps1 not found next to the server — expected in installed builds)");
+        return;
+    }
+    let dest = root.join("models");
+    println!("whisper-model auto-fetch: model missing, running fetch-whisper-model.ps1 -> {}", dest.display());
+    match std::process::Command::new("powershell.exe")
+        .args([
+            "-NoProfile",
+            "-ExecutionPolicy",
+            "Bypass",
+            "-File",
+        ])
+        .arg(&script)
+        .arg("-DestDir")
+        .arg(&dest)
+        .spawn()
+    {
+        Ok(child) => println!("whisper-model auto-fetch: started (pid {})", child.id()),
+        Err(e) => println!("whisper-model auto-fetch: failed to start powershell: {e}"),
     }
 }
 
@@ -2381,6 +2474,11 @@ async fn main() {
     // 得るため)。
     tokio::spawn(maybe_launch_aruaru_llm());
 
+    // ブラウザ内 Whisper 音声認識モデルの自動取得(2026-08-29新設、
+    // ユーザー指示「メンテナンスで自動インストールして」)。無ければ
+    // 起動時に一度取得を試みる(best-effort、詳細は関数doc参照)。
+    tokio::spawn(maybe_fetch_whisper_model());
+
     // 起動時の自動メンテナンス/自動アップデート(2026-08-11追加、ユーザー
     // 指示「起動時の自動メンテナンスで自動UPDATEの自動バージョンアップ
     // 機能も搭載して」)。サーバーの起動(=フロントエンド側のメンテナンス
@@ -2414,6 +2512,7 @@ async fn main() {
             println!("open-english periodic maintenance: running scheduled update check (every 6h)");
             self_update::check_and_apply_update().await;
             component_update::check_and_apply_all().await;
+            maybe_fetch_whisper_model().await;
         }
     });
 
