@@ -4271,8 +4271,24 @@ async function speechTranslationHelper(text, spokenTag) {
 // 単独へフォールバックする(回帰ゼロ)。得られた仮説は Web Speech API の
 // n-best と統合して `refineTranscript()` へ渡す(§4.4 の融合)。
 // ══════════════════════════════════════════════════════════════════════
-const WHISPER_VENDOR_URL = "/vendor/transformers.min.js";
-const WHISPER_MODEL_BASE = "/models/"; // 末尾スラッシュ必須(localModelPath)
+// 2026-08-29 実配信で判明: VPS ではリバースプロキシがこのアプリを
+// `/open-english/` プレフィックス配下で配信する(`strip_prefix=true`)。
+// `/vendor/...` `/models/...` をドメイン直下の絶対パスにすると、プロキシが
+// バックエンドへ転送せず 404 になる。app.js 自身が読み込まれた URL から
+// アプリのベースパス(`/` または `/open-english/`)を導出し、そこからの
+// 相対で組み立てる(ローカル/インストーラー版=`/`、VPS=`/open-english/`
+// のどちらでも正しく解決される。プロキシは `/open-english` を剥がして
+// バックエンドへ渡すため、STATIC_FILES 側は常に `/vendor/...` で一致する)。
+const WHISPER_APP_BASE = (() => {
+  try {
+    const src = (document.currentScript && document.currentScript.src) || window.location.href;
+    return new URL(".", src).pathname; // 例: "/" または "/open-english/"
+  } catch (_) {
+    return "/";
+  }
+})();
+const WHISPER_VENDOR_URL = WHISPER_APP_BASE + "vendor/transformers.min.js";
+const WHISPER_MODEL_BASE = WHISPER_APP_BASE + "models/"; // 末尾スラッシュ必須(localModelPath)
 const WHISPER_MODEL_ID = "onnx-community/whisper-base";
 const whisperState = { loadPromise: null, pipelinePromise: null, disabled: false, deviceLabel: "", dtypeLabel: "" };
 
@@ -4301,7 +4317,7 @@ function loadWhisperModule() {
       env.allowRemoteModels = false; // 外部CDNへ取りに行かない(オフライン優先)
       env.localModelPath = WHISPER_MODEL_BASE;
       if (env.backends && env.backends.onnx && env.backends.onnx.wasm) {
-        env.backends.onnx.wasm.wasmPaths = "/vendor/ort/";
+        env.backends.onnx.wasm.wasmPaths = WHISPER_APP_BASE + "vendor/ort/";
         env.backends.onnx.wasm.numThreads = await whisperWasmThreadHint();
       }
       return mod;
