@@ -419,42 +419,40 @@ n-best を融合する**。各エンジンの強みを組み合わせる:
 - Chrome/Edge 利用者に即座に精度向上が届く
 - 融合の受け皿(`refineTranscript` が多エンジン候補を受ける)は既に P1-β で完成
 
-**P2-β = aruaru-llm `/v1/transcribe`(whisper-rs)を後に**。最高精度・GPU
-(open-cuda/open-directx/open-cpu)だが、C++ 依存・`/v1/runtime` 配線・
-サーバー側実装と規模が大きくビルド基盤に依存する。
+**P2-β = aruaru-llm `/v1/transcribe`(whisper.cpp CLI)を後に**。最高精度・
+GPU(open-cuda が使うのと同じ物理 GPU 上で whisper.cpp が走る)だが、
+サーバー側実装・`/v1/runtime` 配線・外部バイナリの用意が要る。
 
 **P2-β 実装状況(2026-08-29、aruaru-llm リポジトリ側)**:
 - ✅ `POST /v1/transcribe`(`{pcm_f32_base64, sample_rate=16000, language,
   tenant}` → `{transcript, language, engine, disclosure}`)。入力は
   P2-α の `blobToPcm16k()` が出す 16kHz mono f32 PCM の LE バイト列
-  base64。`sample_rate≠16000` / base64 不正 / 10 分超は `400`。重い
-  `full()` は `spawn_blocking`。
-- ✅ Cargo feature `whisper-transcribe`(既定オフ、`whisper-cuda` /
-  `whisper-vulkan` で GPU バックエンド追加)。`nllb-translate` と同じ
-  「重量級 C++ 依存は feature 隔離、既定ビルド・CI・VPS 本番に影響ゼロ」。
-  feature 無効時は `503` +「rebuild with --features whisper-transcribe」。
-- ✅ `GET /v1/runtime` に `whisper` 段(`compiled_in` / `backend` /
-  `model_path` / `model_present` / `detail`)。モデルは
-  `ARUARU_LLM_WHISPER_MODEL`(既定 `<crate>/models/whisper/ggml-base.bin`、
-  非同梱)。既定ビルド + 実 HTTP で検証済み(97 テスト全 green)。
-- ⚠️ **方針変更(2026-08-29 追加調査、§3.6)**: `--features whisper-transcribe`
-  の実ビルドは C++ ツールチェーン(CMake/libclang/bindgen)自体は動いたが、
-  `whisper-rs-sys` の bindgen が **Windows(MSVC)で glibc 固有型を生成**し
-  `whisper_full_params` 等のサイズ表明が食い違って
-  `1_usize - 264_usize overflow` でビルド失敗する。再調査の結果、これは
-  **`whisper-rs 0.16.0` でも `WHISPER_DONT_GENERATE_BINDINGS=1` でも解消
-  しない**既知の Windows ブロッカー(issue 2026-04-21、公式 fix 未提供)。
-  open-english の主対象は Windows 上で利用者が起動する aruaru-llm なので、
-  `whisper-rs` を直接リンクする現行 P2-β の前提が崩れる。
-  - **→ 次周の P2-β 実装**: `whisper-rs` リンクをやめ、**whisper.cpp の
-    プレビルド CLI(`whisper-cli.exe`、公式リリース同梱)をサブプロセス
-    起動**する方式へ切り替える(`pg_dump` / `Expand-Archive` / `adb` と
-    同じ「外部バイナリを子プロセスで呼ぶ」既存パターン、C++ リンク・
-    bindgen を完全回避、GPU は CLI 側 feature で選択)。`whisper-transcribe`
-    feature と `POST /v1/transcribe` / `GET /v1/runtime` の `whisper` 段は
-    そのまま残し、実装を CLI 呼び出しへ差し替える。CLI パスは
-    `ARUARU_LLM_WHISPER_CLI`。
-  - 現状(feature 無効・既定ビルド)は 97 テスト全 green で影響ゼロ。
+  base64。`sample_rate≠16000` / base64 不正 / 10 分超は `400`。
+- ✅ **方針変更・実装済み(2026-08-29)**: 当初の `whisper-rs` 直リンクは
+  `whisper-rs-sys` が **Windows(MSVC)で bindgen 破綻**(glibc 固有型生成 →
+  `1_usize - 264_usize overflow`)。再調査で **`whisper-rs 0.16.0` でも
+  `WHISPER_DONT_GENERATE_BINDINGS=1` でも解消しない**既知ブロッカー(issue
+  2026-04-21、公式 fix 未提供)と確認。open-english の主対象は Windows なので
+  直リンク方式は不成立 → **whisper.cpp の公式リリース同梱プレビルド CLI
+  (`whisper-cli` / 旧 `main`)を子プロセス起動**する方式へ全面書き換え
+  (`pg_dump` / `Expand-Archive` / `adb` と同じパターン、C++ リンク・bindgen
+  を完全回避)。`src/transcribe.rs`: 16kHz mono f32 PCM → 最小 WAV →
+  `whisper-cli -m <model> -f <wav> -l <lang|auto> -oj -nt -np -t <n>` →
+  `out.json` を `serde_json` で緩くパース。壁時計上限(既定 300s、
+  `ARUARU_LLM_WHISPER_TIMEOUT_SECS`)で kill。スクラッチは temp_dir 下の
+  一意サブディレクトリ(`tempfile` crate を実行時依存に加えない)。
+  **Cargo feature は撤去**(コンパイル時依存が無くなったため不要)。
+- ✅ `GET /v1/runtime` の `whisper` 段 = `{available, backend, cli_path,
+  cli_present, model_path, model_present, detail}`。`is_available()` =
+  `cli_present && model_present` の実行時判定。CLI パスは
+  `ARUARU_LLM_WHISPER_CLI`(既定 `<crate>/models/whisper/whisper-cli[.exe]`)、
+  モデルは `ARUARU_LLM_WHISPER_MODEL`(既定 `.../ggml-base.bin`)。どちらも
+  リポジトリ非同梱、無ければ `503` + 入手先(whisper.cpp releases)を案内。
+- ✅ `cargo build --release` 成功、`cargo test --release` **100 passed /
+  1 ignored**(新規 `transcribe` テスト 7 件 = WAV ヘッダ・JSON パース・
+  CLI/モデル不在時のエラー・env 上書き、回帰なし)。
+- ⏳ 実機検証待ち: プレビルド `whisper-cli` + `ggml-base.bin` を用意して
+  `POST /v1/transcribe` を実 HTTP で書き起こし検証(環境に両方が無いため未達)。
 
 **融合(P2-γ)**: Web Speech API(即時)+ ブラウザ Whisper(WebGPU 時)+
 サーバー `/v1/transcribe`(到達時)を並行実行し、全 n-best を
