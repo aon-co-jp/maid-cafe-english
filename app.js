@@ -385,7 +385,7 @@ function makeCollapsiblePanel(boxId, btnId, storageKeySuffix, closedLabel, openL
   btn.addEventListener("click", () => setCollapsed(!box.classList.contains("hidden")));
 }
 
-makeCollapsiblePanel("disclosure-box", "disclosure-toggle-btn", "disclosure", "✕ Hide disclosure / 開示を閉じる", "ℹ OPEN / 開示を開く");
+makeCollapsiblePanel("disclosure-box", "disclosure-toggle-btn", "disclosure", "✕ CLOSE", "＋ OPEN");
 makeCollapsiblePanel("phone-accel-banner", "phone-accel-banner-toggle", "phoneAccelBanner", "✕ CLOSE", "＋ OPEN");
 makeCollapsiblePanel("world-language-banner", "world-language-banner-toggle", "worldLanguageBanner", "✕ CLOSE", "＋ OPEN");
 makeCollapsiblePanel("topbar", "topbar-toggle", "topbar", "✕ CLOSE", "＋ OPEN");
