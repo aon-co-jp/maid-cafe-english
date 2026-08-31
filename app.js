@@ -4085,18 +4085,13 @@ const LEARN_TARGET_TO_LANG_CODE = {
   english: "en", japanese: "ja", german: "de", french: "fr", spanish: "es",
   italian: "it", russian: "ru", arabic: "ar", persian: "fa", hebrew: "he",
 };
-// 言語コード → BCP-47タグ。Chromeの音声認識は多くの言語で裸のサブタグ
-// (`es`/`fr`等)も受理するが、地域を明示した方が精度・可用性が安定する
-// ものだけ明示する(それ以外は裸のコードをそのまま使う)。
-const LANG_CODE_TO_BCP47 = {
-  en: "en-US", ja: "ja-JP", es: "es-ES", pt: "pt-BR", fr: "fr-FR",
-  de: "de-DE", it: "it-IT", ru: "ru-RU", ar: "ar-SA", fa: "fa-IR",
-  he: "he-IL", zh: "zh-CN", "zh-Hant": "zh-TW", yue: "zh-HK", ko: "ko-KR",
-  hi: "hi-IN", bn: "bn-BD", ta: "ta-IN", ur: "ur-PK", nl: "nl-NL",
-  sv: "sv-SE", nb: "nb-NO", no: "nb-NO", da: "da-DK", fi: "fi-FI",
-  pl: "pl-PL", cs: "cs-CZ", el: "el-GR", tr: "tr-TR", th: "th-TH",
-  vi: "vi-VN", id: "id-ID", ms: "ms-MY", uk: "uk-UA", ro: "ro-RO",
-  hu: "hu-HU", tl: "fil-PH", fil: "fil-PH",
+// 言語コード → BCP-47タグ。**既存の `SPEECH_LANG_TAGS`(読み上げ用、
+// この下の方で定義)を正とし**、そこに無い言語だけをここで補う
+// (地域明示が音声認識の精度・可用性に効くもの)。Chrome は多くの言語で
+// 裸のサブタグも受理するため、未知コードはそのまま渡す。
+const SPEECH_LANG_TAGS_EXTRA = {
+  "zh-Hant": "zh-TW", yue: "zh-HK", ta: "ta-IN", ur: "ur-PK", nb: "nb-NO",
+  hu: "hu-HU", fil: "fil-PH", ca: "ca-ES", gl: "gl-ES", eu: "eu-ES",
 };
 
 /**
@@ -4105,8 +4100,10 @@ const LANG_CODE_TO_BCP47 = {
  * @returns {string} 例 "en-US" / "de-DE" / "sw"
  */
 function speechLangTag() {
+  // 呼び出し時点では `SPEECH_LANG_TAGS`(下方の const)は評価済み。
+  const table = typeof SPEECH_LANG_TAGS === "object" && SPEECH_LANG_TAGS ? SPEECH_LANG_TAGS : {};
   const codeToTag = (code) =>
-    code ? LANG_CODE_TO_BCP47[code] || code : null;
+    code ? table[code] || SPEECH_LANG_TAGS_EXTRA[code] || code : null;
 
   // 1) 学習対象言語(学習者はこの言語を話して練習する)
   const lt = (learnTargetEl && learnTargetEl.value) || "";
