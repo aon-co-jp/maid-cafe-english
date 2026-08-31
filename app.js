@@ -391,6 +391,16 @@ makeCollapsiblePanel("world-language-banner", "world-language-banner-toggle", "w
 makeCollapsiblePanel("topbar", "topbar-toggle", "topbar", "✕ CLOSE", "＋ OPEN");
 makeCollapsiblePanel("maintenance-banner-detail", "maintenance-banner-toggle", "maintenanceBannerDetail", "✕ CLOSE", "＋ OPEN");
 makeCollapsiblePanel("download-recommend-banner", "download-recommend-banner-toggle", "downloadRecommendBanner", "✕ CLOSE", "＋ OPEN");
+// 2026-09-01追記(ユーザー指示): 「これはデモです、インストーラー版を
+// ダウンロードしてください」という案内は、本番(/open-english/)ではなく
+// デモ環境(/open-english/demo)でのみ表示する。本番/デモは同じ静的
+// ファイル・同じバイナリを共有し実行時のURLでしか区別できないため、
+// open-easy-web等で確立済みの「location.pathnameに/demoを含むかで
+// 出し分ける」パターンをそのまま踏襲する。
+if (!location.pathname.includes("/demo")) {
+  document.getElementById("download-recommend-banner")?.classList.add("hidden");
+  document.getElementById("download-recommend-banner-toggle")?.classList.add("hidden");
+}
 makeCollapsiblePanel("autorw-status-banner", "autorw-status-banner-toggle", "autorwStatusBanner", "✕ CLOSE", "＋ OPEN");
 
 // GitHub/ローカルドライブ/VPSの自動読み書きSETUP状況パネル(2026-09-01新設)。
