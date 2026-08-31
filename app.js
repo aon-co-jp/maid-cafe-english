@@ -4125,14 +4125,85 @@ function speechLangTag() {
   return (navigator.languages && navigator.languages[0]) || navigator.language || "en-US";
 }
 
+// 【2026-08-29 P1-β: docs/SPEECH_RECOGNITION_REDESIGN.md】n-best 収集 +
+// LLM による訂正パス。認識器の第1候補を無補正で入力欄へ直行させていた
+// (設計文書§2 原因2・3)のを、複数候補を取り、外部LLMプロバイダ経路
+// (`tryPriorityProviderReply`、ユーザーが設定済みなら)で最も意図に近い
+// 一文へ訂正する。訂正が使えない/怪しい場合は必ず第1候補へフォールバック
+// (回帰ゼロ)。内蔵GPT-2は指示追従できないため訂正には使わない。
+
+/** BCP-47タグ("de-DE")から人間向けの言語名を得る(訂正プロンプト用)。 */
+function speechLangDisplayName(tag) {
+  const code = String(tag || "").split("-")[0];
+  const info = typeof worldLanguageByCode === "function" ? worldLanguageByCode(code) : null;
+  if (info && info.en) return info.en;
+  try {
+    const dn = new Intl.DisplayNames(["en"], { type: "language" });
+    return dn.of(code) || code;
+  } catch (_) {
+    return code;
+  }
+}
+
+/**
+ * n-best 認識候補を、文脈を与えて最も意図に近い一文へ訂正する(P1-β)。
+ * @param {{transcript:string,confidence:number}[]} alts 信頼度降順でなくてよい
+ * @param {string} langTag BCP-47
+ * @returns {Promise<string>} 訂正済み(または第1候補)テキスト
+ */
+async function refineTranscript(alts, langTag) {
+  const clean = alts
+    .map((a) => (a && a.transcript ? String(a.transcript).trim() : ""))
+    .filter(Boolean);
+  const first = clean[0] || "";
+  if (clean.length <= 1) return first;
+
+  // 信頼度が取れるブラウザでは、最有力候補も先頭へ寄せておく
+  // (訂正が使えない時のフォールバック先をより良くする)。
+  const byConf = alts
+    .filter((a) => a && a.transcript)
+    .slice()
+    .sort((a, b) => (b.confidence || 0) - (a.confidence || 0));
+  const bestByConf = (byConf[0] && String(byConf[0].transcript).trim()) || first;
+
+  // 訂正は外部LLMプロバイダ経路が有効なときだけ(内蔵GPT-2は指示追従不可)。
+  if (typeof window.tryPriorityProviderReply !== "function") return bestByConf;
+
+  const langName = speechLangDisplayName(langTag);
+  const level = (typeof levelEl !== "undefined" && levelEl && levelEl.value) || "";
+  const numbered = clean.slice(0, 5).map((t, i) => `${i + 1}) ${t}`).join("\n");
+  const prompt =
+    `You are cleaning up a speech-to-text transcript from a ${langName} language learner` +
+    (level ? ` (${level} level)` : "") +
+    `. Below are the recognizer's top hypotheses for one short spoken utterance. ` +
+    `Pick or reconstruct the single most likely intended sentence in ${langName}. ` +
+    `Fix mishearings, spacing and punctuation. Do NOT translate, do NOT add words, ` +
+    `do NOT explain. Reply with only that one sentence.\n\n${numbered}`;
+
+  try {
+    const r = await window.tryPriorityProviderReply(prompt);
+    if (!r || typeof r.text !== "string") return bestByConf;
+    let out = r.text.trim().replace(/^["'「]|["'」]$/g, "").split(/\r?\n/)[0].trim();
+    // サニティチェック: 空 / 極端に長い(最長候補の2.5倍超) → 訂正を捨てる。
+    const longest = clean.reduce((m, t) => Math.max(m, t.length), 0);
+    if (!out || out.length > Math.max(40, longest * 2.5)) return bestByConf;
+    return out;
+  } catch (_) {
+    return bestByConf;
+  }
+}
+
 const SpeechRecognitionImpl = window.SpeechRecognition || window.webkitSpeechRecognition;
 if (SpeechRecognitionImpl) {
   const recognition = new SpeechRecognitionImpl();
   recognition.interimResults = false;
-  recognition.maxAlternatives = 1;
+  // P1-β: 第1候補だけでなく上位候補を取り、後段の訂正/再選択に使う。
+  recognition.maxAlternatives = 5;
+  let activeSpeechLang = "en-US";
 
   micBtn.addEventListener("click", () => {
     const tag = speechLangTag();
+    activeSpeechLang = tag;
     recognition.lang = tag;
     micBtn.classList.add("listening");
     micBtn.textContent = `🎙 Listening (${tag})...`;
@@ -4143,9 +4214,20 @@ if (SpeechRecognitionImpl) {
     }
   });
 
-  recognition.addEventListener("result", (event) => {
-    const transcript = event.results[0][0].transcript;
-    inputEl.value = transcript;
+  recognition.addEventListener("result", async (event) => {
+    const res0 = event.results[0];
+    const alts = [];
+    for (let i = 0; i < res0.length; i++) {
+      alts.push({ transcript: res0[i].transcript, confidence: res0[i].confidence });
+    }
+    micBtn.textContent = "✨ Refining...";
+    let text;
+    try {
+      text = await refineTranscript(alts, activeSpeechLang);
+    } catch (_) {
+      text = (alts[0] && alts[0].transcript) || "";
+    }
+    inputEl.value = text;
     formEl.requestSubmit();
   });
 
