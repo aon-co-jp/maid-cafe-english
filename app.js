@@ -4143,7 +4143,27 @@ function speechLangDisplayName(tag) {
 }
 
 /**
- * n-best 認識候補を、文脈を与えて最も意図に近い一文へ訂正する(P1-β)。
+ * 直近のトレーナー発話(会話の話題)を訂正プロンプトの文脈に使う(P1-β2)。
+ * 会話履歴は配列で持っていないため DOM の最後の `.msg.trainer` から拾う。
+ * 「トレーナーが何を尋ねたか」が分かると、学習者の返答に出やすい語彙へ
+ * 訂正を寄せられる(設計文書§4.1 D の contextual biasing を、Web Speech
+ * API には prompt 引数が無いため LLM 訂正段で行う)。
+ * @returns {string} 末尾200字程度に丸めたトレーナー発話(無ければ空)
+ */
+function lastTrainerUtterance() {
+  try {
+    const nodes = logEl.querySelectorAll(".msg.trainer");
+    const last = nodes[nodes.length - 1];
+    if (!last) return "";
+    const t = (last.textContent || "").replace(/\s+/g, " ").trim();
+    return t.length > 200 ? t.slice(-200) : t;
+  } catch (_) {
+    return "";
+  }
+}
+
+/**
+ * n-best 認識候補を、文脈を与えて最も意図に近い一文へ訂正する(P1-β/β2)。
  * @param {{transcript:string,confidence:number}[]} alts 信頼度降順でなくてよい
  * @param {string} langTag BCP-47
  * @returns {Promise<string>} 訂正済み(または第1候補)テキスト
@@ -4169,13 +4189,16 @@ async function refineTranscript(alts, langTag) {
   const langName = speechLangDisplayName(langTag);
   const level = (typeof levelEl !== "undefined" && levelEl && levelEl.value) || "";
   const numbered = clean.slice(0, 5).map((t, i) => `${i + 1}) ${t}`).join("\n");
+  // P1-β2: 直近のトレーナー発話を文脈として与える(語彙バイアス)。
+  const topic = lastTrainerUtterance();
   const prompt =
     `You are cleaning up a speech-to-text transcript from a ${langName} language learner` +
     (level ? ` (${level} level)` : "") +
     `. Below are the recognizer's top hypotheses for one short spoken utterance. ` +
     `Pick or reconstruct the single most likely intended sentence in ${langName}. ` +
     `Fix mishearings, spacing and punctuation. Do NOT translate, do NOT add words, ` +
-    `do NOT explain. Reply with only that one sentence.\n\n${numbered}`;
+    `do NOT explain. Reply with only that one sentence.\n\n${numbered}` +
+    (topic ? `\n\nContext — the trainer just said/asked: "${topic}"` : "");
 
   try {
     const r = await window.tryPriorityProviderReply(prompt);
