@@ -159,12 +159,23 @@ const STATIC_FILES: &[(&str, &str, &str)] = &[
         "vendor/ort/ort-wasm-simd-threaded.jsep.wasm",
         "application/wasm",
     ),
-    // standalone ORT ローダー(Silero VAD 用、transformers.js は
-    // InferenceSession を公開しないため。wasm 本体は上の jsep を再利用)。
+    // standalone ORT(Silero VAD 用、transformers.js は InferenceSession を
+    // 公開しないため。stable 1.22.0 の非 jsep wasm ビルドを別ディレクトリで
+    // 隔離: transformers.js の jsep ビルドとバージョン/ABI が混ざらないように)。
     (
-        "/vendor/ort/ort.wasm.min.mjs",
-        "vendor/ort/ort.wasm.min.mjs",
+        "/vendor/ort-vad/ort.wasm.min.mjs",
+        "vendor/ort-vad/ort.wasm.min.mjs",
         "application/javascript; charset=utf-8",
+    ),
+    (
+        "/vendor/ort-vad/ort-wasm-simd-threaded.mjs",
+        "vendor/ort-vad/ort-wasm-simd-threaded.mjs",
+        "application/javascript; charset=utf-8",
+    ),
+    (
+        "/vendor/ort-vad/ort-wasm-simd-threaded.wasm",
+        "vendor/ort-vad/ort-wasm-simd-threaded.wasm",
+        "application/wasm",
     ),
 ];
 

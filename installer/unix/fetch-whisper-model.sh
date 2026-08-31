@@ -93,9 +93,13 @@ get_file "$TFJS_BASE/transformers.min.js" "$VENDOR_DIR/transformers.min.js" && v
 for f in ort-wasm-simd-threaded.jsep.mjs ort-wasm-simd-threaded.jsep.wasm; do
     get_file "$TFJS_BASE/$f" "$VENDOR_DIR/ort/$f" && vok=$((vok + 1))
 done
-# standalone ORT ローダー(Silero VAD 用、~48KB。wasm 本体は上の jsep を再利用)。
-get_file "https://cdn.jsdelivr.net/npm/onnxruntime-web@1.22.0/dist/ort.wasm.min.mjs" \
-    "$VENDOR_DIR/ort/ort.wasm.min.mjs" || true
+# standalone ORT(Silero VAD 用)。transformers.js は InferenceSession を
+# 公開しないため onnxruntime-web@1.22.0 の非 jsep wasm ビルド一式を
+# vendor/ort-vad/ へ隔離(loader 48KB + glue 20KB + wasm 11MB)。
+for f in ort.wasm.min.mjs ort-wasm-simd-threaded.mjs ort-wasm-simd-threaded.wasm; do
+    get_file "https://cdn.jsdelivr.net/npm/onnxruntime-web@1.22.0/dist/$f" \
+        "$VENDOR_DIR/ort-vad/$f" || true
+done
 
 # fp32 encoder か q8 encoder のどちらか + デコーダ + tfjs 本体が揃えば利用可。
 enc_ok=0

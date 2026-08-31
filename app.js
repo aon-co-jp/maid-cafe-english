@@ -4455,7 +4455,8 @@ const SILERO_VAD_URL = WHISPER_APP_BASE + "models/silero-vad/model.onnx";
 // ~48KB)を別途 vendor し、wasm 本体は既に置いてある `/vendor/ort/` を再利用
 // する(重複ダウンロードを避ける)。ローダー未配置・バージョン不整合・
 // 実行失敗はすべて catch して null → 呼び出し側は RMS 版へフォールバック。
-const SILERO_ORT_URL = WHISPER_APP_BASE + "vendor/ort/ort.wasm.min.mjs";
+const SILERO_ORT_URL = WHISPER_APP_BASE + "vendor/ort-vad/ort.wasm.min.mjs";
+const SILERO_ORT_WASM_BASE = WHISPER_APP_BASE + "vendor/ort-vad/";
 const sileroState = { sessionPromise: null, disabled: false };
 
 async function getSileroSession() {
@@ -4474,7 +4475,7 @@ async function getSileroSession() {
         return null;
       }
       if (ort.env && ort.env.wasm) {
-        ort.env.wasm.wasmPaths = WHISPER_APP_BASE + "vendor/ort/";
+        ort.env.wasm.wasmPaths = SILERO_ORT_WASM_BASE;
         ort.env.wasm.numThreads = 1; // VAD は極小、スレッド立ち上げの方が高コスト
       }
       const session = await ort.InferenceSession.create(SILERO_VAD_URL, { executionProviders: ["wasm"] });
