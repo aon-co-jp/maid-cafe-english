@@ -4213,6 +4213,53 @@ async function refineTranscript(alts, langTag) {
   }
 }
 
+/**
+ * 【2026-08-29 P1-γ: docs/SPEECH_RECOGNITION_REDESIGN.md】音声で話した内容
+ * (訂正済みトランスクリプト)を、学習者の母国語へ翻訳して**チャットログの
+ * システムメッセージ**として補助表示する(既存の appendMessage を再利用、
+ * 新規 UI ウィジェットは足さない)。翻訳は aruaru-llm `/v1/translate`(NLLB/
+ * M2M100)。既定ビルドでは `nllb-translate` feature がオフで GPT-2 品質へ
+ * フォールバックするため、その場合は正直に「低品質」バッジを付ける。
+ * 母国語 == 話した言語 のときは無意味なのでスキップ。失敗時は静かに何も
+ * しない(回帰ゼロ)。
+ */
+async function speechTranslationHelper(text, spokenTag) {
+  try {
+    if (!text || !text.trim()) return;
+    const fromCode = String(spokenTag || "").split("-")[0] || "en";
+    const toCode = (typeof loadNativeLanguage === "function" && loadNativeLanguage()) || "ja";
+    if (fromCode === toCode) return; // 同じ言語なら翻訳不要
+
+    const fromName = speechLangDisplayName(spokenTag);
+    const toName = speechLangDisplayName(toCode);
+    const base = (typeof apiBaseEl !== "undefined" && apiBaseEl && apiBaseEl.value.trim()) || "";
+    if (!base) return;
+
+    const res = await fetchWithTimeout(
+      `${base}/v1/translate`,
+      {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ text, target_lang: toName, source_lang: fromName }),
+      },
+      15000
+    );
+    if (!res.ok) return;
+    const data = await res.json();
+    const translation = (data && typeof data.translation === "string" && data.translation.trim()) || "";
+    if (!translation) return;
+
+    const engine = (data && data.engine) || "";
+    const lowQuality = !/^m2m100/i.test(engine);
+    const badge = lowQuality
+      ? "\n⚠ 内蔵GPT-2による簡易翻訳です(専用翻訳モデル未搭載のため品質は保証できません) / rough GPT-2 translation — dedicated model not installed"
+      : "";
+    appendMessage("system", `🌐 ${toName}: ${translation}${badge}`);
+  } catch (_) {
+    /* 静かにスキップ(回帰ゼロ) */
+  }
+}
+
 const SpeechRecognitionImpl = window.SpeechRecognition || window.webkitSpeechRecognition;
 if (SpeechRecognitionImpl) {
   const recognition = new SpeechRecognitionImpl();
@@ -4249,6 +4296,9 @@ if (SpeechRecognitionImpl) {
     }
     inputEl.value = text;
     formEl.requestSubmit();
+    // P1-γ: 話した内容を母国語へ翻訳して補助表示(fire-and-forget、
+    // 送信フローはブロックしない)。
+    speechTranslationHelper(text, activeSpeechLang);
   });
 
   const resetMicButton = () => {
