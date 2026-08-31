@@ -7,6 +7,25 @@
 [Українська](README-Ukrainian.md) · [עברית](README-Hebrew.md) ·
 [فارسی](README-Persian.md) · [العربية](README-Arabic.md)
 
+> 📌 **Latest update (2026-08-29): started a ground-up overhaul of AI
+> speech recognition (ASR) accuracy.** The canonical record is
+> [`docs/SPEECH_RECOGNITION_REDESIGN.md`](docs/SPEECH_RECOGNITION_REDESIGN.md)
+> (findings from English/multilingual Google + GitHub research, plus the
+> improvement design across the 5 repos: open-english / open-directx /
+> open-cuda / open-cpu / aruaru-llm). **Status**: P1 (client-only, zero
+> new deps — BCP-47 language fix, n-best, LLM correction, vocabulary
+> bias, translation helper) done. P2-α (in-browser Whisper via
+> transformers.js, execution-tier cascade WebGPU → WebNN → WASM) done.
+> P2-β (`aruaru-llm`'s `POST /v1/transcribe` via whisper.cpp): the
+> endpoint and the `whisper` tier in `/v1/runtime` are done, but
+> `whisper-rs` currently cannot build on Windows/MSVC (a known upstream
+> blocker), so **next iteration switches to spawning a prebuilt
+> whisper.cpp CLI as a subprocess**. The 2026-08-29 multilingual
+> re-research also fed back a transformers.js dtype pitfall (WebGPU + q8
+> decoder produces garbled output → switched to an fp32-encoder +
+> q4-decoder hybrid). See the design doc and the 2026-08-29 HANDOFF in
+> [CLAUDE.md](CLAUDE.md) for details and next steps.
+>
 > 📌 **Latest update (2026-08-27, cont. 4)**: Live end-to-end testing
 > uncovered a quality bug in the search-augmented prompt: the persona
 > template and a second generation cue were getting nested inside the

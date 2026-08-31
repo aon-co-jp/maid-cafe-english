@@ -7,6 +7,23 @@
 [Українська](README-Ukrainian.md) · [עברית](README-Hebrew.md) ·
 [فارسی](README-Persian.md) · [العربية](README-Arabic.md)
 
+> 📌 **最新の更新(2026-08-29): AI音声認識(ASR)精度の抜本改善に着手**。
+> 正本は [`docs/SPEECH_RECOGNITION_REDESIGN.md`](docs/SPEECH_RECOGNITION_REDESIGN.md)
+> (英日・多言語で Google/GitHub 調査した結果と、open-english /
+> open-directx / open-cuda / open-cpu / aruaru-llm の 5 リポジトリ連携での
+> 改善設計)。**現状**: P1(クライアントのみ・新規依存ゼロ = BCP-47 言語
+> 修正・n-best・LLM 訂正・語彙バイアス・翻訳ヘルパー)実装済み。
+> P2-α(ブラウザ内 Whisper、transformers.js、実行段カスケード
+> WebGPU→WebNN→WASM)実装済み。P2-β(`aruaru-llm` の
+> `POST /v1/transcribe`、whisper.cpp)は API・`/v1/runtime` の `whisper` 段
+> まで実装済みだが、`whisper-rs` の Windows/MSVC ビルド不能(既知の上流
+> ブロッカー)により**次周に whisper.cpp プレビルド CLI のサブプロセス
+> 起動方式へ差し替え予定**。2026-08-29 の多言語再調査で
+> transformers.js の dtype 落とし穴(WebGPU + q8 デコーダは出力が壊れる →
+> fp32 encoder + q4 decoder のハイブリッドへ修正済み)も反映。詳細・
+> 次にすべきことは設計文書と [CLAUDE.md](CLAUDE.md) の 2026-08-29 HANDOFF
+> 参照。
+>
 > 📌 **最新の更新(2026-08-27 続き4)**: 実機E2Eテストで、検索付き
 > プロンプトに「質問の中にペルソナ全文と別の生成キューが入れ子になる」
 > 品質バグを発見・修正。`Question: {生の発話}\nAnswer:`という意図通りの

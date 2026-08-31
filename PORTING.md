@@ -964,3 +964,56 @@ LLMに生成させず人手で書いた固定文を返すパターン。`app.js`
      直下の`/v1/`もアプリへ転送する**設定が必要(`strip_prefix =
      false`)。他アプリが同じパス名前空間を使っていないか事前に
      ソース横断検索で確認すること。
+
+## 追記(2026-08-29): AI音声認識(ASR)精度改善の移植ポイント / ASR accuracy overhaul porting notes
+
+正本は [`docs/SPEECH_RECOGNITION_REDESIGN.md`](docs/SPEECH_RECOGNITION_REDESIGN.md)
+(調査結果・3フェーズ設計・試作駆動の進め方・受け入れ基準)。ここには
+「他リポジトリへ同型の改善を持ち込むときに再利用できる要点」だけを記す。
+The canonical record is `docs/SPEECH_RECOGNITION_REDESIGN.md`; this section
+only lists the reusable takeaways.
+
+- **音声入力は必ず「言語タグ → BCP-47」で始める / Always start from a
+  correct BCP-47 language tag**: `recognition.lang` を ja-JP/en-US 固定に
+  しない。`app.js` の `speechLangTag()` + `LEARN_TARGET_TO_LANG_CODE` +
+  `SPEECH_LANG_TAGS_EXTRA` が「学びたい言語 → BCP-47」を解決する。
+  これだけで多言語での認識精度が大きく変わる(P1-α)。
+- **n-best → 1回の LLM 訂正へ束ねる / Fuse all n-best into one LLM pass**:
+  `refineTranscript(alts, langTag)` が `maxAlternatives=5` の候補を
+  `window.tryPriorityProviderReply`(LLM 訂正)へ渡す。空/過長
+  (最長候補の 2.5 倍超)は却下して素の 1-best へフォールバック。
+  複数エンジン(Web Speech + ブラウザ Whisper + サーバー)を足す場合も、
+  候補を1リストに `concat` してこの関数へ渡すだけ(§4.4 融合)。
+  これは MPA GER(多パス増強生成訂正)の縮小版。
+- **contextual biasing は「直前トレーナー発話」を訂正プロンプトへ /
+  Feed the last trainer utterance as bias**: `lastTrainerUtterance()`
+  (DOM `.msg.trainer` 末尾 200 字)。Whisper 呼び出し自体の `prompt`
+  にも渡せると更に効く(whisper.cpp CLI は `--prompt` で確実)。
+- **transformers.js の dtype 落とし穴 / transformers.js dtype pitfalls**:
+  WebGPU + q8 デコーダは**出力が壊れる**。**fp32 エンコーダ + q4
+  デコーダのハイブリッド**を使う(`dtype: { encoder_model: "fp32",
+  decoder_model_merged: "q4" }`、失敗時 q8 単一へリトライ)。
+  transformers.js は **3.8.x に固定**(v4.0.0-next はタイムスタンプ回帰)。
+  幻覚対策に `condition_on_previous_text:false` /
+  `no_speech_threshold` / `compression_ratio_threshold` / 温度
+  フォールバックを付ける。VAD(Silero、ブラウザで ORT-web 実行可)での
+  無音除去が幻覚対策として最も効く(P2-γ 必須)。
+- **ハードウェアアクセラレータは実行段カスケードで / Cascade the
+  execution tier**: `getWhisperPipeline()` が WebGPU → WebNN(npu/gpu/cpu)
+  → WASM(スレッド数は `/v1/cpu-runtime` = open-cpu の検出ヒント)を
+  順に試す。WebNN は 2026 時点でまだフラグ裏なので「効くのは限定的」と
+  正直に注記すること。
+- **モデル/ランタイムのホスト / Hosting the model + runtime**: リポジトリ
+  に入れず、`fetch-whisper-model.ps1`(HF + jsdelivr から一度だけ取得)+
+  `whisper-model-installer.exe`(ISCC)+ `server` の
+  `maybe_fetch_whisper_model()`(起動時 + 6h ごと)で `/models/…` ・
+  `/vendor/…` を**同一オリジン配信**。未配置なら静かに無効化 →
+  Web Speech API 単独(回帰ゼロ)。
+- **サーバー側 ASR は feature 隔離 + 外部バイナリ子プロセス / Server-side
+  ASR = feature-gated + subprocess an external binary**: `aruaru-llm` の
+  `POST /v1/transcribe` は `whisper-transcribe` Cargo feature(既定オフ)。
+  `whisper-rs` を直接リンクすると **Windows/MSVC で bindgen が破綻**する
+  既知ブロッカーがあるため、`pg_dump` / `Expand-Archive` / `adb` と同じ
+  「プレビルド CLI を子プロセス起動」パターンで実装すること。
+  `GET /v1/runtime` に `whisper` 段(`compiled_in`/`backend`/`model_present`)
+  を出して可否を正直に見せる。
