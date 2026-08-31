@@ -277,7 +277,24 @@ n-best を融合する**。各エンジンの強みを組み合わせる:
 
 ### P2 の着手順(AI 判断、ユーザー承認 2026-08-29「AIの判断で良い所どり」)
 
-**P2-α = ブラウザ Whisper WebGPU を先に**。理由:
+**P2-α 実装状況(2026-08-29)**:
+- ✅ モデル/ランタイムのホスト: `fetch-whisper-model.ps1`(model +
+  transformers.js + ORT wasm を取得)、`whisper-model-installer.exe`
+  (ISCC ビルド済み)、`open-english.iss` 同梱、`server` の
+  `maybe_fetch_whisper_model()` が起動時 + 6h ごとに自動取得、
+  `/models/...`・`/vendor/...` を STATIC_FILES で同一オリジン配信。
+- ✅ `app.js` エンジン: `loadWhisperModule()` /
+  `getWhisperPipeline()`(実行段カスケード WebGPU → WebNN-npu/gpu/cpu →
+  WASM、スレッド数は `/v1/cpu-runtime` ヒント) /
+  `blobToPcm16k()` / `whisperTranscribeBlob()`。マイク押下で Web Speech
+  API と `MediaRecorder` を**並行起動**、`end` で融合(`finalizeVoiceInput`:
+  Whisper 候補 + Web Speech n-best を 1 リストにして `refineTranscript`)。
+  vendor/model 未配置なら静かに無効化 → Web Speech API 単独(回帰ゼロ)。
+- ⏳ 実機検証待ち: (1) ps1 が実際に HF から取得できるか、
+  (2) transformers.js v3 の ORT ファイル名が想定どおりか、
+  (3) 実マイクでの WebGPU/WebNN/WASM 各段の動作と WER 計測。
+
+**P2-α = ブラウザ Whisper を先に**。理由:
 - `app.js` だけで完結(C++ ビルド不要・サーバー変更不要・新バックエンド不要)
 - open-english の「PC/Linux サーバー不要・オフライン動作」方針(Android 単体
   ビルド、aruaru-llm 無しでも動く設計)と最も整合

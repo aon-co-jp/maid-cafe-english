@@ -4260,6 +4260,137 @@ async function speechTranslationHelper(text, spokenTag) {
   }
 }
 
+// ══════════════════════════════════════════════════════════════════════
+// 【2026-08-29 P2-α: docs/SPEECH_RECOGNITION_REDESIGN.md】ブラウザ内 Whisper。
+// transformers.js(ONNX Runtime Web)で Whisper を走らせ、実行段は
+// 利用可能なハードウェアアクセラレータへ自動カスケードする:
+//   WebGPU(GPU) → WebNN(NPU/統合アクセラレータ) → WASM(SIMD128、
+//   スレッド数は /v1/cpu-runtime = open-cpu の検出結果をヒントに)。
+// モデル・ランタイム(`/vendor/transformers.min.js`・`/models/...`)が
+// まだ配置されていなければ、この経路は静かに無効化され、Web Speech API
+// 単独へフォールバックする(回帰ゼロ)。得られた仮説は Web Speech API の
+// n-best と統合して `refineTranscript()` へ渡す(§4.4 の融合)。
+// ══════════════════════════════════════════════════════════════════════
+const WHISPER_VENDOR_URL = "/vendor/transformers.min.js";
+const WHISPER_MODEL_BASE = "/models/"; // 末尾スラッシュ必須(localModelPath)
+const WHISPER_MODEL_ID = "onnx-community/whisper-base";
+const whisperState = { loadPromise: null, pipelinePromise: null, disabled: false, deviceLabel: "" };
+
+/** WASM 実行段のスレッド数ヒント(open-cpu の検出結果を server 経由で)。 */
+async function whisperWasmThreadHint() {
+  try {
+    const res = await fetchWithTimeout("/v1/cpu-runtime", { cache: "no-store" }, 2000);
+    if (!res.ok) return 1;
+    const d = await res.json();
+    const hasSimd = !!(d && (d.avx2 || d.simd128 || d.neon || /avx2|neon|simd/i.test(JSON.stringify(d))));
+    const hw = (navigator.hardwareConcurrency || 2);
+    return hasSimd ? Math.max(1, Math.min(4, hw - 1)) : 1;
+  } catch (_) {
+    return 1;
+  }
+}
+
+/** transformers.js を遅延ロードして設定する。失敗したら null。 */
+function loadWhisperModule() {
+  if (whisperState.disabled) return Promise.resolve(null);
+  if (whisperState.loadPromise) return whisperState.loadPromise;
+  whisperState.loadPromise = (async () => {
+    try {
+      const mod = await import(/* @vite-ignore */ WHISPER_VENDOR_URL);
+      const env = mod.env;
+      env.allowRemoteModels = false; // 外部CDNへ取りに行かない(オフライン優先)
+      env.localModelPath = WHISPER_MODEL_BASE;
+      if (env.backends && env.backends.onnx && env.backends.onnx.wasm) {
+        env.backends.onnx.wasm.wasmPaths = "/vendor/ort/";
+        env.backends.onnx.wasm.numThreads = await whisperWasmThreadHint();
+      }
+      return mod;
+    } catch (e) {
+      // vendor ファイルが未配置 → この経路を諦める(静かに)。
+      whisperState.disabled = true;
+      return null;
+    }
+  })();
+  return whisperState.loadPromise;
+}
+
+/** 実行段カスケードでパイプラインを1回だけ構築する。 */
+function getWhisperPipeline() {
+  if (whisperState.pipelinePromise) return whisperState.pipelinePromise;
+  whisperState.pipelinePromise = (async () => {
+    const mod = await loadWhisperModule();
+    if (!mod) return null;
+    // 優先順: WebGPU → WebNN(npu→gpu→cpu) → WASM。
+    const candidates = [];
+    if (navigator.gpu) candidates.push("webgpu");
+    if (navigator.ml) candidates.push("webnn-npu", "webnn-gpu", "webnn-cpu");
+    candidates.push("wasm");
+    for (const device of candidates) {
+      try {
+        const pipe = await mod.pipeline("automatic-speech-recognition", WHISPER_MODEL_ID, {
+          device,
+          dtype: device === "webgpu" ? "fp16" : "q8",
+        });
+        whisperState.deviceLabel = device;
+        return pipe;
+      } catch (e) {
+        /* 次の候補へ */
+      }
+    }
+    whisperState.disabled = true;
+    return null;
+  })();
+  return whisperState.pipelinePromise;
+}
+
+/** webm/opus 等の Blob を 16kHz mono Float32 PCM へデコード・リサンプル。 */
+async function blobToPcm16k(blob) {
+  const AC = window.AudioContext || window.webkitAudioContext;
+  if (!AC) return null;
+  const buf = await blob.arrayBuffer();
+  const ac = new AC();
+  try {
+    const decoded = await ac.decodeAudioData(buf);
+    const targetRate = 16000;
+    const off = new OfflineAudioContext(1, Math.ceil(decoded.duration * targetRate), targetRate);
+    const src = off.createBufferSource();
+    src.buffer = decoded;
+    src.connect(off.destination);
+    src.start();
+    const rendered = await off.startRendering();
+    return rendered.getChannelData(0);
+  } finally {
+    ac.close && ac.close();
+  }
+}
+
+/**
+ * 録音 Blob を Whisper で書き起こし、候補配列(1件)を返す。
+ * 失敗時は空配列(融合側は Web Speech API 候補だけで進む)。
+ */
+async function whisperTranscribeBlob(blob, langTag) {
+  try {
+    if (!blob || !blob.size) return [];
+    const pipe = await getWhisperPipeline();
+    if (!pipe) return [];
+    const pcm = await blobToPcm16k(blob);
+    if (!pcm || !pcm.length) return [];
+    const langCode = String(langTag || "en").split("-")[0];
+    const out = await pipe(pcm, {
+      chunk_length_s: 30,
+      language: langCode,
+      task: "transcribe",
+      return_timestamps: false,
+    });
+    const text = (out && (typeof out.text === "string" ? out.text : "")) || "";
+    const t = text.trim();
+    if (!t) return [];
+    return [{ transcript: t, confidence: 0.95, engine: "whisper-" + (whisperState.deviceLabel || "wasm") }];
+  } catch (_) {
+    return [];
+  }
+}
+
 const SpeechRecognitionImpl = window.SpeechRecognition || window.webkitSpeechRecognition;
 if (SpeechRecognitionImpl) {
   const recognition = new SpeechRecognitionImpl();
@@ -4268,12 +4399,81 @@ if (SpeechRecognitionImpl) {
   recognition.maxAlternatives = 5;
   let activeSpeechLang = "en-US";
 
+  // P2-α: マイク押下中の並行録音(Whisper 用)。getUserMedia/MediaRecorder が
+  // 使えない環境ではこれらは null のままで、従来どおり Web Speech API 単独。
+  let mediaRecorder = null;
+  let recordedChunks = [];
+  let pendingSpeechAlts = null; // Web Speech API の result を融合まで保持
+
+  async function startParallelRecording() {
+    mediaRecorder = null;
+    recordedChunks = [];
+    try {
+      if (!navigator.mediaDevices || !window.MediaRecorder) return;
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      mediaRecorder = new MediaRecorder(stream);
+      mediaRecorder.addEventListener("dataavailable", (e) => {
+        if (e.data && e.data.size) recordedChunks.push(e.data);
+      });
+      mediaRecorder.addEventListener("stop", () => {
+        stream.getTracks().forEach((t) => t.stop());
+      });
+      mediaRecorder.start();
+    } catch (_) {
+      mediaRecorder = null;
+    }
+  }
+
+  // Web Speech API と Whisper の候補を融合し、訂正 → 送信 → 翻訳補助。
+  async function finalizeVoiceInput() {
+    const speechAlts = pendingSpeechAlts || [];
+    pendingSpeechAlts = null;
+
+    let blob = null;
+    if (mediaRecorder && recordedChunks.length) {
+      try {
+        blob = new Blob(recordedChunks, { type: mediaRecorder.mimeType || "audio/webm" });
+      } catch (_) {
+        blob = null;
+      }
+    }
+    recordedChunks = [];
+    mediaRecorder = null;
+
+    micBtn.textContent = "✨ Refining...";
+    let whisperAlts = [];
+    if (blob) {
+      micBtn.textContent = "🧠 Whisper...";
+      whisperAlts = await whisperTranscribeBlob(blob, activeSpeechLang);
+      micBtn.textContent = "✨ Refining...";
+    }
+
+    // §4.4 融合: 全エンジンの候補を1リストへ。
+    const fused = whisperAlts.concat(speechAlts);
+    if (!fused.length) {
+      resetMicButton();
+      return;
+    }
+    let text;
+    try {
+      text = await refineTranscript(fused, activeSpeechLang);
+    } catch (_) {
+      text = (fused[0] && fused[0].transcript) || "";
+    }
+    inputEl.value = text;
+    formEl.requestSubmit();
+    speechTranslationHelper(text, activeSpeechLang); // P1-γ
+    resetMicButton();
+  }
+
   micBtn.addEventListener("click", () => {
     const tag = speechLangTag();
     activeSpeechLang = tag;
     recognition.lang = tag;
+    pendingSpeechAlts = null;
     micBtn.classList.add("listening");
     micBtn.textContent = `🎙 Listening (${tag})...`;
+    startParallelRecording(); // fire-and-forget(失敗しても Web Speech API は動く)
     try {
       recognition.start();
     } catch (err) {
@@ -4281,32 +4481,46 @@ if (SpeechRecognitionImpl) {
     }
   });
 
-  recognition.addEventListener("result", async (event) => {
+  recognition.addEventListener("result", (event) => {
     const res0 = event.results[0];
     const alts = [];
     for (let i = 0; i < res0.length; i++) {
       alts.push({ transcript: res0[i].transcript, confidence: res0[i].confidence });
     }
-    micBtn.textContent = "✨ Refining...";
-    let text;
-    try {
-      text = await refineTranscript(alts, activeSpeechLang);
-    } catch (_) {
-      text = (alts[0] && alts[0].transcript) || "";
-    }
-    inputEl.value = text;
-    formEl.requestSubmit();
-    // P1-γ: 話した内容を母国語へ翻訳して補助表示(fire-and-forget、
-    // 送信フローはブロックしない)。
-    speechTranslationHelper(text, activeSpeechLang);
+    pendingSpeechAlts = alts;
   });
 
   const resetMicButton = () => {
     micBtn.classList.remove("listening");
     micBtn.textContent = "🎙 Speak";
   };
-  recognition.addEventListener("end", resetMicButton);
-  recognition.addEventListener("error", resetMicButton);
+
+  recognition.addEventListener("end", () => {
+    // 録音を止めてから融合・確定へ。MediaRecorder が無い場合も
+    // finalizeVoiceInput が pendingSpeechAlts だけで進める。
+    if (mediaRecorder && mediaRecorder.state === "recording") {
+      const mr = mediaRecorder;
+      mr.addEventListener("stop", () => {
+        finalizeVoiceInput();
+      });
+      try {
+        mr.stop();
+      } catch (_) {
+        finalizeVoiceInput();
+      }
+    } else {
+      finalizeVoiceInput();
+    }
+  });
+  recognition.addEventListener("error", () => {
+    if (mediaRecorder && mediaRecorder.state === "recording") {
+      try {
+        mediaRecorder.stop();
+      } catch (_) {}
+    }
+    // エラーでも録音があれば Whisper だけで拾える可能性がある。
+    finalizeVoiceInput();
+  });
 } else {
   micBtn.disabled = true;
   micBtn.title = "Voice input not supported in this browser / このブラウザは音声入力に対応していません";

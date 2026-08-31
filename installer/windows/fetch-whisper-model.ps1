@@ -19,6 +19,18 @@ param(
 
 $ErrorActionPreference = "Stop"
 
+function Get-File($url, $out) {
+    try {
+        $dir = Split-Path -Parent $out
+        if ($dir) { New-Item -ItemType Directory -Force -Path $dir | Out-Null }
+        Invoke-WebRequest -Uri $url -OutFile $out -UseBasicParsing -Headers @{ "User-Agent" = "open-english-installer" }
+        return $true
+    } catch {
+        Write-Output "whisper-model: could not fetch $url ($_)"
+        return $false
+    }
+}
+
 # transformers.js が Whisper を初期化する際に実際に要求するファイル群。
 # onnx/ 配下は量子化版のみ(fp32 のフル重みは取得しない — サイズ削減)。
 $files = @(
@@ -31,6 +43,21 @@ $files = @(
     "onnx/decoder_model_merged_quantized.onnx"
 )
 
+# transformers.js 本体 + ONNX Runtime Web ランタイム(WASM/WebGPU/WebNN)。
+# `-DestDir` 直下ではなく、その親(= open-english の {app})の vendor/ へ置く
+# ——app.js の `WHISPER_VENDOR_URL` / `wasmPaths` が `/vendor/` を指すため。
+$appDir = Split-Path -Parent $DestDir
+$vendorDir = Join-Path $appDir "vendor"
+$tfjsVersion = "3.7.5"
+$tfjsBase = "https://cdn.jsdelivr.net/npm/@huggingface/transformers@$tfjsVersion/dist"
+$ortFiles = @(
+    "transformers.min.js",
+    "ort/ort-wasm-simd-threaded.mjs",
+    "ort/ort-wasm-simd-threaded.wasm",
+    "ort/ort-wasm-simd-threaded.jsep.mjs",
+    "ort/ort-wasm-simd-threaded.jsep.wasm"
+)
+
 try {
     $modelDir = Join-Path $DestDir $Model
     New-Item -ItemType Directory -Force -Path (Join-Path $modelDir "onnx") | Out-Null
@@ -38,25 +65,24 @@ try {
     $base = "https://huggingface.co/$Model/resolve/main"
     $ok = 0
     foreach ($f in $files) {
-        $url = "$base/$f"
-        $out = Join-Path $modelDir $f
-        try {
-            Invoke-WebRequest -Uri $url -OutFile $out -UseBasicParsing -Headers @{ "User-Agent" = "open-english-installer" }
-            $ok++
-        } catch {
-            # 一部のモデルは encoder/decoder の量子化ファイル名が異なる
-            # (_fp16 等)。encoder/decoder の必須ファイルが 1 つも取れな
-            # かった場合のみ後段でエラーにする。
-            Write-Output "whisper-model: could not fetch $f ($_)"
-        }
+        if (Get-File "$base/$f" (Join-Path $modelDir $f)) { $ok++ }
+    }
+
+    # transformers.js + ORT ランタイム(dist 直下の ort ファイル名は
+    # バージョンで変わりうるため、取得できたものだけ使う)。
+    $vok = 0
+    foreach ($f in $ortFiles) {
+        $src = if ($f -eq "transformers.min.js") { "$tfjsBase/transformers.min.js" } else { "$tfjsBase/$($f -replace '^ort/','')" }
+        if (Get-File $src (Join-Path $vendorDir $f)) { $vok++ }
     }
 
     $encoder = Join-Path $modelDir "onnx/encoder_model_quantized.onnx"
     $decoder = Join-Path $modelDir "onnx/decoder_model_merged_quantized.onnx"
-    if ((Test-Path $encoder) -and (Test-Path $decoder) -and $ok -ge 5) {
-        Write-Output "whisper-model: $Model downloaded to $modelDir ($ok/$($files.Count) files). Browser Whisper is now available offline."
+    $tfjs = Join-Path $vendorDir "transformers.min.js"
+    if ((Test-Path $encoder) -and (Test-Path $decoder) -and (Test-Path $tfjs) -and $ok -ge 5) {
+        Write-Output "whisper-model: $Model + transformers.js runtime downloaded (model $ok/$($files.Count), vendor $vok/$($ortFiles.Count)). Browser Whisper is now available offline."
     } else {
-        Write-Output "whisper-model: download incomplete for $Model. Browser Whisper will fall back to the built-in Web Speech API until the model is present. You can retry later or download it manually from https://huggingface.co/$Model"
+        Write-Output "whisper-model: download incomplete. Browser Whisper will fall back to the built-in Web Speech API until model + runtime are present. Retry later, or fetch manually: model https://huggingface.co/$Model , runtime $tfjsBase"
     }
 } catch {
     # ダウンロード失敗はインストーラー全体を止めない(可用性優先、
