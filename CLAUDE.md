@@ -7135,3 +7135,40 @@ Google/GitHub 調査して改善・改良の開発・実装に活かして」「
 `worldLanguageByCode()` 由来の BCP-47 タグへ(ja/en 固定をやめる)。
 `world-language-regions.json` に `bcp47` フィールド追加を検討。マイク実機検証は
 ユーザーへ依頼して結果を次周へ反映する。
+
+### HANDOFF追記(2026-08-29 続き) ASR プロトタイプ P1〜P2-α を実装(1周=1コミット)
+
+`docs/SPEECH_RECOGNITION_REDESIGN.md` §5 の「プロトタイプ→計測→改善→再計測」
+方針に沿って、以下を順に実装・コミットした(各周は node --check / cargo build
+まで確認、実マイク計測はユーザー依頼分として次周へ)。
+
+- **P1-α** `speechLangTag()` + `LEARN_TARGET_TO_LANG_CODE` +
+  `SPEECH_LANG_TAGS_EXTRA`: `recognition.lang` の ja/en 固定を廃し、学びたい
+  言語 → BCP-47 タグへ解決。
+- **P1-β** `refineTranscript(alts, langTag)`: `maxAlternatives=5` の n-best を
+  `window.tryPriorityProviderReply`(LLM 訂正)へ渡す。空/過長(最長候補の
+  2.5倍超)は却下して素の 1-best へフォールバック。
+- **P1-β2** `lastTrainerUtterance()`: 直近のトレーナー発話(DOM `.msg.trainer`、
+  200字末尾)を訂正プロンプトへ添えて contextual biasing。
+- **P1-γ** `speechTranslationHelper(text, spokenTag)`: 話した内容を母国語へ
+  翻訳して `appendMessage("system", "🌐 …")`。`/v1/translate` が m2m100 以外
+  (GPT-2 フォールバック)なら注意バッジ。fromCode===toCode ならスキップ。
+- **P2-α**(本コミット `c26d7ca`): ブラウザ内 Whisper(transformers.js /
+  ONNX Runtime Web)。実行段カスケード WebGPU → WebNN(npu/gpu/cpu) →
+  WASM(SIMD128、スレッド数は `/v1/cpu-runtime` ヒント)。マイク押下で
+  Web Speech API と `MediaRecorder` を並行起動、認識終了時に Whisper 候補 +
+  Web Speech n-best を融合(§4.4)して `refineTranscript()` へ。
+  モデル/ランタイムのホストは `fetch-whisper-model.ps1`(model +
+  transformers.js + ORT wasm を取得)・`whisper-model-installer.exe`(ISCC
+  ビルド済み・`open-english.iss` 同梱)・`server` の `maybe_fetch_whisper_model()`
+  (起動時 + 6h ごと自動取得)・`/models/…`・`/vendor/…` の同一オリジン配信。
+  vendor/model 未配置なら静かに無効化 → Web Speech API 単独(回帰ゼロ)。
+
+**次にすべきこと(P2-α の実機検証、ユーザー依頼分)**:
+(1) `fetch-whisper-model.ps1` が実際に HF/jsdelivr から取得できるか、
+(2) transformers.js v3.7.5 の dist 内 ORT ファイル名が想定
+(`ort-wasm-simd-threaded{,.jsep}.{mjs,wasm}`)どおりか、
+(3) 実マイクで WebGPU/WebNN/WASM 各段が動くか + WER/CER 計測。
+**次のプロトタイプ P2-β**: `aruaru-llm` に `POST /v1/transcribe` を
+`whisper-rs`(whisper.cpp)で新設し、open-cuda/open-directx/open-cpu に
+自動で乗せる。`/v1/runtime` に `whisper` tier を追加。
