@@ -12825,6 +12825,57 @@ function freelanceSelectedIndustry() {
   return freelanceIndustrySelectEl?.value || "";
 }
 
+// フレームワーク/WEBサーバー/DATABASEの既定一覧。エコシステム自身の
+// プロジェクト(RPoem/open-web-server/aruaru-db)を選択肢の先頭に含める
+// (ユーザー指示)。いずれも「選択」+「自由入力」の併用に対応し、自由
+// 入力欄に値があればそちらを優先する(既存の言語選択と同じパターン)。
+const FREELANCE_FRAMEWORKS_DEFAULT = [
+  "RPoem", "React", "Vue", "Angular", "Svelte", "SvelteKit", "Next.js", "Nuxt",
+  "Remix", "Astro", "Gatsby", "Django", "Flask", "FastAPI", "Ruby on Rails",
+  "Sinatra", "Laravel", "Symfony", "CodeIgniter", "Spring Boot", "Quarkus",
+  "Micronaut", "Express.js", "NestJS", "Koa", "Hapi", "Fastify", "ASP.NET Core",
+  "Blazor", "Actix Web", "Axum", "Rocket (Rust)", "Poem (Rust)", "Warp (Rust)",
+  "Phoenix (Elixir)", "Gin (Go)", "Fiber (Go)", "Echo (Go)", "Beego (Go)",
+  "Play Framework (Scala)", "Ktor (Kotlin)", "Vapor (Swift)", "Yew (Rust/WASM)",
+  "Flutter", "React Native", "Ionic", "Xamarin", ".NET MAUI", "SwiftUI",
+  "UIKit", "Jetpack Compose", "Electron", "Tauri", "Unity", "Unreal Engine",
+  "Godot", "TensorFlow", "PyTorch", "LangChain", "Hugging Face Transformers",
+];
+const FREELANCE_WEBSERVERS_DEFAULT = [
+  "open-web-server", "Nginx", "Apache", "Caddy", "IIS", "Traefik", "HAProxy",
+  "Envoy", "LiteSpeed", "OpenLiteSpeed", "Tomcat", "Jetty", "Undertow",
+  "Gunicorn", "uWSGI", "Puma", "Unicorn", "PM2", "Cloudflare Workers",
+  "AWS API Gateway", "Vercel Edge", "Netlify Edge Functions",
+];
+const FREELANCE_DATABASES_DEFAULT = [
+  "aruaru-db", "PostgreSQL", "MySQL / MariaDB", "SQLite", "MongoDB", "Redis",
+  "SQL Server", "Oracle Database", "CockroachDB", "TiDB", "YugabyteDB",
+  "DynamoDB", "Cassandra", "ScyllaDB", "Elasticsearch", "OpenSearch",
+  "Firebase / Firestore", "Supabase", "PlanetScale", "Neon", "Snowflake",
+  "BigQuery", "ClickHouse", "InfluxDB", "TimescaleDB", "Neo4j", "CouchDB",
+  "Memcached", "Amazon Aurora", "IBM Db2", "H2",
+];
+
+function freelancePopulateSelect(selectEl, defaults) {
+  if (!selectEl || selectEl.options.length > 0) return;
+  const blank = document.createElement("option");
+  blank.value = "";
+  blank.textContent = "(選択しない / none)";
+  selectEl.appendChild(blank);
+  for (const item of defaults) {
+    const opt = document.createElement("option");
+    opt.value = item;
+    opt.textContent = item;
+    selectEl.appendChild(opt);
+  }
+}
+
+function freelanceSelectedValue(selectEl, customEl) {
+  const custom = (customEl?.value || "").trim();
+  if (custom) return custom;
+  return selectEl?.value || "";
+}
+
 const freelanceCornerBtn = document.getElementById("freelance-corner-btn");
 const freelanceCornerModal = document.getElementById("freelance-corner-modal");
 const freelanceCornerClose = document.getElementById("freelance-corner-close");
@@ -12835,7 +12886,12 @@ const freelanceIndustrySuggestionEl = document.getElementById("freelance-industr
 const freelanceIndustryAddBtn = document.getElementById("freelance-industry-add-btn");
 const freelanceLanguageSelectEl = document.getElementById("freelance-language-select");
 const freelanceLanguageCustomEl = document.getElementById("freelance-language-custom");
+const freelanceFrameworkSelectEl = document.getElementById("freelance-framework-select");
 const freelanceFrameworkInputEl = document.getElementById("freelance-framework-input");
+const freelanceWebserverSelectEl = document.getElementById("freelance-webserver-select");
+const freelanceWebserverCustomEl = document.getElementById("freelance-webserver-custom");
+const freelanceDatabaseSelectEl = document.getElementById("freelance-database-select");
+const freelanceDatabaseCustomEl = document.getElementById("freelance-database-custom");
 const freelanceSearchOfficialBtn = document.getElementById("freelance-search-official-btn");
 const freelanceCopyOfficialUrlBtn = document.getElementById("freelance-copy-official-url-btn");
 const freelanceSearchJobsBtn = document.getElementById("freelance-search-jobs-btn");
@@ -12978,18 +13034,32 @@ async function freelanceAutoSearch(query, containerId) {
   }
 }
 
+function freelanceSelectedFramework() {
+  return freelanceSelectedValue(freelanceFrameworkSelectEl, freelanceFrameworkInputEl);
+}
+function freelanceSelectedWebserver() {
+  return freelanceSelectedValue(freelanceWebserverSelectEl, freelanceWebserverCustomEl);
+}
+function freelanceSelectedDatabase() {
+  return freelanceSelectedValue(freelanceDatabaseSelectEl, freelanceDatabaseCustomEl);
+}
+
 function freelanceBuildOfficialSearchUrl() {
   const lang = freelanceSelectedLanguage();
-  const fw = (freelanceFrameworkInputEl?.value || "").trim();
-  const parts = [lang, fw, "official site OR github.com OR blog"].filter(Boolean);
+  const fw = freelanceSelectedFramework();
+  const web = freelanceSelectedWebserver();
+  const db = freelanceSelectedDatabase();
+  const parts = [lang, fw, web, db, "official site OR github.com OR blog"].filter(Boolean);
   return `https://www.google.com/search?q=${encodeURIComponent(parts.join(" "))}`;
 }
 
 function freelanceBuildJobSearchUrl() {
   const industry = freelanceSelectedIndustry();
   const lang = freelanceSelectedLanguage();
-  const fw = (freelanceFrameworkInputEl?.value || "").trim();
-  const parts = [industry, lang, fw, "フリーランス 案件 OR freelance job"].filter(Boolean);
+  const fw = freelanceSelectedFramework();
+  const web = freelanceSelectedWebserver();
+  const db = freelanceSelectedDatabase();
+  const parts = [industry, lang, fw, web, db, "フリーランス 案件 OR freelance job"].filter(Boolean);
   return `https://www.google.com/search?q=${encodeURIComponent(parts.join(" "))}`;
 }
 
@@ -13339,6 +13409,9 @@ if (freelanceCornerBtn && freelanceCornerModal) {
   freelanceCornerBtn.addEventListener("click", () => {
     freelancePopulateIndustrySelect();
     freelancePopulateLanguageSelect();
+    freelancePopulateSelect(freelanceFrameworkSelectEl, FREELANCE_FRAMEWORKS_DEFAULT);
+    freelancePopulateSelect(freelanceWebserverSelectEl, FREELANCE_WEBSERVERS_DEFAULT);
+    freelancePopulateSelect(freelanceDatabaseSelectEl, FREELANCE_DATABASES_DEFAULT);
     freelanceRenderSamples();
     freelanceUpdateGithubTokenModeSections();
     const officialResults = document.getElementById("freelance-official-results");
@@ -13411,8 +13484,10 @@ if (freelanceSearchOfficialBtn) {
   freelanceSearchOfficialBtn.addEventListener("click", () => {
     window.open(freelanceBuildOfficialSearchUrl(), "_blank", "noopener,noreferrer");
     const lang = freelanceSelectedLanguage();
-    const fw = (freelanceFrameworkInputEl?.value || "").trim();
-    const query = [lang, fw, "official site OR github.com OR blog"].filter(Boolean).join(" ");
+    const fw = freelanceSelectedFramework();
+    const web = freelanceSelectedWebserver();
+    const db = freelanceSelectedDatabase();
+    const query = [lang, fw, web, db, "official site OR github.com OR blog"].filter(Boolean).join(" ");
     freelanceAutoSearch(query, "freelance-official-results");
   });
 }
@@ -13426,8 +13501,10 @@ if (freelanceSearchJobsBtn) {
     window.open(freelanceBuildJobSearchUrl(), "_blank", "noopener,noreferrer");
     const industry = freelanceSelectedIndustry();
     const lang = freelanceSelectedLanguage();
-    const fw = (freelanceFrameworkInputEl?.value || "").trim();
-    const query = [industry, lang, fw, "フリーランス 案件 OR freelance job"].filter(Boolean).join(" ");
+    const fw = freelanceSelectedFramework();
+    const web = freelanceSelectedWebserver();
+    const db = freelanceSelectedDatabase();
+    const query = [industry, lang, fw, web, db, "フリーランス 案件 OR freelance job"].filter(Boolean).join(" ");
     freelanceAutoSearch(query, "freelance-job-results");
   });
 }
@@ -13441,7 +13518,9 @@ if (freelanceAskTeacherBtn) {
   freelanceAskTeacherBtn.addEventListener("click", () => {
     const industry = freelanceSelectedIndustry();
     const lang = freelanceSelectedLanguage();
-    const fw = (freelanceFrameworkInputEl?.value || "").trim();
+    const fw = freelanceSelectedFramework();
+    const web = freelanceSelectedWebserver();
+    const db = freelanceSelectedDatabase();
     const notes = (freelanceJobNotesEl?.value || "").trim();
     if (!lang) {
       alert("言語を選択または入力してください。 / Please choose or type a language first.");
@@ -13449,6 +13528,8 @@ if (freelanceAskTeacherBtn) {
     }
     let question = `${lang}`;
     if (fw) question += ` + ${fw}`;
+    if (web) question += ` + ${web}`;
+    if (db) question += ` + ${db}`;
     if (industry) question += `(${industry}分野)`;
     question += " を使ったフリーランス案件について、学ぶべき基礎とレッスンの進め方を教えてください。";
     if (notes) question += `\n\n参考にしている案件メモ:\n${notes}`;
