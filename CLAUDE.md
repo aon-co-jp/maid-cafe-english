@@ -7232,8 +7232,20 @@ feature 無効時は `503` +「rebuild with --features whisper-transcribe」。
      `{"sent":true}` を返し SMTP 送信が引き続き機能することを確認。
      unit のバックアップは `open-english.service.bak-20260831-smtp`。
 
-**次のプロトタイプ P2-γ**: `app.js` に Web Speech API(即時)+ ブラウザ
-Whisper(P2-α)+ サーバー `POST /v1/transcribe`(到達時)の 3 経路を
-並行実行し、全 n-best を `refineTranscript()` へ集約する完全ハイブリッド
-融合を配線する。サーバー到達性は `GET /v1/runtime` の `whisper` 段で
-判定。
+**P2-γ 実装済み(2026-08-29 続き、コミット後述)**: `app.js` に
+`serverTranscribeBlob()` を新設。到達性は `lastRuntimeInfo.whisper`
+(`GET /v1/runtime`、新 shape `available` 優先・旧 shape `compiled_in +
+model_present` も許容)で判定、到達不可なら静かにスキップ(回帰ゼロ)。
+到達時は `blobToPcm16k()` の 16kHz mono f32 PCM を `f32ToBase64()`
+(8KB チャンク)で base64 化して `POST {apiBase}/v1/transcribe`(60s
+タイムアウト)。`finalizeVoiceInput()` は
+`Promise.all([whisperTranscribeBlob, serverTranscribeBlob])` で並行
+実行し、`serverAlts.concat(whisperAlts).concat(speechAlts)`(精度が
+高い順)を 1 リストにして `refineTranscript()` へ。`node --check` OK、
+android webroot 同期、VPS 配信済み。
+
+**次のプロトタイプ P2-γ の残り = Silero VAD**: ブラウザで ORT-web 実行、
+認識前に無音区間を落とす(§3.6 の多言語調査で「幻覚対策として最も効果が
+高い」と一致)。`@ricky0123/vad-web` または `onnx-community/silero-vad` を
+vendor して `blobToPcm16k()` の後段に挟む。あわせて Moonshine(27M、
+日本語版あり)を低遅延経路の候補エンジンに。

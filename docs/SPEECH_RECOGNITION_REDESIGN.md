@@ -458,6 +458,23 @@ GPU(open-cuda が使うのと同じ物理 GPU 上で whisper.cpp が走る)だ�
 サーバー `/v1/transcribe`(到達時)を並行実行し、全 n-best を
 `refineTranscript` へ集約。
 
+**P2-γ 実装状況(2026-08-29)**:
+- ✅ **3 経路融合を配線済み**(`app.js`)。`serverTranscribeBlob()` 新設:
+  可否は既に定期ポーリング済みの `lastRuntimeInfo.whisper`
+  (`GET /v1/runtime`、新 shape `available` 優先・旧 shape も許容)で判定、
+  到達不可なら静かにスキップ(回帰ゼロ)。到達時は `blobToPcm16k()` の
+  16kHz mono f32 PCM を LE バイト列 → base64(`f32ToBase64()`、8KB
+  チャンク)にして `POST {apiBase}/v1/transcribe` へ(60s タイムアウト)。
+  `finalizeVoiceInput()` は `Promise.all([whisperTranscribeBlob,
+  serverTranscribeBlob])` で**並行**実行し、
+  `serverAlts.concat(whisperAlts).concat(speechAlts)`(精度が高い順)を
+  1 リストにして `refineTranscript()`(= MPA GER の縮小版)へ渡す。
+  `node --check` OK、VPS 配信済み。
+- ⏳ 未実施: **Silero VAD**(ブラウザで ORT-web 実行、無音除去 = 幻覚
+  対策として最も効果が高い)。次段の必須項目。
+- ⏳ 実機検証待ち: 実マイク + 利用者 PC の aruaru-llm(whisper-cli +
+  GGML)を用意した 3 経路同時の WER/CER 計測。
+
 **P2-α の唯一の未決事項 = Whisper モデル(ONNX、~240MB)のホスト先**:
 - リポジトリに 240MB は入れられない
 - 「オフライン優先・外部依存ゼロ」方針上、HF CDN 直リンクは CSP・方針に反する

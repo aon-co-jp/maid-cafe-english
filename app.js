@@ -4434,6 +4434,61 @@ async function whisperTranscribeBlob(blob, langTag) {
   }
 }
 
+// ══════════════════════════════════════════════════════════════════════
+// 【2026-08-29 P2-γ】サーバー側 Whisper(aruaru-llm `POST /v1/transcribe`、
+// whisper.cpp CLI)。利用者が自分の PC で aruaru-llm + whisper-cli +
+// GGML モデルを用意している場合のみ到達する第3の経路。可否は既に定期
+// ポーリング済みの `lastRuntimeInfo.whisper`(`GET /v1/runtime`)で判定
+// し、無ければ静かにスキップ(回帰ゼロ)。得られた仮説は Web Speech API・
+// ブラウザ Whisper の候補と 1 リストに束ねて `refineTranscript()` へ。
+// ══════════════════════════════════════════════════════════════════════
+function serverWhisperReachable() {
+  const w = lastRuntimeInfo && lastRuntimeInfo.whisper;
+  if (!w) return false;
+  // 新しい shape(available)を優先、古い shape(compiled_in+model_present)も許容。
+  if (typeof w.available === "boolean") return w.available;
+  return !!(w.compiled_in && w.model_present);
+}
+
+function f32ToBase64(f32) {
+  const bytes = new Uint8Array(f32.buffer, f32.byteOffset, f32.byteLength);
+  let bin = "";
+  const CHUNK = 0x8000;
+  for (let i = 0; i < bytes.length; i += CHUNK) {
+    bin += String.fromCharCode.apply(null, bytes.subarray(i, i + CHUNK));
+  }
+  return btoa(bin);
+}
+
+async function serverTranscribeBlob(blob, langTag) {
+  try {
+    if (!blob || !blob.size) return [];
+    if (!serverWhisperReachable()) return [];
+    const base = (typeof apiBaseEl !== "undefined" && apiBaseEl && apiBaseEl.value.trim()) || "";
+    if (!base) return [];
+    let pcm = await blobToPcm16k(blob);
+    if (!pcm || !pcm.length) return [];
+    if (!(pcm instanceof Float32Array)) pcm = new Float32Array(pcm);
+    const langCode = String(langTag || "auto").split("-")[0] || "auto";
+    const res = await fetchWithTimeout(
+      `${base}/v1/transcribe`,
+      {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ pcm_f32_base64: f32ToBase64(pcm), sample_rate: 16000, language: langCode }),
+      },
+      60000,
+    );
+    if (!res.ok) return [];
+    const data = await res.json();
+    const t = (data && typeof data.transcript === "string" ? data.transcript : "").trim();
+    if (!t) return [];
+    return [{ transcript: t, confidence: 0.9, engine: "whisper-server:" + (data.engine || "cli") }];
+  } catch (_) {
+    return [];
+  }
+}
+
 const SpeechRecognitionImpl = window.SpeechRecognition || window.webkitSpeechRecognition;
 if (SpeechRecognitionImpl) {
   const recognition = new SpeechRecognitionImpl();
@@ -4484,15 +4539,22 @@ if (SpeechRecognitionImpl) {
     mediaRecorder = null;
 
     micBtn.textContent = "✨ Refining...";
+    // P2-γ: ブラウザ Whisper と サーバー Whisper(到達時)を**並行**実行。
     let whisperAlts = [];
+    let serverAlts = [];
     if (blob) {
       micBtn.textContent = "🧠 Whisper...";
-      whisperAlts = await whisperTranscribeBlob(blob, activeSpeechLang);
+      [whisperAlts, serverAlts] = await Promise.all([
+        whisperTranscribeBlob(blob, activeSpeechLang),
+        serverTranscribeBlob(blob, activeSpeechLang),
+      ]);
       micBtn.textContent = "✨ Refining...";
     }
 
-    // §4.4 融合: 全エンジンの候補を1リストへ。
-    const fused = whisperAlts.concat(speechAlts);
+    // §4.4 融合: 全エンジン(サーバー Whisper・ブラウザ Whisper・
+    // Web Speech API)の候補を1リストへ。精度が高い順に前へ並べておくと
+    // `refineTranscript` の sanity check(最長候補基準)が効きやすい。
+    const fused = serverAlts.concat(whisperAlts).concat(speechAlts);
     if (!fused.length) {
       resetMicButton();
       return;
