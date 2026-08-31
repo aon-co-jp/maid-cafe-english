@@ -1096,7 +1096,26 @@ cd aruaru-db
         those need a credential-handling security design reviewed first (see CLAUDE.md).
       </p>
 
-      <h3>1. 言語・フレームワークを選ぶ / Pick a language &amp; framework</h3>
+      <h3>1. 産業・カテゴリ、言語・フレームワークを選ぶ / Pick an industry, language &amp; framework</h3>
+      <label class="setup-label">
+        産業・カテゴリ / Industry &amp; category<br />
+        <select id="freelance-industry-select" class="setup-input"></select>
+      </label>
+      <label class="setup-label">
+        産業・カテゴリを検索/入力(誤字脱字は自動補正) / Search or type an industry (typos auto-corrected)<br />
+        <input type="text" id="freelance-industry-custom" class="setup-input" list="freelance-industry-datalist" placeholder="例: EC, ヘルスケア, フィンテック..." />
+        <datalist id="freelance-industry-datalist"></datalist>
+      </label>
+      <p id="freelance-industry-suggestion" class="setup-note" style="display:none;"></p>
+      <button type="button" id="freelance-industry-add-btn" class="setup-btn">＋ このカテゴリを追加 / Add this category</button>
+      <p class="setup-note">
+        一覧に無い産業・カテゴリは自由入力し「＋ このカテゴリを追加」を押すと、以後この端末の一覧に
+        追加されます(誤字と思われる場合は近い候補を提案します)。<br />
+        Type any industry/category not in the list and press "＋ Add this category" to add it to this
+        device's list going forward (we'll suggest a close match if it looks like a typo).
+      </p>
+
+      <h3>2. 言語・フレームワークを選ぶ / Pick a language &amp; framework</h3>
       <label class="setup-label">
         プログラミング言語 / Programming language<br />
         <select id="freelance-language-select" class="setup-input"></select>
@@ -1110,7 +1129,7 @@ cd aruaru-db
         <input type="text" id="freelance-framework-input" class="setup-input" placeholder="例: React, Django, Actix..." />
       </label>
 
-      <h3>2. 公式サイト・GitHub・ブログを検索 / Search official site, GitHub, blog</h3>
+      <h3>3. 公式サイト・GitHub・ブログを検索 / Search official site, GitHub, blog</h3>
       <p class="setup-note">
         選んだ言語・フレームワークの公式サイト・GitHub・ブログ記事をGoogle検索で調べ、
         AI先生への相談時に参考にできます。<br />
@@ -1120,7 +1139,7 @@ cd aruaru-db
       <button type="button" id="freelance-search-official-btn" class="setup-btn">🔎 公式情報を検索 / Search official info</button>
       <button type="button" id="freelance-copy-official-url-btn" class="setup-btn">📋 検索URLをコピー / Copy search URL</button>
 
-      <h3>3. フリーランス案件・IT求人を検索 / Search freelance &amp; IT job listings</h3>
+      <h3>4. フリーランス案件・IT求人を検索 / Search freelance &amp; IT job listings</h3>
       <button type="button" id="freelance-search-jobs-btn" class="setup-btn">🔎 案件・求人を検索 / Search jobs</button>
       <button type="button" id="freelance-copy-jobs-url-btn" class="setup-btn">📋 検索URLをコピー / Copy search URL</button>
       <p class="setup-note">
@@ -1134,14 +1153,14 @@ cd aruaru-db
         <textarea id="freelance-job-notes" class="setup-input" rows="4" placeholder="例: https://example.com/job/123 - Rustバックエンド開発、週3日リモート..."></textarea>
       </label>
 
-      <h3>4. サンプル案件から選ぶ / Or pick a sample listing</h3>
+      <h3>5. サンプル案件から選ぶ / Or pick a sample listing</h3>
       <p class="setup-note">
         実際の案件が見つからない場合の練習用サンプルです(架空の案件、実在の求人ではありません)。<br />
         Practice samples for when you don't have a real listing handy (fictional, not real job posts).
       </p>
       <div id="freelance-sample-list"></div>
 
-      <h3>5. AI先生に相談する / Consult the AI teacher</h3>
+      <h3>6. AI先生に相談する / Consult the AI teacher</h3>
       <p class="setup-note">
         選んだ言語・フレームワーク・案件メモをAI先生への質問文に自動でまとめ、通常のチャットへ
         送信します(このコーナー独自のAIモデルではなく、既存のAI先生機能をそのまま使います)。<br />
@@ -1150,7 +1169,7 @@ cd aruaru-db
       </p>
       <button type="button" id="freelance-ask-teacher-btn" class="setup-btn">🎓 AI先生に相談 / Ask the AI teacher</button>
 
-      <h3>6. GitHubへの自動アップロード(2026-08-26新設) / Automatic upload to GitHub</h3>
+      <h3>7. GitHubへの自動アップロード(2026-08-26新設) / Automatic upload to GitHub</h3>
       <p class="setup-note">
         💡 <strong>GitHubは無料プランでも非公開(プライベート)リポジトリを作成できます</strong>
         (個人アカウントの無料プランで非公開リポジトリ数の制限なし、2026-08時点)。まずは無料の
@@ -1380,7 +1399,7 @@ cd aruaru-db
       <button type="button" id="freelance-github-push-btn" class="setup-btn">⬆ GitHubへリポジトリ作成+push / Create repo &amp; push to GitHub</button>
       <p class="setup-note" id="freelance-github-push-status"></p>
 
-      <h3>7. 次のステップ(現時点の案内のみ) / Next steps (guidance only for now)</h3>
+      <h3>8. 次のステップ(現時点の案内のみ) / Next steps (guidance only for now)</h3>
       <p class="setup-honest">
         VPSレンタルサーバーの比較・申込みページへの案内、GitLab/Bitbucket等への同様の連携は、
         今回のGitHub連携と同じ設計(ブラウザから直接そのサービスのAPIを呼ぶ)で次回以降に

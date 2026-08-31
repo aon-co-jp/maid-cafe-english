@@ -12713,9 +12713,126 @@ const FREELANCE_PROGRAMMING_LANGUAGES = [
   "Nix", "PostScript", "Pure Data", "Q#", "Red", "Rebol", "SuperCollider", "Wolfram Language",
 ];
 
+// 産業・カテゴリの既定一覧(フリーランス開発案件でよく見かける区分、
+// 誤字脱字補正の比較対象として使う。ユーザーが「＋追加」した独自
+// カテゴリはlocalStorageへ永続化され、この既定一覧に追加表示される)。
+const FREELANCE_INDUSTRIES_DEFAULT = [
+  "EC / Web制作", "SaaS / 業務システム", "フィンテック / 金融", "ヘルスケア / 医療",
+  "教育 / EdTech", "ゲーム", "IoT / 組み込み", "AI / 機械学習", "ブロックチェーン / Web3",
+  "不動産", "物流 / ロジスティクス", "人事 / HR Tech", "マーケティング / 広告",
+  "メディア / エンタメ", "旅行 / 観光", "農業 / AgriTech", "製造業 / 産業DX",
+  "小売 / リテール", "保険", "官公庁 / 自治体", "非営利 / NPO",
+  "音楽 / オーディオ", "モビリティ / 自動車", "エネルギー / 環境", "セキュリティ",
+  "データ分析 / BI", "CRM / SFA", "決済 / 電子マネー", "スポーツ", "飲食",
+];
+const FREELANCE_INDUSTRY_CUSTOM_LOCAL_KEY = "open-english.freelanceIndustryCustomList";
+
+function freelanceLoadCustomIndustries() {
+  try {
+    const raw = localStorage.getItem(FREELANCE_INDUSTRY_CUSTOM_LOCAL_KEY);
+    const list = raw ? JSON.parse(raw) : [];
+    return Array.isArray(list) ? list.filter((x) => typeof x === "string" && x.trim()) : [];
+  } catch {
+    return [];
+  }
+}
+
+function freelanceSaveCustomIndustries(list) {
+  try {
+    localStorage.setItem(FREELANCE_INDUSTRY_CUSTOM_LOCAL_KEY, JSON.stringify(list));
+  } catch {
+    // localStorageが使えない環境(プライベートモード等)では黙って諦める。
+    // 一覧への追加が今回のセッション限りになるだけで、致命的な失敗ではない。
+  }
+}
+
+function freelanceAllIndustries() {
+  return [...FREELANCE_INDUSTRIES_DEFAULT, ...freelanceLoadCustomIndustries()];
+}
+
+// 単純なLevenshtein距離(誤字脱字補正用、外部ライブラリへ依存しない)。
+function freelanceLevenshtein(a, b) {
+  const m = a.length, n = b.length;
+  if (m === 0) return n;
+  if (n === 0) return m;
+  const dp = Array.from({ length: m + 1 }, (_, i) => [i, ...Array(n).fill(0)]);
+  for (let j = 0; j <= n; j++) dp[0][j] = j;
+  for (let i = 1; i <= m; i++) {
+    for (let j = 1; j <= n; j++) {
+      const cost = a[i - 1] === b[j - 1] ? 0 : 1;
+      dp[i][j] = Math.min(dp[i - 1][j] + 1, dp[i][j - 1] + 1, dp[i - 1][j - 1] + cost);
+    }
+  }
+  return dp[m][n];
+}
+
+// 入力文字列に最も近いカテゴリを1件返す(距離が長さの40%以内、かつ
+// 距離>0の場合のみ「誤字っぽい候補」として提案する。完全一致・
+// 距離0は補正の必要が無いので候補として返さない)。
+function freelanceSuggestIndustry(input) {
+  const needle = input.trim().toLowerCase();
+  if (!needle) return null;
+  let best = null;
+  let bestDist = Infinity;
+  for (const candidate of freelanceAllIndustries()) {
+    // 表示ラベルは"日本語 / English"の併記のため、全体ではなく各片ごとに
+    // 比較する(全体比較だと片方だけ似ていても距離が大きくなってしまう)。
+    for (const segment of candidate.split(" / ")) {
+      const hay = segment.trim().toLowerCase();
+      if (!hay) continue;
+      if (hay === needle) return null; // 完全一致は補正不要
+      const dist = freelanceLevenshtein(needle, hay);
+      if (dist < bestDist) {
+        bestDist = dist;
+        best = candidate;
+      }
+    }
+  }
+  const threshold = Math.max(1, Math.floor(needle.length * 0.4));
+  return best && bestDist <= threshold ? best : null;
+}
+
+function freelancePopulateIndustrySelect() {
+  if (!freelanceIndustrySelectEl) return;
+  const previous = freelanceIndustrySelectEl.value;
+  freelanceIndustrySelectEl.innerHTML = "";
+  const blank = document.createElement("option");
+  blank.value = "";
+  blank.textContent = "(選択しない / none)";
+  freelanceIndustrySelectEl.appendChild(blank);
+  for (const industry of freelanceAllIndustries()) {
+    const opt = document.createElement("option");
+    opt.value = industry;
+    opt.textContent = industry;
+    freelanceIndustrySelectEl.appendChild(opt);
+  }
+  if (previous && freelanceAllIndustries().includes(previous)) {
+    freelanceIndustrySelectEl.value = previous;
+  }
+  if (freelanceIndustryDatalistEl) {
+    freelanceIndustryDatalistEl.innerHTML = "";
+    for (const industry of freelanceAllIndustries()) {
+      const opt = document.createElement("option");
+      opt.value = industry;
+      freelanceIndustryDatalistEl.appendChild(opt);
+    }
+  }
+}
+
+function freelanceSelectedIndustry() {
+  const custom = (freelanceIndustryCustomEl?.value || "").trim();
+  if (custom) return custom;
+  return freelanceIndustrySelectEl?.value || "";
+}
+
 const freelanceCornerBtn = document.getElementById("freelance-corner-btn");
 const freelanceCornerModal = document.getElementById("freelance-corner-modal");
 const freelanceCornerClose = document.getElementById("freelance-corner-close");
+const freelanceIndustrySelectEl = document.getElementById("freelance-industry-select");
+const freelanceIndustryCustomEl = document.getElementById("freelance-industry-custom");
+const freelanceIndustryDatalistEl = document.getElementById("freelance-industry-datalist");
+const freelanceIndustrySuggestionEl = document.getElementById("freelance-industry-suggestion");
+const freelanceIndustryAddBtn = document.getElementById("freelance-industry-add-btn");
 const freelanceLanguageSelectEl = document.getElementById("freelance-language-select");
 const freelanceLanguageCustomEl = document.getElementById("freelance-language-custom");
 const freelanceFrameworkInputEl = document.getElementById("freelance-framework-input");
@@ -12813,9 +12930,10 @@ function freelanceBuildOfficialSearchUrl() {
 }
 
 function freelanceBuildJobSearchUrl() {
+  const industry = freelanceSelectedIndustry();
   const lang = freelanceSelectedLanguage();
   const fw = (freelanceFrameworkInputEl?.value || "").trim();
-  const parts = [lang, fw, "フリーランス 案件 OR freelance job"].filter(Boolean);
+  const parts = [industry, lang, fw, "フリーランス 案件 OR freelance job"].filter(Boolean);
   return `https://www.google.com/search?q=${encodeURIComponent(parts.join(" "))}`;
 }
 
@@ -13163,10 +13281,61 @@ if (freelanceGithubClearTokenPlainBtn) {
 
 if (freelanceCornerBtn && freelanceCornerModal) {
   freelanceCornerBtn.addEventListener("click", () => {
+    freelancePopulateIndustrySelect();
     freelancePopulateLanguageSelect();
     freelanceRenderSamples();
     freelanceUpdateGithubTokenModeSections();
     freelanceCornerModal.classList.remove("hidden");
+  });
+}
+
+if (freelanceIndustryCustomEl && freelanceIndustrySuggestionEl) {
+  freelanceIndustryCustomEl.addEventListener("input", () => {
+    const suggestion = freelanceSuggestIndustry(freelanceIndustryCustomEl.value);
+    if (suggestion) {
+      freelanceIndustrySuggestionEl.style.display = "";
+      freelanceIndustrySuggestionEl.innerHTML = "";
+      const label = document.createElement("span");
+      label.textContent = "もしかして / Did you mean: ";
+      freelanceIndustrySuggestionEl.appendChild(label);
+      const btn = document.createElement("button");
+      btn.type = "button";
+      btn.className = "setup-btn";
+      btn.textContent = suggestion;
+      btn.addEventListener("click", () => {
+        freelanceIndustryCustomEl.value = suggestion;
+        freelanceIndustrySuggestionEl.style.display = "none";
+      });
+      freelanceIndustrySuggestionEl.appendChild(btn);
+    } else {
+      freelanceIndustrySuggestionEl.style.display = "none";
+    }
+  });
+}
+
+if (freelanceIndustryAddBtn) {
+  freelanceIndustryAddBtn.addEventListener("click", () => {
+    const value = (freelanceIndustryCustomEl?.value || "").trim();
+    if (!value) {
+      alert("追加するカテゴリ名を入力してください。 / Please type a category name to add.");
+      return;
+    }
+    const suggestion = freelanceSuggestIndustry(value);
+    if (suggestion && !confirm(
+      `「${suggestion}」と似ています。それでも「${value}」を新規カテゴリとして追加しますか?\n` +
+      `This looks similar to "${suggestion}". Add "${value}" as a new category anyway?`
+    )) {
+      return;
+    }
+    const custom = freelanceLoadCustomIndustries();
+    if (!freelanceAllIndustries().includes(value)) {
+      custom.push(value);
+      freelanceSaveCustomIndustries(custom);
+    }
+    freelancePopulateIndustrySelect();
+    freelanceIndustrySelectEl.value = value;
+    freelanceIndustryCustomEl.value = "";
+    if (freelanceIndustrySuggestionEl) freelanceIndustrySuggestionEl.style.display = "none";
   });
 }
 if (freelanceCornerClose && freelanceCornerModal) {
@@ -13201,6 +13370,7 @@ if (freelanceCopyJobsUrlBtn) {
 
 if (freelanceAskTeacherBtn) {
   freelanceAskTeacherBtn.addEventListener("click", () => {
+    const industry = freelanceSelectedIndustry();
     const lang = freelanceSelectedLanguage();
     const fw = (freelanceFrameworkInputEl?.value || "").trim();
     const notes = (freelanceJobNotesEl?.value || "").trim();
@@ -13210,6 +13380,7 @@ if (freelanceAskTeacherBtn) {
     }
     let question = `${lang}`;
     if (fw) question += ` + ${fw}`;
+    if (industry) question += `(${industry}分野)`;
     question += " を使ったフリーランス案件について、学ぶべき基礎とレッスンの進め方を教えてください。";
     if (notes) question += `\n\n参考にしている案件メモ:\n${notes}`;
     if (inputEl && formEl) {
