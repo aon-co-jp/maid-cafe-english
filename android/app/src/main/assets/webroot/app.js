@@ -764,7 +764,20 @@ const apiBaseEl = document.getElementById("api-base");
 async function autoDetectAruaruLlmBase() {
   if (!apiBaseEl) return;
   const candidates = ["http://localhost:4600"];
-  if (location.hostname && location.hostname !== "localhost" && location.hostname !== "127.0.0.1") {
+  // ページのホスト名(VPS 等)への平文 HTTP プローブは、このページが
+  // HTTPS 配信されている場合ブラウザに Mixed Content として**必ず**
+  // ブロックされ、コンソールにエラーを撒くだけで無意味(2026-08-29、
+  // easy-web.tokyo 実配信で `http://easy-web.tokyo:4600/healthz` の
+  // Mixed Content エラーを確認)。`http://localhost` / `127.0.0.1` は
+  // "potentially trustworthy" 例外で HTTPS ページからも許可されるため、
+  // localhost 候補はそのまま残す。LAN ヒューリスティック候補は
+  // ページが平文 HTTP のとき(スマホ WebView → PC の LAN IP 等)だけ試す。
+  if (
+    location.protocol !== "https:" &&
+    location.hostname &&
+    location.hostname !== "localhost" &&
+    location.hostname !== "127.0.0.1"
+  ) {
     candidates.push(`http://${location.hostname}:4600`);
   }
   for (const candidate of candidates) {
