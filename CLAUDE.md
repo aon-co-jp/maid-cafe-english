@@ -7100,3 +7100,38 @@ GraphQLへ移行する具体的な計画は今回未着手。
 - 次にすべきこと: 特に緊急の課題は無し。将来`server/`のAPI面が
   拡張された際は、この方針(スタブを量産せず実データ接続できたものから
   段階的に)に従うこと。
+
+## HANDOFF追記(2026-08-29) 音声認識(ASR)精度の抜本改善 — 設計文書を新設
+
+ユーザー指示「open-english の open-directx / open-cuda / aruaru-llm と open-cpu
+の連携で AI 音声認識の認識精度が低すぎるので、翻訳精度向上の為に世界中の言語で
+Google/GitHub 調査して改善・改良の開発・実装に活かして」「試作品のプロトタイプを
+開発して TEST も繰り返して改善も繰り返すように設計書に書いて」への対応。
+
+**正本**: `docs/SPEECH_RECOGNITION_REDESIGN.md` を新設。英日・多言語で調査した
+結果と 5 リポジトリ連携での改善設計をまとめた。要点:
+
+- **低精度の根本原因(現状 `app.js` L4072〜)**: (1) `recognition.lang` が
+  ja-JP/en-US 固定(100+言語対応なのに認識器へ誤った言語を伝えている)、
+  (2) `maxAlternatives=1`・n-best 無し、(3) 無補正で入力欄へ直行、
+  (4) 練習問題の期待語彙でバイアスしていない、(5) Web Speech API の天井。
+- **調査結果**: whisper.cpp(ggml、CUDA/Vulkan/OpenVINO/WASM を1バイナリ)、
+  large-v3-turbo / distil-whisper、多言語 SoTA(Canary-1B-v2・SeamlessM4T・
+  Omnilingual ASR)、LLM エラー訂正(GenSEC 系)、contextual biasing
+  (`initial_prompt` 末尾224トークン)、transformers.js + Whisper WebGPU、
+  Silero VAD + ストリーミング。出典 URL は設計文書に記載。
+- **改善設計 3 フェーズ**: P1=クライアントのみ・新規依存ゼロ(BCP-47 言語修正 +
+  n-best + aruaru-llm `/v1/generate` での訂正パス + 語彙バイアス + NLLB 翻訳)、
+  P2=本物の Whisper((a) ブラウザ WebGPU / (b) aruaru-llm `/v1/transcribe` を
+  whisper-rs で新設し open-cuda/open-directx/open-cpu に自動で乗せる)、
+  P3=Canary/SeamlessM4T をエンジン選択肢に。
+- **開発の進め方(§5、ユーザー指示で固定)**: 一発完成を狙わず、
+  **プロトタイプ → 計測(WER/CER/R-WER) → 改善 → 再計測**のループを実用的に
+  なるまで何周も回す。1 周 = 1 コミット。悪化したら即戻す。評価データセットは
+  `docs/asr-eval/`、ハーネスは `tools/asr-bench/`(ローカル実行、結果表を
+  コミットに貼る)。各フェーズにプロトタイプ(P1-α/β/γ 等)と受け入れ基準を定義。
+
+**次にすべきこと**: P1-α のプロトタイプ = `app.js` の `recognition.lang` を
+`worldLanguageByCode()` 由来の BCP-47 タグへ(ja/en 固定をやめる)。
+`world-language-regions.json` に `bcp47` フィールド追加を検討。マイク実機検証は
+ユーザーへ依頼して結果を次周へ反映する。
