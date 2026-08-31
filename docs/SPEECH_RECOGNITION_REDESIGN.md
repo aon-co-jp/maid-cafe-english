@@ -306,6 +306,29 @@ n-best を融合する**。各エンジンの強みを組み合わせる:
 (open-cuda/open-directx/open-cpu)だが、C++ 依存・`/v1/runtime` 配線・
 サーバー側実装と規模が大きくビルド基盤に依存する。
 
+**P2-β 実装状況(2026-08-29、aruaru-llm リポジトリ側)**:
+- ✅ `POST /v1/transcribe`(`{pcm_f32_base64, sample_rate=16000, language,
+  tenant}` → `{transcript, language, engine, disclosure}`)。入力は
+  P2-α の `blobToPcm16k()` が出す 16kHz mono f32 PCM の LE バイト列
+  base64。`sample_rate≠16000` / base64 不正 / 10 分超は `400`。重い
+  `full()` は `spawn_blocking`。
+- ✅ Cargo feature `whisper-transcribe`(既定オフ、`whisper-cuda` /
+  `whisper-vulkan` で GPU バックエンド追加)。`nllb-translate` と同じ
+  「重量級 C++ 依存は feature 隔離、既定ビルド・CI・VPS 本番に影響ゼロ」。
+  feature 無効時は `503` +「rebuild with --features whisper-transcribe」。
+- ✅ `GET /v1/runtime` に `whisper` 段(`compiled_in` / `backend` /
+  `model_path` / `model_present` / `detail`)。モデルは
+  `ARUARU_LLM_WHISPER_MODEL`(既定 `<crate>/models/whisper/ggml-base.bin`、
+  非同梱)。既定ビルド + 実 HTTP で検証済み(97 テスト全 green)。
+- ⏳ 実機検証待ち: `--features whisper-transcribe` の実ビルドは C++
+  ツールチェーン(CMake/libclang/bindgen)自体は動いたが、上流
+  `whisper-rs-sys v0.13.1` の事前生成バインディングのサイズ表明が
+  ローカルビルドの whisper.cpp と食い違い `1_usize - 264_usize overflow`
+  でビルド失敗(このリポジトリのコードではなく上流のパッケージング
+  問題)。次周: 動作する `whisper-rs` バージョンへのピン留め or 上流
+  修正追従 → feature ブロックの実コンパイル + 実 GGML モデルでの
+  `POST /v1/transcribe` 実 HTTP 検証。
+
 **融合(P2-γ)**: Web Speech API(即時)+ ブラウザ Whisper(WebGPU 時)+
 サーバー `/v1/transcribe`(到達時)を並行実行し、全 n-best を
 `refineTranscript` へ集約。

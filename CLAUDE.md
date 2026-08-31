@@ -7169,6 +7169,26 @@ Google/GitHub 調査して改善・改良の開発・実装に活かして」「
 (2) transformers.js v3.7.5 の dist 内 ORT ファイル名が想定
 (`ort-wasm-simd-threaded{,.jsep}.{mjs,wasm}`)どおりか、
 (3) 実マイクで WebGPU/WebNN/WASM 各段が動くか + WER/CER 計測。
-**次のプロトタイプ P2-β**: `aruaru-llm` に `POST /v1/transcribe` を
-`whisper-rs`(whisper.cpp)で新設し、open-cuda/open-directx/open-cpu に
-自動で乗せる。`/v1/runtime` に `whisper` tier を追加。
+
+**P2-β 実装済み(2026-08-29、`aruaru-llm` リポジトリ側、コミット
+`aruaru-llm@78a85e3`)**: `POST /v1/transcribe` を新設。
+`{pcm_f32_base64, sample_rate=16000, language, tenant}` →
+`{transcript, language, engine, disclosure}`。入力は P2-α の
+`blobToPcm16k()` が出す 16kHz mono f32 PCM の LE バイト列 base64。
+Cargo feature `whisper-transcribe`(既定オフ、`whisper-cuda`/
+`whisper-vulkan` で GPU、`nllb-translate` と同じ feature 隔離方針)、
+feature 無効時は `503` +「rebuild with --features whisper-transcribe」。
+`GET /v1/runtime` に `whisper` 段(`compiled_in`/`backend`/`model_path`/
+`model_present`/`detail`)。既定ビルド + 実 HTTP 検証済み(97 テスト
+全 green)。**未検証**: `--features whisper-transcribe` の実ビルドは
+上流 `whisper-rs-sys v0.13.1` の事前生成バインディングのサイズ表明
+不一致(`1_usize - 264_usize overflow`)でビルド失敗——動作する
+`whisper-rs` バージョンへのピン留め or 上流修正追従が次周課題。
+詳細は `aruaru-llm/CLAUDE.md` 2026-08-29 エントリ・
+`docs/SPEECH_RECOGNITION_REDESIGN.md` §P2-β。
+
+**次のプロトタイプ P2-γ**: `app.js` に Web Speech API(即時)+ ブラウザ
+Whisper(P2-α)+ サーバー `POST /v1/transcribe`(到達時)の 3 経路を
+並行実行し、全 n-best を `refineTranscript()` へ集約する完全ハイブリッド
+融合を配線する。サーバー到達性は `GET /v1/runtime` の `whisper` 段で
+判定。
