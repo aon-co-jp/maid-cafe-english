@@ -1133,16 +1133,18 @@ cd aruaru-db
         <strong>正直な開示:</strong> このコーナーはGoogle検索を<strong>新しいタブで開く</strong>
         導線と、選んだ言語・フレームワーク・案件をAI先生への相談へつなぐ機能です。求人サイトの
         API連携やスクレイピングは行っていません(利用規約・レート制限の観点から、検索結果は
-        Googleの検索結果ページをご自身の目で確認していただく方式です)。<strong>VPSの自動
-        読み書き・GitHub/GitLab等への認証付き自動push・DB記録は未実装</strong>です(資格情報を
-        安全に扱う設計のレビューが先に必要なため、次回以降の課題としています)。<br /><br />
+        Googleの検索結果ページをご自身の目で確認していただく方式です)。<strong>GitHubへの認証付き
+        自動push・VPSへの自動読み書き(下の「🔌自動読み書きSETUP状況」パネル参照)は実装済み
+        です。GitLab等の他サービスへの自動push・DB記録(選んだ言語・案件・レッスン進捗の永続化)
+        は未実装のままです</strong>(次回以降の課題、詳細はCLAUDE.md参照)。<br /><br />
         <strong>Honest disclosure:</strong> this corner opens Google search results in a
         <strong>new tab</strong> and lets you carry your chosen language/framework/job listing into
         a lesson with the AI teacher. It does not call any job-board API or scrape listings (search
         results are Google's own results page, for you to read yourself, out of respect for site
-        terms of service and rate limits). <strong>Automatic VPS read/write and authenticated
-        auto-push to GitHub/GitLab/etc. and database logging are not implemented yet</strong> —
-        those need a credential-handling security design reviewed first (see CLAUDE.md).
+        terms of service and rate limits). <strong>Authenticated auto-push to GitHub and automatic
+        VPS read/write (see the "🔌 Auto read/write setup status" panel above) are implemented.
+        Auto-push to other services like GitLab, and database logging of your progress, are still
+        not implemented</strong> — see CLAUDE.md for details.
       </p>
 
       <h3>1. 産業・カテゴリ、言語・フレームワークを選ぶ / Pick an industry, language &amp; framework</h3>
@@ -1277,7 +1279,7 @@ cd aruaru-db
       </p>
       <button type="button" id="freelance-ask-teacher-btn" class="setup-btn">🎓 AI先生に相談 / Ask the AI teacher</button>
 
-      <h3>7. GitHubへの自動アップロード(2026-08-26新設) / Automatic upload to GitHub</h3>
+      <h3 id="freelance-github-section-heading">7. GitHubへの自動アップロード(2026-08-26新設) / Automatic upload to GitHub</h3>
       <p class="setup-note">
         💡 <strong>GitHubは無料プランでも非公開(プライベート)リポジトリを作成できます</strong>
         (個人アカウントの無料プランで非公開リポジトリ数の制限なし、2026-08時点)。まずは無料の
@@ -1509,19 +1511,24 @@ cd aruaru-db
 
       <h3>8. 次のステップ(現時点の案内のみ) / Next steps (guidance only for now)</h3>
       <p class="setup-honest">
-        VPSレンタルサーバーの比較・申込みページへの案内、GitLab/Bitbucket等への同様の連携は、
-        今回のGitHub連携と同じ設計(ブラウザから直接そのサービスのAPIを呼ぶ)で次回以降に
-        追加できます(未実装)。<strong>VPSの自動読み書き(SSH等)は、ブラウザがSSH等の生ソケットを
-        直接開けないという技術的制約上、ブラウザから直接呼ぶ方式では実現できません</strong>——
-        実現するにはサーバー側でSSH認証情報を扱う仕組みが必要で、その安全設計は未着手です。
-        VPSの契約・申込み自体もご自身の操作が必要です(決済・契約を伴うため自動化していません)。<br />
-        Comparing/signing up for a VPS, and similar integrations with GitLab/Bitbucket, can be added
-        later using the same design as this GitHub integration (calling that service's API directly
-        from the browser) — not implemented yet. <strong>Automatic VPS read/write (e.g. via SSH)
-        cannot be done the same way, because browsers cannot open raw SSH sockets</strong> — that
-        would require a server-side component handling SSH credentials, whose security design has
-        not been done yet. Signing up for a VPS itself also requires your own manual steps (it
-        involves payment and a contract, so it is not automated here).
+        <strong>VPSへの自動読み書きは実装済みです</strong>(ページ上部の「🔌自動読み書きSETUP状況」
+        パネル参照)。ブラウザは生のSSHソケットを直接開けないため、GitHub連携(ブラウザから直接
+        APIを呼ぶ方式)とは異なる設計を採用しています——<code>open-english-server</code>自身が
+        SSH/SFTPクライアントとして動き、ブラウザはそのサーバーへHTTPで指示するだけです。
+        秘密鍵・接続先はサーバー起動時の環境変数で設定します(詳細は上部パネルの「詳細」ボタン
+        参照)。GitLab/Bitbucket等への同様の連携は、今回のGitHub連携と同じ設計(ブラウザから直接
+        そのサービスのAPIを呼ぶ)で次回以降に追加できます(未実装)。VPSレンタルサーバーの
+        比較・申込み自体はご自身の操作が必要です(決済・契約を伴うため自動化していません)。<br />
+        <strong>Automatic VPS read/write is implemented</strong> (see the "🔌 Auto read/write setup
+        status" panel above). Since browsers cannot open a raw SSH socket, it uses a different
+        design than the GitHub integration (which calls that service's API directly from the
+        browser) — the <code>open-english-server</code> process itself acts as the SSH/SFTP client,
+        and the browser just tells it what to do over HTTP. The private key and target host are
+        configured via environment variables when the server starts (see the "Details" button in
+        the panel above). Similar integrations with GitLab/Bitbucket can be added later using the
+        same design as the GitHub integration (calling that service's API directly from the
+        browser) — not implemented yet. Signing up for a VPS itself still requires your own manual
+        steps (it involves payment and a contract, so it is not automated here).
       </p>
     </div>
   </div>

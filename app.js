@@ -525,7 +525,20 @@ async function autorwSetupLocalDrive() {
 }
 
 document.getElementById("autorw-github-setup-btn")?.addEventListener("click", () => {
+  // 2026-09-01修正(ユーザー報告バグ): このボタンはフリーランス開発
+  // コーナー全体(産業・カテゴリ・言語・フレームワーク等の無関係な
+  // フォームも含む大きなモーダル)の先頭を開くだけで、GitHub設定欄
+  // (セクション7、モーダルの下の方)まで自動スクロールしなかったため、
+  // 「SETUPボタンを押してもSETUPと関係ない画面が出る」ように見えていた。
+  // モーダルを開いた直後にGitHub設定の見出しへ実際にスクロールする。
   freelanceCornerBtn?.click();
+  setTimeout(() => {
+    // 実機検証で発見: この見出しまでの距離が大きい(モーダル内の長い
+    // フォームの下の方)ため、behavior:"smooth"だとブラウザによっては
+    // アニメーション開始前に他の処理へ割り込まれ、スクロールが実際には
+    // 発生しないことがあった。確実性を優先しinstant(既定)スクロールにする。
+    document.getElementById("freelance-github-section-heading")?.scrollIntoView({ behavior: "instant", block: "start" });
+  }, 50);
 });
 document.getElementById("autorw-localdrive-setup-btn")?.addEventListener("click", () => {
   autorwSetupLocalDrive();

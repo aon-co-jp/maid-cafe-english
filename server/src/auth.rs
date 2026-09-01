@@ -51,6 +51,12 @@ use lettre::{AsyncSmtpTransport, AsyncTransport, Message, Tokio1Executor};
 use ring::rand::{SecureRandom, SystemRandom};
 
 const OTP_TTL: Duration = Duration::from_secs(10 * 60);
+// 2026-09-01追記(ユーザー指示「そのコードは3分だけ有効などとして
+// セキュリティを向上させて」): SMSで受け取るコードは(メールと違い)
+// 端末上ですぐ確認できる前提のため、有効期限をメールOTP(10分)より
+// 短い3分にし、QRログイン(既存のQR_LOGIN_TTL、同じく3分)と揃えた。
+// 攻撃者がSMSを傍受・推測できる時間を短くする狙い。
+const SMS_OTP_TTL: Duration = Duration::from_secs(3 * 60);
 const OTP_RESEND_COOLDOWN: Duration = Duration::from_secs(60);
 const SESSION_TTL: Duration = Duration::from_secs(24 * 60 * 60);
 pub const SESSION_COOKIE_NAME: &str = "oe_session";
@@ -471,7 +477,7 @@ pub async fn request_sms_otp(phone: &str) -> Result<()> {
     let code = random_otp_code();
     {
         let mut otps = state().otps.lock().unwrap();
-        otps.insert(phone.clone(), OtpEntry { code: code.clone(), expires_at: now + OTP_TTL, last_sent_at: now });
+        otps.insert(phone.clone(), OtpEntry { code: code.clone(), expires_at: now + SMS_OTP_TTL, last_sent_at: now });
     }
 
     // WebOTP API(ブラウザがSMSを自動的に読み取りコード欄へ自動入力する
@@ -487,7 +493,7 @@ pub async fn request_sms_otp(phone: &str) -> Result<()> {
         .filter(|s| !s.trim().is_empty())
         .map(|domain| format!("\n@{} #{}", domain.trim(), code))
         .unwrap_or_default();
-    let body = format!("Your open-english login code / open-englishのログインコード: {code}{webotp_line}");
+    let body = format!("Your open-english login code (expires in 3 min) / open-englishのログインコード(3分で失効): {code}{webotp_line}");
     let client = reqwest::Client::new();
     let url = format!("https://api.twilio.com/2010-04-01/Accounts/{}/Messages.json", cfg.account_sid);
     let resp = client
