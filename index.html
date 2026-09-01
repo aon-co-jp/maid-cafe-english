@@ -200,6 +200,7 @@
     <ul style="margin:6px 0 0; padding-left:20px;">
       <li>
         GitHub: <span id="autorw-github-status">確認中... / Checking...</span>
+        <button type="button" id="autorw-github-test-btn" class="setup-btn">疎通テスト / Test connection</button>
         <button type="button" id="autorw-github-setup-btn" class="setup-btn">SETUPする / Set up</button>
       </li>
       <li>
@@ -209,6 +210,7 @@
       <li>
         VPS: <span id="autorw-vps-status">確認中... / Checking...</span>
         <button type="button" id="autorw-vps-test-btn" class="setup-btn">読み込みテスト / Test read</button>
+        <button type="button" id="autorw-vps-copy-env-btn" class="setup-btn">📋 環境変数をコピー / Copy env vars</button>
         <button type="button" id="autorw-vps-setup-btn" class="setup-btn">詳細 / Details</button>
       </li>
     </ul>
@@ -2580,6 +2582,20 @@ cd aruaru-db
       </div>
 
       <div id="log" class="log" aria-live="polite"></div>
+
+      <button type="button" id="media-search-btn" class="setup-btn">
+        🖼️🎬 話題の画像・動画で調べる / Search images &amp; video for this topic
+      </button>
+      <p class="setup-note">
+        Google画像検索(Googleのセーフサーチ有効)とYouTube限定の動画検索を使います。以前設定した
+        Google検索APIキーを自動で使用します(未設定の場合はSETUPを案内します)。安全のため、
+        確認済みドメイン一覧に無いリンクは自動では開けないようにしています(URLコピーのみ)。<br />
+        Uses Google Image Search (with Google's SafeSearch on) and a YouTube-only video search. Reuses
+        your previously configured Google Search API key automatically (if not set up, you'll be
+        guided to set it up). For safety, links to domains outside our verified-safe list won't
+        auto-open (copy the URL instead).
+      </p>
+      <div id="media-search-results"></div>
 
       <form id="chat-form" class="chat-form">
         <input id="chat-input" type="text" placeholder="Type in English or Japanese... / 英語または日本語で入力" autocomplete="off" required />

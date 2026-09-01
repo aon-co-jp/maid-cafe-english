@@ -467,6 +467,35 @@ function autorwRefreshGithubStatus() {
     : "未SETUP / Not set up";
 }
 
+// GitHubトークンを実際にGitHub APIへ問い合わせて疎通確認する
+// (2026-09-01新設、ユーザー報告バグ「トークンファイルをローカルに
+// 置いた後のボタンが無い」への対応)。ローカルドライブ・VPSの
+// 「実際に読み書きしてみるテスト」と同じ設計方針——見せかけの
+// 「SETUP済み」表示にせず、本物のAPI呼び出しで確認する。
+document.getElementById("autorw-github-test-btn")?.addEventListener("click", async () => {
+  const el = document.getElementById("autorw-github-status");
+  if (!el) return;
+  const token = typeof freelanceLoadGithubToken === "function" ? freelanceLoadGithubToken() : "";
+  if (!token) {
+    el.textContent = "未SETUP(トークンが読み込まれていません) / Not set up (no token loaded)";
+    return;
+  }
+  el.textContent = "テスト中... / Testing...";
+  try {
+    const res = await fetch("https://api.github.com/user", {
+      headers: { Authorization: `Bearer ${token}`, Accept: "application/vnd.github+json" },
+    });
+    const data = await res.json();
+    if (res.ok && data.login) {
+      el.textContent = `✅ SETUP済み・実際にGitHub APIへ接続できました(ユーザー: ${data.login}) / Already set up — connected to the GitHub API for real (user: ${data.login})`;
+    } else {
+      el.textContent = `疎通テストに失敗しました / Connection test failed: ${data.message || res.status}`;
+    }
+  } catch (err) {
+    el.textContent = `疎通テストに失敗しました / Connection test failed: ${err.message || err}`;
+  }
+});
+
 async function autorwRefreshLocalDriveStatus() {
   const el = document.getElementById("autorw-localdrive-status");
   if (!el) return;
@@ -545,6 +574,34 @@ document.getElementById("autorw-localdrive-setup-btn")?.addEventListener("click"
 });
 document.getElementById("autorw-vps-setup-btn")?.addEventListener("click", () => {
   document.getElementById("autorw-vps-detail")?.classList.toggle("hidden");
+});
+
+// 2026-09-01追記(ユーザー報告バグ「VPSはSETUPを押した後にSETUPする
+// 機能が存在しない」への対応): VPSの認証情報はセキュリティ上の理由で
+// ブラウザから設定できない(サーバー起動時の環境変数のみ、既存の設計
+// 方針)ため、「詳細」ボタンは説明文の開閉に留まっていた。それだけだと
+// 押しても何も「実行」できないように感じられるため、実際に手元で
+// 使える具体的なアクション(環境変数のテンプレートをクリップボードへ
+// コピー)を追加した——VPS自体を操作するわけではないが、少なくとも
+// クリックした結果として実際に何かが起きる、実用的なボタンにした。
+document.getElementById("autorw-vps-copy-env-btn")?.addEventListener("click", async () => {
+  const template = [
+    "OPEN_ENGLISH_VPS_HOST=your-vps.example.com",
+    "OPEN_ENGLISH_VPS_USER=deploy",
+    "OPEN_ENGLISH_VPS_SSH_KEY_PATH=/path/to/id_ed25519",
+    "OPEN_ENGLISH_VPS_ALLOWED_PATHS=/home/deploy/app",
+  ].join("\n");
+  const btn = document.getElementById("autorw-vps-copy-env-btn");
+  try {
+    await navigator.clipboard.writeText(template);
+    if (btn) {
+      const original = btn.textContent;
+      btn.textContent = "✅ コピーしました / Copied";
+      setTimeout(() => { btn.textContent = original; }, 2500);
+    }
+  } catch (err) {
+    alert(`コピーに失敗しました / Copy failed: ${err.message || err}\n\n${template}`);
+  }
 });
 
 // VPS自動読み書き(2026-09-01新設): サーバー側`open-english-server`が
@@ -5741,6 +5798,220 @@ async function googleSearchDirect(query, apiKey, cx, maxResults) {
     link: item.link || "",
   }));
 }
+
+// 画像検索(Google Custom Search JSON API、searchType=image)。
+// 2026-09-01新設(ユーザー指示「質問や相談への回答で写真も表示できる
+// 機能を」「Google画像検索結果から選択可能に」への対応)。
+// **安全設計(ユーザー指示「高額請求サイト等へ画面遷移しない
+// セキュリティ機能」への対応、最重要)**: Googleの`safe=active`
+// (Googleが管理するアダルトコンテンツ除外フィルタ)を必ず付与する。
+// 画像そのものは`<img src>`で埋め込むだけ(クリックしてもどこにも
+// 遷移しない)。画像の掲載元ページへのリンクは`isSafeLinkDomain()`で
+// 許可リストに載っているドメインのみ実際のリンクとして描画し、
+// それ以外は正直に「開けません」と表示してURLをコピーする手段のみ
+// 提供する(ブロックリスト方式ではなく許可リスト方式——無数にある
+// 詐欺・アダルトサイトを網羅的に列挙するのは不可能なため、確認できる
+// 範囲のみ許可する設計のほうが安全)。
+async function googleImageSearchDirect(query, apiKey, cx, maxResults) {
+  const url = `https://www.googleapis.com/customsearch/v1?key=${encodeURIComponent(apiKey)}&cx=${encodeURIComponent(cx)}&q=${encodeURIComponent(query)}&searchType=image&safe=active&num=${Math.min(Math.max(maxResults || 6, 1), 10)}`;
+  const res = await fetch(url);
+  if (!res.ok) {
+    let detail = "";
+    try {
+      const body = await res.json();
+      detail = body?.error?.message ? ` — ${body.error.message}` : "";
+    } catch { /* ignore */ }
+    throw new Error(`Google Custom Search API (image) returned HTTP ${res.status}${detail}`);
+  }
+  const data = await res.json();
+  const items = Array.isArray(data.items) ? data.items : [];
+  return items.map((item) => ({
+    title: item.title || "",
+    imageUrl: item.link || "",
+    thumbnailUrl: item.image?.thumbnailLink || item.link || "",
+    contextLink: item.image?.contextLink || "",
+  }));
+}
+
+// YouTube限定の動画検索。汎用のGoogle検索ではランダムなサイトが
+// 「動画」を騙って混ざり得るため、`site:youtube.com`で絞り込んだ上で
+// さらにクライアント側でも実際にyoutube.com/youtu.beドメインの結果
+// だけへ二重にフィルタする(許可リスト方式、ユーザー指示の安全機能)。
+async function googleYoutubeSearchDirect(query, apiKey, cx, maxResults) {
+  const results = await googleSearchDirect(`${query} site:youtube.com`, apiKey, cx, maxResults || 6);
+  return results
+    .map((r) => ({ ...r, videoId: extractYoutubeVideoId(r.link) }))
+    .filter((r) => !!r.videoId);
+}
+
+/** youtube.com/watch?v=... または youtu.be/... からvideo IDだけを取り出す。 */
+function extractYoutubeVideoId(url) {
+  try {
+    const u = new URL(url);
+    const host = u.hostname.replace(/^www\./, "");
+    if (host === "youtube.com" || host === "m.youtube.com") {
+      if (u.pathname === "/watch") return u.searchParams.get("v");
+      const embedMatch = u.pathname.match(/^\/embed\/([\w-]{6,})/);
+      if (embedMatch) return embedMatch[1];
+    }
+    if (host === "youtu.be") {
+      return u.pathname.replace(/^\//, "") || null;
+    }
+  } catch { /* ignore */ }
+  return null;
+}
+
+// 外部リンクを実際にクリック可能なリンクとして描画してよいドメインの
+// 許可リスト(2026-09-01新設)。**ブロックリストではなく許可リスト**
+// である理由: アダルトサイト・ワンクリック請求詐欺サイト等は無数に
+// 存在し形を変え続けるため、それらを網羅的に列挙して弾く方式(ブロック
+// リスト)は原理的に穴を塞ぎきれない。逆に「確認済みの著名なドメイン
+// だけを許可する」方式なら、未知の危険サイトも構造的に弾かれる。
+const SAFE_EXTERNAL_LINK_DOMAINS = [
+  "wikipedia.org", "youtube.com", "youtu.be", "vimeo.com", "google.com",
+  "github.com", "github.io", "developer.mozilla.org", "w3.org",
+  "nhk.or.jp", "asahi.com", "yomiuri.co.jp", "mainichi.jp", "nikkei.com",
+  "bbc.com", "bbc.co.uk", "cnn.com", "reuters.com", "apnews.com",
+  "nasa.gov", "go.jp", "gov", "ac.jp", "edu",
+];
+
+/** ドメインが上記許可リストに含まれるか(サブドメイン含む)を判定する。 */
+function isSafeLinkDomain(url) {
+  try {
+    const host = new URL(url).hostname.toLowerCase();
+    return SAFE_EXTERNAL_LINK_DOMAINS.some((safe) => host === safe || host.endsWith(`.${safe}`));
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * 検索結果のリンクを安全に描画する<a>要素、または(許可リスト外の
+ * 場合)URLをコピーするだけのボタンを返す。**自動でページ遷移する
+ * リンクを許可リスト外のドメインへは絶対に張らない**という一点が
+ * このセキュリティ機能の核。
+ */
+function buildSafeResultLink(url, labelText) {
+  if (isSafeLinkDomain(url)) {
+    const a = document.createElement("a");
+    a.href = url;
+    a.target = "_blank";
+    a.rel = "noopener noreferrer";
+    a.textContent = labelText;
+    return a;
+  }
+  const wrap = document.createElement("span");
+  const host = (() => { try { return new URL(url).hostname; } catch { return url; } })();
+  wrap.textContent = `${labelText}(${host}、安全確認済みドメイン一覧に無いため自動では開きません / not in the verified-safe domain list, won't auto-open) `;
+  const copyBtn = document.createElement("button");
+  copyBtn.type = "button";
+  copyBtn.className = "setup-btn";
+  copyBtn.textContent = "📋 URLをコピー / Copy URL";
+  copyBtn.addEventListener("click", async () => {
+    try {
+      await navigator.clipboard.writeText(url);
+      copyBtn.textContent = "✅ コピーしました / Copied";
+      setTimeout(() => { copyBtn.textContent = "📋 URLをコピー / Copy URL"; }, 2000);
+    } catch { /* ignore */ }
+  });
+  wrap.appendChild(copyBtn);
+  return wrap;
+}
+
+// 話題の画像・動画検索パネル(2026-09-01新設、ユーザー指示「質問や
+// 相談で写真やYoutube動画を表示する機能」への対応)。直近のやり取り
+// (最後のトレーナー発話、無ければ最後のユーザー発話)を検索語として
+// 使い、画像はサムネイルを直接埋め込み(クリックしてもどこにも遷移
+// しない)、動画はyoutube.com/embedのiframeのみ埋め込む(許可リスト
+// 方式、上記のセキュリティ設計を参照)。
+document.getElementById("media-search-btn")?.addEventListener("click", async () => {
+  const resultsEl = document.getElementById("media-search-results");
+  if (!resultsEl) return;
+  const creds = typeof loadOwnGoogleSearchCredentials === "function" ? loadOwnGoogleSearchCredentials() : null;
+  if (!creds || !creds.api_key || !creds.cx) {
+    resultsEl.textContent =
+      "Google検索APIキーが未設定のため画像・動画は表示できません。「🔎 Setup Google Search.」から設定してください。 / " +
+      "Google Search API key isn't set up, so images/video can't be shown — set it up via \"🔎 Setup Google Search.\"";
+    return;
+  }
+  const lastTrainer = typeof lastTrainerUtterance === "function" ? lastTrainerUtterance() : "";
+  const lastUserMsg = document.querySelector("#log .msg.user:last-of-type")?.textContent || "";
+  const query = (lastTrainer || lastUserMsg || document.getElementById("chat-input")?.value || "").trim().slice(0, 200);
+  if (!query) {
+    resultsEl.textContent = "検索語がありません。まず何か会話してから押してください。 / No query yet — chat a bit first.";
+    return;
+  }
+  resultsEl.textContent = `検索中... / Searching for "${query}"...`;
+  try {
+    const [images, videos] = await Promise.all([
+      googleImageSearchDirect(query, creds.api_key, creds.cx, 6).catch(() => []),
+      googleYoutubeSearchDirect(query, creds.api_key, creds.cx, 4).catch(() => []),
+    ]);
+    resultsEl.innerHTML = "";
+    const heading = document.createElement("p");
+    heading.className = "setup-note";
+    heading.textContent = `"${query}" の検索結果 / Results for "${query}"`;
+    resultsEl.appendChild(heading);
+
+    const imgRow = document.createElement("div");
+    imgRow.style.cssText = "display:flex; flex-wrap:wrap; gap:8px;";
+    if (images.length === 0) {
+      const none = document.createElement("p");
+      none.className = "setup-note";
+      none.textContent = "画像が見つかりませんでした。 / No images found.";
+      imgRow.appendChild(none);
+    }
+    for (const img of images) {
+      const fig = document.createElement("figure");
+      fig.style.cssText = "margin:0; width:120px;";
+      const thumb = document.createElement("img");
+      thumb.src = img.thumbnailUrl || img.imageUrl;
+      thumb.alt = img.title || "";
+      thumb.loading = "lazy";
+      thumb.style.cssText = "width:100%; height:90px; object-fit:cover; border-radius:6px; cursor:pointer;";
+      thumb.addEventListener("click", () => { thumb.style.cssText = thumb.style.cssText.replace("height:90px", "height:auto"); thumb.src = img.imageUrl; });
+      fig.appendChild(thumb);
+      if (img.contextLink) {
+        const cap = document.createElement("figcaption");
+        cap.style.cssText = "font-size:0.75rem;";
+        cap.appendChild(buildSafeResultLink(img.contextLink, "元ページ / source"));
+        fig.appendChild(cap);
+      }
+      imgRow.appendChild(fig);
+    }
+    resultsEl.appendChild(imgRow);
+
+    const vidRow = document.createElement("div");
+    vidRow.style.cssText = "display:flex; flex-wrap:wrap; gap:8px; margin-top:10px;";
+    if (videos.length === 0) {
+      const none = document.createElement("p");
+      none.className = "setup-note";
+      none.textContent = "動画(YouTube)が見つかりませんでした。 / No YouTube video found.";
+      vidRow.appendChild(none);
+    }
+    for (const v of videos.slice(0, 2)) {
+      const wrap = document.createElement("div");
+      wrap.style.cssText = "width:280px;";
+      const iframe = document.createElement("iframe");
+      iframe.width = "280";
+      iframe.height = "158";
+      iframe.style.border = "0";
+      iframe.src = `https://www.youtube.com/embed/${encodeURIComponent(v.videoId)}`;
+      iframe.title = v.title || "YouTube video";
+      iframe.allow = "encrypted-media; picture-in-picture";
+      iframe.referrerPolicy = "strict-origin-when-cross-origin";
+      wrap.appendChild(iframe);
+      const cap = document.createElement("p");
+      cap.style.cssText = "font-size:0.8rem; margin:2px 0 0;";
+      cap.textContent = v.title || "";
+      wrap.appendChild(cap);
+      vidRow.appendChild(wrap);
+    }
+    resultsEl.appendChild(vidRow);
+  } catch (err) {
+    resultsEl.textContent = `検索に失敗しました / Search failed: ${err.message || err}`;
+  }
+});
 
 // `aruaru-llm::web_search::format_results_as_context`と同一の書式
 // (番号付き箇条書き)。GPT-2のQ&Aパターン補完に乗せやすくする狙いは
@@ -13654,6 +13925,13 @@ function freelanceLoadGithubToken() {
 }
 
 function freelanceRefreshGithubTokenStatus() {
+  // 2026-09-01修正(ユーザー報告バグ「トークンファイルを置いた後、
+  // 上部の自動読み書きSETUP状況バナーが更新されずボタンも無い」への
+  // 対応): このモーダル内欄だけでなく、ページ上部のautorwバナーも
+  // 常に同時に更新する——トークンの状態変化(ファイル選択・復号・
+  // 保存・vault読込)は全てこの関数を呼ぶ経路を通るため、ここ1箇所に
+  // 集約するのが最も取りこぼしが無い。
+  if (typeof autorwRefreshGithubStatus === "function") autorwRefreshGithubStatus();
   if (!freelanceGithubTokenStatusEl) return;
   const mode = freelanceGithubTokenModeEl?.value || "file";
   if (mode === "file") {
