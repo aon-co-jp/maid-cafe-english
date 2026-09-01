@@ -1223,10 +1223,17 @@ AIコーディング支援パネル)にとどめている。
      必須の相方」節を新設(正本)。Vulkan/DirectX GPUバックエンドだけは
      `aruaru-llm`側のGPUビルド(`installgpu`タスク、既定オフ)使用時
      のみ有効。
-  - 次にすべきこと: (1) 稼働中の`aruaru-llm`がある環境で
-     fold-layersボタン→レスポンスの`attention_compute_skipped`表示の
-     実HTTP検証、(2) skip版の実速度向上幅の実測(`open-cuda`側
-     `--ignored`ベンチ、開発機で)。
+  - **実HTTP E2E検証済み(distilgpt2、実aruaru-llmサーバー起動)**:
+     `POST /v1/models/fold-layers`(`use_linear_adapter:true`)のレスポンス
+     が`attention_compute_skipped:true`を返すこと、折りたたみ後も
+     `/v1/generate`が正常動作すること、閾値方式では`null`になることを
+     確認。**CPU実測**: 合成モデルで約19%、実GPT-2 124Mで約9%高速化
+     (生成トークン列はskip有無でバイト完全一致、詳細は
+     `open-cuda/CLAUDE.md`・`aruaru-llm/CLAUDE.md`同日エントリ)。
+  - 次にすべきこと: (1) open-englishのUIボタン(fold-layers実行フォーム)
+     から実際にボタン操作でこの経路を通す実ブラウザ検証(今回は
+     `curl`での実HTTP検証まで)、(2) 実GPU経路(Vulkan/DirectX)での
+     skip有無の速度比較。
 
 - **2026-08-28 ログイン方式を4択(パスワード無し/email OTP/QR撮影
   のみ/email OTP+QR撮影)+QR確認方式を「毎回その場で撮影・自動承認」
