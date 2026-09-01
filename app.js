@@ -534,6 +534,66 @@ document.getElementById("autorw-vps-setup-btn")?.addEventListener("click", () =>
   document.getElementById("autorw-vps-detail")?.classList.toggle("hidden");
 });
 
+// VPS自動読み書き(2026-09-01新設): サーバー側`open-english-server`が
+// russh(SSH/SFTPクライアント)としてVPSへ接続する実装(`vps_agent.rs`)は
+// 既に存在していたが、ブラウザ側UIから一度も呼ばれていなかった。ここで
+// 状態表示(SETUP済み/未SETUP、`GET /v1/agent/vps/status`)と、実際に
+// 1件読み込んでみる疎通テスト(`GET /v1/agent/vps/read`)を配線する。
+// 秘密鍵・接続先はサーバー起動時の環境変数のみで設定され、ブラウザ側
+// からは一切送信できない設計のため、ここに新しい入力欄は追加しない。
+async function autorwRefreshVpsStatus() {
+  const el = document.getElementById("autorw-vps-status");
+  if (!el) return;
+  try {
+    const res = await fetch("/v1/agent/vps/status", { cache: "no-store" });
+    const data = await res.json();
+    el.textContent = data.configured
+      ? `✅ SETUP済み(host: ${data.host}, user: ${data.user}) / Already set up (host: ${data.host}, user: ${data.user})`
+      : "未SETUP(サーバー起動時の環境変数で設定してください) / Not set up (configure via server environment variables)";
+  } catch (err) {
+    el.textContent = `確認に失敗しました / Check failed: ${err.message || err}`;
+  }
+}
+
+document.getElementById("autorw-vps-test-btn")?.addEventListener("click", async () => {
+  const el = document.getElementById("autorw-vps-status");
+  if (!el) return;
+  try {
+    const statusRes = await fetch("/v1/agent/vps/status", { cache: "no-store" });
+    const status = await statusRes.json();
+    if (!status.configured || !status.allowed_paths || status.allowed_paths.length === 0) {
+      el.textContent = "未SETUP、または許可パスが1件も無いためテストできません / Not set up, or no allowed paths to test with";
+      return;
+    }
+    // 許可パスがファイルかディレクトリか事前にはわからないため、
+    // ディレクトリ配下にテスト専用ファイルを書き込んでから読み戻す
+    // 往復テストにする(ローカルドライブのFile System Access APIテストと
+    // 同じ「見せかけの完了表示にしない」設計)。
+    const testPath = `${status.allowed_paths[0].replace(/\/$/, "")}/open-english-vps-test.txt`;
+    const testContent = `open-english VPS auto read/write test — ${new Date().toISOString()}\n`;
+    el.textContent = `テスト中(${testPath})... / Testing (${testPath})...`;
+    const writeRes = await fetch("/v1/agent/vps/write", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ path: testPath, content: testContent }),
+    });
+    const writeData = await writeRes.json();
+    if (!writeRes.ok || !writeData.ok) {
+      el.textContent = `書き込みテストに失敗しました / Write test failed: ${writeData.error || writeRes.status}`;
+      return;
+    }
+    const readRes = await fetch(`/v1/agent/vps/read?path=${encodeURIComponent(testPath)}`);
+    const readData = await readRes.json();
+    if (readRes.ok && readData.ok && readData.content === testContent) {
+      el.textContent = `✅ SETUP済み・実際に書き込み→読み込みの往復テストに成功しました(${testPath}) / Already set up — real write→read round trip succeeded (${testPath})`;
+    } else {
+      el.textContent = `読み込みテストに失敗しました(内容不一致) / Read test failed (content mismatch)`;
+    }
+  } catch (err) {
+    el.textContent = `テストに失敗しました / Test failed: ${err.message || err}`;
+  }
+});
+
 // ログインゲート(2026-08-26新設、ユーザー指示「家族や会社で共有する
 // 場合もあるので、ログインセキュリティシステムを導入しますか?」への
 // 対応)。`GET /v1/auth/config`でこのサーバーがログイン保護を要求して
@@ -13831,3 +13891,4 @@ if (freelanceGithubPushBtn) {
 // ため、このファイルの最後に置くこと)。
 autorwRefreshGithubStatus();
 autorwRefreshLocalDriveStatus();
+autorwRefreshVpsStatus();

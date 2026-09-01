@@ -49,6 +49,15 @@ fn is_within_allowed(candidate: &Path, allowed: &[PathBuf]) -> bool {
     allowed.iter().any(|dir| candidate.starts_with(dir))
 }
 
+/// ブラウザ側UIの「SETUP済み表示」用の状態確認(2026-09-01新設)。
+pub fn status() -> serde_json::Value {
+    let allowed = allowed_dirs();
+    serde_json::json!({
+        "configured": !allowed.is_empty(),
+        "allowed_dirs": allowed.iter().map(|p| p.display().to_string()).collect::<Vec<_>>(),
+    })
+}
+
 /// 読み込み対象パスを検証し、正規化済みの実体パスを返す。
 ///
 /// 許可ディレクトリが1件も設定されていない場合、または実際に許可

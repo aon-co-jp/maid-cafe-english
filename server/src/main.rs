@@ -1473,6 +1473,14 @@ async fn agent_local_write(req: Request) -> Response {
     }
 }
 
+async fn agent_local_status(_req: Request) -> Response {
+    rs_json_response(StatusCode::OK, &local_agent::status())
+}
+
+async fn agent_vps_status(_req: Request) -> Response {
+    rs_json_response(StatusCode::OK, &vps_agent::status())
+}
+
 async fn agent_vps_read(req: Request) -> Response {
     let Some(path) = query_param(&req, "path") else {
         return rs_json_response(StatusCode::BAD_REQUEST, &serde_json::json!({"error": "missing 'path' query parameter"}));
@@ -2432,8 +2440,10 @@ async fn main() {
     {
         app = app.at("/v1/agent/local/read", get(handler_fn(move |req, _p| async move { agent_local_read(req).await })));
         app = app.at("/v1/agent/local/write", post(handler_fn(move |req, _p| async move { agent_local_write(req).await })));
+        app = app.at("/v1/agent/local/status", get(handler_fn(move |req, _p| async move { agent_local_status(req).await })));
         app = app.at("/v1/agent/vps/read", get(handler_fn(move |req, _p| async move { agent_vps_read(req).await })));
         app = app.at("/v1/agent/vps/write", post(handler_fn(move |req, _p| async move { agent_vps_write(req).await })));
+        app = app.at("/v1/agent/vps/status", get(handler_fn(move |req, _p| async move { agent_vps_status(req).await })));
         app = app.at("/v1/agent/github/read", get(handler_fn(move |req, _p| async move { agent_github_read(req).await })));
         app = app.at("/v1/agent/github/commit", post(handler_fn(move |req, _p| async move { agent_github_commit(req).await })));
     }

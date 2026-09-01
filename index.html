@@ -207,19 +207,34 @@
         <button type="button" id="autorw-localdrive-setup-btn" class="setup-btn">SETUPする / Set up</button>
       </li>
       <li>
-        VPS: <span id="autorw-vps-status">未SETUP(未実装) / Not set up (not implemented)</span>
+        VPS: <span id="autorw-vps-status">確認中... / Checking...</span>
+        <button type="button" id="autorw-vps-test-btn" class="setup-btn">読み込みテスト / Test read</button>
         <button type="button" id="autorw-vps-setup-btn" class="setup-btn">詳細 / Details</button>
       </li>
     </ul>
     <p id="autorw-vps-detail" class="setup-honest hidden" style="margin-top:8px;">
-      <strong>正直な開示:</strong> VPSへの自動読み書きは、ブラウザが生のSSHソケットを
-      直接開けないという技術的制約により、GitHub連携と同じ「ブラウザから直接」方式では
-      実現できません。実現するにはサーバー側(open-english-server)でSSH認証情報を
-      安全に扱う新しい仕組みが必要で、その安全設計はまだ完了していないため未実装です。<br />
-      <strong>Honest disclosure:</strong> Automatic VPS read/write can't work the same way as
-      the GitHub integration (calling an API directly from the browser), because browsers
-      cannot open a raw SSH socket. It would require a new server-side design for handling SSH
-      credentials safely, which hasn't been completed yet — so this is not implemented.
+      <strong>仕組み:</strong> ブラウザは生のSSHソケットを直接開けないため、<code>open-english-server</code>
+      (ネイティブのRustサーバープロセス)自身がSSH/SFTPクライアント(<code>russh</code>)としてVPSへ接続します。
+      ブラウザはこのサーバーへHTTPで指示するだけです。<strong>セキュリティ上の理由により、SSH秘密鍵・
+      接続先ホストはブラウザの入力欄からではなく、サーバーを起動する側が環境変数で設定します</strong>
+      (ブラウザへ秘密鍵の内容や接続先を送信させない設計)。設定方法:<br />
+      <code>OPEN_ENGLISH_VPS_HOST=your-vps.example.com</code><br />
+      <code>OPEN_ENGLISH_VPS_USER=deploy</code><br />
+      <code>OPEN_ENGLISH_VPS_SSH_KEY_PATH=/path/to/id_ed25519</code><br />
+      <code>OPEN_ENGLISH_VPS_ALLOWED_PATHS=/home/deploy/app</code>(読み書きを許可するリモート
+      ディレクトリ、セミコロン区切りで複数指定可)<br />
+      実行できるコマンドは読み書き対象パスへの<code>cat</code>のみに固定されており、任意のシェル
+      コマンドは実行できません。ホスト鍵の検証(中間者攻撃対策)は現状未実装のため、信頼できる
+      自分のVPSに限定して使用してください。<br /><br />
+      <strong>How it works:</strong> Since browsers cannot open a raw SSH socket, the
+      <code>open-english-server</code> native process itself acts as the SSH/SFTP client (via
+      <code>russh</code>) and connects to your VPS; the browser just tells it what to do over HTTP.
+      <strong>For security, the SSH private key and target host are configured via environment
+      variables by whoever runs the server</strong> — not typed into the browser — so the key
+      never has to travel over the network at all. See the env var names above. Only a fixed
+      <code>cat</code> command against the allow-listed paths can be run — no arbitrary shell
+      commands. Host key verification (anti man-in-the-middle) is not implemented yet, so only
+      point this at a VPS you control and trust.
     </p>
   </div>
   <!--

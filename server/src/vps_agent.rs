@@ -108,6 +108,25 @@ struct VpsConfig {
     key_path: String,
 }
 
+/// ブラウザ側UIの「SETUP済み表示」用の状態確認(2026-09-01新設)。
+/// 秘密鍵のパス・内容は一切含めず、接続先ホスト・ユーザー名・許可パス
+/// 一覧のみを返す(これらは秘匿情報ではなく、設定ミス確認に必要な情報)。
+pub fn status() -> serde_json::Value {
+    let host = std::env::var("OPEN_ENGLISH_VPS_HOST").ok();
+    let user = std::env::var("OPEN_ENGLISH_VPS_USER").ok();
+    let has_key = std::env::var("OPEN_ENGLISH_VPS_SSH_KEY_PATH")
+        .map(|p| !p.trim().is_empty())
+        .unwrap_or(false);
+    let allowed = allowed_remote_dirs();
+    let configured = host.is_some() && user.is_some() && has_key && !allowed.is_empty();
+    serde_json::json!({
+        "configured": configured,
+        "host": host,
+        "user": user,
+        "allowed_paths": allowed,
+    })
+}
+
 fn config_from_env() -> Result<VpsConfig> {
     let host_raw = std::env::var("OPEN_ENGLISH_VPS_HOST").context("OPEN_ENGLISH_VPS_HOST is not set")?;
     let (host, port) = match host_raw.rsplit_once(':') {
@@ -123,13 +142,16 @@ async fn connect(cfg: &VpsConfig) -> Result<Handle<SshHandler>> {
     let ssh_config = Arc::new(client::Config::default());
     let mut session = client::connect(ssh_config, (cfg.host.as_str(), cfg.port), SshHandler).await.context("failed to connect to VPS over SSH")?;
     let key_pair = russh::keys::load_secret_key(&cfg.key_path, None).with_context(|| format!("failed to load SSH private key from {}", cfg.key_path))?;
-    // **2026-08-25更新**: `russh` 0.63の`authenticate_publickey`は
-    // `PrivateKeyWithHashAlg`を受け取り`AuthResult`を返す(旧`bool`
-    // ではない)。RSA鍵向けのハッシュアルゴリズム指定は`None`
-    // (`PrivateKeyWithHashAlg::new`が非RSA鍵では無視し、RSA鍵では
-    // レガシーなsha-rsa〈SHA-1〉にフォールバックする)——挙動は旧
-    // バージョンと同等のまま。
-    let key = PrivateKeyWithHashAlg::new(Arc::new(key_pair), None);
+    // **2026-09-01修正(実機で発見した実バグ)**: `None`を渡すとRSA鍵は
+    // レガシーな`ssh-rsa`(SHA-1署名)にフォールバックするが、
+    // 多くの最新のsshd(このリポジトリの本番VPS含む)はセキュリティ上
+    // `ssh-rsa`を無効化しており、`rsa-sha2-256`/`512`のみ受け付ける
+    // ——このため実際のVPSに対して`authenticate_publickey`が常に
+    // 拒否される実バグがあった(実機テストで発見)。
+    // `Some(HashAlg::Sha256)`を明示することで、RSA鍵は`rsa-sha2-256`で
+    // 署名するようになる(非RSA鍵ではこの指定は無視される、
+    // `PrivateKeyWithHashAlg::new`の既存の仕様通り)。
+    let key = PrivateKeyWithHashAlg::new(Arc::new(key_pair), Some(russh::keys::HashAlg::Sha256));
     let auth_result = session.authenticate_publickey(&cfg.user, key).await.context("SSH publickey authentication failed")?;
     if !matches!(auth_result, client::AuthResult::Success) {
         bail!("SSH authentication was rejected by the VPS / VPS側でSSH認証が拒否されました");
