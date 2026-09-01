@@ -1279,6 +1279,51 @@ cd aruaru-db
       </p>
       <button type="button" id="freelance-ask-teacher-btn" class="setup-btn">🎓 AI先生に相談 / Ask the AI teacher</button>
 
+      <h3>進捗の保存先(複数選択可) / Progress save destinations (choose any number)</h3>
+      <p class="setup-note">
+        「AI先生に相談」を押すたびに、選んだ産業・言語・フレームワーク・WEBサーバー・DATABASE・
+        案件メモをここで有効にした送信先へ記録します(1つ選んでも、複数同時に選んでも構いません。
+        1つが失敗しても他の送信先は続行します)。<strong>今回のパスは設定の保存のみで、実際の
+        書き込み処理はまだ実装していません</strong>(次の実装ステップ)。<br />
+        Each time you click "Ask the AI teacher", your chosen industry/language/framework/web
+        server/database/job notes are recorded to whichever destinations you enable here (pick
+        one, or several at once — a failure in one doesn't stop the others). <strong>This pass only
+        saves the settings themselves; the actual write logic is not implemented yet</strong> (next
+        step).
+      </p>
+      <div id="freelance-savedest-summary" class="setup-note hidden">
+        <span id="freelance-savedest-summary-text"></span>
+        <button type="button" id="freelance-savedest-change-btn" class="setup-btn">✏️ 変更 / Change</button>
+      </div>
+      <div id="freelance-savedest-edit">
+        <label class="settings-field">
+          <input type="checkbox" id="freelance-savedest-aruaru-db" />
+          aruaru-db(GraphQL、APIキーは自動発行されるため入力不要 / API key is auto-issued, no input needed)
+        </label>
+        <label class="setup-label">
+          aruaru-dbのGraphQLエンドポイント / aruaru-db GraphQL endpoint<br />
+          <input type="text" id="freelance-savedest-aruaru-db-url" class="setup-input" placeholder="http://127.0.0.1:4001/graphql" />
+        </label>
+        <label class="settings-field">
+          <input type="checkbox" id="freelance-savedest-postgres" />
+          PostgreSQL(接続文字列はサーバー起動時の環境変数<code>OPEN_ENGLISH_DB_LOG_POSTGRES_URL</code>で設定、ブラウザには入力させません / connection string is set via the server's <code>OPEN_ENGLISH_DB_LOG_POSTGRES_URL</code> environment variable — never typed into the browser)
+        </label>
+        <label class="settings-field">
+          <input type="checkbox" id="freelance-savedest-vps" />
+          VPS(上部の「🔌自動読み書きSETUP状況」パネルのVPS設定をそのまま利用 / reuses the VPS setup from the "🔌 Auto read/write setup status" panel above)
+        </label>
+        <label class="settings-field">
+          <input type="checkbox" id="freelance-savedest-google-drive" />
+          Googleドライブ(認証情報はサーバー起動時の環境変数で設定 / credentials set via server environment variables)
+        </label>
+        <label class="settings-field">
+          <input type="checkbox" id="freelance-savedest-local-drive" />
+          ローカルドライブ(上部パネルで選択済みのフォルダへ保存 / saves into the folder already chosen in the panel above)
+        </label>
+        <button type="button" id="freelance-savedest-save-btn" class="setup-btn">💾 保存先の設定を保存 / Save destination settings</button>
+        <p id="freelance-savedest-status" class="setup-note"></p>
+      </div>
+
       <h3 id="freelance-github-section-heading">7. GitHubへの自動アップロード(2026-08-26新設) / Automatic upload to GitHub</h3>
       <p class="setup-note">
         💡 <strong>GitHubは無料プランでも非公開(プライベート)リポジトリを作成できます</strong>

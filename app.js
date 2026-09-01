@@ -13059,6 +13059,110 @@ function freelancePopulateIndustrySelect() {
   }
 }
 
+// 進捗の保存先設定(2026-09-01新設、ユーザー指示「まずは設定保存から」)。
+// このパスは設定の保存・読み込みのみを実装し、実際の書き込み処理
+// (aruaru-db/PostgreSQL/VPS/Googleドライブ/ローカルドライブへの実送信)は
+// 次のパスで実装する(意図的に段階分割、ユーザー指示による)。
+const FREELANCE_SAVEDEST_LOCAL_KEY = "open-english.freelanceSaveDestinations";
+
+function freelanceLoadSaveDestinations() {
+  try {
+    const raw = localStorage.getItem(FREELANCE_SAVEDEST_LOCAL_KEY);
+    return raw ? JSON.parse(raw) : {};
+  } catch {
+    return {};
+  }
+}
+
+function freelancePopulateSaveDestinationFields() {
+  const saved = freelanceLoadSaveDestinations();
+  const aruaruDbEl = document.getElementById("freelance-savedest-aruaru-db");
+  const aruaruDbUrlEl = document.getElementById("freelance-savedest-aruaru-db-url");
+  const postgresEl = document.getElementById("freelance-savedest-postgres");
+  const vpsEl = document.getElementById("freelance-savedest-vps");
+  const googleDriveEl = document.getElementById("freelance-savedest-google-drive");
+  const localDriveEl = document.getElementById("freelance-savedest-local-drive");
+  if (aruaruDbEl) aruaruDbEl.checked = !!saved.aruaru_db;
+  if (aruaruDbUrlEl) aruaruDbUrlEl.value = saved.aruaru_db_url || "";
+  if (postgresEl) postgresEl.checked = !!saved.postgres;
+  if (vpsEl) vpsEl.checked = !!saved.vps;
+  if (googleDriveEl) googleDriveEl.checked = !!saved.google_drive;
+  if (localDriveEl) localDriveEl.checked = !!saved.local_drive;
+}
+
+function freelanceSaveDestinationSettings() {
+  const settings = {
+    aruaru_db: !!document.getElementById("freelance-savedest-aruaru-db")?.checked,
+    aruaru_db_url: (document.getElementById("freelance-savedest-aruaru-db-url")?.value || "").trim(),
+    postgres: !!document.getElementById("freelance-savedest-postgres")?.checked,
+    vps: !!document.getElementById("freelance-savedest-vps")?.checked,
+    google_drive: !!document.getElementById("freelance-savedest-google-drive")?.checked,
+    local_drive: !!document.getElementById("freelance-savedest-local-drive")?.checked,
+  };
+  try {
+    localStorage.setItem(FREELANCE_SAVEDEST_LOCAL_KEY, JSON.stringify(settings));
+  } catch (e) {
+    return { ok: false, error: e.message || String(e) };
+  }
+  return { ok: true, settings };
+}
+
+// 保存済みの送信先名を日英併記のラベルへ変換(要約表示用)。
+const FREELANCE_SAVEDEST_LABELS = {
+  aruaru_db: "aruaru-db",
+  postgres: "PostgreSQL",
+  vps: "VPS",
+  google_drive: "Googleドライブ / Google Drive",
+  local_drive: "ローカルドライブ / Local drive",
+};
+
+// 「設定を〇〇と〇〇に保存済み」の要約表示⇔チェックボックスでの編集を
+// 切り替える(2026-09-01追記、ユーザー指示「設定を〇〇と〇〇に保存済みも
+// 表示して、変更ボタンから再度保存先変更も可能にして」への対応)。
+// 保存先が1つも無い(初回)場合は編集画面をそのまま出す——「変更」ボタンで
+// 開くべき既存設定が無いため。
+function freelanceRefreshSaveDestinationSummary() {
+  const summaryEl = document.getElementById("freelance-savedest-summary");
+  const summaryTextEl = document.getElementById("freelance-savedest-summary-text");
+  const editEl = document.getElementById("freelance-savedest-edit");
+  if (!summaryEl || !editEl) return;
+  const saved = freelanceLoadSaveDestinations();
+  const enabled = Object.keys(FREELANCE_SAVEDEST_LABELS).filter((k) => saved[k]);
+  if (enabled.length === 0) {
+    summaryEl.classList.add("hidden");
+    editEl.classList.remove("hidden");
+    return;
+  }
+  const labels = enabled.map((k) => FREELANCE_SAVEDEST_LABELS[k]);
+  if (summaryTextEl) {
+    summaryTextEl.textContent = `✅ 設定を${labels.join("と")}に保存済み / Already saved to ${labels.join(" and ")}`;
+  }
+  summaryEl.classList.remove("hidden");
+  editEl.classList.add("hidden");
+}
+
+document.getElementById("freelance-savedest-change-btn")?.addEventListener("click", () => {
+  document.getElementById("freelance-savedest-summary")?.classList.add("hidden");
+  document.getElementById("freelance-savedest-edit")?.classList.remove("hidden");
+});
+
+document.getElementById("freelance-savedest-save-btn")?.addEventListener("click", () => {
+  const statusEl = document.getElementById("freelance-savedest-status");
+  const result = freelanceSaveDestinationSettings();
+  if (!statusEl) return;
+  if (!result.ok) {
+    statusEl.textContent = `保存に失敗しました / Save failed: ${result.error}`;
+    return;
+  }
+  const enabled = Object.entries(result.settings)
+    .filter(([k, v]) => v === true)
+    .map(([k]) => k);
+  statusEl.textContent = enabled.length
+    ? `✅ 保存しました(有効: ${enabled.join(", ")}) / Saved (enabled: ${enabled.join(", ")})`
+    : "✅ 保存しました(送信先は1つも有効になっていません) / Saved (no destinations enabled)";
+  freelanceRefreshSaveDestinationSummary();
+});
+
 function freelanceSelectedIndustry() {
   const custom = (freelanceIndustryCustomEl?.value || "").trim();
   if (custom) return custom;
@@ -13652,6 +13756,8 @@ if (freelanceCornerBtn && freelanceCornerModal) {
     freelancePopulateSelect(freelanceFrameworkSelectEl, FREELANCE_FRAMEWORKS_DEFAULT);
     freelancePopulateSelect(freelanceWebserverSelectEl, FREELANCE_WEBSERVERS_DEFAULT);
     freelancePopulateSelect(freelanceDatabaseSelectEl, FREELANCE_DATABASES_DEFAULT);
+    freelancePopulateSaveDestinationFields();
+    freelanceRefreshSaveDestinationSummary();
     freelanceRenderSamples();
     freelanceUpdateGithubTokenModeSections();
     const officialResults = document.getElementById("freelance-official-results");
