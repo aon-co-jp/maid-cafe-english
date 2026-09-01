@@ -5297,6 +5297,75 @@ setupRecheck.addEventListener("click", async () => {
   updateSetupAlreadyConnectedBanner();
 });
 
+// Model Foldingの「ここから実行」ボタン(2026-09-02、ユーザー指示
+// 「open-englishのUI(該当ページのソースを探して特定すること)に
+// 実際に呼び出すボタンを追加」への対応)。従来この開示文にはAPI仕様の
+// 説明のみがあり、実際にボタンを押して`POST /v1/models/fold-layers`を
+// 呼び出す導線が無かった(`aruaru-llm/CLAUDE.md`2026-09-01 HANDOFF
+// 参照)。既存の`apiBaseEl.value.trim()`パターン(aruaru-llmサーバー
+// URL欄)をそのまま再利用し、新しい接続先入力は増やさない。
+const foldLayersBtn = document.getElementById("fold-layers-btn");
+const foldLayersNumEl = document.getElementById("fold-layers-num");
+const foldLayersAdapterEl = document.getElementById("fold-layers-adapter");
+const foldLayersRidgeEl = document.getElementById("fold-layers-ridge");
+const foldLayersStatusEl = document.getElementById("fold-layers-status");
+if (foldLayersBtn) {
+  foldLayersBtn.addEventListener("click", async () => {
+    const base = apiBaseEl.value.trim();
+    if (!base) {
+      foldLayersStatusEl.textContent = "⚠ Set the aruaru-llm server URL first. / 先にaruaru-llmサーバーURLを設定してください。";
+      return;
+    }
+    const body = {};
+    const numRaw = foldLayersNumEl.value.trim();
+    if (numRaw !== "") {
+      const n = parseInt(numRaw, 10);
+      if (!Number.isFinite(n) || n < 1) {
+        foldLayersStatusEl.textContent = "⚠ \"Layers to remove\" must be a positive integer. / 「除去する層数」は1以上の整数にしてください。";
+        return;
+      }
+      body.num_layers_to_remove = n;
+    }
+    const useAdapter = !!(foldLayersAdapterEl && foldLayersAdapterEl.checked);
+    if (useAdapter) body.use_linear_adapter = true;
+    const ridgeRaw = foldLayersRidgeEl.value.trim();
+    if (ridgeRaw !== "") {
+      const r = parseFloat(ridgeRaw);
+      if (!Number.isFinite(r) || r <= 0) {
+        foldLayersStatusEl.textContent = "⚠ ridge_lambda must be a finite positive number. / ridge_lambdaは有限の正の数にしてください。";
+        return;
+      }
+      body.ridge_lambda = r;
+    }
+    foldLayersBtn.disabled = true;
+    foldLayersStatusEl.textContent = "…running fold-layers / fold-layers実行中…";
+    try {
+      const res = await fetchWithTimeout(
+        `${base}/v1/models/fold-layers`,
+        { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(body) },
+        60000
+      );
+      const data = await res.json().catch(() => null);
+      if (!res.ok || !data) {
+        const msg = (data && data.error) ? data.error : `HTTP ${res.status}`;
+        foldLayersStatusEl.textContent = `❌ fold-layers failed / 失敗: ${msg}`;
+        return;
+      }
+      const removed = Array.isArray(data.removed_layer_indices) ? data.removed_layer_indices.join(", ") : "?";
+      foldLayersStatusEl.textContent =
+        `✅ ${data.original_layer_count} → ${data.pruned_layer_count} layers (removed: [${removed}]) / ` +
+        `${data.original_layer_count} → ${data.pruned_layer_count} 層(除去: [${removed}])\n` +
+        `Before / 折りたたみ前: ${data.completion_before_fold}\n` +
+        `After / 折りたたみ後: ${data.completion_after_fold}` +
+        (data.quality_hint ? `\nQuality hint / 品質見込み: ${data.quality_hint}` : "");
+    } catch (err) {
+      foldLayersStatusEl.textContent = `❌ Request failed / リクエスト失敗: ${err && err.message ? err.message : err}`;
+    } finally {
+      foldLayersBtn.disabled = false;
+    }
+  });
+}
+
 // aruaru-db & PostgreSQLセットアップ案内(ユーザー指示「open-easy-web
 // とPostgreSQLとaruaru-dbをSETUPして頂きますと、将来大量の情報をより
 // 高速で処理する事も可能になる予定です」+「SETUPは、なるべく簡単に

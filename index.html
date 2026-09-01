@@ -537,6 +537,32 @@
         一切不要です。
       </p>
 
+      <h3>🧬 Model Folding — try it from here / ここからModel Foldingを試す</h3>
+      <p class="setup-note">
+        Calls <code>POST /v1/models/fold-layers</code> on the aruaru-llm
+        server configured above (see "aruaru-llm server URL" field).
+        This actually removes redundant layers from the currently active
+        model — read the disclosures above first. Leave "layers to remove"
+        empty to use the conservative threshold mode instead.<br />
+        上のaruaru-llmサーバーURL欄に設定された接続先へ実際に
+        <code>POST /v1/models/fold-layers</code>を呼びます。現在アクティブな
+        モデルの層を実際に除去します——事前に上の開示文をお読みください。
+        「除去する層数」を空欄にすると保守的な閾値方式で実行します。
+      </p>
+      <label for="fold-layers-num" class="setup-note">Layers to remove (blank = threshold mode) /
+        除去する層数(空欄=閾値方式)</label>
+      <input type="number" id="fold-layers-num" class="setup-input" min="1" placeholder="e.g. 2" />
+      <label class="setup-note">
+        <input type="checkbox" id="fold-layers-adapter" />
+        Use linear adapter instead of deleting outright /
+        跡形もなく削除せず線形アダプタへ置換する
+      </label>
+      <label for="fold-layers-ridge" class="setup-note">ridge_lambda (only used with linear adapter, blank = default 1e-2) /
+        ridge_lambda(線形アダプタ使用時のみ、空欄=既定1e-2)</label>
+      <input type="number" id="fold-layers-ridge" class="setup-input" step="any" min="0" placeholder="1e-2" />
+      <button type="button" id="fold-layers-btn" class="setup-btn">🧬 Run fold-layers / fold-layersを実行</button>
+      <p class="setup-note" id="fold-layers-status"></p>
+
       <h3>✅ Recommended: prebuilt download (no build, no terminal script to type) /
         推奨: ビルド不要の実行ファイル配布(ターミナルへコマンドを打つ必要なし)</h3>
       <p class="setup-note">
