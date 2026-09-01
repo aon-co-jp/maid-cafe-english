@@ -7,6 +7,25 @@
 [Українська](README-Ukrainian.md) · [עברית](README-Hebrew.md) ·
 [فارسی](README-Persian.md) · [العربية](README-Arabic.md)
 
+> 📌 **最新の更新(2026-09-01): aruaru-llmにModel Folding機能(実装は
+> aruaru-llm/open-cuda側)**。ユーザー依頼「DeepSeekの折りたたみ理論
+> (Model Folding)を実装してほしい」を受け日英2言語で調査した結果、
+> **そのような技術は実在しないと判明した**(DeepSeekの実際の効率化
+> 技術はMLA・FP8混合精度・DeepSeekMoE)。混同の元と考えられる無関係の
+> ICLR 2025論文「Model Folding」(arXiv:2502.10216)の代わりに、より
+> 実装・検証が現実的な代替手法を3段階で実装した——独立閾値方式
+> (ShortGPT/Gromov et al.方式)・連続ブロック探索方式(Gromov et al.
+> 論文本来のアルゴリズム)・線形アダプタ方式(SHIFT-LLM/SlimLLM着想の
+> closed-form線形置換、勾配降下法は使わない)。実GPT-2重み(distilgpt2、
+> 6層中5層除去という極端な予算)での実測: 独立閾値・ブロック探索の
+> いずれも完全な劣化ループに陥ったが、線形アダプタ版は劣化ループを
+> 回避し実在の英単語を使った出力を生成した(**完全な修正ではない**、
+> 出力は依然として文法的に一貫した文章にはならない)。詳細・API仕様は
+> [aruaru-llm/CLAUDE.md](https://github.com/aon-co-jp/aruaru-llm/blob/main/CLAUDE.md)・
+> [aruaru-llm/README.md](https://github.com/aon-co-jp/aruaru-llm/blob/main/README.md)
+> (API節)参照。このリポジトリ(open-english)側は`index.html`の
+> 「⚙ Setup aruaru-llm」パネルへ日英併記の開示文を追記済み。
+>
 > 📌 **最新の更新(2026-08-29): AI音声認識(ASR)精度の抜本改善に着手**。
 > 正本は [`docs/SPEECH_RECOGNITION_REDESIGN.md`](docs/SPEECH_RECOGNITION_REDESIGN.md)
 > (英日・多言語で Google/GitHub 調査した結果と、open-english /

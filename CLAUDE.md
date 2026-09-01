@@ -7357,3 +7357,61 @@ wer.mjs`(依存ゼロ Node、NFKC 正規化 + 語/文字 Levenshtein で WER/CER
 **次のプロトタイプ**: Moonshine(27M、日本語版あり)を低遅延経路の候補
 エンジンに(Whisper より軽く速い、短発話向け)。あわせて `tools/asr-bench/`
 で実マイク初回計測 → `docs/asr-eval/README.md` の結果ログへ。
+
+## HANDOFF追記(2026-09-01) aruaru-llmにModel Folding機能を実装
+——「DeepSeekの折りたたみ理論」は実在しないと判明、他アカウントでの
+再開用メモ(必ず読むこと)
+
+ユーザー指示「aruaru-llm単体では機能が弱いので、Toshiba SBM・
+DeepSeekの折りたたみ理論などのAI補助機能をopen-directx/open-cuda/
+aruaru-llm/open-cpuを駆使して機能するように」への対応の一環として、
+`aruaru-llm`側の「Model Folding」機能を実装した(**このリポジトリ
+〈open-english〉自体はaruaru-llmへのHTTPクライアントであり、実装
+本体は`aruaru-llm`/`open-cuda`側**、詳細は両リポジトリのCLAUDE.md
+2026-09-01エントリを正本とする——ここでは要約と、このリポジトリ側で
+行った対応のみ記す)。
+
+**最重要の事実確認**: 日英2言語でGoogle/GitHub調査した結果、
+**「DeepSeekの折りたたみ理論」という技術は実在しないと判明した**
+(DeepSeekの実際の効率化技術はMLA・FP8混合精度・DeepSeekMoEであり、
+いずれも「折りたたみ」ではない)。混同の元と考えられるのは無関係の
+ICLR 2025論文「Model Folding」(arXiv:2502.10216)。この事実誤認を
+UIの開示文で誇張せず訂正した(下記参照)。
+
+**aruaru-llm/open-cuda側に実装された3段階の代替手法**(いずれも実
+GPT-2重みで実測検証済み、詳細は`aruaru-llm/CLAUDE.md`参照):
+1. 層単位の独立閾値方式(ShortGPT/Gromov et al.方式)——`POST
+   /v1/models/fold-layers`(既定、`block_influence_threshold`指定)。
+2. 連続ブロック探索方式(Gromov et al.論文本来のアルゴリズム)——
+   同エンドポイントで`num_layers_to_remove`指定。1の弱点(極端な
+   閾値で複数層が一括削除され破綻を招いた実測結果)を改善。
+3. 線形アダプタ方式(SHIFT-LLM/SlimLLM着想のclosed-form線形置換、
+   勾配降下法は使わない)——同エンドポイントで`num_layers_to_remove`
+   +`use_linear_adapter: true`指定。実測(distilgpt2、6層中5層除去)
+   で、旧方式の完全な劣化ループ("Theodoreodoreodore...")を回避し
+   実在単語の出力を生成することを確認(**完全な修正ではない**、
+   出力は依然として文法的に一貫した文章にはならない)。
+
+**このリポジトリ(open-english)側で行った対応**: `index.html`の
+「⚙ Setup aruaru-llm」パネル内に、上記3段階の実装経緯・実測結果を
+日英併記で追記し(該当箇所は複数回にわたり追記〈2026-09-01内で
+3回〉、各段階の実測結果が判明するたびに正直に更新)、実ブラウザで
+表示確認(白画面・HTML崩れ・コンソールエラー無し)を実施済み。
+コミット: `e9265d1`(独立閾値方式の実装完了時点の開示更新)・
+`1d2007b`(連続ブロック探索方式)・`998f678`(線形アダプタ方式)。
+VPS(`easy-web.tokyo`)へも都度デプロイ済み(静的HTMLのみのため
+サーバー再起動は不要)。
+
+**未着手・次回検討候補**: (1) `POST /v1/models/fold-layers`を
+`index.html`のUIから実際に呼び出す導線(現状はAPI仕様の開示文のみで、
+ボタン操作でのfold実行UIは未実装——`curl`/直接HTTPでの利用が前提)、
+(2) この3段階の手法を実GPU経路(Vulkan/DirectX)で計測すること
+(`aruaru-llm/CLAUDE.md`参照、現状はCPU実行のみで実測)、(3) 日本語・
+他言語プロンプトでの較正・折りたたみ後品質の検証。
+
+**再開時の注意**: 「DeepSeekの折りたたみを実装して」のような依頼を
+再び受けた場合、まず`aruaru-llm/CLAUDE.md`・`open-cuda/CLAUDE.md`の
+2026-09-01エントリを読み、同じ調査(「DeepSeekの折りたたみ理論は
+実在しない」という事実確認)をゼロからやり直さないこと——既に実装
+済みの3手法(独立閾値/連続ブロック探索/線形アダプタ)を土台に、
+追加の改善・別の較正データでの検証等へ進むこと。
