@@ -5357,7 +5357,10 @@ if (foldLayersBtn) {
         `${data.original_layer_count} → ${data.pruned_layer_count} 層(除去: [${removed}])\n` +
         `Before / 折りたたみ前: ${data.completion_before_fold}\n` +
         `After / 折りたたみ後: ${data.completion_after_fold}` +
-        (data.quality_hint ? `\nQuality hint / 品質見込み: ${data.quality_hint}` : "");
+        (data.quality_hint ? `\nQuality hint / 品質見込み: ${data.quality_hint}` : "") +
+        (data.attention_compute_skipped
+          ? `\nThe inserted adapter layer skips the whole attention sub-layer at inference, so that block's attention compute is actually eliminated. / 挿入したアダプタ層は推論時にAttentionを丸ごとスキップするため、その分の計算コストが実際に削減されます。`
+          : "");
     } catch (err) {
       foldLayersStatusEl.textContent = `❌ Request failed / リクエスト失敗: ${err && err.message ? err.message : err}`;
     } finally {

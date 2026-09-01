@@ -1194,6 +1194,40 @@ AIコーディング支援パネル)にとどめている。
 
 ## HANDOFF
 
+- **2026-09-01(続き2) Model Folding: Attentionスキップ軽量パスの開示追記
+  +「open-cudaは必須の相方」をインストーラースクリプトへ明文化
+  (open-cuda + aruaru-llm + open-english の3リポジトリスライス、正本は
+  `aruaru-llm/CLAUDE.md`同日エントリ)**:
+  1. **Attentionスキップ軽量パスの開示**: `aruaru-llm`/`open-cuda`側で
+     `DecoderLayer`へ「折りたたんだ層のAttention(QKV射影・softmax・
+     P·V・KVキャッシュ)を推論時に丸ごとスキップする」軽量パスを実装
+     (数値的にビット単位で等価、除去ブロックぶんの計算コストが実際に
+     削減される)。`index.html`の「⚙ Setup aruaru-llm」パネル内
+     fold-layers開示文へ日英併記で追記、`app.js`の`foldLayersBtn`
+     ハンドラが`POST /v1/models/fold-layers`レスポンスの新フィールド
+     `attention_compute_skipped`をステータス欄へ表示するよう変更。
+     `node --check app.js` OK、静的配信(`python -m http.server`)+
+     実ブラウザでページが白画面にならず新開示文がDOMに存在することを
+     確認(既存の404〈whisper vendor・aruaru-llm未起動〉のみ)。
+  2. **「open-cudaは必須の相方」**(ユーザー指示「aruaru-llmを使う
+     リポジトリは全てopen-cudaも一緒にSETUPすべき、または
+     aruaru-llmインストーラーでopen-cudaも同梱」への回答): 調査の
+     結果、**open-cudaは`aruaru-llm`バイナリへ静的リンクされるため
+     別途同梱・別プロセスは不要**——`fetch-aruaru-llm.ps1`/`.sh`が
+     取得するリリース済み`aruaru-llm`実行ファイルに`opencuda-*`
+     (GEMM・Attention・GPT-2デコーダ・埋め込み)のコードが既に含まれる。
+     ソースからビルドする場合のみ隣に`open-cuda`のcloneが必要
+     (CIは自動clone)。この旨を`installer/windows/fetch-aruaru-llm.ps1`
+     ・`installer/unix/fetch-aruaru-llm.sh`のコメントへ日英併記で追記。
+     `aruaru-llm/README.md`・`README-English.md`にも「open-cudaは
+     必須の相方」節を新設(正本)。Vulkan/DirectX GPUバックエンドだけは
+     `aruaru-llm`側のGPUビルド(`installgpu`タスク、既定オフ)使用時
+     のみ有効。
+  - 次にすべきこと: (1) 稼働中の`aruaru-llm`がある環境で
+     fold-layersボタン→レスポンスの`attention_compute_skipped`表示の
+     実HTTP検証、(2) skip版の実速度向上幅の実測(`open-cuda`側
+     `--ignored`ベンチ、開発機で)。
+
 - **2026-08-28 ログイン方式を4択(パスワード無し/email OTP/QR撮影
   のみ/email OTP+QR撮影)+QR確認方式を「毎回その場で撮影・自動承認」
   方式へ全面刷新(ユーザー指示「email OTP+QRコードをスマホ・タブレット・

@@ -10,6 +10,21 @@
 # 出しを案内していたが、これは大半の利用者が実行できないコマンドで
 # あり不親切だった)。aruaru-db・PostgreSQLは含まない——それぞれ別
 # リポジトリのセットアップ手順に従うこと(README-INSTALLED.txt参照)。
+#
+# open-cuda について / About open-cuda:
+#   aruaru-llm を使うなら open-cuda も必要だが、別途ダウンロードは
+#   不要。open-cuda(opencuda-blas/opencuda-bert/open-cuda-llm 等の
+#   GEMM・Attention・GPT-2 デコーダ実装)は aruaru-llm.exe へ静的
+#   リンクされており、この zip に既に含まれている。Vulkan/DirectX の
+#   GPU バックエンドだけは aruaru-llm 側の GPU ビルド
+#   (aruaru-llm-installer.exe の installgpu タスク、既定オフ)を使う
+#   場合にのみ有効になる。
+#   If you use aruaru-llm you also need open-cuda, but there is nothing
+#   extra to download: open-cuda (the opencuda-blas/opencuda-bert/
+#   open-cuda-llm GEMM, attention and GPT-2 decoder code) is statically
+#   linked into aruaru-llm.exe and is already inside this zip. Only the
+#   Vulkan/DirectX GPU backends require aruaru-llm's separate GPU build
+#   (the installgpu task in aruaru-llm-installer.exe, off by default).
 param(
     [Parameter(Mandatory = $true)]
     [string]$DestDir

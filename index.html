@@ -457,6 +457,16 @@
         improvement — but not a full fix. The adapter's output still
         isn't grammatically coherent text, more of a word salad. Quality
         is still never guaranteed.<br />
+        <strong>Follow-up (2026-09-01, "genuinely skip attention"
+        path):</strong> the adapter layer used to zero out the attention
+        sub-layer's <em>output</em> while still running the math. We
+        added a fast path in <code>open-cuda-llm</code>'s
+        <code>DecoderLayer</code> that skips the folded block's attention
+        entirely at inference (QKV projection, softmax, P·V, KV-cache
+        push). It is bit-for-bit identical numerically (not a single
+        generated token changes) but the removed block's attention
+        compute cost is now genuinely eliminated. The response reports
+        this via <code>attention_compute_skipped</code>.<br />
         <strong>更新(2026-09-01):</strong>「DeepSeekの折りたたみ理論」を
         日英でGoogle/GitHub調査した結果、<u>そのような技術は実在しない</u>
         と判明しました(DeepSeekの実際の効率化技術はMLA・FP8混合精度・
@@ -503,6 +513,16 @@
         改善ですが、完全な修正ではありません——アダプタ版の出力も
         文法的に一貫した文章にはならず、単語の羅列に近いままです。
         品質は依然として保証されません。<br />
+        <strong>さらに追記(2026-09-01、「Attentionを実際にスキップ
+        する軽量パス」の実装):</strong>線形アダプタ層は従来、
+        Attentionサブ層の出力をゼロで捨てるだけで演算自体は実行して
+        いました。今回<code>open-cuda-llm</code>の<code>DecoderLayer</code>
+        に、折りたたんだ層のAttention(QKV射影・softmax・P·V・
+        KVキャッシュ)を推論時に<strong>丸ごとスキップ</strong>する
+        軽量パスを追加しました。数値的にはビット単位で等価(生成結果は
+        1トークンも変わらない)でありながら、除去したブロックぶんの
+        Attention計算コストが実際に削減されます。レスポンスの
+        <code>attention_compute_skipped</code>フィールドで確認できます。<br />
         • open-directx as a <em>standalone repository</em>
         (<code>aon-co-jp/open-directx</code>) is unrelated to aruaru-llm —
         the DirectX 12 path aruaru-llm can use is a different, same-named
