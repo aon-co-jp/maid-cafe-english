@@ -424,8 +424,21 @@
         GPT-2 weights — a conservative threshold removed only the one
         near-identity layer with generation output unchanged; an
         aggressive threshold visibly degraded quality, exactly as
-        honestly disclosed. Quality is never guaranteed — always compare
-        the before/after sample.<br />
+        honestly disclosed.<br />
+        <strong>Further update (same day):</strong> after that honest
+        result, we improved the removal <em>algorithm itself</em>
+        (Gromov et al., arXiv:2403.17887, contiguous-block search — pass
+        <code>num_layers_to_remove</code> instead of a threshold). Real
+        measurement on distilgpt2 (6 layers): removing 1 or 2 layers via
+        block search kept output grammatical and on-topic
+        (<code>block_similarity</code>≈0.95–0.98); removing 5 of 6
+        layers still broke down (<code>block_similarity</code>≈0.82) —
+        this is a fundamental limit (that budget genuinely lacks enough
+        redundancy), not a bug the algorithm could fix. The response now
+        includes a <code>quality_hint</code> computed from
+        <code>block_similarity</code> <u>before</u> you commit, so you
+        can judge risk in advance. Quality is still never guaranteed —
+        always compare the before/after sample.<br />
         <strong>更新(2026-09-01):</strong>「DeepSeekの折りたたみ理論」を
         日英でGoogle/GitHub調査した結果、<u>そのような技術は実在しない</u>
         と判明しました(DeepSeekの実際の効率化技術はMLA・FP8混合精度・
@@ -442,8 +455,21 @@
         結果を返すので自分の目で品質を判断できる)は、実GPT-2重みで
         実際にHTTP検証済みです——保守的な閾値では恒等写像に近い1層のみを
         除去し生成結果は実質変化なし、積極的な閾値では開示通り明確に
-        品質が劣化することを実証しました。品質は保証されません——必ず
-        前後の生成サンプルを見比べてください。<br />
+        品質が劣化することを実証しました。<br />
+        <strong>さらに追記(同日):</strong>この結果を受け、除去
+        <em>アルゴリズム自体</em>を改良しました(Gromov et al.、
+        arXiv:2403.17887方式の連続ブロック探索——閾値の代わりに
+        <code>num_layers_to_remove</code>を指定)。実測(distilgpt2、
+        6層): 1〜2層をブロック探索で除去した場合、出力は文法的にも
+        話題的にも維持されました(<code>block_similarity</code>≈
+        0.95〜0.98)。一方6層中5層を除去した場合は依然として破綻しました
+        (<code>block_similarity</code>≈0.82)——これはアルゴリズムの
+        不具合ではなく、その予算にはそもそも維持できるだけの冗長性が
+        実在しないという根本的な限界です。レスポンスには
+        <code>block_similarity</code>から算出した<code>quality_hint</code>
+        を実行<u>前</u>に含めるようにしたので、事前にリスクを判断
+        できます。品質は依然として保証されません——必ず前後の生成
+        サンプルを見比べてください。<br />
         • open-directx as a <em>standalone repository</em>
         (<code>aon-co-jp/open-directx</code>) is unrelated to aruaru-llm —
         the DirectX 12 path aruaru-llm can use is a different, same-named
