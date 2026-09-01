@@ -177,6 +177,37 @@ const STATIC_FILES: &[(&str, &str, &str)] = &[
         "vendor/ort-vad/ort-wasm-simd-threaded.wasm",
         "application/wasm",
     ),
+    // Tesseract.js(OCR、写真の設計書を文字起こしするため、2026-09-01新設)。
+    // `fetch-tesseract.{ps1,sh}` が `vendor/tesseract/` へ取得する。app.js は
+    // `/vendor/tesseract/tesseract.min.js` を dynamic import し、worker/core/
+    // 言語データのパスをすべて同一オリジンの `/vendor/tesseract/` に向ける
+    // (CDNへは一切アクセスしない)。未取得なら 404 → 「画像は解析できない」
+    // という従来の正直なフォールバック表示に戻る(回帰なし)。
+    (
+        "/vendor/tesseract/tesseract.min.js",
+        "vendor/tesseract/tesseract.min.js",
+        "application/javascript; charset=utf-8",
+    ),
+    (
+        "/vendor/tesseract/worker.min.js",
+        "vendor/tesseract/worker.min.js",
+        "application/javascript; charset=utf-8",
+    ),
+    (
+        "/vendor/tesseract/tesseract-core-simd.wasm.js",
+        "vendor/tesseract/tesseract-core-simd.wasm.js",
+        "application/javascript; charset=utf-8",
+    ),
+    (
+        "/vendor/tesseract/eng.traineddata.gz",
+        "vendor/tesseract/eng.traineddata.gz",
+        "application/gzip",
+    ),
+    (
+        "/vendor/tesseract/jpn.traineddata.gz",
+        "vendor/tesseract/jpn.traineddata.gz",
+        "application/gzip",
+    ),
 ];
 
 /// 静的ファイルへの`HEAD`リクエスト用ハンドラ(2026-08-24新設)。
@@ -387,6 +418,65 @@ async fn maybe_fetch_whisper_model() {
         {
             Ok(child) => println!("whisper-model auto-fetch: started (pid {})", child.id()),
             Err(e) => println!("whisper-model auto-fetch: failed to start sh: {e}"),
+        }
+    }
+}
+
+/// ブラウザ内 OCR(Tesseract.js、写真の設計書を文字起こしするため)用の
+/// vendorファイルが無ければ、起動時の自動メンテナンスで取得する
+/// (2026-09-01新設、ユーザー指示「写真の設計書をOCR+AIで解析して読み取れる
+/// 様にして」への対応)。`maybe_fetch_whisper_model`と全く同じ設計
+/// (取得スクリプトへ委譲するbest-effort処理、失敗しても既存の「画像は
+/// 解析できない」という正直なフォールバックへ戻るだけで他機能は壊れない)。
+async fn maybe_fetch_tesseract() {
+    let root = repo_root();
+    let vendor_dir = root.join("vendor").join("tesseract");
+    if vendor_dir.join("tesseract.min.js").exists() {
+        return;
+    }
+    let dest = root.join("vendor");
+
+    #[cfg(target_os = "windows")]
+    {
+        let script = ["fetch-tesseract.ps1", "installer/windows/fetch-tesseract.ps1"]
+            .iter()
+            .map(|p| root.join(p))
+            .find(|p| p.exists());
+        let Some(script) = script else {
+            println!("tesseract auto-fetch: skipped (fetch-tesseract.ps1 not found)");
+            return;
+        };
+        println!("tesseract auto-fetch: vendor files missing, running {} -> {}", script.display(), dest.display());
+        match std::process::Command::new("powershell.exe")
+            .args(["-NoProfile", "-ExecutionPolicy", "Bypass", "-File"])
+            .arg(&script)
+            .arg("-DestDir")
+            .arg(&dest)
+            .spawn()
+        {
+            Ok(child) => println!("tesseract auto-fetch: started (pid {})", child.id()),
+            Err(e) => println!("tesseract auto-fetch: failed to start powershell: {e}"),
+        }
+    }
+
+    #[cfg(not(target_os = "windows"))]
+    {
+        let script = ["fetch-tesseract.sh", "installer/unix/fetch-tesseract.sh"]
+            .iter()
+            .map(|p| root.join(p))
+            .find(|p| p.exists());
+        let Some(script) = script else {
+            println!("tesseract auto-fetch: skipped (fetch-tesseract.sh not found; add vendor/tesseract manually)");
+            return;
+        };
+        println!("tesseract auto-fetch: vendor files missing, running {} -> {}", script.display(), dest.display());
+        match std::process::Command::new("sh")
+            .arg(&script)
+            .arg(&dest)
+            .spawn()
+        {
+            Ok(child) => println!("tesseract auto-fetch: started (pid {})", child.id()),
+            Err(e) => println!("tesseract auto-fetch: failed to start sh: {e}"),
         }
     }
 }
@@ -2573,6 +2663,11 @@ async fn main() {
     // 起動時に一度取得を試みる(best-effort、詳細は関数doc参照)。
     tokio::spawn(maybe_fetch_whisper_model());
 
+    // ブラウザ内OCR(Tesseract.js)vendorファイルの自動取得(2026-09-01新設、
+    // 写真の設計書をAI解析可能にする機能)。無ければ起動時に一度取得を
+    // 試みる(best-effort、詳細は関数doc参照)。
+    tokio::spawn(maybe_fetch_tesseract());
+
     // 起動時の自動メンテナンス/自動アップデート(2026-08-11追加、ユーザー
     // 指示「起動時の自動メンテナンスで自動UPDATEの自動バージョンアップ
     // 機能も搭載して」)。サーバーの起動(=フロントエンド側のメンテナンス
@@ -2607,6 +2702,7 @@ async fn main() {
             self_update::check_and_apply_update().await;
             component_update::check_and_apply_all().await;
             maybe_fetch_whisper_model().await;
+            maybe_fetch_tesseract().await;
         }
     });
 

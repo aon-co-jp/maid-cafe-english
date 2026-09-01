@@ -4657,6 +4657,76 @@ function trimSilenceVad(pcm, sampleRate) {
   }
 }
 
+// ── ブラウザ内OCR(Tesseract.js)──────────────────────────────────
+// フリーランス開発コーナーで写真の設計書をUPLOADした際に、文字起こし
+// して案件メモへ反映する(2026-09-01新設、ユーザー指示「写真の設計書を
+// OCR+AIで解析して読み取れる様にして」への対応)。Whisperと同じ設計
+// (同一オリジンの/vendor/配下、未配置なら静かに無効化してフォールバック)。
+// Tesseract.jsはUMDビルド(ESMのdynamic importでは`export`が無く使えない)
+// のため、<script>タグの動的挿入で読み込みグローバル`Tesseract`を使う。
+const TESSERACT_VENDOR_URL = WHISPER_APP_BASE + "vendor/tesseract/tesseract.min.js";
+const TESSERACT_WORKER_URL = WHISPER_APP_BASE + "vendor/tesseract/worker.min.js";
+const TESSERACT_CORE_URL = WHISPER_APP_BASE + "vendor/tesseract/tesseract-core-simd.wasm.js";
+const TESSERACT_LANG_PATH = WHISPER_APP_BASE + "vendor/tesseract/";
+const tesseractState = { loadPromise: null, disabled: false, workerPromise: null };
+
+function loadTesseractModule() {
+  if (tesseractState.disabled) return Promise.resolve(null);
+  if (tesseractState.loadPromise) return tesseractState.loadPromise;
+  tesseractState.loadPromise = (async () => {
+    if (window.Tesseract) return window.Tesseract;
+    try {
+      await new Promise((resolve, reject) => {
+        const script = document.createElement("script");
+        script.src = TESSERACT_VENDOR_URL;
+        script.onload = resolve;
+        script.onerror = () => reject(new Error("failed to load tesseract.min.js"));
+        document.head.appendChild(script);
+      });
+      if (!window.Tesseract) throw new Error("Tesseract global not found after load");
+      return window.Tesseract;
+    } catch (e) {
+      tesseractState.disabled = true;
+      return null;
+    }
+  })();
+  return tesseractState.loadPromise;
+}
+
+/**
+ * 学びたい言語からTesseractの言語コードへの対応表(現状は英語・日本語の
+ * 2言語のみ vendor 済み——他言語が必要になった場合はfetch-tesseractへ
+ * traineddataを追加すること)。未対応言語は既定で英語のみを試す。
+ */
+function tesseractLangFor(learnTarget) {
+  if (learnTarget === "japanese") return "jpn+eng";
+  return "eng";
+}
+
+/**
+ * 画像ファイルをOCRし、認識したテキストを返す。vendorファイル未配置・
+ * 実行失敗の場合は null を返す(呼び出し側はファイル名のみの既存の
+ * 正直なフォールバック表示に戻る、回帰なし)。
+ */
+async function ocrImageFile(file) {
+  const Tesseract = await loadTesseractModule();
+  if (!Tesseract) return null;
+  try {
+    const learnTarget = document.getElementById("learn-target")?.value || "english";
+    const lang = tesseractLangFor(learnTarget);
+    const result = await Tesseract.recognize(file, lang, {
+      workerPath: TESSERACT_WORKER_URL,
+      corePath: TESSERACT_CORE_URL,
+      langPath: TESSERACT_LANG_PATH,
+      gzip: true,
+    });
+    const text = (result?.data?.text || "").trim();
+    return text || null;
+  } catch (e) {
+    return null;
+  }
+}
+
 // ── Silero VAD(ONNX)本命の第二段 ──────────────────────────────────
 // `onnx-community/silero-vad`(v5、~2.2MB)を、既に vendor 済みの ORT
 // (transformers.js の `env.backends.onnx`)経由で走らせる。512 サンプル
@@ -13243,6 +13313,127 @@ const freelanceCopyJobsUrlBtn = document.getElementById("freelance-copy-jobs-url
 const freelanceJobNotesEl = document.getElementById("freelance-job-notes");
 const freelanceSampleListEl = document.getElementById("freelance-sample-list");
 const freelanceAskTeacherBtn = document.getElementById("freelance-ask-teacher-btn");
+const freelanceUploadInputEl = document.getElementById("freelance-upload-input");
+const freelanceUploadStatusEl = document.getElementById("freelance-upload-status");
+const freelanceStartBtn = document.getElementById("freelance-start-btn");
+const freelanceStartStatusEl = document.getElementById("freelance-start-status");
+
+// CADフォーマット対応(2026-09-01追記、ユーザー指示「CAD関連のフォーマット
+// も読み込めて、AIが判断出来るようにして」への対応)。
+// **正直な設計方針**: 専用のCAD解析エンジンは実装しない(この規模の
+// エコシステムには既に姉妹プロジェクト`open-cg-cad`が図面専用の
+// アップロード・合成・再設計機能を持つため、本格解析はそちらに委ねる)。
+// ここでの対応は「テキストベースのCADフォーマットなら、生のジオメトリ
+// データをテキストとしてAI先生(aruaru-llm)へ渡す」ところまで——AIが
+// 座標列やコマンド列を読んでどこまで意味を汲み取れるかは保証しない
+// (GPT-2系モデルの既存の限界と同じ)。DXF/SVG/OBJ/IGES/ASCII-STLは
+// テキスト形式のため読める。DWG(Autodesk独自バイナリ、仕様非公開)・
+// バイナリSTEP・バイナリSTLはブラウザ単体では解析できないため、
+// ファイル名のみ記録し正直にopen-cg-cadを案内する。
+const FREELANCE_CAD_TEXT_EXTENSIONS = /\.(dxf|svg|obj|iges|igs)$/i;
+const FREELANCE_CAD_BINARY_EXTENSIONS = /\.(dwg|step|stp)$/i;
+
+/** STLはASCII/バイナリ両方あり、拡張子だけでは判別できないため中身の先頭を見る。 */
+async function freelanceIsAsciiStl(file) {
+  if (!/\.stl$/i.test(file.name)) return false;
+  try {
+    const head = await file.slice(0, 5).text();
+    return head.trim().toLowerCase().startsWith("solid");
+  } catch {
+    return false;
+  }
+}
+
+// 案件URL/テキスト/写真/CAD図面のUPLOAD(2026-09-01新設、ユーザー指示への
+// 対応)。テキスト系ファイル・テキストベースCADフォーマットは中身を読んで
+// 案件メモへ追記。画像はブラウザ内OCR(Tesseract.js、上記`ocrImageFile`)で
+// 文字起こしを試み、成功すれば認識テキストを案件メモへ追記する——OCRの
+// vendorファイルが未配置・認識失敗の場合は、その旨を正直に明記した上で
+// ファイル名のみを記録する(「読めた」ふりをしない)。バイナリCAD形式
+// (DWG・バイナリSTEP/STL)は姉妹プロジェクトopen-cg-cadへ誘導する。
+// 認識後の設計書の意味解釈自体は既存の「AI先生に相談」/STARTフロー
+// (aruaru-llm)に委ねる——OCR/CADテキスト抽出は文字を拾うところまでで、
+// その先の理解はテキストとして渡された内容を通常のチャットとして処理する
+// 既存経路がそのまま担う。
+freelanceUploadInputEl?.addEventListener("change", async () => {
+  const files = Array.from(freelanceUploadInputEl.files || []);
+  if (!freelanceUploadStatusEl) return;
+  if (files.length === 0) {
+    freelanceUploadStatusEl.textContent = "";
+    return;
+  }
+  freelanceUploadStatusEl.textContent = "読み込み中... / Reading...";
+  const appended = [];
+  let ocrCount = 0;
+  let cadTextCount = 0;
+  for (const file of files) {
+    const isTextLike = /\.(txt|md|json)$/i.test(file.name) || file.type.startsWith("text/");
+    const isImage = file.type.startsWith("image/");
+    const isCadText = FREELANCE_CAD_TEXT_EXTENSIONS.test(file.name) || (await freelanceIsAsciiStl(file));
+    const isCadBinary = FREELANCE_CAD_BINARY_EXTENSIONS.test(file.name) || (/\.stl$/i.test(file.name) && !isCadText);
+    if (isTextLike || isCadText) {
+      try {
+        const text = await file.text();
+        const truncated = text.length > 20000 ? text.slice(0, 20000) + "\n... (以降省略/truncated) ..." : text;
+        const label = isCadText
+          ? `${file.name}(CAD図面データ、生のジオメトリをテキストとして渡します / raw CAD geometry passed as text)`
+          : file.name;
+        appended.push(`--- ${label} ---\n${truncated}`);
+        if (isCadText) cadTextCount++;
+      } catch (err) {
+        appended.push(`--- ${file.name} (読み込み失敗 / read failed: ${err}) ---`);
+      }
+    } else if (isCadBinary) {
+      appended.push(
+        `[バイナリCAD形式(DWG/バイナリSTEP・STL等)はこのブラウザでは解析できないためファイル名のみ記録。` +
+          `本格的な図面解析には姉妹プロジェクトopen-cg-cadをご利用ください / ` +
+          `binary CAD format (DWG/binary STEP or STL, etc.) can't be parsed by this browser — filename only recorded. ` +
+          `For real drawing analysis, please use the sister project open-cg-cad: ${file.name}]`
+      );
+    } else if (isImage) {
+      freelanceUploadStatusEl.textContent = `OCR解析中... / Running OCR on ${file.name}...`;
+      const ocrText = await ocrImageFile(file);
+      if (ocrText) {
+        ocrCount++;
+        appended.push(
+          `--- ${file.name}(OCR文字起こし結果、誤読の可能性あり / OCR transcript, may contain misreads) ---\n${ocrText}`
+        );
+      } else {
+        appended.push(
+          `[画像ファイル、OCRが利用できない/認識できなかったためファイル名のみ記録 / image file, OCR unavailable or failed — filename only: ${file.name}]`
+        );
+      }
+    } else {
+      appended.push(`[画像/バイナリファイル、内容の自動解析は未対応 / image or binary file, content not auto-analyzed: ${file.name}]`);
+    }
+  }
+  if (freelanceJobNotesEl) {
+    const prefix = freelanceJobNotesEl.value.trim() ? freelanceJobNotesEl.value.trim() + "\n\n" : "";
+    freelanceJobNotesEl.value = prefix + appended.join("\n\n");
+  }
+  const notes = [];
+  if (ocrCount > 0) notes.push(`OCR成功 ${ocrCount}件 / ${ocrCount} OCR success`);
+  if (cadTextCount > 0) notes.push(`CAD図面データ読込 ${cadTextCount}件 / ${cadTextCount} CAD file(s) read`);
+  const extraNote = notes.length ? `(${notes.join(", ")})` : "";
+  freelanceUploadStatusEl.textContent = `✅ ${files.length}件を案件メモへ反映しました ${extraNote} / Added ${files.length} file(s) to job notes.`;
+});
+
+// STARTボタン(2026-09-01新設): 案件メモ・進め方(レッスンあり/なし+
+// レベル)を確定させ、既存の「AI先生に相談」フロー(freelanceAskTeacherBtn)
+// をそのまま起動する——新しい送信経路は作らず、既存の確立済みフローを
+// 呼び出すだけに留める(重複実装を避ける)。
+freelanceStartBtn?.addEventListener("click", () => {
+  if (!freelanceJobNotesEl || !freelanceJobNotesEl.value.trim()) {
+    if (freelanceStartStatusEl) {
+      freelanceStartStatusEl.textContent =
+        "案件のURL・テキスト・UPLOADのいずれかを入力してからSTARTしてください。 / " +
+        "Please enter a job URL/text or upload a file before pressing START.";
+    }
+    return;
+  }
+  if (freelanceStartStatusEl) freelanceStartStatusEl.textContent = "";
+  freelanceAskTeacherBtn?.click();
+});
 
 // GitHub連携要素(2026-08-27: トークンの受け渡し方法を3種類に拡張)
 const freelanceGithubTokenModeEl = document.getElementById("freelance-github-token-mode");

@@ -1263,6 +1263,42 @@ cd aruaru-db
         </label>
       </fieldset>
 
+      <label class="setup-label">
+        案件のテキスト・設計書・写真をUPLOAD(任意) / Upload job text, spec doc, or a photo (optional)<br />
+        <input type="file" id="freelance-upload-input" class="setup-input" accept=".txt,.md,.json,image/*,.dxf,.svg,.obj,.stl,.step,.stp,.iges,.igs,.dwg" multiple />
+      </label>
+      <div id="freelance-upload-status" class="setup-note"></div>
+      <p class="setup-note">
+        テキストファイルの内容は案件メモへ自動で追記されます。画像はブラウザ内OCR(Tesseract.js)で
+        文字起こしを試み、成功すれば認識テキストを案件メモへ追記します(誤読の可能性があります・
+        解像度や手書き文字によっては精度が低くなります)。OCRが使えない/失敗した場合は、その旨と
+        ファイル名のみを記録します(読めていないのに読めたふりはしません)。<br />
+        Text file contents are appended to the job notes automatically. Images are run through
+        in-browser OCR (Tesseract.js); if it succeeds, the recognized text is appended (it may contain
+        misreads — accuracy depends on resolution and handwriting). If OCR is unavailable or fails, we
+        record that fact plus just the filename (we don't pretend to have read something we couldn't).
+      </p>
+      <p class="setup-note">
+        CAD関連フォーマット(DXF・SVG・OBJ・STL(ASCIIのみ)・STEP・IGES)はテキスト形式であれば
+        中身(座標・図形データ)をそのまま案件メモへ添付し、AI先生がテキストとして解釈します——
+        ただし専用のCAD解析AIではなく、生のジオメトリデータをテキストとして渡すだけなので、
+        複雑な図面の意味理解までは保証しません。DWGや、バイナリ形式のSTEP/STLは仕様が非公開/
+        複雑なためこのブラウザ単体では読み取れず、正直にファイル名のみ記録します——
+        本格的な図面解析には、このエコシステムの姉妹プロジェクト
+        <a href="https://github.com/aon-co-jp/open-cg-cad" target="_blank" rel="noopener noreferrer">open-cg-cad</a>
+        (専用のCAD図面アップロード・合成・再設計機能)のご利用を推奨します。<br />
+        CAD-related formats (DXF, SVG, OBJ, STL (ASCII only), STEP, IGES) are attached as raw text
+        (coordinates/geometry data) to the job notes when they're text-based, and the AI teacher reads
+        them as text — but it's not a dedicated CAD-understanding AI, so don't expect it to fully grasp
+        complex drawings. DWG and binary STEP/STL can't be read by this browser alone (proprietary/complex
+        binary formats), so we honestly record just the filename — for serious CAD drawing analysis, we
+        recommend the sister project
+        <a href="https://github.com/aon-co-jp/open-cg-cad" target="_blank" rel="noopener noreferrer">open-cg-cad</a>
+        (dedicated CAD drawing upload/merge/redesign features).
+      </p>
+      <button type="button" id="freelance-start-btn" class="setup-btn">▶ START</button>
+      <div id="freelance-start-status" class="setup-note"></div>
+
       <h3>5. サンプル案件から選ぶ / Or pick a sample listing</h3>
       <p class="setup-note">
         実際の案件が見つからない場合の練習用サンプルです(架空の案件、実在の求人ではありません)。<br />

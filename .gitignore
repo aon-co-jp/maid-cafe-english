@@ -6,3 +6,5 @@
 /android/local.properties
 /data/
 /install/
+/models/
+/vendor/
