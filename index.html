@@ -361,6 +361,74 @@
         aruaru-llmは起動中で、このアプリは現在それと通信できています。
       </p>
       <p class="setup-honest">
+        <strong>⚠ aruaru-llm alone is weak (2026-09-01) / aruaru-llm単体では
+        機能が弱いです:</strong> aruaru-llm on its own is a small model
+        (GPT-2 124M–1.5B class) with no GPU acceleration and no
+        cache-optimization support wired in. To get its full capability,
+        install it <strong>together with open-cuda + open-cpu</strong>
+        (and, on Windows, optionally open-directx's Vulkan/DirectX 12 path
+        inside open-cuda). Use the "GPU SET" checkbox in
+        <code>aruaru-llm-installer.exe</code> (Windows) to bundle these —
+        it's the same installer linked below, just tick the box during
+        setup.<br />
+        aruaru-llm単体では、GPU加速もキャッシュ最適化も一切配線されていない
+        小型モデル(GPT-2 124M〜1.5Bクラス)のままです。本来の力を発揮
+        させるには、<strong>open-cuda・open-cpuと一緒にセットアップ</strong>
+        してください(Windowsではopen-cuda内蔵のVulkan/DirectX 12経路も
+        任意で追加できます)。下記の<code>aruaru-llm-installer.exe</code>で
+        インストール中に「GPU SET」にチェックを入れるだけで、同じ
+        インストーラーからまとめて導入できます。
+      </p>
+      <p class="setup-honest">
+        <strong>What's already built-in vs. optional (be precise) /
+        既に組み込み済みのもの・任意で追加するものの区別:</strong><br />
+        • <strong>open-cpu</strong> (CPU SIMD detection: AVX2/AVX-512/FMA3
+        etc.) is <u>already compiled into every aruaru-llm build</u> and
+        runs automatically — there is nothing extra to install for this
+        part. It only reports/uses the CPU instruction sets your machine
+        actually has; it cannot invent hardware you don't have.<br />
+        <strong>open-cpu</strong>(AVX2/AVX-512/FMA3等のCPU SIMD検出)は
+        <u>aruaru-llmの全ビルドに既に組み込み済み</u>で自動的に動作します
+        ——この部分だけを別途セットアップする必要はありません。あくまで
+        実際にお使いのマシンが持つ命令セットを検出・利用するだけで、
+        搭載されていないハードウェアを作り出すことはできません。<br />
+        • Toshiba's SBM (simulated bifurcation, quantum-inspired
+        optimization) is <u>already wired in</u> for one concrete task —
+        choosing which model sizes to keep cached on disk under a storage
+        budget (<code>POST /v1/models/optimize-cache</code>). It is a
+        real, working combinatorial optimizer for that one job, not a
+        general-purpose accelerator for every AI computation.<br />
+        東芝のSBM(シミュレーテッド分岐、擬似量子最適化)は、ディスク容量
+        予算内でどのモデルサイズをキャッシュに残すか選ぶ処理
+        (<code>POST /v1/models/optimize-cache</code>)という具体的な
+        1タスクに<u>既に組み込み済み</u>です。この1タスクに対しては実際に
+        動作する組合せ最適化エンジンですが、あらゆるAI計算を汎用的に
+        高速化する仕組みではありません。<br />
+        • DeepSeek-style "Model Folding" (weight/layer compression) is
+        <u>not fully implemented</u> — what exists today is only an
+        idle-time background <em>scheduler</em> that runs a placeholder
+        similarity calculation when the PC is idle; it does not yet
+        change the model's actual weights. This limitation is disclosed
+        honestly rather than overstated (see CLAUDE.md 2026-08-19).<br />
+        DeepSeek方式の「折りたたみ理論(Model Folding、重み・層の圧縮)」は
+        <u>まだ完全には実装されていません</u>——現状あるのは、PCが
+        アイドル状態の時に低頻度で動く背景スケジューラのみで、中身は
+        プレースホルダの類似度計算に留まり、実際にモデルの重みを
+        変更するところまでは到達していません。誇張せず正直に開示します
+        (詳細はCLAUDE.mdの2026-08-19付HANDOFF参照)。<br />
+        • open-directx as a <em>standalone repository</em>
+        (<code>aon-co-jp/open-directx</code>) is unrelated to aruaru-llm —
+        the DirectX 12 path aruaru-llm can use is a different, same-named
+        component built into open-cuda itself
+        (<code>opencuda-directx</code>). We mention this only to avoid
+        confusion, not to claim a connection that doesn't exist.<br />
+        独立リポジトリとしての<code>open-directx</code>本体は、
+        aruaru-llmとは無関係です——aruaru-llmが使えるDirectX 12経路は、
+        open-cuda自身に内蔵された同名の別コンポーネント
+        (<code>opencuda-directx</code>)です。混同を避けるための注記で
+        あり、実在しない連携を主張するものではありません。
+      </p>
+      <p class="setup-honest">
         <strong>Honest disclosure (updated 2026-08-17):</strong> A prebuilt
         binary download is now available below (no Git/Rust/terminal script
         required — see "Recommended" section) — this replaces the previous
