@@ -116,6 +116,60 @@ pub async fn commit_file(owner: &str, repo: &str, path: &str, content: &str, mes
     Ok((parsed.commit.sha, parsed.commit.html_url))
 }
 
+/// サーバー側管理モード(2026-09-01新設、ユーザー指示「GitHubトークンも
+/// レンタルサーバーやVPS上にあっても良さそう」への対応)。VPSエージェント
+/// (`vps_agent.rs`)と同じ設計思想——トークンをサーバー起動時の環境変数
+/// (`OPEN_ENGLISH_GITHUB_TOKEN`)としてのみ保持し、**ブラウザへは
+/// 一切送信しない**(既存のファイル/暗号化/平文の3モードは、いずれも
+/// 何らかの形でトークンがブラウザのJS上に一度は存在するが、この
+/// モードはその瞬間が構造的に存在しない、既存モードより一段安全な
+/// 選択肢)。
+#[derive(Debug, Serialize)]
+pub struct ServerModeStatus {
+    pub configured: bool,
+}
+
+pub fn server_token() -> Option<String> {
+    std::env::var("OPEN_ENGLISH_GITHUB_TOKEN").ok().filter(|s| !s.trim().is_empty())
+}
+
+pub fn status() -> ServerModeStatus {
+    ServerModeStatus { configured: server_token().is_some() }
+}
+
+#[derive(Debug, Serialize)]
+struct CreateRepoRequest<'a> {
+    name: &'a str,
+    private: bool,
+    auto_init: bool,
+}
+
+#[derive(Debug, Deserialize)]
+struct CreateRepoResponse {
+    html_url: String,
+    full_name: String,
+}
+
+/// `POST /user/repos` — 認証したユーザー配下に新規リポジトリを作成する。
+pub async fn create_repo(name: &str, private: bool, token: &str) -> Result<(String, String)> {
+    let client = reqwest::Client::builder().user_agent(USER_AGENT).build().context("failed to build HTTP client")?;
+    let resp = client
+        .post(format!("{GITHUB_API_BASE}/user/repos"))
+        .header("accept", "application/vnd.github+json")
+        .header("authorization", format!("Bearer {token}"))
+        .json(&CreateRepoRequest { name, private, auto_init: false })
+        .send()
+        .await
+        .context("GitHub API request failed")?;
+    let status = resp.status();
+    if !status.is_success() {
+        let text = resp.text().await.unwrap_or_default();
+        bail!("GitHub API repo creation returned {status}: {text}");
+    }
+    let parsed: CreateRepoResponse = resp.json().await.context("failed to parse GitHub API repo creation response")?;
+    Ok((parsed.html_url, parsed.full_name))
+}
+
 fn urlencode(s: &str) -> String {
     let mut out = String::new();
     for b in s.bytes() {

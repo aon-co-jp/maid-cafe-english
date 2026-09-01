@@ -1479,6 +1479,7 @@ cd aruaru-db
           <option value="encrypted">② パスフレーズで暗号化して保存 / Encrypt with a passphrase</option>
           <option value="plain">③ 平文で保存(非推奨) / Save in plain text (not recommended)</option>
           <option value="vault">④ クロスオリジンiframe保管庫(実験的) / Cross-origin iframe vault (experimental)</option>
+          <option value="server">⑤ サーバー側(VPS/レンタルサーバー)の環境変数 / Server-side (VPS/rental server) environment variable</option>
         </select>
       </label>
 
@@ -1538,6 +1539,23 @@ cd aruaru-db
           <strong>Real isolation only comes from actually serving vault.html from a different
           origin</strong> — treat the sandbox attribute as defense-in-depth, not the primary
           safeguard.
+        </p>
+      </div>
+
+      <div id="freelance-github-token-server-section" class="hidden">
+        <p class="setup-honest">
+          <strong>最も安全な方式です:</strong> トークンはこのサーバー(<code>open-english-server</code>)
+          起動時の環境変数 <code>OPEN_ENGLISH_GITHUB_TOKEN</code> としてのみ保持され、
+          <strong>ブラウザには一度も送信されません</strong>——他の4方式は、いずれかの瞬間に
+          平文トークンがこのページのJavaScript上に存在しますが、この方式にはその瞬間が
+          構造的に存在しません。VPS/レンタルサーバー側で環境変数を設定してからサーバーを
+          起動してください。<br />
+          <strong>This is the most secure option:</strong> the token is held only as the
+          <code>OPEN_ENGLISH_GITHUB_TOKEN</code> environment variable when this server
+          (<code>open-english-server</code>) starts, and <strong>never reaches the browser at
+          all</strong> — with the other 4 modes, the plain-text token exists in this page's
+          JavaScript at some point, but with this mode that moment structurally never happens.
+          Set the environment variable on your VPS/rental server before starting the server.
         </p>
       </div>
 

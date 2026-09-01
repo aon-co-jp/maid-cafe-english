@@ -1643,6 +1643,55 @@ async fn agent_github_commit(req: Request) -> Response {
     }
 }
 
+/// サーバー側管理モードのGitHubトークン設定状況を返す(2026-09-01新設)。
+/// トークン自体は絶対に返さない(configured真偽値のみ)。
+async fn agent_github_status(_req: Request) -> Response {
+    rs_json_response(StatusCode::OK, &github_agent::status())
+}
+
+#[derive(serde::Deserialize)]
+struct GithubCreateAndPushRequest {
+    repo_name: String,
+    #[serde(default)]
+    private: bool,
+    file_path: String,
+    file_content: String,
+    message: String,
+}
+
+/// サーバー側管理モード専用のリポジトリ作成+push(2026-09-01新設、
+/// ユーザー指示「GitHubトークンもVPS/レンタルサーバー上にあっても
+/// 良さそう」への対応)。**リクエストボディにトークンを含める欄が
+/// そもそも無い**——常にサーバー起動時の環境変数
+/// (`OPEN_ENGLISH_GITHUB_TOKEN`)のみを使う設計にすることで、この
+/// エンドポイントに関しては「ブラウザがトークンを渡す余地自体が無い」
+/// ことを構造的に保証している(既存の`/v1/agent/github/commit`は
+/// 汎用エンドポイントとして引き続きトークンを受け取る設計のまま残す
+/// ——このエンドポイントはそれとは別の、より安全な選択肢)。
+async fn agent_github_create_and_push(req: Request) -> Response {
+    let body: GithubCreateAndPushRequest = match read_rs_json_body(req).await {
+        Ok(v) => v,
+        Err(resp) => return resp,
+    };
+    let Some(token) = github_agent::server_token() else {
+        return rs_json_response(
+            StatusCode::BAD_REQUEST,
+            &serde_json::json!({"ok": false, "error": "OPEN_ENGLISH_GITHUB_TOKEN is not configured on this server"}),
+        );
+    };
+    let (html_url, full_name) = match github_agent::create_repo(&body.repo_name, body.private, &token).await {
+        Ok(v) => v,
+        Err(e) => return rs_json_response(StatusCode::BAD_REQUEST, &serde_json::json!({"ok": false, "error": e.to_string()})),
+    };
+    let mut parts = full_name.splitn(2, '/');
+    let owner = parts.next().unwrap_or_default();
+    let repo = parts.next().unwrap_or(&body.repo_name);
+    match github_agent::commit_file(owner, repo, &body.file_path, &body.file_content, &body.message, None, None, &token).await {
+        Ok((_commit_sha, _commit_url)) => rs_json_response(StatusCode::OK, &serde_json::json!({"ok": true, "html_url": html_url})),
+        Err(e) => rs_json_response(StatusCode::BAD_REQUEST, &serde_json::json!({"ok": false, "error": format!("repo created but push failed: {e}"), "html_url": html_url})),
+    }
+}
+
 /// world-lab(2026-08-24新設、`world_lab.rs`モジュールdoc参照):
 /// デバイス発見/ペアリングの最小スケルトンAPI。既定で無効
 /// (`OPEN_ENGLISH_WORLD_LAB_ENABLED=1`未設定時は全エンドポイントが
@@ -2536,6 +2585,8 @@ async fn main() {
         app = app.at("/v1/agent/vps/status", get(handler_fn(move |req, _p| async move { agent_vps_status(req).await })));
         app = app.at("/v1/agent/github/read", get(handler_fn(move |req, _p| async move { agent_github_read(req).await })));
         app = app.at("/v1/agent/github/commit", post(handler_fn(move |req, _p| async move { agent_github_commit(req).await })));
+        app = app.at("/v1/agent/github/status", get(handler_fn(move |req, _p| async move { agent_github_status(req).await })));
+        app = app.at("/v1/agent/github/create-and-push", post(handler_fn(move |req, _p| async move { agent_github_create_and_push(req).await })));
     }
 
     // world-lab(2026-08-24新設、`world_lab.rs`モジュールdoc参照)。

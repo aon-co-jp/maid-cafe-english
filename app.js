@@ -452,6 +452,7 @@ function autorwIsGithubConfigured() {
   if (mode === "file") return !!freelanceGithubFileToken;
   if (mode === "encrypted") return !!freelanceGithubUnlockedToken;
   if (mode === "vault") return !!freelanceVaultOrigin;
+  if (mode === "server") return null; // 真偽値では即答できない(サーバーへ問い合わせが必要)、呼び出し側で分岐する
   try {
     return !!window.localStorage.getItem(FREELANCE_GITHUB_TOKEN_LOCAL_KEY);
   } catch {
@@ -459,9 +460,27 @@ function autorwIsGithubConfigured() {
   }
 }
 
-function autorwRefreshGithubStatus() {
+async function autorwRefreshGithubStatus() {
   const el = document.getElementById("autorw-github-status");
   if (!el) return;
+  const mode = freelanceGithubTokenModeEl?.value || "file";
+  if (mode === "server") {
+    // ⑤サーバー側管理モード(2026-09-01新設): このモードはブラウザ側の
+    // 状態(変数・localStorage)を一切持たないため、他モードのような
+    // 同期判定ができない——VPSのSETUP状況表示と同じくサーバーへ
+    // 実際に問い合わせて判定する。
+    el.textContent = "確認中... / Checking...";
+    try {
+      const res = await fetch("/v1/agent/github/status", { cache: "no-store" });
+      const data = await res.json();
+      el.textContent = data.configured
+        ? "✅ SETUP済み(サーバー側環境変数) / Already set up (server-side environment variable)"
+        : "未SETUP(サーバー側環境変数) / Not set up (server-side environment variable)";
+    } catch (err) {
+      el.textContent = `確認に失敗しました / Check failed: ${err.message || err}`;
+    }
+    return;
+  }
   el.textContent = autorwIsGithubConfigured()
     ? "✅ SETUP済み / Already set up"
     : "未SETUP / Not set up";
@@ -475,6 +494,14 @@ function autorwRefreshGithubStatus() {
 document.getElementById("autorw-github-test-btn")?.addEventListener("click", async () => {
   const el = document.getElementById("autorw-github-status");
   if (!el) return;
+  const mode = freelanceGithubTokenModeEl?.value || "file";
+  if (mode === "server") {
+    // ⑤サーバー側管理モードはトークンがブラウザに一切無いため、ブラウザ
+    // から直接GitHub APIへ疎通確認することができない(そもそもトークン
+    // を知らない)——サーバー側の設定状況を問い合わせるだけに留める。
+    await autorwRefreshGithubStatus();
+    return;
+  }
   const token = typeof freelanceLoadGithubToken === "function" ? freelanceLoadGithubToken() : "";
   if (!token) {
     el.textContent = "未SETUP(トークンが読み込まれていません) / Not set up (no token loaded)";
@@ -13950,6 +13977,19 @@ function freelanceRefreshGithubTokenStatus() {
     freelanceGithubTokenStatusEl.textContent = freelanceVaultOrigin
       ? `Vault読み込み済み(${freelanceVaultOrigin})。トークンの解錠はvault内で行います。 / Vault loaded (${freelanceVaultOrigin}). Unlock the token inside the vault itself.`
       : "Vault未読み込みです。上の欄でURLを指定して読み込んでください。 / Vault not loaded yet — enter its URL above and load it.";
+  } else if (mode === "server") {
+    freelanceGithubTokenStatusEl.textContent = "確認中... / Checking...";
+    fetch("/v1/agent/github/status", { cache: "no-store" })
+      .then((res) => res.json())
+      .then((data) => {
+        if (!freelanceGithubTokenStatusEl) return;
+        freelanceGithubTokenStatusEl.textContent = data.configured
+          ? "✅ サーバー側でSETUP済みです(OPEN_ENGLISH_GITHUB_TOKEN)。 / Already set up on the server (OPEN_ENGLISH_GITHUB_TOKEN)."
+          : "未SETUP: サーバー起動時にOPEN_ENGLISH_GITHUB_TOKENを設定してください。 / Not set up — configure OPEN_ENGLISH_GITHUB_TOKEN when starting the server.";
+      })
+      .catch((err) => {
+        if (freelanceGithubTokenStatusEl) freelanceGithubTokenStatusEl.textContent = `確認に失敗しました / Check failed: ${err.message || err}`;
+      });
   } else {
     const token = (() => { try { return window.localStorage.getItem(FREELANCE_GITHUB_TOKEN_LOCAL_KEY) || ""; } catch { return ""; } })();
     freelanceGithubTokenStatusEl.textContent = token
@@ -13959,6 +13999,7 @@ function freelanceRefreshGithubTokenStatus() {
 }
 
 const freelanceGithubTokenVaultSectionEl = document.getElementById("freelance-github-token-vault-section");
+const freelanceGithubTokenServerSectionEl = document.getElementById("freelance-github-token-server-section");
 const freelanceVaultUrlEl = document.getElementById("freelance-vault-url");
 const freelanceVaultLoadBtn = document.getElementById("freelance-vault-load-btn");
 const freelanceVaultStatusEl = document.getElementById("freelance-vault-status");
@@ -13971,6 +14012,7 @@ function freelanceUpdateGithubTokenModeSections() {
   freelanceGithubTokenEncryptedSectionEl?.classList.toggle("hidden", mode !== "encrypted");
   freelanceGithubTokenPlainSectionEl?.classList.toggle("hidden", mode !== "plain");
   freelanceGithubTokenVaultSectionEl?.classList.toggle("hidden", mode !== "vault");
+  freelanceGithubTokenServerSectionEl?.classList.toggle("hidden", mode !== "server");
   freelanceRefreshGithubTokenStatus();
 }
 if (freelanceGithubTokenModeEl) {
@@ -14389,6 +14431,30 @@ function freelanceUtf8ToBase64(str) {
   return btoa(binary);
 }
 
+// ⑤サーバー側管理モード(2026-09-01新設): トークンをブラウザへ一切
+// 渡さず、`open-english-server`自身が(サーバー起動時の環境変数
+// `OPEN_ENGLISH_GITHUB_TOKEN`を使って)GitHubへリポジトリ作成+pushの
+// 両方を代行する。ブラウザが送るのはリポジトリ名・ファイル内容等の
+// 非機密情報のみ。
+async function freelanceGithubServerCreateRepoAndPush() {
+  const repoName = (freelanceGithubRepoNameEl?.value || "").trim();
+  if (!repoName) throw new Error("リポジトリ名を入力してください。 / Please enter a repository name.");
+  const res = await fetch("/v1/agent/github/create-and-push", {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({
+      repo_name: repoName,
+      private: !!freelanceGithubPrivateEl?.checked,
+      file_path: (freelanceGithubFilePathEl?.value || "README.md").trim() || "README.md",
+      file_content: freelanceGithubFileContentEl?.value || "",
+      message: (freelanceGithubCommitMessageEl?.value || "Initial commit").trim() || "Initial commit",
+    }),
+  });
+  const data = await res.json();
+  if (!res.ok || !data.ok) throw new Error(data.error || `HTTP ${res.status}`);
+  return data.html_url;
+}
+
 // GitHub REST APIをブラウザから直接呼び、(1)リポジトリを新規作成し
 // (2)指定ファイルを1件push(Contents API、コミット1件)する。
 // トークンはこの関数の外(localStorage)から読むだけで、当アプリの
@@ -14458,6 +14524,8 @@ if (freelanceGithubPushBtn) {
             fileContent: freelanceGithubFileContentEl?.value || "",
             commitMessage: (freelanceGithubCommitMessageEl?.value || "Initial commit").trim() || "Initial commit",
           })
+        : mode === "server"
+        ? await freelanceGithubServerCreateRepoAndPush()
         : await freelanceGithubCreateRepoAndPush();
       if (freelanceGithubPushStatusEl) {
         freelanceGithubPushStatusEl.innerHTML =
