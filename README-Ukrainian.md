@@ -264,7 +264,7 @@
 | # | Що | Windows | Linux | Android/планшет |
 |---|---|---|---|---|
 | 1 | **сам open-english** (цей репозиторій — статичний фронтенд + сервер роздачі) | [open-english-install.exe](https://github.com/aon-co-jp/open-english/releases/latest/download/open-english-install.exe) | [tar.gz](https://github.com/aon-co-jp/open-english/releases/latest) | [APK](https://github.com/aon-co-jp/open-english/releases/latest) (оберіть ассет `.apk`) |
-| 2 | **aruaru-llm** (рушій відповідей ШІ — обов'язковий, без нього чат не працює) | [aruaru-llm-windows-x86_64.zip](https://github.com/aon-co-jp/aruaru-llm/releases/latest/download/aruaru-llm-windows-x86_64.zip) | [tar.gz](https://github.com/aon-co-jp/aruaru-llm/releases/latest) | Вже включено (вбудовано в APK open-english, окреме встановлення не потрібне) |
+| 2 | **aruaru-llm** (рушій відповідей ШІ — обов'язковий, без нього чат не працює) | [aruaru-llm-installer.exe](https://github.com/aon-co-jp/aruaru-llm/releases/latest/download/aruaru-llm-installer.exe) | [tar.gz](https://github.com/aon-co-jp/aruaru-llm/releases/latest) | Вже включено (вбудовано в APK open-english, окреме встановлення не потрібне) |
 
 **Чесне розкриття**: посилання "latest" вище завжди вказують на
 найновіший GitHub Release (якщо потрібна конкретна зафіксована версія,

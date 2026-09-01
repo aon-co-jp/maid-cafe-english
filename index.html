@@ -402,7 +402,7 @@
         実行するだけで、<code>git</code>・<code>cargo</code>は不要です。
       </p>
       <div class="settings-buttons">
-        <a class="setup-btn" href="https://github.com/aon-co-jp/aruaru-llm/releases/latest/download/aruaru-llm-windows-x86_64.zip">⬇ Windows (.zip)</a>
+        <a class="setup-btn" href="https://github.com/aon-co-jp/aruaru-llm/releases/latest/download/aruaru-llm-installer.exe">⬇ Windows (installer .exe)</a>
         <a class="setup-btn" href="https://github.com/aon-co-jp/aruaru-llm/releases/latest/download/aruaru-llm-linux-x86_64.tar.gz">⬇ Linux (.tar.gz)</a>
       </div>
       <p class="setup-note">
@@ -806,7 +806,7 @@ cargo run --release</pre>
         するだけです。
       </p>
       <div class="settings-buttons">
-        <a class="setup-btn" href="https://github.com/aon-co-jp/aruaru-db/releases/latest/download/aruaru-db-windows-x86_64.zip">⬇ Windows (.zip)</a>
+        <a class="setup-btn" href="https://github.com/aon-co-jp/aruaru-db/releases/latest/download/aruaru-db-windows-x86_64.zip">⬇ Windows (installer .exe)</a>
         <a class="setup-btn" href="https://github.com/aon-co-jp/aruaru-db/releases/latest/download/aruaru-db-linux-x86_64.tar.gz">⬇ Linux (.tar.gz)</a>
       </div>
       <p class="setup-note">
@@ -1379,212 +1379,42 @@ cd aruaru-db
         across multiple repository accounts (so a failure on a single GitHub account or a single
         VPS doesn't leave you without a recovery path).
       </p>
-      <p class="setup-honest">
-        <strong>⚠️ 安全上の警告(必ずお読みください):</strong>
-        この機能はあなたのGitHub<strong>個人アクセストークン(PAT)</strong>を使い、ブラウザから
-        <strong>直接</strong>GitHubのAPI(<code>api.github.com</code>)を呼び出してリポジトリ作成・
-        ファイルアップロードを行います。トークンは<strong>このブラウザのlocalStorageにのみ</strong>
-        保存され、当アプリのサーバーへ送信されることはありませんが、以下のリスクは
-        <strong>あなた自身の判断と責任</strong>でご検討ください:
-        (1) <strong>Fine-grained personal access token</strong>を使い、対象リポジトリのみ・
-        「Contents: Read and write」等の<strong>最小権限</strong>・短い有効期限で発行すること、
-        (2) 共有端末・他人と共有するブラウザプロファイルでは使用しないこと、
-        (3) 使い終わったらGitHub側でトークンを失効(Revoke)すること、
-        (4) ブラウザの拡張機能やXSS等でlocalStorageが読まれるリスクはゼロではないこと。
-        <strong>これらを理解した上でのみ、次に進んでください。</strong><br /><br />
-        <strong>⚠️ Security warning (please read before proceeding):</strong> this feature uses your
-        GitHub <strong>Personal Access Token (PAT)</strong> to call the GitHub API
-        (<code>api.github.com</code>) <strong>directly from your browser</strong> to create a
-        repository and upload files. The token is stored <strong>only in this browser's
-        localStorage</strong> and is never sent to this app's own server, but please weigh the
-        following risks <strong>yourself</strong>: (1) use a <strong>fine-grained personal access
-        token</strong> scoped to only the target repository with <strong>minimal permissions</strong>
-        (e.g. "Contents: Read and write") and a short expiry, (2) do not use this on a shared
-        device or a browser profile shared with others, (3) revoke the token on GitHub once you are
-        done, (4) the risk of localStorage being read via a browser extension or XSS is not zero.
-        <strong>Only proceed once you understand and accept this.</strong>
-      </p>
-      <p class="setup-honest">
-        <strong>🔒 2026-08-27追記、トークンの受け渡し方法を3種類に拡張(ユーザー指示):</strong>
-        安全性の高い順に並べています。<strong>どれを選ぶかはご自身の判断</strong>です
-        (正直な比較、誇張しません)。<br /><br />
-        <strong>① ローカルファイルから読み込む(最も安全・推奨)</strong>:
-        トークンをテキストファイル(例: <code>github-token.txt</code>)に書いて
-        ご自身のPC上に保存しておき、使う都度そのファイルを選択します。
-        <strong>保存・記憶は一切行いません</strong>——このタブを閉じる、または
-        ページを再読み込みすると、メモリ上のトークンは消えます。localStorageより
-        安全な理由は、<strong>ブラウザを閉じた後にディスク上へ平文が残らない</strong>
-        ためです(拡張機能やマルウェアが後から漁れる保存領域が無くなります)。
-        欠点は毎回ファイル選択が必要な手間です。<br />
-        <strong>② パスフレーズで暗号化して保存(利便性と安全性の折衷)</strong>:
-        トークンをAES-GCM(ランダムな salt・iv を都度生成、PBKDF2でパスフレーズから
-        鍵を導出)で暗号化してからlocalStorageへ保存します。<strong>パスフレーズ
-        自体は保存しません</strong>(使う都度入力)。<strong>正直な限界</strong>:
-        このページが開かれ復号が行われている間(＝パスフレーズ入力後)は、XSS等で
-        乗っ取られた場合に平文トークンを読まれるリスクは①と同様に残ります——
-        暗号化が守るのは「ブラウザを閉じた後・パスフレーズ入力前」の保存領域です。
-        <strong>③ 平文で保存(非推奨、従来方式)</strong>: 従来どおりトークンを
-        平文のままlocalStorageへ保存します。最も手軽ですが、①②より安全性は
-        劣ります。<br /><br />
-        <strong>🔒 Added 2026-08-27, three ways to hand over the token (per user
-        request):</strong> listed from most to least secure. <strong>Which one you
-        use is your own call</strong> (an honest comparison, not oversold).<br /><br />
-        <strong>① Read from a local file (most secure, recommended)</strong>: write
-        the token into a text file (e.g. <code>github-token.txt</code>) on your own
-        machine, and pick that file each time you need it. <strong>Nothing is saved
-        or remembered</strong> — closing this tab or reloading the page clears the
-        token from memory. It's safer than localStorage because <strong>no plaintext
-        is left on disk once the browser is closed</strong> (nothing left for a
-        browser extension or malware to dig through later). The downside is having
-        to pick the file each time. <strong>② Encrypt with a passphrase before
-        saving (a convenience/security trade-off)</strong>: encrypts the token with
-        AES-GCM (a fresh random salt and IV each time, key derived from your
-        passphrase via PBKDF2) before storing it in localStorage. <strong>The
-        passphrase itself is never saved</strong> (you type it each time).
-        <strong>Honest limitation</strong>: while this page is open and the token
-        has been decrypted (i.e. after you've entered the passphrase), the same XSS
-        risk as option ① applies — encryption only protects storage at rest, after
-        the browser is closed and before the passphrase is entered again.
-        <strong>③ Save in plain text (not recommended, the old behavior)</strong>:
-        saves the token as plain text in localStorage as before. Most convenient,
-        but less secure than ① or ②.
-      </p>
-      <p class="setup-honest">
-        <strong>⚠️ 2026-08-27追記、移行前にお読みください:</strong> 2026-08-26〜27の間、
-        この機能には③平文保存しか選択肢がありませんでした。その間にGitHubトークンを
-        入力・保存されていた方は、<strong>念のためGitHub側でそのトークンを失効
-        (Settings → Developer settings → Personal access tokens → Revoke)し、
-        ①または②の方法で新しいトークンを発行し直すこと</strong>をおすすめします。
-        同様に、<strong>VPS/レンタルサーバーのSSH秘密鍵・公開鍵や、他サービスの
-        APIキー・IDについても、この安全な受け渡しの仕組みが導入される前にどこかへ
-        平文で入力・保存していたものがあれば、破棄(失効・再発行)することを
-        強く推奨します</strong>(このアプリ自体はSSH鍵の入力機能を持っていません
-        が、他の場面で平文保存していた場合の一般的な注意として)。<br /><br />
-        <strong>⚠️ Added 2026-08-27, please read before migrating:</strong> between
-        2026-08-26 and 2026-08-27, this feature only offered ③ plain-text storage. If
-        you entered and saved a GitHub token during that window, <strong>we recommend
-        revoking it on GitHub (Settings → Developer settings → Personal access tokens
-        → Revoke) as a precaution, and issuing a new one to use with option ① or ②</strong>.
-        Likewise, <strong>if you have any VPS/rental-server SSH private/public keys, or
-        other services' API keys/IDs, that were entered or saved in plain text
-        somewhere before this secure hand-over mechanism existed, we strongly
-        recommend discarding them (revoke and reissue)</strong> — this app itself has
-        no SSH key input feature, but this is general advice for anywhere else you may
-        have stored such secrets in plain text.
-      </p>
-      <label class="setup-label">
-        トークンの受け渡し方法 / How to hand over the token<br />
-        <select id="freelance-github-token-mode" class="setup-input">
-          <option value="file">① ローカルファイルから読み込む(推奨) / Read from a local file (recommended)</option>
-          <option value="encrypted">② パスフレーズで暗号化して保存 / Encrypt with a passphrase</option>
-          <option value="plain">③ 平文で保存(非推奨) / Save in plain text (not recommended)</option>
-          <option value="vault">④ クロスオリジンiframe保管庫(実験的) / Cross-origin iframe vault (experimental)</option>
-          <option value="server">⑤ サーバー側(VPS/レンタルサーバー)の環境変数 / Server-side (VPS/rental server) environment variable</option>
-        </select>
-      </label>
-
-      <div id="freelance-github-token-vault-section" class="hidden">
+      <div id="freelance-github-token-server-section">
         <p class="setup-honest">
-          <strong>🧪 実験的機能(2026-08-27新設):</strong> トークンの復号・GitHub APIへの
-          実際の呼び出しを、<code>vault.html</code>という別ページをiframeとして埋め込み、
-          その中だけで行います。平文トークンはこの本体ページ(index.html)側のJSには
-          <strong>一切渡りません</strong>——本体が受け取るのはpush結果のURLだけです。
-          <strong>正直な制約</strong>: この効果を本当に得るには、<code>vault.html</code>を
-          本体とは<strong>別オリジン(別サブドメイン等)</strong>で配信する必要があります。
-          下の欄が空、または本体と同じオリジンのままだと、分離の効果はありません
-          (通常のiframeと同じ)。詳細は<code>vault.html</code>冒頭のコメント・
-          CLAUDE.mdの2026-08-27エントリ参照。<br /><br />
-          <strong>🧪 Experimental (added 2026-08-27):</strong> token decryption and the actual
-          call to the GitHub API happen inside an embedded <code>vault.html</code> page, run as
-          an iframe. The plain-text token <strong>never reaches this page's (index.html) own
-          JavaScript</strong> — it only receives the resulting URL. <strong>Honest
-          limitation</strong>: to get the real isolation benefit, <code>vault.html</code> must be
-          served from a <strong>different origin</strong> (a different subdomain, etc.) than this
-          page. If the field below is empty, or set to the same origin as this page, there is no
-          isolation benefit (it behaves like a normal iframe). See the comments at the top of
-          <code>vault.html</code> and the 2026-08-27 CLAUDE.md entry for details.
+          <strong>GitHubトークンはブラウザでは一切扱いません(2026-09-01、仕様変更):</strong>
+          トークンはこのサーバー(<code>open-english-server</code>)側でのみ保持され、
+          <strong>ブラウザには一度も送信されません</strong>。一番簡単な設定方法は——
+          サーバーの実行ファイルと同じフォルダに<code>secrets</code>フォルダを作り、その中に
+          <code>github-token.txt</code>という名前でトークンを1行だけ書いたテキストファイルを
+          置くだけです(環境変数の名前を覚える必要はありません)。上級者向けの設定方法(環境変数)
+          をお使いになりたい場合は、下の「詳細設定(上級者向け)」を開いてください。以前あった
+          ①ファイル選択・②暗号化・③平文保存・④vaultの4方式は、ブラウザに一切残さないという
+          方針を徹底するため廃止しました。<br />
+          <strong>GitHub tokens are never handled by the browser anymore (2026-09-01, design
+          change):</strong> the token is held only on the server (<code>open-english-server</code>)
+          side and <strong>never reaches the browser</strong>. The simplest way to set it up:
+          create a <code>secrets</code> folder next to the server's executable, and place a text
+          file named <code>github-token.txt</code> in it, containing just the token on one line —
+          no environment variable names to remember. If you'd rather use environment variables
+          (advanced), open "Advanced settings" below. The previous four browser-side modes
+          (① file picker, ② passphrase encryption, ③ plain text, ④ vault) have been removed to fully
+          commit to keeping tokens out of the browser.
         </p>
-        <label class="setup-label">
-          vault.htmlのURL(別オリジン推奨) / vault.html URL (a different origin is recommended)<br />
-          <input type="text" id="freelance-vault-url" class="setup-input" placeholder="https://vault.example.com/vault.html" />
-        </label>
-        <button type="button" id="freelance-vault-load-btn" class="setup-btn">🔌 vaultを読み込む / Load vault</button>
-        <p class="setup-note" id="freelance-vault-status"></p>
-        <iframe id="freelance-vault-iframe" class="hidden"
-          sandbox="allow-scripts allow-same-origin allow-forms"
-          style="width:100%;height:340px;border:1px solid #666;border-radius:8px;"></iframe>
-        <p class="setup-note">
-          <code>sandbox="allow-scripts allow-same-origin allow-forms"</code>のみ許可(最小権限):
-          vault.html自身のスクリプト実行・localStorage読み書き・フォーム入力に必要な分だけ。
-          ポップアップ・トップレベルナビゲーション・自動再生等は許可していません。<br />
-          Only <code>sandbox="allow-scripts allow-same-origin allow-forms"</code> is granted
-          (least privilege): just enough for vault.html's own script execution, localStorage
-          access, and form input. Popups, top-level navigation, autoplay, etc. are not allowed.
-        </p>
-        <p class="setup-honest">
-          <strong>⚠️ 正直な注記: <code>sandbox</code>属性だけでは分離になりません。</strong>
-          <code>allow-scripts</code>+<code>allow-same-origin</code>を同時に許可すると、もし
-          vault.htmlが本体(index.html)と<strong>同一オリジン</strong>で配信されている場合、
-          埋め込んだページのJSからこのiframe内へアクセスできてしまい(既知の仕様上の落とし穴)、
-          sandbox属性が実質的に無効化されます。<code>allow-same-origin</code>を外すと今度は
-          vault.html自身がlocalStorageを使えなくなり機能しません。<strong>結局のところ、真の
-          分離はvault.htmlを実際に別オリジンで配信することでしか得られません</strong>——
-          sandbox属性は補助的な多層防御であり、それ単体を主たる安全対策とみなさないでください。<br />
-          <strong>⚠️ Honest note: the <code>sandbox</code> attribute alone does not provide
-          isolation.</strong> Combining <code>allow-scripts</code> with
-          <code>allow-same-origin</code> is a well-known pitfall: if vault.html is served from the
-          <strong>same origin</strong> as the parent page, the embedding page's JS can reach into
-          this iframe, effectively neutralizing the sandbox. Removing
-          <code>allow-same-origin</code> would break the vault (it needs localStorage).
-          <strong>Real isolation only comes from actually serving vault.html from a different
-          origin</strong> — treat the sandbox attribute as defense-in-depth, not the primary
-          safeguard.
-        </p>
-      </div>
-
-      <div id="freelance-github-token-server-section" class="hidden">
-        <p class="setup-honest">
-          <strong>最も安全な方式です:</strong> トークンはこのサーバー(<code>open-english-server</code>)
-          起動時の環境変数 <code>OPEN_ENGLISH_GITHUB_TOKEN</code> としてのみ保持され、
-          <strong>ブラウザには一度も送信されません</strong>——他の4方式は、いずれかの瞬間に
-          平文トークンがこのページのJavaScript上に存在しますが、この方式にはその瞬間が
-          構造的に存在しません。VPS/レンタルサーバー側で環境変数を設定してからサーバーを
-          起動してください。<br />
-          <strong>This is the most secure option:</strong> the token is held only as the
-          <code>OPEN_ENGLISH_GITHUB_TOKEN</code> environment variable when this server
-          (<code>open-english-server</code>) starts, and <strong>never reaches the browser at
-          all</strong> — with the other 4 modes, the plain-text token exists in this page's
-          JavaScript at some point, but with this mode that moment structurally never happens.
-          Set the environment variable on your VPS/rental server before starting the server.
-        </p>
-      </div>
-
-      <div id="freelance-github-token-file-section">
-        <button type="button" id="freelance-github-token-file-btn" class="setup-btn">📂 トークンファイルを選択 / Select token file</button>
-        <p class="setup-note">選んだファイルは保存されません。このタブを開いている間だけメモリに保持されます。 / The selected file is never saved — it's kept in memory only while this tab stays open.</p>
-      </div>
-
-      <div id="freelance-github-token-encrypted-section" class="hidden">
-        <label class="setup-label">
-          パスフレーズ(保存されません、毎回入力) / Passphrase (never saved, enter each time)<br />
-          <input type="password" id="freelance-github-passphrase" class="setup-input" autocomplete="off" />
-        </label>
-        <label class="setup-label">
-          トークン(暗号化して保存する場合のみ入力) / Token (only needed when saving encrypted)<br />
-          <input type="password" id="freelance-github-token" class="setup-input" placeholder="github_pat_..." autocomplete="off" />
-        </label>
-        <button type="button" id="freelance-github-save-token-btn" class="setup-btn">🔐 暗号化して保存 / Encrypt &amp; save</button>
-        <button type="button" id="freelance-github-unlock-token-btn" class="setup-btn">🔓 パスフレーズで復号 / Decrypt with passphrase</button>
-        <button type="button" id="freelance-github-clear-token-btn" class="setup-btn">🗑 削除 / Clear</button>
-      </div>
-
-      <div id="freelance-github-token-plain-section" class="hidden">
-        <label class="setup-label">
-          GitHub Personal Access Token(平文でこのブラウザに保存) / GitHub PAT (saved in this browser, plain text)<br />
-          <input type="password" id="freelance-github-token-plain" class="setup-input" placeholder="github_pat_..." autocomplete="off" />
-        </label>
-        <button type="button" id="freelance-github-save-token-plain-btn" class="setup-btn">💾 トークンを保存 / Save token</button>
-        <button type="button" id="freelance-github-clear-token-plain-btn" class="setup-btn">🗑 トークンを削除 / Clear token</button>
+        <details>
+          <summary>詳細設定(上級者向け) / Advanced settings</summary>
+          <p class="setup-note">
+            環境変数 <code>OPEN_ENGLISH_GITHUB_TOKEN</code> にトークン文字列を直接設定するか、
+            環境変数 <code>OPEN_ENGLISH_GITHUB_TOKEN_FILE</code> に任意の場所のトークンファイルの
+            パスを設定することもできます(いずれも上の<code>secrets/github-token.txt</code>より
+            優先されます)。VPS連携も同様に、環境変数<code>OPEN_ENGLISH_VPS_SSH_KEY_PATH</code>で
+            サーバー上の秘密鍵ファイルのパスを指定する仕組みです。<br />
+            You can also set the <code>OPEN_ENGLISH_GITHUB_TOKEN</code> environment variable to the
+            token string directly, or <code>OPEN_ENGLISH_GITHUB_TOKEN_FILE</code> to a custom path
+            (either takes priority over <code>secrets/github-token.txt</code> above). The VPS
+            integration works the same way via the <code>OPEN_ENGLISH_VPS_SSH_KEY_PATH</code>
+            environment variable, pointing to a private key file's path on the server.
+          </p>
+        </details>
       </div>
       <p class="setup-note" id="freelance-github-token-status"></p>
       <label class="setup-label">

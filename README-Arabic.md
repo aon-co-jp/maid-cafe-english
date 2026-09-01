@@ -310,7 +310,7 @@
 | # | ماذا | Windows | Linux | Android/جهاز لوحي |
 |---|---|---|---|---|
 | 1 | **open-english نفسه** (هذا المستودع — واجهة أمامية ثابتة + خادم توزيع) | [open-english-install.exe](https://github.com/aon-co-jp/open-english/releases/latest/download/open-english-install.exe) | [tar.gz](https://github.com/aon-co-jp/open-english/releases/latest) | [APK](https://github.com/aon-co-jp/open-english/releases/latest) (اختر أصل `.apk`) |
-| 2 | **aruaru-llm** (محرك ردود الذكاء الاصطناعي — إلزامي، بدونه لا تعمل المحادثة) | [aruaru-llm-windows-x86_64.zip](https://github.com/aon-co-jp/aruaru-llm/releases/latest/download/aruaru-llm-windows-x86_64.zip) | [tar.gz](https://github.com/aon-co-jp/aruaru-llm/releases/latest) | مُضمَّن مسبقًا (مدمج داخل ملف APK الخاص بـ open-english، لا حاجة لتثبيت منفصل) |
+| 2 | **aruaru-llm** (محرك ردود الذكاء الاصطناعي — إلزامي، بدونه لا تعمل المحادثة) | [aruaru-llm-installer.exe](https://github.com/aon-co-jp/aruaru-llm/releases/latest/download/aruaru-llm-installer.exe) | [tar.gz](https://github.com/aon-co-jp/aruaru-llm/releases/latest) | مُضمَّن مسبقًا (مدمج داخل ملف APK الخاص بـ open-english، لا حاجة لتثبيت منفصل) |
 
 **إفصاح صادق**: روابط "latest" أعلاه تشير دائمًا إلى أحدث إصدار على
 GitHub (استخدم [صفحة

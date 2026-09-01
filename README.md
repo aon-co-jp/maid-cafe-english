@@ -1123,7 +1123,7 @@ open-englishを動かすには、以下2つのソフトをダウンロード・�
 | # | 何か | Windows | Linux | Android/タブレット |
 |---|---|---|---|---|
 | 1 | **open-english本体**(このリポジトリ、静的フロントエンド+配信サーバー) | [open-english-installer.exe](https://github.com/aon-co-jp/open-english/releases/latest/download/open-english-installer.exe) | [tar.gz](https://github.com/aon-co-jp/open-english/releases/latest)(`open-english-installer-<os>.tar.gz`) | [APK](https://github.com/aon-co-jp/open-english/releases/latest)(`open-english-installer.apk`) |
-| 2 | **aruaru-llm**(AI応答エンジン、必須——無いとチャット機能が動きません) | [aruaru-llm-windows-x86_64.zip](https://github.com/aon-co-jp/aruaru-llm/releases/latest/download/aruaru-llm-windows-x86_64.zip) | [tar.gz](https://github.com/aon-co-jp/aruaru-llm/releases/latest) | Android版は同梱済み(open-englishのAPK内に含まれる、別途インストール不要) |
+| 2 | **aruaru-llm**(AI応答エンジン、必須——無いとチャット機能が動きません) | [aruaru-llm-installer.exe](https://github.com/aon-co-jp/aruaru-llm/releases/latest/download/aruaru-llm-installer.exe) | [tar.gz](https://github.com/aon-co-jp/aruaru-llm/releases/latest) | Android版は同梱済み(open-englishのAPK内に含まれる、別途インストール不要) |
 
 **インストール後の起動方法(2026-08-27追記、ユーザーからの質問への
 回答)**: インストーラー(`installer/windows/open-english.iss`)の

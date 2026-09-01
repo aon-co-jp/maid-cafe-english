@@ -223,7 +223,7 @@
 | # | מה | Windows | Linux | Android/טאבלט |
 |---|---|---|---|---|
 | 1 | **open-english עצמו** (המאגר הזה — חזית סטטית + שרת הפצה) | [open-english-install.exe](https://github.com/aon-co-jp/open-english/releases/latest/download/open-english-install.exe) | [tar.gz](https://github.com/aon-co-jp/open-english/releases/latest) | [APK](https://github.com/aon-co-jp/open-english/releases/latest) (בחרו את הנכס `.apk`) |
-| 2 | **aruaru-llm** (מנוע התגובות של הבינה המלאכותית — חובה, בלעדיו הצ'אט לא יעבוד) | [aruaru-llm-windows-x86_64.zip](https://github.com/aon-co-jp/aruaru-llm/releases/latest/download/aruaru-llm-windows-x86_64.zip) | [tar.gz](https://github.com/aon-co-jp/aruaru-llm/releases/latest) | כלול כבר (מוטמע בתוך ה-APK של open-english, אין צורך בהתקנה נפרדת) |
+| 2 | **aruaru-llm** (מנוע התגובות של הבינה המלאכותית — חובה, בלעדיו הצ'אט לא יעבוד) | [aruaru-llm-installer.exe](https://github.com/aon-co-jp/aruaru-llm/releases/latest/download/aruaru-llm-installer.exe) | [tar.gz](https://github.com/aon-co-jp/aruaru-llm/releases/latest) | כלול כבר (מוטמע בתוך ה-APK של open-english, אין צורך בהתקנה נפרדת) |
 
 **גילוי כן**: קישורי ה-"latest" למעלה מצביעים תמיד על ה-GitHub Release
 העדכני ביותר (אם רוצים גרסה מסוימת קבועה, יש להשתמש ב[עמוד

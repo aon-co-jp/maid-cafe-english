@@ -287,7 +287,7 @@
 | # | چه چیزی | Windows | Linux | Android/تبلت |
 |---|---|---|---|---|
 | 1 | **خود open-english** (این مخزن — رابط کاربری استاتیک + سرور توزیع) | [open-english-install.exe](https://github.com/aon-co-jp/open-english/releases/latest/download/open-english-install.exe) | [tar.gz](https://github.com/aon-co-jp/open-english/releases/latest) | [APK](https://github.com/aon-co-jp/open-english/releases/latest) (فایل `.apk` را از فهرست دارایی‌ها انتخاب کنید) |
-| 2 | **aruaru-llm** (موتور پاسخ‌دهی هوش مصنوعی — الزامی، بدون آن گفتگو کار نمی‌کند) | [aruaru-llm-windows-x86_64.zip](https://github.com/aon-co-jp/aruaru-llm/releases/latest/download/aruaru-llm-windows-x86_64.zip) | [tar.gz](https://github.com/aon-co-jp/aruaru-llm/releases/latest) | از قبل گنجانده شده (درون APK مربوط به open-english جاسازی شده، نیازی به نصب جداگانه نیست) |
+| 2 | **aruaru-llm** (موتور پاسخ‌دهی هوش مصنوعی — الزامی، بدون آن گفتگو کار نمی‌کند) | [aruaru-llm-installer.exe](https://github.com/aon-co-jp/aruaru-llm/releases/latest/download/aruaru-llm-installer.exe) | [tar.gz](https://github.com/aon-co-jp/aruaru-llm/releases/latest) | از قبل گنجانده شده (درون APK مربوط به open-english جاسازی شده، نیازی به نصب جداگانه نیست) |
 
 **افشای صادقانه**: پیوندهای "latest" در بالا همیشه به تازه‌ترین
 GitHub Release اشاره می‌کنند (اگر نسخهٔ مشخص و ثابتی می‌خواهید، مستقیماً

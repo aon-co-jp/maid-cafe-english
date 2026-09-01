@@ -561,7 +561,7 @@ fuente, cerca de una instalación de un solo toque).
 | # | Qué | Windows | Linux | Android/tableta |
 |---|---|---|---|---|
 | 1 | **open-english mismo** (este repositorio — frontend estático + servidor de entrega) | [open-english-install.exe](https://github.com/aon-co-jp/open-english/releases/latest/download/open-english-install.exe) | [tar.gz](https://github.com/aon-co-jp/open-english/releases/latest) | [APK](https://github.com/aon-co-jp/open-english/releases/latest) (elige el recurso `.apk`) |
-| 2 | **aruaru-llm** (el motor de respuesta de IA — requerido, el chat no funcionará sin él) | [aruaru-llm-windows-x86_64.zip](https://github.com/aon-co-jp/aruaru-llm/releases/latest/download/aruaru-llm-windows-x86_64.zip) | [tar.gz](https://github.com/aon-co-jp/aruaru-llm/releases/latest) | Ya incluido (empaquetado dentro del APK de open-english, no se necesita instalación aparte) |
+| 2 | **aruaru-llm** (el motor de respuesta de IA — requerido, el chat no funcionará sin él) | [aruaru-llm-installer.exe](https://github.com/aon-co-jp/aruaru-llm/releases/latest/download/aruaru-llm-installer.exe) | [tar.gz](https://github.com/aon-co-jp/aruaru-llm/releases/latest) | Ya incluido (empaquetado dentro del APK de open-english, no se necesita instalación aparte) |
 
 **Divulgación honesta**: los enlaces "latest" (última versión) de arriba
 siempre apuntan a la versión (Release) más reciente de GitHub (usa la

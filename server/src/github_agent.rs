@@ -129,8 +129,41 @@ pub struct ServerModeStatus {
     pub configured: bool,
 }
 
+/// 2026-09-01修正(ユーザー指示「環境変数名は分かりにくいので辞めて」への
+/// 対応): 環境変数(`OPEN_ENGLISH_GITHUB_TOKEN`/`OPEN_ENGLISH_GITHUB_TOKEN_
+/// FILE`)は上級者向けの選択肢として残しつつ、**最もわかりやすい方法**として
+/// 実行ファイルと同じディレクトリの`secrets/github-token.txt`へトークンを
+/// 1行書いて置くだけで自動的に読み込む固定パスも用意した——環境変数名を
+/// 覚える必要が無く、「このフォルダにこのファイルを置く」だけで済む。
+fn default_token_file_path() -> Option<std::path::PathBuf> {
+    let exe = std::env::current_exe().ok()?;
+    let dir = exe.parent()?;
+    Some(dir.join("secrets").join("github-token.txt"))
+}
+
 pub fn server_token() -> Option<String> {
-    std::env::var("OPEN_ENGLISH_GITHUB_TOKEN").ok().filter(|s| !s.trim().is_empty())
+    if let Ok(t) = std::env::var("OPEN_ENGLISH_GITHUB_TOKEN") {
+        if !t.trim().is_empty() {
+            return Some(t.trim().to_string());
+        }
+    }
+    if let Ok(path) = std::env::var("OPEN_ENGLISH_GITHUB_TOKEN_FILE") {
+        if let Ok(content) = std::fs::read_to_string(&path) {
+            let trimmed = content.trim().to_string();
+            if !trimmed.is_empty() {
+                return Some(trimmed);
+            }
+        }
+    }
+    if let Some(path) = default_token_file_path() {
+        if let Ok(content) = std::fs::read_to_string(&path) {
+            let trimmed = content.trim().to_string();
+            if !trimmed.is_empty() {
+                return Some(trimmed);
+            }
+        }
+    }
+    None
 }
 
 pub fn status() -> ServerModeStatus {

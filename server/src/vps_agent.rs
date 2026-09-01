@@ -111,12 +111,32 @@ struct VpsConfig {
 /// ブラウザ側UIの「SETUP済み表示」用の状態確認(2026-09-01新設)。
 /// 秘密鍵のパス・内容は一切含めず、接続先ホスト・ユーザー名・許可パス
 /// 一覧のみを返す(これらは秘匿情報ではなく、設定ミス確認に必要な情報)。
+/// 2026-09-01新設(ユーザー指示「環境変数名は分かりにくいので固定パスへ
+/// 統一して」への対応、GitHubトークンの`secrets/github-token.txt`と
+/// 同じ設計): 実行ファイルと同じディレクトリの`secrets/vps-ssh-key`へ
+/// 秘密鍵ファイルを置くだけで、環境変数名を覚えなくても自動的に読み
+/// 込まれる。`OPEN_ENGLISH_VPS_SSH_KEY_PATH`(任意の場所を指定したい
+/// 上級者向け)は引き続き優先される。
+fn default_key_path() -> Option<std::path::PathBuf> {
+    let exe = std::env::current_exe().ok()?;
+    let dir = exe.parent()?;
+    let path = dir.join("secrets").join("vps-ssh-key");
+    path.exists().then_some(path)
+}
+
+fn resolved_key_path() -> Option<String> {
+    if let Ok(p) = std::env::var("OPEN_ENGLISH_VPS_SSH_KEY_PATH") {
+        if !p.trim().is_empty() {
+            return Some(p);
+        }
+    }
+    default_key_path().map(|p| p.to_string_lossy().to_string())
+}
+
 pub fn status() -> serde_json::Value {
     let host = std::env::var("OPEN_ENGLISH_VPS_HOST").ok();
     let user = std::env::var("OPEN_ENGLISH_VPS_USER").ok();
-    let has_key = std::env::var("OPEN_ENGLISH_VPS_SSH_KEY_PATH")
-        .map(|p| !p.trim().is_empty())
-        .unwrap_or(false);
+    let has_key = resolved_key_path().is_some();
     let allowed = allowed_remote_dirs();
     let configured = host.is_some() && user.is_some() && has_key && !allowed.is_empty();
     serde_json::json!({
@@ -134,7 +154,9 @@ fn config_from_env() -> Result<VpsConfig> {
         None => (host_raw, 22u16),
     };
     let user = std::env::var("OPEN_ENGLISH_VPS_USER").context("OPEN_ENGLISH_VPS_USER is not set")?;
-    let key_path = std::env::var("OPEN_ENGLISH_VPS_SSH_KEY_PATH").context("OPEN_ENGLISH_VPS_SSH_KEY_PATH is not set")?;
+    let key_path = resolved_key_path().context(
+        "no SSH key found: set OPEN_ENGLISH_VPS_SSH_KEY_PATH, or place a key file at secrets/vps-ssh-key next to the server executable",
+    )?;
     Ok(VpsConfig { host, port, user, key_path })
 }
 

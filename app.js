@@ -448,7 +448,7 @@ async function autorwIdbSet(key, value) {
 // 実際に使える状態かを判定する(freelanceRefreshGithubTokenStatusと
 // 同じ4分岐のロジックを、真偽値だけを返す形に切り出したもの)。
 function autorwIsGithubConfigured() {
-  const mode = freelanceGithubTokenModeEl?.value || "file";
+  const mode = "server"; // 2026-09-01: GitHubトークンはサーバー側管理モードのみに一本化
   if (mode === "file") return !!freelanceGithubFileToken;
   if (mode === "encrypted") return !!freelanceGithubUnlockedToken;
   if (mode === "vault") return !!freelanceVaultOrigin;
@@ -463,7 +463,7 @@ function autorwIsGithubConfigured() {
 async function autorwRefreshGithubStatus() {
   const el = document.getElementById("autorw-github-status");
   if (!el) return;
-  const mode = freelanceGithubTokenModeEl?.value || "file";
+  const mode = "server"; // 2026-09-01: GitHubトークンはサーバー側管理モードのみに一本化
   if (mode === "server") {
     // ⑤サーバー側管理モード(2026-09-01新設): このモードはブラウザ側の
     // 状態(変数・localStorage)を一切持たないため、他モードのような
@@ -494,7 +494,7 @@ async function autorwRefreshGithubStatus() {
 document.getElementById("autorw-github-test-btn")?.addEventListener("click", async () => {
   const el = document.getElementById("autorw-github-status");
   if (!el) return;
-  const mode = freelanceGithubTokenModeEl?.value || "file";
+  const mode = "server"; // 2026-09-01: GitHubトークンはサーバー側管理モードのみに一本化
   if (mode === "server") {
     // ⑤サーバー側管理モードはトークンがブラウザに一切無いため、ブラウザ
     // から直接GitHub APIへ疎通確認することができない(そもそもトークン
@@ -1140,6 +1140,24 @@ const ageGroupEl = document.getElementById("age-group");
 const businessEnglishEl = document.getElementById("business-english-toggle");
 const replyLangEl = document.getElementById("reply-lang");
 const webSearchToggleEl = document.getElementById("web-search-toggle");
+// 2026-09-01追加(ユーザー指示「前回チェックをつけていれば、覚えている
+// ように」への対応): 送信のたびに自動でOFFへ戻す既存の仕様(2026-08-27、
+// 「本当に必要な1回だけキーを渡す」という設計、下の`askTrainer`内の
+// 処理を参照)はそのまま維持しつつ、**利用者が最後に手動でON/OFFを
+// 切り替えた状態**をlocalStorageへ別途記録し、次回ページを開いた時の
+// 初期状態として復元する。送信時の自動OFF処理自体はこのlocalStorageを
+// 更新しない(利用者の「好み」と「今の送信1回限りの状態」を分けるため)。
+const WEB_SEARCH_PREF_KEY = "open-english.webSearchPreferredOn";
+if (webSearchToggleEl) {
+  try {
+    webSearchToggleEl.checked = localStorage.getItem(WEB_SEARCH_PREF_KEY) === "1";
+  } catch { /* ignore */ }
+  webSearchToggleEl.addEventListener("change", () => {
+    try {
+      localStorage.setItem(WEB_SEARCH_PREF_KEY, webSearchToggleEl.checked ? "1" : "0");
+    } catch { /* ignore */ }
+  });
+}
 const micBtn = document.getElementById("mic-btn");
 const voiceOutEl = document.getElementById("voice-out");
 
@@ -13934,7 +13952,7 @@ function freelanceRenderSamples() {
 // 実際にGitHub APIへ渡すトークン文字列を1つ返す(無ければ空文字列)。
 // ①②はメモリ上の変数のみ、③のみlocalStorageを読む。
 function freelanceLoadGithubToken() {
-  const mode = freelanceGithubTokenModeEl?.value || "file";
+  const mode = "server"; // 2026-09-01: GitHubトークンはサーバー側管理モードのみに一本化
   if (mode === "file") return freelanceGithubFileToken || "";
   if (mode === "encrypted") return freelanceGithubUnlockedToken || "";
   // 2026-08-27防御的修正: ④vaultモードではキーの復号・使用はvault.html
@@ -13960,7 +13978,7 @@ function freelanceRefreshGithubTokenStatus() {
   // 集約するのが最も取りこぼしが無い。
   if (typeof autorwRefreshGithubStatus === "function") autorwRefreshGithubStatus();
   if (!freelanceGithubTokenStatusEl) return;
-  const mode = freelanceGithubTokenModeEl?.value || "file";
+  const mode = "server"; // 2026-09-01: GitHubトークンはサーバー側管理モードのみに一本化
   if (mode === "file") {
     freelanceGithubTokenStatusEl.textContent = freelanceGithubFileToken
       ? "ファイルから読み込み済み(保存はされていません)。 / Loaded from file (not saved anywhere)."
@@ -14007,7 +14025,7 @@ const freelanceVaultIframeEl = document.getElementById("freelance-vault-iframe")
 let freelanceVaultOrigin = null; // 読み込み済みvaultのorigin(postMessage送信先の検証に使う)
 
 function freelanceUpdateGithubTokenModeSections() {
-  const mode = freelanceGithubTokenModeEl?.value || "file";
+  const mode = "server"; // 2026-09-01: GitHubトークンはサーバー側管理モードのみに一本化
   freelanceGithubTokenFileSectionEl?.classList.toggle("hidden", mode !== "file");
   freelanceGithubTokenEncryptedSectionEl?.classList.toggle("hidden", mode !== "encrypted");
   freelanceGithubTokenPlainSectionEl?.classList.toggle("hidden", mode !== "plain");
@@ -14515,7 +14533,7 @@ if (freelanceGithubPushBtn) {
     }
     freelanceGithubPushBtn.disabled = true;
     try {
-      const mode = freelanceGithubTokenModeEl?.value || "file";
+      const mode = "server"; // 2026-09-01: GitHubトークンはサーバー側管理モードのみに一本化
       const url = mode === "vault"
         ? await freelanceRequestVaultGithubPush({
             repoName: (freelanceGithubRepoNameEl?.value || "").trim(),

@@ -481,7 +481,7 @@ nötig, nahezu ein Ein-Klick-Verfahren).
 | # | Was | Windows | Linux | Android/Tablet |
 |---|---|---|---|---|
 | 1 | **open-english selbst** (dieses Repository — statisches Frontend + Auslieferungsserver) | [open-english-install.exe](https://github.com/aon-co-jp/open-english/releases/latest/download/open-english-install.exe) | [tar.gz](https://github.com/aon-co-jp/open-english/releases/latest) | [APK](https://github.com/aon-co-jp/open-english/releases/latest) (die `.apk`-Datei aus der Asset-Liste wählen) |
-| 2 | **aruaru-llm** (die KI-Antwort-Engine — erforderlich, ohne sie funktioniert der Chat nicht) | [aruaru-llm-windows-x86_64.zip](https://github.com/aon-co-jp/aruaru-llm/releases/latest/download/aruaru-llm-windows-x86_64.zip) | [tar.gz](https://github.com/aon-co-jp/aruaru-llm/releases/latest) | Bereits enthalten (in der APK von open-english eingebettet, keine separate Installation nötig) |
+| 2 | **aruaru-llm** (die KI-Antwort-Engine — erforderlich, ohne sie funktioniert der Chat nicht) | [aruaru-llm-installer.exe](https://github.com/aon-co-jp/aruaru-llm/releases/latest/download/aruaru-llm-installer.exe) | [tar.gz](https://github.com/aon-co-jp/aruaru-llm/releases/latest) | Bereits enthalten (in der APK von open-english eingebettet, keine separate Installation nötig) |
 
 **Ehrliche Offenlegung**: Die "latest"-Links oben verweisen immer auf das
 neueste GitHub-Release (nutze die
