@@ -439,6 +439,24 @@
         <code>block_similarity</code> <u>before</u> you commit, so you
         can judge risk in advance. Quality is still never guaranteed —
         always compare the before/after sample.<br />
+        <strong>Yet another update (same day, in response to being asked
+        to improve the extreme case again):</strong> instead of deleting
+        the removed block outright, pass
+        <code>use_linear_adapter: true</code> to replace it with a
+        lightweight linear layer fit via closed-form ridge regression
+        (no gradient descent — inspired by SHIFT-LLM/SlimLLM-style
+        techniques, arXiv:2608.25068 / arXiv:2505.22689; these are very
+        recent papers and this is our own simplified implementation, not
+        a faithful reproduction). Real measurement at the same extreme
+        budget (removing 5 of 6 layers on distilgpt2): plain deletion
+        collapsed into a repeated-token loop
+        ("Theodoreodoreodoreodore..."); the linear adapter avoided that
+        total collapse and produced real English words instead
+        ("I slowly, it the rainforest in a few one way..."). <strong>Be
+        precise about what this is</strong>: it is a genuine, measured
+        improvement — but not a full fix. The adapter's output still
+        isn't grammatically coherent text, more of a word salad. Quality
+        is still never guaranteed.<br />
         <strong>更新(2026-09-01):</strong>「DeepSeekの折りたたみ理論」を
         日英でGoogle/GitHub調査した結果、<u>そのような技術は実在しない</u>
         と判明しました(DeepSeekの実際の効率化技術はMLA・FP8混合精度・
@@ -470,6 +488,21 @@
         を実行<u>前</u>に含めるようにしたので、事前にリスクを判断
         できます。品質は依然として保証されません——必ず前後の生成
         サンプルを見比べてください。<br />
+        <strong>さらに追記(同日、「極端なケースをもう一度改善して」との
+        依頼への対応):</strong>除去したブロックを跡形もなく削除する
+        代わりに、<code>use_linear_adapter: true</code>を指定すると、
+        最小二乗法(閉形式のリッジ回帰、勾配降下法は使わない)でフィット
+        した軽量な線形層へ置換します(SHIFT-LLM/SlimLLM着想、
+        arXiv:2608.25068/arXiv:2505.22689——これらは非常に新しい論文で
+        あり、本実装は再現実装ではなく独自の簡略版です)。同じ極端な予算
+        (distilgpt2で6層中5層除去)での実測: 跡形もなく削除する旧方式は
+        完全な劣化ループに陥りました("Theodoreodoreodoreodore...")が、
+        線形アダプタ版は劣化ループを回避し実在の英単語を使った出力を
+        生成しました("I slowly, it the rainforest in a few one
+        way...")。<strong>正確に言うと</strong>: これは実測できる本物の
+        改善ですが、完全な修正ではありません——アダプタ版の出力も
+        文法的に一貫した文章にはならず、単語の羅列に近いままです。
+        品質は依然として保証されません。<br />
         • open-directx as a <em>standalone repository</em>
         (<code>aon-co-jp/open-directx</code>) is unrelated to aruaru-llm —
         the DirectX 12 path aruaru-llm can use is a different, same-named
