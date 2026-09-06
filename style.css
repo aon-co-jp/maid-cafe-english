@@ -613,6 +613,18 @@ body {
   white-space: pre-line;
 }
 
+/* 実バグ修正(2026-09-06、ユーザー報告「文字が重なって読めません」):
+   `<label class="setup-note">`(fold-layersパネルの各設定項目ラベル)が
+   overlapしていた原因は、`<label>`が既定でdisplay:inlineであり、inline
+   要素の上下padding(`.setup-note`の`padding: 10px 12px`)はレイアウト上の
+   行間を広げず、複数行に折り返したテキストの背景/枠線ボックスだけが
+   隣接する行に重なって見える、という既知のCSSの挙動によるもの。
+   `<p>`(既定でdisplay:block)には元々この問題は無かった。
+   labelをブロック要素にすることで解消する。 */
+label.setup-note {
+  display: block;
+}
+
 /* ユーザー指摘(2026-09-06)「postgresql.org/downloadのURL文字が紫で
    読みにくい」への対応。`.disclosure a`と同じ理由——`.setup-note`/
    `.setup-honest`は暗い背景(#3a2a1a)のため、ブラウザ既定のリンク色
