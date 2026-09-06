@@ -167,6 +167,12 @@
       and use it.
     </p>
   </div>
+  <div id="launch-pc-version-banner" class="maintenance-banner">
+    <p>
+      🖥️ <strong>PC版を起動してご利用下さい。</strong> /
+      <strong>Please launch the PC version to use it.</strong>
+    </p>
+  </div>
   <div id="free-tier-banner" class="free-tier-banner hidden">
     <div class="free-tier-toggle-row">
       <button type="button" id="free-tier-toggle" class="free-tier-toggle">
@@ -1072,6 +1078,39 @@ cd aruaru-db
         セットアップ後、<code>open-easy-web</code>から他のアプリ/ドメインを登録すると
         同じPostgreSQL/aruaru-dbインスタンスをそのまま共有できます(詳細は
         <a href="https://github.com/aon-co-jp/open-easy-web" target="_blank" rel="noopener noreferrer">open-easy-web</a>参照)。
+      </p>
+      <p class="setup-honest">
+        <strong>Recommended full setup (usage bundle, not a technical
+        merger) / 推奨のフルセットアップ(利用上のまとめであり、技術的な
+        統合ではありません):</strong> open-english is designed to be used
+        together with open-cuda + open-cpu (aruaru-llm's inference base),
+        aruaru-db + PostgreSQL (this panel, for conversation-history/data
+        storage), and <code>open-easy-web</code> for management on
+        <strong>both your PC and the Web</strong> (install/run it on your
+        own machine to manage local apps, and again on a VPS/server to
+        manage web-facing ones). <strong>open-directx</strong> is honest-
+        disclosed above as a standalone repository unrelated to
+        aruaru-llm — only open-cuda's internal Vulkan/DirectX 12 GPU
+        path (bundled via the "GPU SET" checkbox) is actually part of
+        this stack; installing the separate open-directx repo has no
+        effect on open-english. None of these pieces are required —
+        open-english works standalone with a built-in dataset fallback —
+        this is simply the recommended bundle if you want the fuller
+        feature set.<br /><br />
+        open-englishは、<code>open-cuda</code>・<code>open-cpu</code>
+        (aruaru-llmの推論基盤)、<code>aruaru-db</code>・PostgreSQL(この
+        パネル、会話履歴・データ保存用)、そして<code>open-easy-web</code>
+        を<strong>PCとWEBの両方</strong>で管理用にインストール・利用して
+        いただく想定です(ご自身のPCではローカルアプリの管理用に、
+        VPS/サーバーではWeb向けアプリの管理用に、それぞれ導入します)。
+        <strong>open-directx</strong>は上記の通り独立リポジトリでaruaru-llm
+        とは無関係であることを既に正直に開示済みです——このスタックの
+        一部として実際に機能するのはopen-cuda内蔵のVulkan/DirectX 12 GPU
+        経路(「GPU SET」チェックボックスで同梱)のみで、独立リポジトリの
+        open-directx自体をインストールしてもopen-englishには何の効果も
+        ありません。いずれも必須ではなく——open-englishは組み込み
+        データセットへのフォールバックにより単体でも動作します——
+        より充実した機能を使いたい場合の推奨バンドルという位置づけです。
       </p>
       </div>
       <button type="button" id="aruaru-db-setup-toggle-bottom" class="collapsible-toggle-btn">✕ CLOSE</button>

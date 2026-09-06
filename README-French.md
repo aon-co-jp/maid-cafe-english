@@ -1,5 +1,16 @@
 ﻿# open-english
 
+> 📌 **Mise à jour (2026-09-07)** : Ajout d'une bannière « Veuillez lancer
+> la version PC », affichée uniquement dans l'environnement de
+> démonstration partagé. La version navigateur (accédée depuis un nom
+> d'hôte autre que `localhost`/`127.0.0.1`, par exemple une démo VPS
+> partagée) affiche désormais un message fixe : « 🖥️ Veuillez lancer la
+> version PC pour l'utiliser. » Elle est masquée lorsque l'application
+> est atteinte via `localhost`/`127.0.0.1` (c'est-à-dire une version PC
+> locale déjà installée) — dire à un utilisateur de la version PC de
+> « lancer la version PC » serait inutile. Vérifié dans un vrai
+> navigateur que la bannière est masquée sur `127.0.0.1`.
+>
 > 📌 **Mise à jour (2026-08-27)** : Ajout d'un « Coin développement freelance » (100 langages, liens de recherche d'emploi, transfert vers le professeur IA), d'un coffre-fort iframe cross-origin (`vault.html`) qui isole le token GitHub et la clé API Google Search de la page principale, d'une seconde adresse e-mail de secours pour la connexion, et d'un raccourci de lancement Chrome en navigation privée. Deux bugs réels détectés par des tests en direct dans le navigateur (fuite de clé obsolète, message de statut trompeur en mode coffre-fort) ont été corrigés. Voir les entrées du 2026-08-27 dans CLAUDE.md (japonais) pour les détails complets.
 
 

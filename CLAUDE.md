@@ -1194,6 +1194,44 @@ AIコーディング支援パネル)にとどめている。
 
 ## HANDOFF
 
+- **2026-09-07 「PC版を起動してご利用下さい」バナーを共有デモ環境限定で
+  追加(ユーザー指示、複数回の段階的な要件変更を経て決着)**:
+  1. **経緯**: 当初「ブラウザからPC版インストーラーを起動するボタン」を
+     提案されたが、ブラウザは同意なくローカル実行ファイルを起動できない
+     という技術的制約を説明。ユーザーは「ユーザー自身がアイコン/
+     ショートカットをダブルクリックしてPC版を起動すればよい」と納得。
+     続けて「ブラウザからPC版に接続しました、という機能は辞めます。
+     PC版を起動してご利用下さい、と表示して」と要件を簡素化し、
+     表示位置は「トップページの目立つ場所に常時表示」を選択。
+     実装後、「ローカルPCでは出さない」と追加指示があり、
+     `localhost`/`127.0.0.1`アクセス時は非表示にする条件を追加した。
+  2. **実装**: `index.html`に`#launch-pc-version-banner`
+     (`class="maintenance-banner"`、既存の`download-recommend-banner`と
+     同じ見た目パターン)を新設し、「🖥️ PC版を起動してご利用下さい。/
+     Please launch the PC version to use it.」を表示。`app.js`の
+     `download-recommend-banner`登録直後に、`/^(127\.0\.0\.1|localhost|
+     \[::1\])$/.test(location.hostname)`が真の場合に`hidden`クラスを
+     付与するロジックを追加(既存の`isLocalHost`判定パターンを再利用)。
+  3. **実機検証**: `node --check app.js`成功。`python -m http.server`で
+     `127.0.0.1`から配信し、Claude Browserで
+     `document.getElementById('launch-pc-version-banner').classList.
+     contains('hidden')`が`true`になることを確認(ローカルPC版では
+     バナーが正しく非表示になることを実証)。
+  4. **既存の`download-recommend-banner`との違い**: あちらは`/demo`
+     パス判定(デモ環境か本番かを区別)、今回はホスト名判定(共有VPS等の
+     非localhostアクセスか、ローカルインストール版かを区別)——判定軸が
+     異なるため意図的に別ロジックとして実装した。
+  5. **多言語ドキュメント反映**: README.md(日本語、正本)+
+     README-English/German/French/Italian/Russian/Ukrainian/Hebrew/
+     Persian/Arabic/Spanishの9翻訳ファイル、計10ファイルへ同内容の
+     バナー announcement を追記(ユーザーが`AskUserQuestion`で
+     「既存9言語版の更新のみ(推奨)」を選択——CLAUDE.md/PORTING.mdは
+     日本語のみのまま、翻訳は行わない)。
+  - 次にすべきこと: 特になし(今回のスコープは完了)。VPS
+    (easy-web.tokyo、`localhost`ではない実ホスト名でアクセスされる
+    「共有デモ環境」に該当)へのデプロイ後、実際にバナーが表示される
+    ことを確認するとなお良い。
+
 - **2026-09-01(続き2) Model Folding: Attentionスキップ軽量パスの開示追記
   +「open-cudaは必須の相方」をインストーラースクリプトへ明文化
   (open-cuda + aruaru-llm + open-english の3リポジトリスライス、正本は

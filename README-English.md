@@ -7,6 +7,16 @@
 [Українська](README-Ukrainian.md) · [עברית](README-Hebrew.md) ·
 [فارسی](README-Persian.md) · [العربية](README-Arabic.md)
 
+> 📌 **Latest update (2026-09-07): added a "Please launch the PC version"
+> banner, shown only in the shared demo environment.** The browser
+> version (accessed from a hostname other than `localhost`/`127.0.0.1`,
+> e.g. a shared VPS demo) now shows a fixed message: "🖥️ Please launch
+> the PC version to use it." It is hidden when the app is reached via
+> `localhost`/`127.0.0.1` (i.e. an already-installed local PC version) —
+> telling a PC-version user to "launch the PC version" would be
+> pointless. Verified in a real browser that the banner is hidden on
+> `127.0.0.1`.
+>
 > 📌 **Latest update (2026-08-29): started a ground-up overhaul of AI
 > speech recognition (ASR) accuracy.** The canonical record is
 > [`docs/SPEECH_RECOGNITION_REDESIGN.md`](docs/SPEECH_RECOGNITION_REDESIGN.md)

@@ -491,6 +491,15 @@ makeCollapsiblePanel("world-language-banner", "world-language-banner-toggle", "w
 makeCollapsiblePanel("topbar", "topbar-toggle", "topbar", "✕ CLOSE", "＋ OPEN");
 makeCollapsiblePanel("maintenance-banner-detail", "maintenance-banner-toggle", "maintenanceBannerDetail", "✕ CLOSE", "＋ OPEN");
 makeCollapsiblePanel("download-recommend-banner", "download-recommend-banner-toggle", "downloadRecommendBanner", "✕ CLOSE", "＋ OPEN");
+// 2026-09-07追記(ユーザー指示): 「PC版を起動してご利用下さい」という
+// 案内は、ローカルPC版(この端末でインストール済みのサーバーへ
+// localhost/127.0.0.1で接続している場合)では出さない——PC版利用者
+// 自身に「PC版を起動してください」と案内するのは無意味なため。
+// ブラウザ版(共有VPS等、localhost以外のホスト名でアクセスしている
+// 場合)にのみ表示する。
+if (/^(127\.0\.0\.1|localhost|\[::1\])$/.test(location.hostname)) {
+  document.getElementById("launch-pc-version-banner")?.classList.add("hidden");
+}
 // 2026-09-01追記(ユーザー指示): 「これはデモです、インストーラー版を
 // ダウンロードしてください」という案内は、本番(/open-english/)ではなく
 // デモ環境(/open-english/demo)でのみ表示する。本番/デモは同じ静的

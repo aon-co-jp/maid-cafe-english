@@ -1,5 +1,16 @@
 ﻿# open-english
 
+> 📌 **Update (2026-09-07)**: Ein Banner „Bitte starten Sie die PC-Version"
+> hinzugefügt, das nur in der gemeinsamen Demo-Umgebung angezeigt wird.
+> Die Browser-Version (Zugriff über einen anderen Hostnamen als
+> `localhost`/`127.0.0.1`, z. B. eine gemeinsam genutzte VPS-Demo) zeigt
+> jetzt eine feste Meldung: „🖥️ Bitte starten Sie die PC-Version, um sie
+> zu nutzen." Es wird ausgeblendet, wenn die App über
+> `localhost`/`127.0.0.1` erreicht wird (d. h. eine bereits installierte
+> lokale PC-Version) – einem PC-Versions-Nutzer zu sagen, er solle „die
+> PC-Version starten", wäre sinnlos. In einem echten Browser verifiziert,
+> dass das Banner unter `127.0.0.1` ausgeblendet ist.
+>
 > 📌 **Update (2026-08-27)**: Eine „Freelance-Ecke“ hinzugefügt (100 Sprachen, Jobsuche-Links, Übergabe an die KI-Lehrerin), ein Cross-Origin-iframe-Tresor (`vault.html`), der das GitHub-Token und den Google-Search-API-Schlüssel von der Hauptseite isoliert, eine zweite Backup-E-Mail-Adresse für den Login sowie eine Chrome-Inkognito-Start-Verknüpfung. Zwei echte, durch Live-Browser-Tests gefundene Fehler (veralteter Schlüssel-Leak, irreführende Statusanzeige im Tresor-Modus) wurden behoben. Details in den Einträgen vom 2026-08-27 in CLAUDE.md (Japanisch).
 
 

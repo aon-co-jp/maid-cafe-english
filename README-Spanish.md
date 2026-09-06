@@ -1,5 +1,16 @@
 # open-english
 
+> 📌 **Actualización (2026-09-07)**: Se añadió un banner "Por favor,
+> inicia la versión de PC", que solo se muestra en el entorno de
+> demostración compartido. La versión de navegador (accedida desde un
+> nombre de host distinto de `localhost`/`127.0.0.1`, por ejemplo una
+> demo compartida en VPS) ahora muestra un mensaje fijo: "🖥️ Por favor,
+> inicia la versión de PC para usarla." Se oculta cuando la aplicación
+> se accede vía `localhost`/`127.0.0.1` (es decir, una versión de PC
+> local ya instalada) — decirle a un usuario de la versión de PC que
+> "inicie la versión de PC" no tendría sentido. Verificado en un
+> navegador real que el banner se oculta en `127.0.0.1`.
+>
 > 📌 **Actualización (2026-08-27)**: Se añadió un «Rincón de desarrollo freelance» (100 idiomas, enlaces de búsqueda de empleo, traspaso al profesor de IA), una caja fuerte iframe de origen cruzado (`vault.html`) que aísla el token de GitHub y la clave de la API de Google Search de la página principal, una segunda dirección de correo de respaldo para el inicio de sesión, y un acceso directo para Chrome en modo incógnito. Se corrigieron dos errores reales (fuga de clave obsoleta, mensaje de estado engañoso en modo caja fuerte) hallados mediante pruebas en vivo. Detalles completos en las entradas del 2026-08-27 en CLAUDE.md (japonés).
 
 
