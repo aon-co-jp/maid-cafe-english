@@ -795,20 +795,27 @@ cargo run --release</pre>
         <p class="setup-note">
           <strong>簡単な方法(推奨) / Easy way (recommended):</strong>
           JSONファイルの作成が難しい場合は、代わりに<strong>普通のテキストファイル
-          (メモ帳等で作成可)2つ</strong>をご用意ください。1つ目に
-          <strong>APIキー</strong>だけを1行、2つ目に<strong>検索エンジンID(cx)</strong>
-          だけを1行書いて保存するだけです(ファイル名の例:
-          <code>google-key.txt</code>=APIキー、<code>google-id.txt</code>=検索エンジンID)。
-          ファイル名は自由です——下のボタンでどちらの内容かご自身で選んで
-          読み込みます。<br />
+          (メモ帳・Visual Studio Codeなど何で作成しても構いません)2つ</strong>を
+          ご用意ください。1つ目に<strong>APIキー</strong>だけを1行、2つ目に
+          <strong>検索エンジンID(cx)</strong>だけを1行書いて保存するだけです
+          (ファイル名の例: <code>google-key.txt</code>=APIキー、
+          <code>google-id.txt</code>=検索エンジンID)。ファイル名は自由です——
+          下のボタンでどちらの内容かご自身で選んで読み込みます。文字コードは
+          <strong>UTF-8(BOM有無いずれも)・UTF-16(メモ帳の「Unicode」保存)・
+          Windows従来のANSI(Shift_JIS)のいずれでも自動判定して読み込みます</strong>
+          ので、メモ帳・VS Codeどちらの既定設定で保存しても大丈夫です。<br />
           <strong>Easy way (recommended):</strong> If creating a JSON file is
-          difficult, just prepare two <strong>plain text files</strong> instead
-          (you can make these in Notepad). Put only your <strong>API key</strong>
-          in the first one, and only your <strong>Search Engine ID (cx)</strong>
-          in the second one (example file names: <code>google-key.txt</code> for
-          the API key, <code>google-id.txt</code> for the Search Engine ID). The
-          file names themselves don't matter — you choose which is which with the
-          buttons below.
+          difficult, just prepare two <strong>plain text files</strong> instead —
+          made with Notepad, Visual Studio Code, or any text editor. Put only
+          your <strong>API key</strong> in the first one, and only your
+          <strong>Search Engine ID (cx)</strong> in the second one (example file
+          names: <code>google-key.txt</code> for the API key,
+          <code>google-id.txt</code> for the Search Engine ID). The file names
+          themselves don't matter — you choose which is which with the buttons
+          below. <strong>Any of UTF-8 (with or without BOM), UTF-16 (Notepad's
+          "Unicode"), or Windows' traditional ANSI (Shift_JIS) encoding is
+          auto-detected and read correctly</strong>, so either editor's default
+          save settings will work.
         </p>
         <div class="settings-buttons">
           <button type="button" id="google-search-txt-key-btn" class="setup-btn">📄 APIキーの.txtを選択 / Select API key .txt</button>

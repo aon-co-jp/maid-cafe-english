@@ -6832,6 +6832,47 @@ if (googleSearchBtn && googleSearchModal) {
     }
   }
 
+  // Windowsの通常のメモ帳(近年はUTF-8既定だが「Unicode/UTF-16」や
+  // 従来の「ANSI」=Shift_JISで保存する利用者もいる)・VS Code(既定は
+  // UTF-8だがUTF-8 BOM付き保存も選べる)のどちらで作成・保存しても
+  // 正しく読めるようにする(2026-09-06、ユーザー指示「Windows上の通常の
+  // テキストメモでも読み書き、VisualStudioCodeでもどちらでも読み書き
+  // 可能にして、UTF8でもWindows通常でも」への対応)。`File.text()`は
+  // 常にUTF-8前提でデコードするため、BOMの有無でエンコーディングを判定
+  // した上で、BOMが無くUTF-8としてもデコードできない場合(Shift_JISの
+  // 全角文字等が混ざっていた場合)はShift_JIS(Windows従来のANSI、
+  // ブラウザは`shift_jis`ラベルに対応)へフォールバックする。
+  async function readTextFileRobust(file) {
+    const buf = await file.arrayBuffer();
+    const bytes = new Uint8Array(buf);
+    // BOM判定: UTF-8(EF BB BF)/UTF-16LE(FF FE)/UTF-16BE(FE FF)。
+    if (bytes.length >= 3 && bytes[0] === 0xef && bytes[1] === 0xbb && bytes[2] === 0xbf) {
+      return new TextDecoder("utf-8").decode(bytes.subarray(3));
+    }
+    if (bytes.length >= 2 && bytes[0] === 0xff && bytes[1] === 0xfe) {
+      return new TextDecoder("utf-16le").decode(bytes.subarray(2));
+    }
+    if (bytes.length >= 2 && bytes[0] === 0xfe && bytes[1] === 0xff) {
+      return new TextDecoder("utf-16be").decode(bytes.subarray(2));
+    }
+    // BOM無し: まずUTF-8として厳密デコードを試みる(不正なバイト列は
+    // 例外になる`fatal: true`)。失敗したらWindows従来のANSI
+    // (Shift_JIS)として読み直す——APIキー/検索エンジンIDはASCII文字
+    // のみを想定しているため、このフォールバックは通常発生しないが、
+    // 利用者がファイル内にメモを書き足していた場合等への保険。
+    try {
+      return new TextDecoder("utf-8", { fatal: true }).decode(bytes);
+    } catch (err) {
+      try {
+        return new TextDecoder("shift_jis").decode(bytes);
+      } catch (err2) {
+        // どちらのデコーダも使えない環境では、緩いUTF-8デコード
+        // (不正バイトは置換文字になる)で最善努力を返す。
+        return new TextDecoder("utf-8").decode(bytes);
+      }
+    }
+  }
+
   function pickTxtFile(onLoaded, statusEl) {
     const input = document.createElement("input");
     input.type = "file";
@@ -6840,7 +6881,8 @@ if (googleSearchBtn && googleSearchModal) {
       const file = input.files?.[0];
       if (!file) return;
       try {
-        const raw = (await file.text()).split(/\r?\n/)[0].trim();
+        const text = await readTextFileRobust(file);
+        const raw = text.split(/\r?\n/)[0].trim();
         if (!raw) throw new Error("empty file / 空のファイルです");
         onLoaded(raw);
         if (statusEl) statusEl.textContent = "✅ 読み込みました / Loaded";
