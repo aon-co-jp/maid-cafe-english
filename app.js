@@ -117,9 +117,10 @@ const learnTargetEl = document.getElementById("learn-target");
 // 表示して」、後日「メンテナンスは毎回一分にしよう」の指示で1分に短縮)。
 // バックエンド(aruaru-db)側の地理・観光データseed投入・ウォームアップ
 // 処理と時間的に対応させる目的の簡易実装——実際のseed完了通知を待つ
-// のではなく、固定60秒のカウントダウン表示に留める(正直な開示:
-// バックエンド側の実処理時間と厳密には連動しない)。ページを開く/
-// 再読み込みするたびに毎回表示される仕様(ユーザー指示通り)。
+// のではなく、固定30秒のカウントダウン表示に留める(2026-09-06、
+// ユーザー指示で60秒から30秒へ短縮。正直な開示: バックエンド側の
+// 実処理時間と厳密には連動しない)。ページを開く/再読み込みするたびに
+// 毎回表示される仕様(ユーザー指示通り)。
 (function showMaintenanceBanner() {
   const banner = document.getElementById("maintenance-banner");
   const countdownEl = document.getElementById("maintenance-countdown");
@@ -140,7 +141,7 @@ const learnTargetEl = document.getElementById("learn-target");
   setTimeout(() => {
     fetch(`${apiBaseEl.value.trim()}/v1/news/refresh`, { method: "POST" }).catch(() => {});
   }, 0);
-  let remaining = 60;
+  let remaining = 30;
   const timer = setInterval(() => {
     remaining -= 1;
     countdownEl.textContent = String(Math.max(remaining, 0));
@@ -452,14 +453,19 @@ function ensureScriptGuaranteedReply(completion) {
 // 汎用ヘルパー化し、正直な開示ボックス以外の複数パネル(スマホ活用
 // バナー・多言語案内バナー・設定+ボタン一覧のトップバー)にも同じ
 // 仕組みを適用する。
-function makeCollapsiblePanel(boxId, btnId, storageKeySuffix, closedLabel, openLabel) {
+// `btnIds`は単一のボタンID文字列、または複数ボタンID(配列)を受け付ける
+// (2026-09-06拡張、ユーザー指示「右上と右下にCLOSEボタンを作って」への
+// 対応——長いパネルを閉じるのに毎回一番上までスクロールしなくて済む
+// よう、同じ開閉状態を複数のボタンで共有制御できるようにした)。
+function makeCollapsiblePanel(boxId, btnIds, storageKeySuffix, closedLabel, openLabel) {
   const box = document.getElementById(boxId);
-  const btn = document.getElementById(btnId);
-  if (!box || !btn) return;
+  const ids = Array.isArray(btnIds) ? btnIds : [btnIds];
+  const btns = ids.map((id) => document.getElementById(id)).filter(Boolean);
+  if (!box || btns.length === 0) return;
   const storageKey = "open-english.collapsed." + storageKeySuffix;
   function setCollapsed(collapsed) {
     box.classList.toggle("hidden", collapsed);
-    btn.textContent = collapsed ? openLabel : closedLabel;
+    btns.forEach((btn) => { btn.textContent = collapsed ? openLabel : closedLabel; });
     try {
       localStorage.setItem(storageKey, collapsed ? "1" : "0");
     } catch (e) {
@@ -473,7 +479,9 @@ function makeCollapsiblePanel(boxId, btnId, storageKeySuffix, closedLabel, openL
     /* 既定は開いた状態 */
   }
   setCollapsed(collapsed);
-  btn.addEventListener("click", () => setCollapsed(!box.classList.contains("hidden")));
+  btns.forEach((btn) => {
+    btn.addEventListener("click", () => setCollapsed(!box.classList.contains("hidden")));
+  });
 }
 
 makeCollapsiblePanel("disclosure-box", "disclosure-toggle-btn", "disclosure", "✕ CLOSE", "＋ OPEN");
@@ -493,6 +501,13 @@ if (!location.pathname.includes("/demo")) {
   document.getElementById("download-recommend-banner-toggle")?.classList.add("hidden");
 }
 makeCollapsiblePanel("autorw-status-banner", "autorw-status-banner-toggle", "autorwStatusBanner", "✕ CLOSE", "＋ OPEN");
+makeCollapsiblePanel(
+  "aruaru-db-setup-content",
+  ["aruaru-db-setup-toggle-top", "aruaru-db-setup-toggle-bottom"],
+  "aruaruDbSetupContent",
+  "✕ CLOSE",
+  "＋ OPEN"
+);
 
 // GitHub/ローカルドライブ/VPSの自動読み書きSETUP状況パネル(2026-09-01新設)。
 // GitHubは既存のフリーランス開発コーナーのトークン設定を判定に流用する

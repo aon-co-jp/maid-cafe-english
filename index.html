@@ -144,7 +144,7 @@
   <div id="maintenance-banner" class="maintenance-banner hidden">
     <p id="maintenance-banner-message">
       🛠️ Under maintenance. Please wait about 1 minute. / ただいまメンテナンス中です。1分ほどお待ち下さい。
-      (<span id="maintenance-countdown">60</span>s)
+      (<span id="maintenance-countdown">30</span>s)
     </p>
     <button type="button" id="maintenance-banner-toggle" class="setup-btn">✕ CLOSE</button>
     <div id="maintenance-banner-detail">
@@ -976,6 +976,10 @@ cargo run --release</pre>
     <div class="setup-panel">
       <button type="button" id="aruaru-db-setup-close" class="setup-close">✕</button>
       <h2>Setup aruaru-db & PostgreSQL / aruaru-db・PostgreSQLのセットアップ</h2>
+      <div class="collapsible-toggle-row">
+        <button type="button" id="aruaru-db-setup-toggle-top" class="collapsible-toggle-btn">✕ CLOSE</button>
+      </div>
+      <div id="aruaru-db-setup-content">
       <p class="setup-honest">
         Setting up <code>open-easy-web</code> + PostgreSQL + <code>aruaru-db</code> will let this
         app (and others) process large amounts of information faster in the future.<br /><br />
@@ -1035,6 +1039,8 @@ cd aruaru-db
         同じPostgreSQL/aruaru-dbインスタンスをそのまま共有できます(詳細は
         <a href="https://github.com/aon-co-jp/open-easy-web" target="_blank" rel="noopener noreferrer">open-easy-web</a>参照)。
       </p>
+      </div>
+      <button type="button" id="aruaru-db-setup-toggle-bottom" class="collapsible-toggle-btn">✕ CLOSE</button>
     </div>
   </div>
 

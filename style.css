@@ -267,6 +267,21 @@ body {
   cursor: pointer;
 }
 
+/* ユーザー指示(2026-09-06)「Setup aruaru-db & PostgreSQLの右上と右下に
+   CLOSEボタンを作って」への対応。長いパネルを閉じるのに毎回一番上まで
+   スクロールしなくて済むよう、右寄せのCLOSE/OPENボタンを上下2箇所に
+   置く(`makeCollapsiblePanel`が両方を同じ開閉状態として連動させる)。 */
+.collapsible-toggle-row {
+  display: flex;
+  justify-content: flex-end;
+}
+
+.collapsible-toggle-row .collapsible-toggle-btn,
+#aruaru-db-setup-toggle-bottom {
+  margin-left: auto;
+  margin-right: 0;
+}
+
 .log {
   background: var(--panel);
   border-radius: 8px;
