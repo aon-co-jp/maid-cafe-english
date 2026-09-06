@@ -793,12 +793,39 @@ cargo run --release</pre>
 
       <div id="google-search-file-section" class="hidden">
         <p class="setup-note">
-          <code>{"api_key": "...", "cx": "..."}</code>という内容のJSONファイルを
-          あらかじめ用意しておき、ここで選択してください(保存されません)。<br />
-          Prepare a JSON file with <code>{"api_key": "...", "cx": "..."}</code> and
-          select it here (never saved).
+          <strong>簡単な方法(推奨) / Easy way (recommended):</strong>
+          JSONファイルの作成が難しい場合は、代わりに<strong>普通のテキストファイル
+          (メモ帳等で作成可)2つ</strong>をご用意ください。1つ目に
+          <strong>APIキー</strong>だけを1行、2つ目に<strong>検索エンジンID(cx)</strong>
+          だけを1行書いて保存するだけです(ファイル名の例:
+          <code>google-key.txt</code>=APIキー、<code>google-id.txt</code>=検索エンジンID)。
+          ファイル名は自由です——下のボタンでどちらの内容かご自身で選んで
+          読み込みます。<br />
+          <strong>Easy way (recommended):</strong> If creating a JSON file is
+          difficult, just prepare two <strong>plain text files</strong> instead
+          (you can make these in Notepad). Put only your <strong>API key</strong>
+          in the first one, and only your <strong>Search Engine ID (cx)</strong>
+          in the second one (example file names: <code>google-key.txt</code> for
+          the API key, <code>google-id.txt</code> for the Search Engine ID). The
+          file names themselves don't matter — you choose which is which with the
+          buttons below.
         </p>
-        <button type="button" id="google-search-file-btn" class="setup-btn">📂 ファイルを選択 / Select file</button>
+        <div class="settings-buttons">
+          <button type="button" id="google-search-txt-key-btn" class="setup-btn">📄 APIキーの.txtを選択 / Select API key .txt</button>
+          <span id="google-search-txt-key-status"></span>
+        </div>
+        <div class="settings-buttons">
+          <button type="button" id="google-search-txt-cx-btn" class="setup-btn">📄 検索エンジンID(cx)の.txtを選択 / Select Search Engine ID (cx) .txt</button>
+          <span id="google-search-txt-cx-status"></span>
+        </div>
+        <p class="setup-note">
+          <strong>上級者向け / Advanced:</strong>
+          <code>{"api_key": "...", "cx": "..."}</code>という内容のJSONファイルを
+          あらかじめ用意しておき、ここで選択することもできます(保存されません)。<br />
+          You can also prepare a JSON file with <code>{"api_key": "...", "cx": "..."}</code>
+          and select it here instead (never saved).
+        </p>
+        <button type="button" id="google-search-file-btn" class="setup-btn">📂 JSONファイルを選択 / Select JSON file</button>
       </div>
 
       <div id="google-search-encrypted-section" class="hidden">

@@ -6811,6 +6811,65 @@ if (googleSearchBtn && googleSearchModal) {
     });
   }
 
+  // JSONファイルの作成が難しい利用者向けに、普通のテキストファイル
+  // (1行だけ値を書くだけのもの)2つでAPIキー/検索エンジンID(cx)を
+  // 指定できるようにする(2026-09-06新設、ユーザー指示への対応)。
+  // ファイル名自体には依存せず(ユーザーがどちらの内容か自分で選ぶ
+  // ボタンを分けているため)、中身は先頭行をtrimして1行だけ読む。
+  // 2つとも揃うまでは`googleSearchUnlockedCreds`を更新しない
+  // (片方だけの不完全な状態を「設定済み」と誤認させないため)。
+  const googleSearchTxtKeyBtn = document.getElementById("google-search-txt-key-btn");
+  const googleSearchTxtKeyStatusEl = document.getElementById("google-search-txt-key-status");
+  const googleSearchTxtCxBtn = document.getElementById("google-search-txt-cx-btn");
+  const googleSearchTxtCxStatusEl = document.getElementById("google-search-txt-cx-status");
+  let googleSearchTxtApiKey = null;
+  let googleSearchTxtCx = null;
+
+  function maybeApplyGoogleSearchTxtCreds() {
+    if (googleSearchTxtApiKey && googleSearchTxtCx) {
+      googleSearchUnlockedCreds = { api_key: googleSearchTxtApiKey, cx: googleSearchTxtCx };
+      refreshGoogleSearchStatus();
+    }
+  }
+
+  function pickTxtFile(onLoaded, statusEl) {
+    const input = document.createElement("input");
+    input.type = "file";
+    input.accept = ".txt,text/plain";
+    input.addEventListener("change", async () => {
+      const file = input.files?.[0];
+      if (!file) return;
+      try {
+        const raw = (await file.text()).split(/\r?\n/)[0].trim();
+        if (!raw) throw new Error("empty file / 空のファイルです");
+        onLoaded(raw);
+        if (statusEl) statusEl.textContent = "✅ 読み込みました / Loaded";
+      } catch (err) {
+        if (statusEl) {
+          statusEl.textContent = `⚠ ${err.message || err}`;
+        }
+      }
+    });
+    input.click();
+  }
+
+  if (googleSearchTxtKeyBtn) {
+    googleSearchTxtKeyBtn.addEventListener("click", () => {
+      pickTxtFile((value) => {
+        googleSearchTxtApiKey = value;
+        maybeApplyGoogleSearchTxtCreds();
+      }, googleSearchTxtKeyStatusEl);
+    });
+  }
+  if (googleSearchTxtCxBtn) {
+    googleSearchTxtCxBtn.addEventListener("click", () => {
+      pickTxtFile((value) => {
+        googleSearchTxtCx = value;
+        maybeApplyGoogleSearchTxtCreds();
+      }, googleSearchTxtCxStatusEl);
+    });
+  }
+
   if (googleSearchSaveEncryptedBtn) {
     googleSearchSaveEncryptedBtn.addEventListener("click", async () => {
       const api_key = googleSearchApiKeyEncEl?.value.trim();
