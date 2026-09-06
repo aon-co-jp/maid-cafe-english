@@ -452,8 +452,15 @@ body {
   display: none;
 }
 
+.free-tier-toggle-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
 .free-tier-toggle {
-  width: 100%;
+  flex: 1 1 auto;
   background: none;
   border: none;
   color: var(--text);
@@ -462,6 +469,39 @@ body {
   text-align: left;
   cursor: pointer;
   padding: 4px 0;
+}
+
+/* ユーザー指示(2026-09-06)「▾だけでは分かりにくいのでOPENボタンを
+   右に作ってパネルをオープン出来るように」への対応。ラベル自体も
+   従来通りクリックで開閉できるが、より分かりやすい専用ボタンを右に
+   追加する。 */
+.free-tier-open-btn {
+  flex: 0 0 auto;
+  background: var(--accent);
+  color: var(--bg, #1b1320);
+  border: none;
+  border-radius: 4px;
+  font-size: 0.8rem;
+  font-weight: bold;
+  cursor: pointer;
+  padding: 4px 10px;
+  white-space: nowrap;
+}
+
+.free-tier-setup-status {
+  margin-left: 0.4em;
+  font-weight: bold;
+}
+
+.free-tier-setup-btn {
+  margin-left: 0.6em;
+  background: var(--accent);
+  color: var(--bg, #1b1320);
+  border: none;
+  border-radius: 4px;
+  font-size: 0.8rem;
+  cursor: pointer;
+  padding: 2px 8px;
 }
 
 .free-tier-body {
@@ -556,6 +596,17 @@ body {
   padding: 10px 12px;
   line-height: 1.5;
   white-space: pre-line;
+}
+
+/* ユーザー指摘(2026-09-06)「postgresql.org/downloadのURL文字が紫で
+   読みにくい」への対応。`.disclosure a`と同じ理由——`.setup-note`/
+   `.setup-honest`は暗い背景(#3a2a1a)のため、ブラウザ既定のリンク色
+   (青/紫)より白の方が読みやすい。 */
+.setup-honest a,
+.setup-honest a:visited,
+.setup-note a,
+.setup-note a:visited {
+  color: #fff;
 }
 
 .update-history-row {

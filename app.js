@@ -164,9 +164,67 @@ const learnTargetEl = document.getElementById("learn-target");
 // 回数を常時取得する仕組みは一般に存在しないため、ここでは「開発者が
 // 定期メンテナンス時に手動で確認・更新する」`provider-free-tiers.json`を
 // 読み込んで表示するのみに留める(正直な開示、誇張しない)。
+// 各プロバイダIDから、そのプロバイダの「SETUP状態」の調べ方・SETUP画面
+// (モーダル)の開き方への対応表(2026-09-06新設、ユーザー指示「無料枠
+// 情報とSETUP情報とSETUP済みなどの情報がありません。BUGです」への対応)。
+// 既存の各設定パネル(Google Search設定・AI Provider Priority設定)は
+// それぞれ独自にSETUP済み判定を持っているが、従来は**この無料枠バナー
+// 自体には一切反映されていなかった**——利用者が無料枠一覧を見ても、
+// 自分がどのプロバイダを既に設定済みで、どれを設定すればよいのかが
+// 分からないという実際の使い勝手のバグだった。
+//
+// `openai`(ストレージキー)と`chatgpt`(JSON側のID)のように名前が
+// 食い違う箇所があるため、対応表で明示的に紐付ける。
+const CHAT_PROVIDER_KEY_LOCAL_PREFIX = "open-english.providerKey.";
+const FREE_TIER_SETUP_MAP = {
+  "google-search": { storageKey: null, openBtnId: "google-search-settings-btn" },
+  chatgpt: { storageKey: "openai", openBtnId: "provider-priority-settings-btn" },
+  deepseek: { storageKey: "deepseek", openBtnId: "provider-priority-settings-btn" },
+  gemini: { storageKey: "gemini", openBtnId: "provider-priority-settings-btn" },
+  claude: { storageKey: "claude", openBtnId: "provider-priority-settings-btn" },
+};
+
+/** プロバイダIDから、このブラウザ内でSETUP済みかどうかを調べる。
+ *  Google検索のみ専用の判定ロジック(モード別・端末側設定の有無)を持ち、
+ *  他のAIプロバイダ(chatgpt/deepseek/gemini/claude)は共通の
+ *  `localStorage`キーで判定する(`refreshLocalProviderKeyStatus`と
+ *  同じキー、二重管理を避けるため接頭辞定数を共有する設計にしたいが、
+ *  後者は別のIIFEスコープ内で定義されているため、ここでは同じ
+ *  接頭辞文字列を独立して持つ)。 */
+async function freeTierProviderSetupStatus(providerId) {
+  const map = FREE_TIER_SETUP_MAP[providerId];
+  if (!map) return null;
+  if (providerId === "google-search") {
+    const mode = document.getElementById("google-search-key-mode")?.value || "plain";
+    if (mode === "vault") {
+      return { setUp: null, label: "🔒 vault mode / vaultモード使用中(下欄で確認)" };
+    }
+    try {
+      const creds = typeof loadOwnGoogleSearchCredentials === "function" ? loadOwnGoogleSearchCredentials() : null;
+      if (creds) return { setUp: true, label: "✅ SETUP済み / Already set up" };
+      const configuredOnDevice = typeof isSearchConfiguredOnOwnDevice === "function"
+        ? await isSearchConfiguredOnOwnDevice()
+        : false;
+      if (configuredOnDevice) return { setUp: true, label: "✅ SETUP済み(端末側) / Already set up (on device)" };
+    } catch (err) {
+      /* 判定できなくても「未設定」扱いにフォールバックする(下記) */
+    }
+    return { setUp: false, label: "⚪ 未SETUP / Not set up" };
+  }
+  try {
+    const hasKey = !!localStorage.getItem(CHAT_PROVIDER_KEY_LOCAL_PREFIX + map.storageKey);
+    return hasKey
+      ? { setUp: true, label: "✅ SETUP済み / Already set up" }
+      : { setUp: false, label: "⚪ 未SETUP / Not set up" };
+  } catch (err) {
+    return { setUp: false, label: "⚪ 未SETUP / Not set up" };
+  }
+}
+
 (async function showProviderFreeTiers() {
   const banner = document.getElementById("free-tier-banner");
   const toggle = document.getElementById("free-tier-toggle");
+  const openBtn = document.getElementById("free-tier-open-btn");
   const body = document.getElementById("free-tier-body");
   const list = document.getElementById("free-tier-list");
   const updatedEl = document.getElementById("free-tier-last-updated");
@@ -191,13 +249,46 @@ const learnTargetEl = document.getElementById("learn-target");
       const span = document.createElement("span");
       span.textContent = `${tierEn} / ${tierJa}`;
       li.appendChild(span);
+
+      // SETUP状態 + 「🔧 Setup」ボタン(2026-09-06追加、上記参照)。
+      const setupMap = FREE_TIER_SETUP_MAP[p.id];
+      if (setupMap) {
+        const statusSpan = document.createElement("span");
+        statusSpan.className = "free-tier-setup-status";
+        statusSpan.textContent = " …";
+        li.appendChild(statusSpan);
+        freeTierProviderSetupStatus(p.id).then((status) => {
+          if (status) statusSpan.textContent = " " + status.label;
+        });
+
+        const setupBtn = document.createElement("button");
+        setupBtn.type = "button";
+        setupBtn.className = "free-tier-setup-btn";
+        setupBtn.textContent = "🔧 Setup / 設定する";
+        setupBtn.addEventListener("click", () => {
+          document.getElementById(setupMap.openBtnId)?.click();
+        });
+        li.appendChild(setupBtn);
+      }
+
       list.appendChild(li);
     }
     updatedEl.textContent = data.last_updated || "?";
     banner.classList.remove("hidden");
-    toggle.addEventListener("click", () => {
-      body.classList.toggle("hidden");
-    });
+    // ユーザー指示(2026-09-06)「▾だけでは分かりにくいのでOPENボタンを
+    // 右に作ってパネルをオープン出来るように」への対応。ラベル
+    // (`toggle`)自体のクリックでの開閉も維持しつつ、専用の「OPEN/CLOSE」
+    // ボタン(`openBtn`)を追加し、どちらを押しても連動して開閉・
+    // ボタン文言が切り替わるようにする。
+    function setFreeTierBodyOpen(open) {
+      body.classList.toggle("hidden", !open);
+      if (openBtn) openBtn.textContent = open ? "▴ CLOSE" : "▾ OPEN";
+    }
+    function toggleFreeTierBody() {
+      setFreeTierBodyOpen(body.classList.contains("hidden"));
+    }
+    toggle.addEventListener("click", toggleFreeTierBody);
+    if (openBtn) openBtn.addEventListener("click", toggleFreeTierBody);
   } catch (err) {
     // 読み込めなくても他の機能には影響させない(既存の可用性優先方針)。
   }

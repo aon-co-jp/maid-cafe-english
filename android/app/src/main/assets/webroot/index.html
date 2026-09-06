@@ -168,9 +168,12 @@
     </p>
   </div>
   <div id="free-tier-banner" class="free-tier-banner hidden">
-    <button type="button" id="free-tier-toggle" class="free-tier-toggle">
-      💰 AI/Search free tiers / AI・検索の無料枠情報 <span id="free-tier-caret">▾</span>
-    </button>
+    <div class="free-tier-toggle-row">
+      <button type="button" id="free-tier-toggle" class="free-tier-toggle">
+        💰 AI/Search free tiers / AI・検索の無料枠情報 <span id="free-tier-caret">▾</span>
+      </button>
+      <button type="button" id="free-tier-open-btn" class="free-tier-open-btn">▾ OPEN</button>
+    </div>
     <div id="free-tier-body" class="free-tier-body hidden">
       <ul id="free-tier-list"></ul>
       <p class="free-tier-note">
@@ -186,6 +189,57 @@
       📱 使わなくなったスマホもフル動員しましょう！(実験的機能) PC側にタスク配布API(<code>GET /v1/background-fold/task</code>・<code>POST /v1/background-fold/task-result</code>)を、Androidアプリ側にポーリング計算ワーカーを実装しました。実機・NPU搭載機での検証は未実施で、実際の計算はNNAPI対応端末でも常にCPUで行われます(NNAPIは利用可否の検出のみ)。使うにはAndroidアプリ内の「使わなくなったスマホもフル動員」欄にPC側のURLを入力して開始してください。
       <br />
       Let's put your unused phones to full use! (Experimental) We've implemented a PC-side task distribution API (<code>GET /v1/background-fold/task</code>, <code>POST /v1/background-fold/task-result</code>) and an Android polling worker that computes tasks. Real-device and NPU-equipped hardware verification has not been done, and the actual computation always runs on CPU even on NNAPI-capable devices (NNAPI is only detected, not yet used for the math). To try it, enter the PC's URL in the "put unused phones to full use" section of the Android app and start.
+    </p>
+  </div>
+  <!--
+    GitHub/ローカルドライブ/VPSの自動読み書きSETUP状況を一目で示す
+    パネル(ユーザー指示、2026-09-01「ページの一緒に、GITHUBとローカル
+    ドライブとVPSの自動読み書きのSETUPとSETUP済みになる表示と機能を
+    搭載して」への対応)。
+  -->
+  <button type="button" id="autorw-status-banner-toggle" class="collapsible-toggle-btn">✕ CLOSE</button>
+  <div id="autorw-status-banner" class="setup-note" style="display:block; margin:8px 20px;">
+    <strong>🔌 自動読み書きSETUP状況 / Auto read/write setup status</strong>
+    <ul style="margin:6px 0 0; padding-left:20px;">
+      <li>
+        GitHub: <span id="autorw-github-status">確認中... / Checking...</span>
+        <button type="button" id="autorw-github-test-btn" class="setup-btn">疎通テスト / Test connection</button>
+        <button type="button" id="autorw-github-setup-btn" class="setup-btn">SETUPする / Set up</button>
+      </li>
+      <li>
+        ローカルドライブ / Local drive: <span id="autorw-localdrive-status">確認中... / Checking...</span>
+        <button type="button" id="autorw-localdrive-setup-btn" class="setup-btn">SETUPする / Set up</button>
+      </li>
+      <li>
+        VPS: <span id="autorw-vps-status">確認中... / Checking...</span>
+        <button type="button" id="autorw-vps-test-btn" class="setup-btn">読み込みテスト / Test read</button>
+        <button type="button" id="autorw-vps-copy-env-btn" class="setup-btn">📋 環境変数をコピー / Copy env vars</button>
+        <button type="button" id="autorw-vps-setup-btn" class="setup-btn">詳細 / Details</button>
+      </li>
+    </ul>
+    <p id="autorw-vps-detail" class="setup-honest hidden" style="margin-top:8px;">
+      <strong>仕組み:</strong> ブラウザは生のSSHソケットを直接開けないため、<code>open-english-server</code>
+      (ネイティブのRustサーバープロセス)自身がSSH/SFTPクライアント(<code>russh</code>)としてVPSへ接続します。
+      ブラウザはこのサーバーへHTTPで指示するだけです。<strong>セキュリティ上の理由により、SSH秘密鍵・
+      接続先ホストはブラウザの入力欄からではなく、サーバーを起動する側が環境変数で設定します</strong>
+      (ブラウザへ秘密鍵の内容や接続先を送信させない設計)。設定方法:<br />
+      <code>OPEN_ENGLISH_VPS_HOST=your-vps.example.com</code><br />
+      <code>OPEN_ENGLISH_VPS_USER=deploy</code><br />
+      <code>OPEN_ENGLISH_VPS_SSH_KEY_PATH=/path/to/id_ed25519</code><br />
+      <code>OPEN_ENGLISH_VPS_ALLOWED_PATHS=/home/deploy/app</code>(読み書きを許可するリモート
+      ディレクトリ、セミコロン区切りで複数指定可)<br />
+      実行できるコマンドは読み書き対象パスへの<code>cat</code>のみに固定されており、任意のシェル
+      コマンドは実行できません。ホスト鍵の検証(中間者攻撃対策)は現状未実装のため、信頼できる
+      自分のVPSに限定して使用してください。<br /><br />
+      <strong>How it works:</strong> Since browsers cannot open a raw SSH socket, the
+      <code>open-english-server</code> native process itself acts as the SSH/SFTP client (via
+      <code>russh</code>) and connects to your VPS; the browser just tells it what to do over HTTP.
+      <strong>For security, the SSH private key and target host are configured via environment
+      variables by whoever runs the server</strong> — not typed into the browser — so the key
+      never has to travel over the network at all. See the env var names above. Only a fixed
+      <code>cat</code> command against the allow-listed paths can be run — no arbitrary shell
+      commands. Host key verification (anti man-in-the-middle) is not implemented yet, so only
+      point this at a VPS you control and trust.
     </p>
   </div>
   <!--
@@ -238,7 +292,7 @@
         <option value="persian">Persian (Farsi) conversation / ペルシャ語会話</option>
         <option value="hebrew">Hebrew conversation / ヘブライ語会話</option>
       </select>
-      <span class="setup-note">※正直な開示 / Honest note: ドイツ語・フランス語・スペイン語・
+      <span class="setup-note" style="display:block; margin-top:6px;">※正直な開示 / Honest note: ドイツ語・フランス語・スペイン語・
         イタリア語・ロシア語・アラビア語・ペルシャ語・ヘブライ語は、英語中心に
         事前学習された小型GPT-2ベースのaruaru-llmでは生成品質が低い(実質的に
         使い物にならない場合がある)ことを実機検証済みです。詳細はREADME参照。
@@ -310,6 +364,181 @@
         aruaru-llmは起動中で、このアプリは現在それと通信できています。
       </p>
       <p class="setup-honest">
+        <strong>⚠ aruaru-llm alone is weak (2026-09-01) / aruaru-llm単体では
+        機能が弱いです:</strong> aruaru-llm on its own is a small model
+        (GPT-2 124M–1.5B class) with no GPU acceleration and no
+        cache-optimization support wired in. To get its full capability,
+        install it <strong>together with open-cuda + open-cpu</strong>
+        (and, on Windows, optionally open-directx's Vulkan/DirectX 12 path
+        inside open-cuda). Use the "GPU SET" checkbox in
+        <code>aruaru-llm-installer.exe</code> (Windows) to bundle these —
+        it's the same installer linked below, just tick the box during
+        setup.<br />
+        aruaru-llm単体では、GPU加速もキャッシュ最適化も一切配線されていない
+        小型モデル(GPT-2 124M〜1.5Bクラス)のままです。本来の力を発揮
+        させるには、<strong>open-cuda・open-cpuと一緒にセットアップ</strong>
+        してください(Windowsではopen-cuda内蔵のVulkan/DirectX 12経路も
+        任意で追加できます)。下記の<code>aruaru-llm-installer.exe</code>で
+        インストール中に「GPU SET」にチェックを入れるだけで、同じ
+        インストーラーからまとめて導入できます。
+      </p>
+      <p class="setup-honest">
+        <strong>What's already built-in vs. optional (be precise) /
+        既に組み込み済みのもの・任意で追加するものの区別:</strong><br />
+        • <strong>open-cpu</strong> (CPU SIMD detection: AVX2/AVX-512/FMA3
+        etc.) is <u>already compiled into every aruaru-llm build</u> and
+        runs automatically — there is nothing extra to install for this
+        part. It only reports/uses the CPU instruction sets your machine
+        actually has; it cannot invent hardware you don't have.<br />
+        <strong>open-cpu</strong>(AVX2/AVX-512/FMA3等のCPU SIMD検出)は
+        <u>aruaru-llmの全ビルドに既に組み込み済み</u>で自動的に動作します
+        ——この部分だけを別途セットアップする必要はありません。あくまで
+        実際にお使いのマシンが持つ命令セットを検出・利用するだけで、
+        搭載されていないハードウェアを作り出すことはできません。<br />
+        • Toshiba's SBM (simulated bifurcation, quantum-inspired
+        optimization) is <u>already wired in</u> for one concrete task —
+        choosing which model sizes to keep cached on disk under a storage
+        budget (<code>POST /v1/models/optimize-cache</code>). It is a
+        real, working combinatorial optimizer for that one job, not a
+        general-purpose accelerator for every AI computation.<br />
+        東芝のSBM(シミュレーテッド分岐、擬似量子最適化)は、ディスク容量
+        予算内でどのモデルサイズをキャッシュに残すか選ぶ処理
+        (<code>POST /v1/models/optimize-cache</code>)という具体的な
+        1タスクに<u>既に組み込み済み</u>です。この1タスクに対しては実際に
+        動作する組合せ最適化エンジンですが、あらゆるAI計算を汎用的に
+        高速化する仕組みではありません。<br />
+        • <strong>Update (2026-09-01):</strong> We researched "DeepSeek's
+        folding theory" in Japanese and English across Google/GitHub and
+        found that <u>no such DeepSeek-specific technique actually
+        exists</u> (DeepSeek's real efficiency techniques are MLA, FP8
+        mixed precision, and DeepSeekMoE — none of them called
+        "folding"). The likely source of confusion is the unrelated
+        ICLR 2025 paper "Model Folding" (arXiv:2502.10216), which uses
+        neuron-level k-means clustering — too heavy to faithfully
+        reproduce with this engine's design. Instead we implemented a
+        simpler, real, peer-reviewed alternative: layer-level Block
+        Influence redundancy detection and <u>actual layer removal</u>
+        (ShortGPT, arXiv:2403.03853 / Gromov et al., arXiv:2403.17887).
+        <code>POST /v1/models/layer-redundancy</code> (read-only preview)
+        and <code>POST /v1/models/fold-layers</code> (actually removes
+        redundant layers and swaps the live model, returning a
+        before/after generation sample so you can judge quality
+        yourself) are real, working, and verified end-to-end with real
+        GPT-2 weights — a conservative threshold removed only the one
+        near-identity layer with generation output unchanged; an
+        aggressive threshold visibly degraded quality, exactly as
+        honestly disclosed.<br />
+        <strong>Further update (same day):</strong> after that honest
+        result, we improved the removal <em>algorithm itself</em>
+        (Gromov et al., arXiv:2403.17887, contiguous-block search — pass
+        <code>num_layers_to_remove</code> instead of a threshold). Real
+        measurement on distilgpt2 (6 layers): removing 1 or 2 layers via
+        block search kept output grammatical and on-topic
+        (<code>block_similarity</code>≈0.95–0.98); removing 5 of 6
+        layers still broke down (<code>block_similarity</code>≈0.82) —
+        this is a fundamental limit (that budget genuinely lacks enough
+        redundancy), not a bug the algorithm could fix. The response now
+        includes a <code>quality_hint</code> computed from
+        <code>block_similarity</code> <u>before</u> you commit, so you
+        can judge risk in advance. Quality is still never guaranteed —
+        always compare the before/after sample.<br />
+        <strong>Yet another update (same day, in response to being asked
+        to improve the extreme case again):</strong> instead of deleting
+        the removed block outright, pass
+        <code>use_linear_adapter: true</code> to replace it with a
+        lightweight linear layer fit via closed-form ridge regression
+        (no gradient descent — inspired by SHIFT-LLM/SlimLLM-style
+        techniques, arXiv:2608.25068 / arXiv:2505.22689; these are very
+        recent papers and this is our own simplified implementation, not
+        a faithful reproduction). Real measurement at the same extreme
+        budget (removing 5 of 6 layers on distilgpt2): plain deletion
+        collapsed into a repeated-token loop
+        ("Theodoreodoreodoreodore..."); the linear adapter avoided that
+        total collapse and produced real English words instead
+        ("I slowly, it the rainforest in a few one way..."). <strong>Be
+        precise about what this is</strong>: it is a genuine, measured
+        improvement — but not a full fix. The adapter's output still
+        isn't grammatically coherent text, more of a word salad. Quality
+        is still never guaranteed.<br />
+        <strong>Follow-up (2026-09-01, "genuinely skip attention"
+        path):</strong> the adapter layer used to zero out the attention
+        sub-layer's <em>output</em> while still running the math. We
+        added a fast path in <code>open-cuda-llm</code>'s
+        <code>DecoderLayer</code> that skips the folded block's attention
+        entirely at inference (QKV projection, softmax, P·V, KV-cache
+        push). It is bit-for-bit identical numerically (not a single
+        generated token changes) but the removed block's attention
+        compute cost is now genuinely eliminated. The response reports
+        this via <code>attention_compute_skipped</code>.<br />
+        <strong>更新(2026-09-01):</strong>「DeepSeekの折りたたみ理論」を
+        日英でGoogle/GitHub調査した結果、<u>そのような技術は実在しない</u>
+        と判明しました(DeepSeekの実際の効率化技術はMLA・FP8混合精度・
+        DeepSeekMoEであり、いずれも「折りたたみ」ではありません)。混同の
+        元と考えられるのは無関係のICLR 2025論文「Model Folding」
+        (arXiv:2502.10216)——ニューロン単位k-meansクラスタリングを要する
+        高度な手法で、このエンジンの設計上忠実な再現は困難でした。
+        代わりに、より単純で実在する査読済みの代替手法——層単位の
+        Block Influence冗長性検出+<u>実際の層除去</u>(ShortGPT論文
+        arXiv:2403.03853 / Gromov et al. arXiv:2403.17887)——を実装
+        しました。<code>POST /v1/models/layer-redundancy</code>(読み取り
+        専用の下調べ)・<code>POST /v1/models/fold-layers</code>(実際に
+        冗長な層を除去し稼働中のモデルを差し替え、折りたたみ前後の生成
+        結果を返すので自分の目で品質を判断できる)は、実GPT-2重みで
+        実際にHTTP検証済みです——保守的な閾値では恒等写像に近い1層のみを
+        除去し生成結果は実質変化なし、積極的な閾値では開示通り明確に
+        品質が劣化することを実証しました。<br />
+        <strong>さらに追記(同日):</strong>この結果を受け、除去
+        <em>アルゴリズム自体</em>を改良しました(Gromov et al.、
+        arXiv:2403.17887方式の連続ブロック探索——閾値の代わりに
+        <code>num_layers_to_remove</code>を指定)。実測(distilgpt2、
+        6層): 1〜2層をブロック探索で除去した場合、出力は文法的にも
+        話題的にも維持されました(<code>block_similarity</code>≈
+        0.95〜0.98)。一方6層中5層を除去した場合は依然として破綻しました
+        (<code>block_similarity</code>≈0.82)——これはアルゴリズムの
+        不具合ではなく、その予算にはそもそも維持できるだけの冗長性が
+        実在しないという根本的な限界です。レスポンスには
+        <code>block_similarity</code>から算出した<code>quality_hint</code>
+        を実行<u>前</u>に含めるようにしたので、事前にリスクを判断
+        できます。品質は依然として保証されません——必ず前後の生成
+        サンプルを見比べてください。<br />
+        <strong>さらに追記(同日、「極端なケースをもう一度改善して」との
+        依頼への対応):</strong>除去したブロックを跡形もなく削除する
+        代わりに、<code>use_linear_adapter: true</code>を指定すると、
+        最小二乗法(閉形式のリッジ回帰、勾配降下法は使わない)でフィット
+        した軽量な線形層へ置換します(SHIFT-LLM/SlimLLM着想、
+        arXiv:2608.25068/arXiv:2505.22689——これらは非常に新しい論文で
+        あり、本実装は再現実装ではなく独自の簡略版です)。同じ極端な予算
+        (distilgpt2で6層中5層除去)での実測: 跡形もなく削除する旧方式は
+        完全な劣化ループに陥りました("Theodoreodoreodoreodore...")が、
+        線形アダプタ版は劣化ループを回避し実在の英単語を使った出力を
+        生成しました("I slowly, it the rainforest in a few one
+        way...")。<strong>正確に言うと</strong>: これは実測できる本物の
+        改善ですが、完全な修正ではありません——アダプタ版の出力も
+        文法的に一貫した文章にはならず、単語の羅列に近いままです。
+        品質は依然として保証されません。<br />
+        <strong>さらに追記(2026-09-01、「Attentionを実際にスキップ
+        する軽量パス」の実装):</strong>線形アダプタ層は従来、
+        Attentionサブ層の出力をゼロで捨てるだけで演算自体は実行して
+        いました。今回<code>open-cuda-llm</code>の<code>DecoderLayer</code>
+        に、折りたたんだ層のAttention(QKV射影・softmax・P·V・
+        KVキャッシュ)を推論時に<strong>丸ごとスキップ</strong>する
+        軽量パスを追加しました。数値的にはビット単位で等価(生成結果は
+        1トークンも変わらない)でありながら、除去したブロックぶんの
+        Attention計算コストが実際に削減されます。レスポンスの
+        <code>attention_compute_skipped</code>フィールドで確認できます。<br />
+        • open-directx as a <em>standalone repository</em>
+        (<code>aon-co-jp/open-directx</code>) is unrelated to aruaru-llm —
+        the DirectX 12 path aruaru-llm can use is a different, same-named
+        component built into open-cuda itself
+        (<code>opencuda-directx</code>). We mention this only to avoid
+        confusion, not to claim a connection that doesn't exist.<br />
+        独立リポジトリとしての<code>open-directx</code>本体は、
+        aruaru-llmとは無関係です——aruaru-llmが使えるDirectX 12経路は、
+        open-cuda自身に内蔵された同名の別コンポーネント
+        (<code>opencuda-directx</code>)です。混同を避けるための注記で
+        あり、実在しない連携を主張するものではありません。
+      </p>
+      <p class="setup-honest">
         <strong>Honest disclosure (updated 2026-08-17):</strong> A prebuilt
         binary download is now available below (no Git/Rust/terminal script
         required — see "Recommended" section) — this replaces the previous
@@ -331,6 +560,32 @@
         一切不要です。
       </p>
 
+      <h3>🧬 Model Folding — try it from here / ここからModel Foldingを試す</h3>
+      <p class="setup-note">
+        Calls <code>POST /v1/models/fold-layers</code> on the aruaru-llm
+        server configured above (see "aruaru-llm server URL" field).
+        This actually removes redundant layers from the currently active
+        model — read the disclosures above first. Leave "layers to remove"
+        empty to use the conservative threshold mode instead.<br />
+        上のaruaru-llmサーバーURL欄に設定された接続先へ実際に
+        <code>POST /v1/models/fold-layers</code>を呼びます。現在アクティブな
+        モデルの層を実際に除去します——事前に上の開示文をお読みください。
+        「除去する層数」を空欄にすると保守的な閾値方式で実行します。
+      </p>
+      <label for="fold-layers-num" class="setup-note">Layers to remove (blank = threshold mode) /
+        除去する層数(空欄=閾値方式)</label>
+      <input type="number" id="fold-layers-num" class="setup-input" min="1" placeholder="e.g. 2" />
+      <label class="setup-note">
+        <input type="checkbox" id="fold-layers-adapter" />
+        Use linear adapter instead of deleting outright /
+        跡形もなく削除せず線形アダプタへ置換する
+      </label>
+      <label for="fold-layers-ridge" class="setup-note">ridge_lambda (only used with linear adapter, blank = default 1e-2) /
+        ridge_lambda(線形アダプタ使用時のみ、空欄=既定1e-2)</label>
+      <input type="number" id="fold-layers-ridge" class="setup-input" step="any" min="0" placeholder="1e-2" />
+      <button type="button" id="fold-layers-btn" class="setup-btn">🧬 Run fold-layers / fold-layersを実行</button>
+      <p class="setup-note" id="fold-layers-status"></p>
+
       <h3>✅ Recommended: prebuilt download (no build, no terminal script to type) /
         推奨: ビルド不要の実行ファイル配布(ターミナルへコマンドを打つ必要なし)</h3>
       <p class="setup-note">
@@ -351,7 +606,7 @@
         実行するだけで、<code>git</code>・<code>cargo</code>は不要です。
       </p>
       <div class="settings-buttons">
-        <a class="setup-btn" href="https://github.com/aon-co-jp/aruaru-llm/releases/latest/download/aruaru-llm-windows-x86_64.zip">⬇ Windows (.zip)</a>
+        <a class="setup-btn" href="https://github.com/aon-co-jp/aruaru-llm/releases/latest/download/aruaru-llm-installer.exe">⬇ Windows (installer .exe)</a>
         <a class="setup-btn" href="https://github.com/aon-co-jp/aruaru-llm/releases/latest/download/aruaru-llm-linux-x86_64.tar.gz">⬇ Linux (.tar.gz)</a>
       </div>
       <p class="setup-note">
@@ -667,19 +922,19 @@ cargo run --release</pre>
         <strong>rotate keys periodically</strong>.
       </p>
       <label class="settings-field">
-        OpenAI (ChatGPT) API Key
+        OpenAI (ChatGPT) API Key <span id="provider-key-status-openai" class="setup-note" style="display:inline; padding:2px 6px;"></span>
         <input type="password" id="provider-key-openai" autocomplete="off" placeholder="sk-..." />
       </label>
       <label class="settings-field">
-        DeepSeek API Key
+        DeepSeek API Key <span id="provider-key-status-deepseek" class="setup-note" style="display:inline; padding:2px 6px;"></span>
         <input type="password" id="provider-key-deepseek" autocomplete="off" placeholder="sk-..." />
       </label>
       <label class="settings-field">
-        Gemini API Key
+        Gemini API Key <span id="provider-key-status-gemini" class="setup-note" style="display:inline; padding:2px 6px;"></span>
         <input type="password" id="provider-key-gemini" autocomplete="off" placeholder="AIzaSy..." />
       </label>
       <label class="settings-field">
-        Claude (Anthropic) API Key
+        Claude (Anthropic) API Key <span id="provider-key-status-claude" class="setup-note" style="display:inline; padding:2px 6px;"></span>
         <input type="password" id="provider-key-claude" autocomplete="off" placeholder="sk-ant-..." />
       </label>
 
@@ -755,7 +1010,7 @@ cargo run --release</pre>
         するだけです。
       </p>
       <div class="settings-buttons">
-        <a class="setup-btn" href="https://github.com/aon-co-jp/aruaru-db/releases/latest/download/aruaru-db-windows-x86_64.zip">⬇ Windows (.zip)</a>
+        <a class="setup-btn" href="https://github.com/aon-co-jp/aruaru-db/releases/latest/download/aruaru-db-windows-x86_64.zip">⬇ Windows (installer .exe)</a>
         <a class="setup-btn" href="https://github.com/aon-co-jp/aruaru-db/releases/latest/download/aruaru-db-linux-x86_64.tar.gz">⬇ Linux (.tar.gz)</a>
       </div>
       <p class="setup-note">
@@ -1084,19 +1339,40 @@ cd aruaru-db
         <strong>正直な開示:</strong> このコーナーはGoogle検索を<strong>新しいタブで開く</strong>
         導線と、選んだ言語・フレームワーク・案件をAI先生への相談へつなぐ機能です。求人サイトの
         API連携やスクレイピングは行っていません(利用規約・レート制限の観点から、検索結果は
-        Googleの検索結果ページをご自身の目で確認していただく方式です)。<strong>VPSの自動
-        読み書き・GitHub/GitLab等への認証付き自動push・DB記録は未実装</strong>です(資格情報を
-        安全に扱う設計のレビューが先に必要なため、次回以降の課題としています)。<br /><br />
+        Googleの検索結果ページをご自身の目で確認していただく方式です)。<strong>GitHubへの認証付き
+        自動push・VPSへの自動読み書き(下の「🔌自動読み書きSETUP状況」パネル参照)は実装済み
+        です。GitLab等の他サービスへの自動push・DB記録(選んだ言語・案件・レッスン進捗の永続化)
+        は未実装のままです</strong>(次回以降の課題、詳細はCLAUDE.md参照)。<br /><br />
         <strong>Honest disclosure:</strong> this corner opens Google search results in a
         <strong>new tab</strong> and lets you carry your chosen language/framework/job listing into
         a lesson with the AI teacher. It does not call any job-board API or scrape listings (search
         results are Google's own results page, for you to read yourself, out of respect for site
-        terms of service and rate limits). <strong>Automatic VPS read/write and authenticated
-        auto-push to GitHub/GitLab/etc. and database logging are not implemented yet</strong> —
-        those need a credential-handling security design reviewed first (see CLAUDE.md).
+        terms of service and rate limits). <strong>Authenticated auto-push to GitHub and automatic
+        VPS read/write (see the "🔌 Auto read/write setup status" panel above) are implemented.
+        Auto-push to other services like GitLab, and database logging of your progress, are still
+        not implemented</strong> — see CLAUDE.md for details.
       </p>
 
-      <h3>1. 言語・フレームワークを選ぶ / Pick a language &amp; framework</h3>
+      <h3>1. 産業・カテゴリ、言語・フレームワークを選ぶ / Pick an industry, language &amp; framework</h3>
+      <label class="setup-label">
+        産業・カテゴリ / Industry &amp; category<br />
+        <select id="freelance-industry-select" class="setup-input"></select>
+      </label>
+      <label class="setup-label">
+        産業・カテゴリを検索/入力(誤字脱字は自動補正) / Search or type an industry (typos auto-corrected)<br />
+        <input type="text" id="freelance-industry-custom" class="setup-input" list="freelance-industry-datalist" placeholder="例: EC, ヘルスケア, フィンテック..." />
+        <datalist id="freelance-industry-datalist"></datalist>
+      </label>
+      <p id="freelance-industry-suggestion" class="setup-note" style="display:none;"></p>
+      <button type="button" id="freelance-industry-add-btn" class="setup-btn">＋ このカテゴリを追加 / Add this category</button>
+      <p class="setup-note">
+        一覧に無い産業・カテゴリは自由入力し「＋ このカテゴリを追加」を押すと、以後この端末の一覧に
+        追加されます(誤字と思われる場合は近い候補を提案します)。<br />
+        Type any industry/category not in the list and press "＋ Add this category" to add it to this
+        device's list going forward (we'll suggest a close match if it looks like a typo).
+      </p>
+
+      <h3>2. 言語・フレームワークを選ぶ / Pick a language &amp; framework</h3>
       <label class="setup-label">
         プログラミング言語 / Programming language<br />
         <select id="freelance-language-select" class="setup-input"></select>
@@ -1106,11 +1382,31 @@ cd aruaru-db
         <input type="text" id="freelance-language-custom" class="setup-input" placeholder="例: Zig, Nim..." />
       </label>
       <label class="setup-label">
-        フレームワーク(自由入力) / Framework (free text)<br />
+        フレームワーク / Framework<br />
+        <select id="freelance-framework-select" class="setup-input"></select>
+      </label>
+      <label class="setup-label">
+        フレームワーク(自由入力、上の一覧に無い場合) / Framework free text (if not in the list above)<br />
         <input type="text" id="freelance-framework-input" class="setup-input" placeholder="例: React, Django, Actix..." />
       </label>
+      <label class="setup-label">
+        WEBサーバー / Web server<br />
+        <select id="freelance-webserver-select" class="setup-input"></select>
+      </label>
+      <label class="setup-label">
+        WEBサーバー(自由入力、上の一覧に無い場合) / Web server free text (if not in the list above)<br />
+        <input type="text" id="freelance-webserver-custom" class="setup-input" placeholder="例: Traefik, HAProxy..." />
+      </label>
+      <label class="setup-label">
+        DATABASE<br />
+        <select id="freelance-database-select" class="setup-input"></select>
+      </label>
+      <label class="setup-label">
+        DATABASE(自由入力、上の一覧に無い場合) / Database free text (if not in the list above)<br />
+        <input type="text" id="freelance-database-custom" class="setup-input" placeholder="例: CockroachDB, DuckDB..." />
+      </label>
 
-      <h3>2. 公式サイト・GitHub・ブログを検索 / Search official site, GitHub, blog</h3>
+      <h3>3. 公式サイト・GitHub・ブログを検索 / Search official site, GitHub, blog</h3>
       <p class="setup-note">
         選んだ言語・フレームワークの公式サイト・GitHub・ブログ記事をGoogle検索で調べ、
         AI先生への相談時に参考にできます。<br />
@@ -1119,10 +1415,20 @@ cd aruaru-db
       </p>
       <button type="button" id="freelance-search-official-btn" class="setup-btn">🔎 公式情報を検索 / Search official info</button>
       <button type="button" id="freelance-copy-official-url-btn" class="setup-btn">📋 検索URLをコピー / Copy search URL</button>
+      <div id="freelance-official-results" class="setup-note"></div>
 
-      <h3>3. フリーランス案件・IT求人を検索 / Search freelance &amp; IT job listings</h3>
+      <h3>4. フリーランス案件・IT求人を検索 / Search freelance &amp; IT job listings</h3>
       <button type="button" id="freelance-search-jobs-btn" class="setup-btn">🔎 案件・求人を検索 / Search jobs</button>
       <button type="button" id="freelance-copy-jobs-url-btn" class="setup-btn">📋 検索URLをコピー / Copy search URL</button>
+      <p class="setup-note">
+        以前セットアップ済みのGoogle検索APIキーがあれば、自動的にそれを使って検索結果を
+        ここに表示します(再入力は不要です)。未設定の場合は上のボタンで新しいタブから
+        ご自身で確認してください。<br />
+        If you have already set up a Google Search API key (locally or in the web version), it
+        will be reused automatically to show results below — no need to enter it again. If none
+        is configured, use the button above to check results in a new tab instead.
+      </p>
+      <div id="freelance-job-results" class="setup-note"></div>
       <p class="setup-note">
         検索結果ページで気になった案件があれば、URLやテキスト・画像を通常のブラウザ操作で
         コピーし、下の「案件メモ」欄に貼り付けてください。<br />
@@ -1133,15 +1439,80 @@ cd aruaru-db
         案件メモ(URL・テキストを自由に貼り付け) / Job notes (paste URLs/text freely)<br />
         <textarea id="freelance-job-notes" class="setup-input" rows="4" placeholder="例: https://example.com/job/123 - Rustバックエンド開発、週3日リモート..."></textarea>
       </label>
+      <fieldset class="setup-label">
+        <legend>進め方 / How to proceed</legend>
+        <label>
+          <input type="radio" name="freelance-develop-mode" id="freelance-develop-mode-lesson" value="lesson" checked />
+          プログラムレッスンを受けながら一緒に開発する / Develop together while taking programming lessons
+        </label>
+        <div id="freelance-develop-level-group" style="margin:6px 0 6px 24px;">
+          <label>
+            <input type="radio" name="freelance-develop-level" value="super-beginner" checked />
+            超初心者 / Super beginner
+          </label>
+          <label>
+            <input type="radio" name="freelance-develop-level" value="beginner" />
+            初心者 / Beginner
+          </label>
+          <label>
+            <input type="radio" name="freelance-develop-level" value="intermediate" />
+            中級者 / Intermediate
+          </label>
+          <label>
+            <input type="radio" name="freelance-develop-level" value="veteran" />
+            ベテラン / Veteran
+          </label>
+        </div>
+        <label>
+          <input type="radio" name="freelance-develop-mode" id="freelance-develop-mode-together" value="together" />
+          レッスンなしで一緒に開発する / Just develop together, no lessons
+        </label>
+      </fieldset>
 
-      <h3>4. サンプル案件から選ぶ / Or pick a sample listing</h3>
+      <label class="setup-label">
+        案件のテキスト・設計書・写真をUPLOAD(任意) / Upload job text, spec doc, or a photo (optional)<br />
+        <input type="file" id="freelance-upload-input" class="setup-input" accept=".txt,.md,.json,image/*,.dxf,.svg,.obj,.stl,.step,.stp,.iges,.igs,.dwg" multiple />
+      </label>
+      <div id="freelance-upload-status" class="setup-note"></div>
+      <p class="setup-note">
+        テキストファイルの内容は案件メモへ自動で追記されます。画像はブラウザ内OCR(Tesseract.js)で
+        文字起こしを試み、成功すれば認識テキストを案件メモへ追記します(誤読の可能性があります・
+        解像度や手書き文字によっては精度が低くなります)。OCRが使えない/失敗した場合は、その旨と
+        ファイル名のみを記録します(読めていないのに読めたふりはしません)。<br />
+        Text file contents are appended to the job notes automatically. Images are run through
+        in-browser OCR (Tesseract.js); if it succeeds, the recognized text is appended (it may contain
+        misreads — accuracy depends on resolution and handwriting). If OCR is unavailable or fails, we
+        record that fact plus just the filename (we don't pretend to have read something we couldn't).
+      </p>
+      <p class="setup-note">
+        CAD関連フォーマット(DXF・SVG・OBJ・STL(ASCIIのみ)・STEP・IGES)はテキスト形式であれば
+        中身(座標・図形データ)をそのまま案件メモへ添付し、AI先生がテキストとして解釈します——
+        ただし専用のCAD解析AIではなく、生のジオメトリデータをテキストとして渡すだけなので、
+        複雑な図面の意味理解までは保証しません。DWGや、バイナリ形式のSTEP/STLは仕様が非公開/
+        複雑なためこのブラウザ単体では読み取れず、正直にファイル名のみ記録します——
+        本格的な図面解析には、このエコシステムの姉妹プロジェクト
+        <a href="https://github.com/aon-co-jp/open-cg-cad" target="_blank" rel="noopener noreferrer">open-cg-cad</a>
+        (専用のCAD図面アップロード・合成・再設計機能)のご利用を推奨します。<br />
+        CAD-related formats (DXF, SVG, OBJ, STL (ASCII only), STEP, IGES) are attached as raw text
+        (coordinates/geometry data) to the job notes when they're text-based, and the AI teacher reads
+        them as text — but it's not a dedicated CAD-understanding AI, so don't expect it to fully grasp
+        complex drawings. DWG and binary STEP/STL can't be read by this browser alone (proprietary/complex
+        binary formats), so we honestly record just the filename — for serious CAD drawing analysis, we
+        recommend the sister project
+        <a href="https://github.com/aon-co-jp/open-cg-cad" target="_blank" rel="noopener noreferrer">open-cg-cad</a>
+        (dedicated CAD drawing upload/merge/redesign features).
+      </p>
+      <button type="button" id="freelance-start-btn" class="setup-btn">▶ START</button>
+      <div id="freelance-start-status" class="setup-note"></div>
+
+      <h3>5. サンプル案件から選ぶ / Or pick a sample listing</h3>
       <p class="setup-note">
         実際の案件が見つからない場合の練習用サンプルです(架空の案件、実在の求人ではありません)。<br />
         Practice samples for when you don't have a real listing handy (fictional, not real job posts).
       </p>
       <div id="freelance-sample-list"></div>
 
-      <h3>5. AI先生に相談する / Consult the AI teacher</h3>
+      <h3>6. AI先生に相談する / Consult the AI teacher</h3>
       <p class="setup-note">
         選んだ言語・フレームワーク・案件メモをAI先生への質問文に自動でまとめ、通常のチャットへ
         送信します(このコーナー独自のAIモデルではなく、既存のAI先生機能をそのまま使います)。<br />
@@ -1150,7 +1521,52 @@ cd aruaru-db
       </p>
       <button type="button" id="freelance-ask-teacher-btn" class="setup-btn">🎓 AI先生に相談 / Ask the AI teacher</button>
 
-      <h3>6. GitHubへの自動アップロード(2026-08-26新設) / Automatic upload to GitHub</h3>
+      <h3>進捗の保存先(複数選択可) / Progress save destinations (choose any number)</h3>
+      <p class="setup-note">
+        「AI先生に相談」を押すたびに、選んだ産業・言語・フレームワーク・WEBサーバー・DATABASE・
+        案件メモをここで有効にした送信先へ記録します(1つ選んでも、複数同時に選んでも構いません。
+        1つが失敗しても他の送信先は続行します)。<strong>今回のパスは設定の保存のみで、実際の
+        書き込み処理はまだ実装していません</strong>(次の実装ステップ)。<br />
+        Each time you click "Ask the AI teacher", your chosen industry/language/framework/web
+        server/database/job notes are recorded to whichever destinations you enable here (pick
+        one, or several at once — a failure in one doesn't stop the others). <strong>This pass only
+        saves the settings themselves; the actual write logic is not implemented yet</strong> (next
+        step).
+      </p>
+      <div id="freelance-savedest-summary" class="setup-note hidden">
+        <span id="freelance-savedest-summary-text"></span>
+        <button type="button" id="freelance-savedest-change-btn" class="setup-btn">✏️ 変更 / Change</button>
+      </div>
+      <div id="freelance-savedest-edit">
+        <label class="settings-field">
+          <input type="checkbox" id="freelance-savedest-aruaru-db" />
+          aruaru-db(GraphQL、APIキーは自動発行されるため入力不要 / API key is auto-issued, no input needed)
+        </label>
+        <label class="setup-label">
+          aruaru-dbのGraphQLエンドポイント / aruaru-db GraphQL endpoint<br />
+          <input type="text" id="freelance-savedest-aruaru-db-url" class="setup-input" placeholder="http://127.0.0.1:4001/graphql" />
+        </label>
+        <label class="settings-field">
+          <input type="checkbox" id="freelance-savedest-postgres" />
+          PostgreSQL(接続文字列はサーバー起動時の環境変数<code>OPEN_ENGLISH_DB_LOG_POSTGRES_URL</code>で設定、ブラウザには入力させません / connection string is set via the server's <code>OPEN_ENGLISH_DB_LOG_POSTGRES_URL</code> environment variable — never typed into the browser)
+        </label>
+        <label class="settings-field">
+          <input type="checkbox" id="freelance-savedest-vps" />
+          VPS(上部の「🔌自動読み書きSETUP状況」パネルのVPS設定をそのまま利用 / reuses the VPS setup from the "🔌 Auto read/write setup status" panel above)
+        </label>
+        <label class="settings-field">
+          <input type="checkbox" id="freelance-savedest-google-drive" />
+          Googleドライブ(認証情報はサーバー起動時の環境変数で設定 / credentials set via server environment variables)
+        </label>
+        <label class="settings-field">
+          <input type="checkbox" id="freelance-savedest-local-drive" />
+          ローカルドライブ(上部パネルで選択済みのフォルダへ保存 / saves into the folder already chosen in the panel above)
+        </label>
+        <button type="button" id="freelance-savedest-save-btn" class="setup-btn">💾 保存先の設定を保存 / Save destination settings</button>
+        <p id="freelance-savedest-status" class="setup-note"></p>
+      </div>
+
+      <h3 id="freelance-github-section-heading">7. GitHubへの自動アップロード(2026-08-26新設) / Automatic upload to GitHub</h3>
       <p class="setup-note">
         💡 <strong>GitHubは無料プランでも非公開(プライベート)リポジトリを作成できます</strong>
         (個人アカウントの無料プランで非公開リポジトリ数の制限なし、2026-08時点)。まずは無料の
@@ -1167,194 +1583,42 @@ cd aruaru-db
         across multiple repository accounts (so a failure on a single GitHub account or a single
         VPS doesn't leave you without a recovery path).
       </p>
-      <p class="setup-honest">
-        <strong>⚠️ 安全上の警告(必ずお読みください):</strong>
-        この機能はあなたのGitHub<strong>個人アクセストークン(PAT)</strong>を使い、ブラウザから
-        <strong>直接</strong>GitHubのAPI(<code>api.github.com</code>)を呼び出してリポジトリ作成・
-        ファイルアップロードを行います。トークンは<strong>このブラウザのlocalStorageにのみ</strong>
-        保存され、当アプリのサーバーへ送信されることはありませんが、以下のリスクは
-        <strong>あなた自身の判断と責任</strong>でご検討ください:
-        (1) <strong>Fine-grained personal access token</strong>を使い、対象リポジトリのみ・
-        「Contents: Read and write」等の<strong>最小権限</strong>・短い有効期限で発行すること、
-        (2) 共有端末・他人と共有するブラウザプロファイルでは使用しないこと、
-        (3) 使い終わったらGitHub側でトークンを失効(Revoke)すること、
-        (4) ブラウザの拡張機能やXSS等でlocalStorageが読まれるリスクはゼロではないこと。
-        <strong>これらを理解した上でのみ、次に進んでください。</strong><br /><br />
-        <strong>⚠️ Security warning (please read before proceeding):</strong> this feature uses your
-        GitHub <strong>Personal Access Token (PAT)</strong> to call the GitHub API
-        (<code>api.github.com</code>) <strong>directly from your browser</strong> to create a
-        repository and upload files. The token is stored <strong>only in this browser's
-        localStorage</strong> and is never sent to this app's own server, but please weigh the
-        following risks <strong>yourself</strong>: (1) use a <strong>fine-grained personal access
-        token</strong> scoped to only the target repository with <strong>minimal permissions</strong>
-        (e.g. "Contents: Read and write") and a short expiry, (2) do not use this on a shared
-        device or a browser profile shared with others, (3) revoke the token on GitHub once you are
-        done, (4) the risk of localStorage being read via a browser extension or XSS is not zero.
-        <strong>Only proceed once you understand and accept this.</strong>
-      </p>
-      <p class="setup-honest">
-        <strong>🔒 2026-08-27追記、トークンの受け渡し方法を3種類に拡張(ユーザー指示):</strong>
-        安全性の高い順に並べています。<strong>どれを選ぶかはご自身の判断</strong>です
-        (正直な比較、誇張しません)。<br /><br />
-        <strong>① ローカルファイルから読み込む(最も安全・推奨)</strong>:
-        トークンをテキストファイル(例: <code>github-token.txt</code>)に書いて
-        ご自身のPC上に保存しておき、使う都度そのファイルを選択します。
-        <strong>保存・記憶は一切行いません</strong>——このタブを閉じる、または
-        ページを再読み込みすると、メモリ上のトークンは消えます。localStorageより
-        安全な理由は、<strong>ブラウザを閉じた後にディスク上へ平文が残らない</strong>
-        ためです(拡張機能やマルウェアが後から漁れる保存領域が無くなります)。
-        欠点は毎回ファイル選択が必要な手間です。<br />
-        <strong>② パスフレーズで暗号化して保存(利便性と安全性の折衷)</strong>:
-        トークンをAES-GCM(ランダムな salt・iv を都度生成、PBKDF2でパスフレーズから
-        鍵を導出)で暗号化してからlocalStorageへ保存します。<strong>パスフレーズ
-        自体は保存しません</strong>(使う都度入力)。<strong>正直な限界</strong>:
-        このページが開かれ復号が行われている間(＝パスフレーズ入力後)は、XSS等で
-        乗っ取られた場合に平文トークンを読まれるリスクは①と同様に残ります——
-        暗号化が守るのは「ブラウザを閉じた後・パスフレーズ入力前」の保存領域です。
-        <strong>③ 平文で保存(非推奨、従来方式)</strong>: 従来どおりトークンを
-        平文のままlocalStorageへ保存します。最も手軽ですが、①②より安全性は
-        劣ります。<br /><br />
-        <strong>🔒 Added 2026-08-27, three ways to hand over the token (per user
-        request):</strong> listed from most to least secure. <strong>Which one you
-        use is your own call</strong> (an honest comparison, not oversold).<br /><br />
-        <strong>① Read from a local file (most secure, recommended)</strong>: write
-        the token into a text file (e.g. <code>github-token.txt</code>) on your own
-        machine, and pick that file each time you need it. <strong>Nothing is saved
-        or remembered</strong> — closing this tab or reloading the page clears the
-        token from memory. It's safer than localStorage because <strong>no plaintext
-        is left on disk once the browser is closed</strong> (nothing left for a
-        browser extension or malware to dig through later). The downside is having
-        to pick the file each time. <strong>② Encrypt with a passphrase before
-        saving (a convenience/security trade-off)</strong>: encrypts the token with
-        AES-GCM (a fresh random salt and IV each time, key derived from your
-        passphrase via PBKDF2) before storing it in localStorage. <strong>The
-        passphrase itself is never saved</strong> (you type it each time).
-        <strong>Honest limitation</strong>: while this page is open and the token
-        has been decrypted (i.e. after you've entered the passphrase), the same XSS
-        risk as option ① applies — encryption only protects storage at rest, after
-        the browser is closed and before the passphrase is entered again.
-        <strong>③ Save in plain text (not recommended, the old behavior)</strong>:
-        saves the token as plain text in localStorage as before. Most convenient,
-        but less secure than ① or ②.
-      </p>
-      <p class="setup-honest">
-        <strong>⚠️ 2026-08-27追記、移行前にお読みください:</strong> 2026-08-26〜27の間、
-        この機能には③平文保存しか選択肢がありませんでした。その間にGitHubトークンを
-        入力・保存されていた方は、<strong>念のためGitHub側でそのトークンを失効
-        (Settings → Developer settings → Personal access tokens → Revoke)し、
-        ①または②の方法で新しいトークンを発行し直すこと</strong>をおすすめします。
-        同様に、<strong>VPS/レンタルサーバーのSSH秘密鍵・公開鍵や、他サービスの
-        APIキー・IDについても、この安全な受け渡しの仕組みが導入される前にどこかへ
-        平文で入力・保存していたものがあれば、破棄(失効・再発行)することを
-        強く推奨します</strong>(このアプリ自体はSSH鍵の入力機能を持っていません
-        が、他の場面で平文保存していた場合の一般的な注意として)。<br /><br />
-        <strong>⚠️ Added 2026-08-27, please read before migrating:</strong> between
-        2026-08-26 and 2026-08-27, this feature only offered ③ plain-text storage. If
-        you entered and saved a GitHub token during that window, <strong>we recommend
-        revoking it on GitHub (Settings → Developer settings → Personal access tokens
-        → Revoke) as a precaution, and issuing a new one to use with option ① or ②</strong>.
-        Likewise, <strong>if you have any VPS/rental-server SSH private/public keys, or
-        other services' API keys/IDs, that were entered or saved in plain text
-        somewhere before this secure hand-over mechanism existed, we strongly
-        recommend discarding them (revoke and reissue)</strong> — this app itself has
-        no SSH key input feature, but this is general advice for anywhere else you may
-        have stored such secrets in plain text.
-      </p>
-      <label class="setup-label">
-        トークンの受け渡し方法 / How to hand over the token<br />
-        <select id="freelance-github-token-mode" class="setup-input">
-          <option value="file">① ローカルファイルから読み込む(推奨) / Read from a local file (recommended)</option>
-          <option value="encrypted">② パスフレーズで暗号化して保存 / Encrypt with a passphrase</option>
-          <option value="plain">③ 平文で保存(非推奨) / Save in plain text (not recommended)</option>
-          <option value="vault">④ クロスオリジンiframe保管庫(実験的) / Cross-origin iframe vault (experimental)</option>
-        </select>
-      </label>
-
-      <div id="freelance-github-token-vault-section" class="hidden">
+      <div id="freelance-github-token-server-section">
         <p class="setup-honest">
-          <strong>🧪 実験的機能(2026-08-27新設):</strong> トークンの復号・GitHub APIへの
-          実際の呼び出しを、<code>vault.html</code>という別ページをiframeとして埋め込み、
-          その中だけで行います。平文トークンはこの本体ページ(index.html)側のJSには
-          <strong>一切渡りません</strong>——本体が受け取るのはpush結果のURLだけです。
-          <strong>正直な制約</strong>: この効果を本当に得るには、<code>vault.html</code>を
-          本体とは<strong>別オリジン(別サブドメイン等)</strong>で配信する必要があります。
-          下の欄が空、または本体と同じオリジンのままだと、分離の効果はありません
-          (通常のiframeと同じ)。詳細は<code>vault.html</code>冒頭のコメント・
-          CLAUDE.mdの2026-08-27エントリ参照。<br /><br />
-          <strong>🧪 Experimental (added 2026-08-27):</strong> token decryption and the actual
-          call to the GitHub API happen inside an embedded <code>vault.html</code> page, run as
-          an iframe. The plain-text token <strong>never reaches this page's (index.html) own
-          JavaScript</strong> — it only receives the resulting URL. <strong>Honest
-          limitation</strong>: to get the real isolation benefit, <code>vault.html</code> must be
-          served from a <strong>different origin</strong> (a different subdomain, etc.) than this
-          page. If the field below is empty, or set to the same origin as this page, there is no
-          isolation benefit (it behaves like a normal iframe). See the comments at the top of
-          <code>vault.html</code> and the 2026-08-27 CLAUDE.md entry for details.
+          <strong>GitHubトークンはブラウザでは一切扱いません(2026-09-01、仕様変更):</strong>
+          トークンはこのサーバー(<code>open-english-server</code>)側でのみ保持され、
+          <strong>ブラウザには一度も送信されません</strong>。一番簡単な設定方法は——
+          サーバーの実行ファイルと同じフォルダに<code>secrets</code>フォルダを作り、その中に
+          <code>github-token.txt</code>という名前でトークンを1行だけ書いたテキストファイルを
+          置くだけです(環境変数の名前を覚える必要はありません)。上級者向けの設定方法(環境変数)
+          をお使いになりたい場合は、下の「詳細設定(上級者向け)」を開いてください。以前あった
+          ①ファイル選択・②暗号化・③平文保存・④vaultの4方式は、ブラウザに一切残さないという
+          方針を徹底するため廃止しました。<br />
+          <strong>GitHub tokens are never handled by the browser anymore (2026-09-01, design
+          change):</strong> the token is held only on the server (<code>open-english-server</code>)
+          side and <strong>never reaches the browser</strong>. The simplest way to set it up:
+          create a <code>secrets</code> folder next to the server's executable, and place a text
+          file named <code>github-token.txt</code> in it, containing just the token on one line —
+          no environment variable names to remember. If you'd rather use environment variables
+          (advanced), open "Advanced settings" below. The previous four browser-side modes
+          (① file picker, ② passphrase encryption, ③ plain text, ④ vault) have been removed to fully
+          commit to keeping tokens out of the browser.
         </p>
-        <label class="setup-label">
-          vault.htmlのURL(別オリジン推奨) / vault.html URL (a different origin is recommended)<br />
-          <input type="text" id="freelance-vault-url" class="setup-input" placeholder="https://vault.example.com/vault.html" />
-        </label>
-        <button type="button" id="freelance-vault-load-btn" class="setup-btn">🔌 vaultを読み込む / Load vault</button>
-        <p class="setup-note" id="freelance-vault-status"></p>
-        <iframe id="freelance-vault-iframe" class="hidden"
-          sandbox="allow-scripts allow-same-origin allow-forms"
-          style="width:100%;height:340px;border:1px solid #666;border-radius:8px;"></iframe>
-        <p class="setup-note">
-          <code>sandbox="allow-scripts allow-same-origin allow-forms"</code>のみ許可(最小権限):
-          vault.html自身のスクリプト実行・localStorage読み書き・フォーム入力に必要な分だけ。
-          ポップアップ・トップレベルナビゲーション・自動再生等は許可していません。<br />
-          Only <code>sandbox="allow-scripts allow-same-origin allow-forms"</code> is granted
-          (least privilege): just enough for vault.html's own script execution, localStorage
-          access, and form input. Popups, top-level navigation, autoplay, etc. are not allowed.
-        </p>
-        <p class="setup-honest">
-          <strong>⚠️ 正直な注記: <code>sandbox</code>属性だけでは分離になりません。</strong>
-          <code>allow-scripts</code>+<code>allow-same-origin</code>を同時に許可すると、もし
-          vault.htmlが本体(index.html)と<strong>同一オリジン</strong>で配信されている場合、
-          埋め込んだページのJSからこのiframe内へアクセスできてしまい(既知の仕様上の落とし穴)、
-          sandbox属性が実質的に無効化されます。<code>allow-same-origin</code>を外すと今度は
-          vault.html自身がlocalStorageを使えなくなり機能しません。<strong>結局のところ、真の
-          分離はvault.htmlを実際に別オリジンで配信することでしか得られません</strong>——
-          sandbox属性は補助的な多層防御であり、それ単体を主たる安全対策とみなさないでください。<br />
-          <strong>⚠️ Honest note: the <code>sandbox</code> attribute alone does not provide
-          isolation.</strong> Combining <code>allow-scripts</code> with
-          <code>allow-same-origin</code> is a well-known pitfall: if vault.html is served from the
-          <strong>same origin</strong> as the parent page, the embedding page's JS can reach into
-          this iframe, effectively neutralizing the sandbox. Removing
-          <code>allow-same-origin</code> would break the vault (it needs localStorage).
-          <strong>Real isolation only comes from actually serving vault.html from a different
-          origin</strong> — treat the sandbox attribute as defense-in-depth, not the primary
-          safeguard.
-        </p>
-      </div>
-
-      <div id="freelance-github-token-file-section">
-        <button type="button" id="freelance-github-token-file-btn" class="setup-btn">📂 トークンファイルを選択 / Select token file</button>
-        <p class="setup-note">選んだファイルは保存されません。このタブを開いている間だけメモリに保持されます。 / The selected file is never saved — it's kept in memory only while this tab stays open.</p>
-      </div>
-
-      <div id="freelance-github-token-encrypted-section" class="hidden">
-        <label class="setup-label">
-          パスフレーズ(保存されません、毎回入力) / Passphrase (never saved, enter each time)<br />
-          <input type="password" id="freelance-github-passphrase" class="setup-input" autocomplete="off" />
-        </label>
-        <label class="setup-label">
-          トークン(暗号化して保存する場合のみ入力) / Token (only needed when saving encrypted)<br />
-          <input type="password" id="freelance-github-token" class="setup-input" placeholder="github_pat_..." autocomplete="off" />
-        </label>
-        <button type="button" id="freelance-github-save-token-btn" class="setup-btn">🔐 暗号化して保存 / Encrypt &amp; save</button>
-        <button type="button" id="freelance-github-unlock-token-btn" class="setup-btn">🔓 パスフレーズで復号 / Decrypt with passphrase</button>
-        <button type="button" id="freelance-github-clear-token-btn" class="setup-btn">🗑 削除 / Clear</button>
-      </div>
-
-      <div id="freelance-github-token-plain-section" class="hidden">
-        <label class="setup-label">
-          GitHub Personal Access Token(平文でこのブラウザに保存) / GitHub PAT (saved in this browser, plain text)<br />
-          <input type="password" id="freelance-github-token-plain" class="setup-input" placeholder="github_pat_..." autocomplete="off" />
-        </label>
-        <button type="button" id="freelance-github-save-token-plain-btn" class="setup-btn">💾 トークンを保存 / Save token</button>
-        <button type="button" id="freelance-github-clear-token-plain-btn" class="setup-btn">🗑 トークンを削除 / Clear token</button>
+        <details>
+          <summary>詳細設定(上級者向け) / Advanced settings</summary>
+          <p class="setup-note">
+            環境変数 <code>OPEN_ENGLISH_GITHUB_TOKEN</code> にトークン文字列を直接設定するか、
+            環境変数 <code>OPEN_ENGLISH_GITHUB_TOKEN_FILE</code> に任意の場所のトークンファイルの
+            パスを設定することもできます(いずれも上の<code>secrets/github-token.txt</code>より
+            優先されます)。VPS連携も同様に、環境変数<code>OPEN_ENGLISH_VPS_SSH_KEY_PATH</code>で
+            サーバー上の秘密鍵ファイルのパスを指定する仕組みです。<br />
+            You can also set the <code>OPEN_ENGLISH_GITHUB_TOKEN</code> environment variable to the
+            token string directly, or <code>OPEN_ENGLISH_GITHUB_TOKEN_FILE</code> to a custom path
+            (either takes priority over <code>secrets/github-token.txt</code> above). The VPS
+            integration works the same way via the <code>OPEN_ENGLISH_VPS_SSH_KEY_PATH</code>
+            environment variable, pointing to a private key file's path on the server.
+          </p>
+        </details>
       </div>
       <p class="setup-note" id="freelance-github-token-status"></p>
       <label class="setup-label">
@@ -1380,21 +1644,26 @@ cd aruaru-db
       <button type="button" id="freelance-github-push-btn" class="setup-btn">⬆ GitHubへリポジトリ作成+push / Create repo &amp; push to GitHub</button>
       <p class="setup-note" id="freelance-github-push-status"></p>
 
-      <h3>7. 次のステップ(現時点の案内のみ) / Next steps (guidance only for now)</h3>
+      <h3>8. 次のステップ(現時点の案内のみ) / Next steps (guidance only for now)</h3>
       <p class="setup-honest">
-        VPSレンタルサーバーの比較・申込みページへの案内、GitLab/Bitbucket等への同様の連携は、
-        今回のGitHub連携と同じ設計(ブラウザから直接そのサービスのAPIを呼ぶ)で次回以降に
-        追加できます(未実装)。<strong>VPSの自動読み書き(SSH等)は、ブラウザがSSH等の生ソケットを
-        直接開けないという技術的制約上、ブラウザから直接呼ぶ方式では実現できません</strong>——
-        実現するにはサーバー側でSSH認証情報を扱う仕組みが必要で、その安全設計は未着手です。
-        VPSの契約・申込み自体もご自身の操作が必要です(決済・契約を伴うため自動化していません)。<br />
-        Comparing/signing up for a VPS, and similar integrations with GitLab/Bitbucket, can be added
-        later using the same design as this GitHub integration (calling that service's API directly
-        from the browser) — not implemented yet. <strong>Automatic VPS read/write (e.g. via SSH)
-        cannot be done the same way, because browsers cannot open raw SSH sockets</strong> — that
-        would require a server-side component handling SSH credentials, whose security design has
-        not been done yet. Signing up for a VPS itself also requires your own manual steps (it
-        involves payment and a contract, so it is not automated here).
+        <strong>VPSへの自動読み書きは実装済みです</strong>(ページ上部の「🔌自動読み書きSETUP状況」
+        パネル参照)。ブラウザは生のSSHソケットを直接開けないため、GitHub連携(ブラウザから直接
+        APIを呼ぶ方式)とは異なる設計を採用しています——<code>open-english-server</code>自身が
+        SSH/SFTPクライアントとして動き、ブラウザはそのサーバーへHTTPで指示するだけです。
+        秘密鍵・接続先はサーバー起動時の環境変数で設定します(詳細は上部パネルの「詳細」ボタン
+        参照)。GitLab/Bitbucket等への同様の連携は、今回のGitHub連携と同じ設計(ブラウザから直接
+        そのサービスのAPIを呼ぶ)で次回以降に追加できます(未実装)。VPSレンタルサーバーの
+        比較・申込み自体はご自身の操作が必要です(決済・契約を伴うため自動化していません)。<br />
+        <strong>Automatic VPS read/write is implemented</strong> (see the "🔌 Auto read/write setup
+        status" panel above). Since browsers cannot open a raw SSH socket, it uses a different
+        design than the GitHub integration (which calls that service's API directly from the
+        browser) — the <code>open-english-server</code> process itself acts as the SSH/SFTP client,
+        and the browser just tells it what to do over HTTP. The private key and target host are
+        configured via environment variables when the server starts (see the "Details" button in
+        the panel above). Similar integrations with GitLab/Bitbucket can be added later using the
+        same design as the GitHub integration (calling that service's API directly from the
+        browser) — not implemented yet. Signing up for a VPS itself still requires your own manual
+        steps (it involves payment and a contract, so it is not automated here).
       </p>
     </div>
   </div>
@@ -2330,7 +2599,7 @@ cd aruaru-db
 
     <div class="chat-panel">
       <button type="button" id="disclosure-toggle-btn" class="setup-btn disclosure-toggle-btn">
-        ✕ Hide disclosure / 開示を閉じる
+        ✕ CLOSE
       </button>
       <div class="disclosure" id="disclosure-box">
         <strong>Honest disclosure:</strong> AI responses are generated by a base
@@ -2365,6 +2634,20 @@ cd aruaru-db
       </div>
 
       <div id="log" class="log" aria-live="polite"></div>
+
+      <button type="button" id="media-search-btn" class="setup-btn">
+        🖼️🎬 話題の画像・動画で調べる / Search images &amp; video for this topic
+      </button>
+      <p class="setup-note">
+        Google画像検索(Googleのセーフサーチ有効)とYouTube限定の動画検索を使います。以前設定した
+        Google検索APIキーを自動で使用します(未設定の場合はSETUPを案内します)。安全のため、
+        確認済みドメイン一覧に無いリンクは自動では開けないようにしています(URLコピーのみ)。<br />
+        Uses Google Image Search (with Google's SafeSearch on) and a YouTube-only video search. Reuses
+        your previously configured Google Search API key automatically (if not set up, you'll be
+        guided to set it up). For safety, links to domains outside our verified-safe list won't
+        auto-open (copy the URL instead).
+      </p>
+      <div id="media-search-results"></div>
 
       <form id="chat-form" class="chat-form">
         <input id="chat-input" type="text" placeholder="Type in English or Japanese... / 英語または日本語で入力" autocomplete="off" required />
