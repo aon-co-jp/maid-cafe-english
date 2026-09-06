@@ -385,12 +385,311 @@ function makeCollapsiblePanel(boxId, btnId, storageKeySuffix, closedLabel, openL
   btn.addEventListener("click", () => setCollapsed(!box.classList.contains("hidden")));
 }
 
-makeCollapsiblePanel("disclosure-box", "disclosure-toggle-btn", "disclosure", "✕ Hide disclosure / 開示を閉じる", "ℹ OPEN / 開示を開く");
+makeCollapsiblePanel("disclosure-box", "disclosure-toggle-btn", "disclosure", "✕ CLOSE", "＋ OPEN");
 makeCollapsiblePanel("phone-accel-banner", "phone-accel-banner-toggle", "phoneAccelBanner", "✕ CLOSE", "＋ OPEN");
 makeCollapsiblePanel("world-language-banner", "world-language-banner-toggle", "worldLanguageBanner", "✕ CLOSE", "＋ OPEN");
 makeCollapsiblePanel("topbar", "topbar-toggle", "topbar", "✕ CLOSE", "＋ OPEN");
 makeCollapsiblePanel("maintenance-banner-detail", "maintenance-banner-toggle", "maintenanceBannerDetail", "✕ CLOSE", "＋ OPEN");
 makeCollapsiblePanel("download-recommend-banner", "download-recommend-banner-toggle", "downloadRecommendBanner", "✕ CLOSE", "＋ OPEN");
+// 2026-09-01追記(ユーザー指示): 「これはデモです、インストーラー版を
+// ダウンロードしてください」という案内は、本番(/open-english/)ではなく
+// デモ環境(/open-english/demo)でのみ表示する。本番/デモは同じ静的
+// ファイル・同じバイナリを共有し実行時のURLでしか区別できないため、
+// open-easy-web等で確立済みの「location.pathnameに/demoを含むかで
+// 出し分ける」パターンをそのまま踏襲する。
+if (!location.pathname.includes("/demo")) {
+  document.getElementById("download-recommend-banner")?.classList.add("hidden");
+  document.getElementById("download-recommend-banner-toggle")?.classList.add("hidden");
+}
+makeCollapsiblePanel("autorw-status-banner", "autorw-status-banner-toggle", "autorwStatusBanner", "✕ CLOSE", "＋ OPEN");
+
+// GitHub/ローカルドライブ/VPSの自動読み書きSETUP状況パネル(2026-09-01新設)。
+// GitHubは既存のフリーランス開発コーナーのトークン設定を判定に流用する
+// (専用の資格情報入力欄は増やさない)。ローカルドライブはFile System
+// Access API(Chromium系のみ)で実際にディレクトリ選択+読み書き往復
+// テストまで行い、成功して初めて「SETUP済み」と表示する(見せかけの
+// 完了表示にしない)。VPSは技術的制約により未実装のまま正直に開示する。
+const AUTORW_DB_NAME = "open-english-autorw";
+const AUTORW_DB_STORE = "handles";
+const AUTORW_LOCAL_DRIVE_KEY = "localDriveDirHandle";
+
+function autorwOpenDb() {
+  return new Promise((resolve, reject) => {
+    const req = indexedDB.open(AUTORW_DB_NAME, 1);
+    req.onupgradeneeded = () => {
+      req.result.createObjectStore(AUTORW_DB_STORE);
+    };
+    req.onsuccess = () => resolve(req.result);
+    req.onerror = () => reject(req.error);
+  });
+}
+
+async function autorwIdbGet(key) {
+  const db = await autorwOpenDb();
+  return new Promise((resolve, reject) => {
+    const tx = db.transaction(AUTORW_DB_STORE, "readonly");
+    const req = tx.objectStore(AUTORW_DB_STORE).get(key);
+    req.onsuccess = () => resolve(req.result);
+    req.onerror = () => reject(req.error);
+  });
+}
+
+async function autorwIdbSet(key, value) {
+  const db = await autorwOpenDb();
+  return new Promise((resolve, reject) => {
+    const tx = db.transaction(AUTORW_DB_STORE, "readwrite");
+    tx.objectStore(AUTORW_DB_STORE).put(value, key);
+    tx.oncomplete = () => resolve();
+    tx.onerror = () => reject(tx.error);
+  });
+}
+
+// GitHubトークンの受け渡し方法(file/encrypted/plain/vault)いずれかで
+// 実際に使える状態かを判定する(freelanceRefreshGithubTokenStatusと
+// 同じ4分岐のロジックを、真偽値だけを返す形に切り出したもの)。
+function autorwIsGithubConfigured() {
+  const mode = "server"; // 2026-09-01: GitHubトークンはサーバー側管理モードのみに一本化
+  if (mode === "file") return !!freelanceGithubFileToken;
+  if (mode === "encrypted") return !!freelanceGithubUnlockedToken;
+  if (mode === "vault") return !!freelanceVaultOrigin;
+  if (mode === "server") return null; // 真偽値では即答できない(サーバーへ問い合わせが必要)、呼び出し側で分岐する
+  try {
+    return !!window.localStorage.getItem(FREELANCE_GITHUB_TOKEN_LOCAL_KEY);
+  } catch {
+    return false;
+  }
+}
+
+async function autorwRefreshGithubStatus() {
+  const el = document.getElementById("autorw-github-status");
+  if (!el) return;
+  const mode = "server"; // 2026-09-01: GitHubトークンはサーバー側管理モードのみに一本化
+  if (mode === "server") {
+    // ⑤サーバー側管理モード(2026-09-01新設): このモードはブラウザ側の
+    // 状態(変数・localStorage)を一切持たないため、他モードのような
+    // 同期判定ができない——VPSのSETUP状況表示と同じくサーバーへ
+    // 実際に問い合わせて判定する。
+    el.textContent = "確認中... / Checking...";
+    try {
+      const res = await fetch("/v1/agent/github/status", { cache: "no-store" });
+      const data = await res.json();
+      el.textContent = data.configured
+        ? "✅ SETUP済み(サーバー側環境変数) / Already set up (server-side environment variable)"
+        : "未SETUP(サーバー側環境変数) / Not set up (server-side environment variable)";
+    } catch (err) {
+      el.textContent = `確認に失敗しました / Check failed: ${err.message || err}`;
+    }
+    return;
+  }
+  el.textContent = autorwIsGithubConfigured()
+    ? "✅ SETUP済み / Already set up"
+    : "未SETUP / Not set up";
+}
+
+// GitHubトークンを実際にGitHub APIへ問い合わせて疎通確認する
+// (2026-09-01新設、ユーザー報告バグ「トークンファイルをローカルに
+// 置いた後のボタンが無い」への対応)。ローカルドライブ・VPSの
+// 「実際に読み書きしてみるテスト」と同じ設計方針——見せかけの
+// 「SETUP済み」表示にせず、本物のAPI呼び出しで確認する。
+document.getElementById("autorw-github-test-btn")?.addEventListener("click", async () => {
+  const el = document.getElementById("autorw-github-status");
+  if (!el) return;
+  const mode = "server"; // 2026-09-01: GitHubトークンはサーバー側管理モードのみに一本化
+  if (mode === "server") {
+    // ⑤サーバー側管理モードはトークンがブラウザに一切無いため、ブラウザ
+    // から直接GitHub APIへ疎通確認することができない(そもそもトークン
+    // を知らない)——サーバー側の設定状況を問い合わせるだけに留める。
+    await autorwRefreshGithubStatus();
+    return;
+  }
+  const token = typeof freelanceLoadGithubToken === "function" ? freelanceLoadGithubToken() : "";
+  if (!token) {
+    el.textContent = "未SETUP(トークンが読み込まれていません) / Not set up (no token loaded)";
+    return;
+  }
+  el.textContent = "テスト中... / Testing...";
+  try {
+    const res = await fetch("https://api.github.com/user", {
+      headers: { Authorization: `Bearer ${token}`, Accept: "application/vnd.github+json" },
+    });
+    const data = await res.json();
+    if (res.ok && data.login) {
+      el.textContent = `✅ SETUP済み・実際にGitHub APIへ接続できました(ユーザー: ${data.login}) / Already set up — connected to the GitHub API for real (user: ${data.login})`;
+    } else {
+      el.textContent = `疎通テストに失敗しました / Connection test failed: ${data.message || res.status}`;
+    }
+  } catch (err) {
+    el.textContent = `疎通テストに失敗しました / Connection test failed: ${err.message || err}`;
+  }
+});
+
+async function autorwRefreshLocalDriveStatus() {
+  const el = document.getElementById("autorw-localdrive-status");
+  if (!el) return;
+  if (!("showDirectoryPicker" in window)) {
+    el.textContent = "このブラウザは未対応(Chromium系ブラウザが必要) / Not supported in this browser (needs a Chromium-based browser)";
+    return;
+  }
+  try {
+    const handle = await autorwIdbGet(AUTORW_LOCAL_DRIVE_KEY);
+    if (!handle) {
+      el.textContent = "未SETUP / Not set up";
+      return;
+    }
+    const perm = await handle.queryPermission({ mode: "readwrite" });
+    el.textContent = perm === "granted"
+      ? `✅ SETUP済み(フォルダ: ${handle.name}) / Already set up (folder: ${handle.name})`
+      : "許可が失効しました。再度SETUPしてください。 / Permission was revoked — please set up again.";
+  } catch {
+    el.textContent = "未SETUP / Not set up";
+  }
+}
+
+async function autorwSetupLocalDrive() {
+  const el = document.getElementById("autorw-localdrive-status");
+  if (!("showDirectoryPicker" in window)) {
+    alert("このブラウザはFile System Access APIに対応していません(Chrome/Edge等をお使いください)。 / This browser doesn't support the File System Access API (try Chrome/Edge).");
+    return;
+  }
+  try {
+    const handle = await window.showDirectoryPicker({ mode: "readwrite" });
+    const perm = await handle.requestPermission({ mode: "readwrite" });
+    if (perm !== "granted") {
+      if (el) el.textContent = "許可が得られませんでした。 / Permission was not granted.";
+      return;
+    }
+    // 見せかけの完了表示にしないため、実際に書き込み→読み込みの往復
+    // テストを行ってから初めて「SETUP済み」とする。
+    const testFileName = "open-english-autorw-test.txt";
+    const testContent = `open-english auto read/write test — ${new Date().toISOString()}`;
+    const fileHandle = await handle.getFileHandle(testFileName, { create: true });
+    const writable = await fileHandle.createWritable();
+    await writable.write(testContent);
+    await writable.close();
+    const file = await fileHandle.getFile();
+    const readBack = await file.text();
+    if (readBack !== testContent) {
+      if (el) el.textContent = "読み書きテストに失敗しました(内容不一致)。 / Read/write test failed (content mismatch).";
+      return;
+    }
+    await autorwIdbSet(AUTORW_LOCAL_DRIVE_KEY, handle);
+    if (el) el.textContent = `✅ SETUP済み(フォルダ: ${handle.name}、読み書きテスト成功) / Already set up (folder: ${handle.name}, read/write test passed)`;
+  } catch (err) {
+    if (err && err.name === "AbortError") return; // ユーザーがフォルダ選択をキャンセルした場合は何もしない
+    if (el) el.textContent = `SETUPに失敗しました / Setup failed: ${err.message || err}`;
+  }
+}
+
+document.getElementById("autorw-github-setup-btn")?.addEventListener("click", () => {
+  // 2026-09-01修正(ユーザー報告バグ): このボタンはフリーランス開発
+  // コーナー全体(産業・カテゴリ・言語・フレームワーク等の無関係な
+  // フォームも含む大きなモーダル)の先頭を開くだけで、GitHub設定欄
+  // (セクション7、モーダルの下の方)まで自動スクロールしなかったため、
+  // 「SETUPボタンを押してもSETUPと関係ない画面が出る」ように見えていた。
+  // モーダルを開いた直後にGitHub設定の見出しへ実際にスクロールする。
+  freelanceCornerBtn?.click();
+  setTimeout(() => {
+    // 実機検証で発見: この見出しまでの距離が大きい(モーダル内の長い
+    // フォームの下の方)ため、behavior:"smooth"だとブラウザによっては
+    // アニメーション開始前に他の処理へ割り込まれ、スクロールが実際には
+    // 発生しないことがあった。確実性を優先しinstant(既定)スクロールにする。
+    document.getElementById("freelance-github-section-heading")?.scrollIntoView({ behavior: "instant", block: "start" });
+  }, 50);
+});
+document.getElementById("autorw-localdrive-setup-btn")?.addEventListener("click", () => {
+  autorwSetupLocalDrive();
+});
+document.getElementById("autorw-vps-setup-btn")?.addEventListener("click", () => {
+  document.getElementById("autorw-vps-detail")?.classList.toggle("hidden");
+});
+
+// 2026-09-01追記(ユーザー報告バグ「VPSはSETUPを押した後にSETUPする
+// 機能が存在しない」への対応): VPSの認証情報はセキュリティ上の理由で
+// ブラウザから設定できない(サーバー起動時の環境変数のみ、既存の設計
+// 方針)ため、「詳細」ボタンは説明文の開閉に留まっていた。それだけだと
+// 押しても何も「実行」できないように感じられるため、実際に手元で
+// 使える具体的なアクション(環境変数のテンプレートをクリップボードへ
+// コピー)を追加した——VPS自体を操作するわけではないが、少なくとも
+// クリックした結果として実際に何かが起きる、実用的なボタンにした。
+document.getElementById("autorw-vps-copy-env-btn")?.addEventListener("click", async () => {
+  const template = [
+    "OPEN_ENGLISH_VPS_HOST=your-vps.example.com",
+    "OPEN_ENGLISH_VPS_USER=deploy",
+    "OPEN_ENGLISH_VPS_SSH_KEY_PATH=/path/to/id_ed25519",
+    "OPEN_ENGLISH_VPS_ALLOWED_PATHS=/home/deploy/app",
+  ].join("\n");
+  const btn = document.getElementById("autorw-vps-copy-env-btn");
+  try {
+    await navigator.clipboard.writeText(template);
+    if (btn) {
+      const original = btn.textContent;
+      btn.textContent = "✅ コピーしました / Copied";
+      setTimeout(() => { btn.textContent = original; }, 2500);
+    }
+  } catch (err) {
+    alert(`コピーに失敗しました / Copy failed: ${err.message || err}\n\n${template}`);
+  }
+});
+
+// VPS自動読み書き(2026-09-01新設): サーバー側`open-english-server`が
+// russh(SSH/SFTPクライアント)としてVPSへ接続する実装(`vps_agent.rs`)は
+// 既に存在していたが、ブラウザ側UIから一度も呼ばれていなかった。ここで
+// 状態表示(SETUP済み/未SETUP、`GET /v1/agent/vps/status`)と、実際に
+// 1件読み込んでみる疎通テスト(`GET /v1/agent/vps/read`)を配線する。
+// 秘密鍵・接続先はサーバー起動時の環境変数のみで設定され、ブラウザ側
+// からは一切送信できない設計のため、ここに新しい入力欄は追加しない。
+async function autorwRefreshVpsStatus() {
+  const el = document.getElementById("autorw-vps-status");
+  if (!el) return;
+  try {
+    const res = await fetch("/v1/agent/vps/status", { cache: "no-store" });
+    const data = await res.json();
+    el.textContent = data.configured
+      ? `✅ SETUP済み(host: ${data.host}, user: ${data.user}) / Already set up (host: ${data.host}, user: ${data.user})`
+      : "未SETUP(サーバー起動時の環境変数で設定してください) / Not set up (configure via server environment variables)";
+  } catch (err) {
+    el.textContent = `確認に失敗しました / Check failed: ${err.message || err}`;
+  }
+}
+
+document.getElementById("autorw-vps-test-btn")?.addEventListener("click", async () => {
+  const el = document.getElementById("autorw-vps-status");
+  if (!el) return;
+  try {
+    const statusRes = await fetch("/v1/agent/vps/status", { cache: "no-store" });
+    const status = await statusRes.json();
+    if (!status.configured || !status.allowed_paths || status.allowed_paths.length === 0) {
+      el.textContent = "未SETUP、または許可パスが1件も無いためテストできません / Not set up, or no allowed paths to test with";
+      return;
+    }
+    // 許可パスがファイルかディレクトリか事前にはわからないため、
+    // ディレクトリ配下にテスト専用ファイルを書き込んでから読み戻す
+    // 往復テストにする(ローカルドライブのFile System Access APIテストと
+    // 同じ「見せかけの完了表示にしない」設計)。
+    const testPath = `${status.allowed_paths[0].replace(/\/$/, "")}/open-english-vps-test.txt`;
+    const testContent = `open-english VPS auto read/write test — ${new Date().toISOString()}\n`;
+    el.textContent = `テスト中(${testPath})... / Testing (${testPath})...`;
+    const writeRes = await fetch("/v1/agent/vps/write", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ path: testPath, content: testContent }),
+    });
+    const writeData = await writeRes.json();
+    if (!writeRes.ok || !writeData.ok) {
+      el.textContent = `書き込みテストに失敗しました / Write test failed: ${writeData.error || writeRes.status}`;
+      return;
+    }
+    const readRes = await fetch(`/v1/agent/vps/read?path=${encodeURIComponent(testPath)}`);
+    const readData = await readRes.json();
+    if (readRes.ok && readData.ok && readData.content === testContent) {
+      el.textContent = `✅ SETUP済み・実際に書き込み→読み込みの往復テストに成功しました(${testPath}) / Already set up — real write→read round trip succeeded (${testPath})`;
+    } else {
+      el.textContent = `読み込みテストに失敗しました(内容不一致) / Read test failed (content mismatch)`;
+    }
+  } catch (err) {
+    el.textContent = `テストに失敗しました / Test failed: ${err.message || err}`;
+  }
+});
 
 // ログインゲート(2026-08-26新設、ユーザー指示「家族や会社で共有する
 // 場合もあるので、ログインセキュリティシステムを導入しますか?」への
@@ -841,6 +1140,24 @@ const ageGroupEl = document.getElementById("age-group");
 const businessEnglishEl = document.getElementById("business-english-toggle");
 const replyLangEl = document.getElementById("reply-lang");
 const webSearchToggleEl = document.getElementById("web-search-toggle");
+// 2026-09-01追加(ユーザー指示「前回チェックをつけていれば、覚えている
+// ように」への対応): 送信のたびに自動でOFFへ戻す既存の仕様(2026-08-27、
+// 「本当に必要な1回だけキーを渡す」という設計、下の`askTrainer`内の
+// 処理を参照)はそのまま維持しつつ、**利用者が最後に手動でON/OFFを
+// 切り替えた状態**をlocalStorageへ別途記録し、次回ページを開いた時の
+// 初期状態として復元する。送信時の自動OFF処理自体はこのlocalStorageを
+// 更新しない(利用者の「好み」と「今の送信1回限りの状態」を分けるため)。
+const WEB_SEARCH_PREF_KEY = "open-english.webSearchPreferredOn";
+if (webSearchToggleEl) {
+  try {
+    webSearchToggleEl.checked = localStorage.getItem(WEB_SEARCH_PREF_KEY) === "1";
+  } catch { /* ignore */ }
+  webSearchToggleEl.addEventListener("change", () => {
+    try {
+      localStorage.setItem(WEB_SEARCH_PREF_KEY, webSearchToggleEl.checked ? "1" : "0");
+    } catch { /* ignore */ }
+  });
+}
 const micBtn = document.getElementById("mic-btn");
 const voiceOutEl = document.getElementById("voice-out");
 
@@ -903,8 +1220,21 @@ function playToraSanJingle() {
 // 別の(未検証の)Amazon URLを生成した場合にもリンク化してしまうため、
 // 意図的に個別URL単位のホワイトリストにしている。他の紹介リンクを
 // クリック可能にしたい場合はこのパターンへ追加すればよい。
+// **2026-09-06追記**: `https://www.youtube.com/results?search_query=...`
+// (YouTube「検索結果ページ」のURL形式)も許可対象に追加した
+// (`backPainExerciseSuffix`等、腰痛改善体操などの話題でYouTube検索結果
+// リンクをクリック可能にするため)。このURLは常にこちら側の
+// `encodeURIComponent`で組み立てた固定・既知の検索ワードのみを含み、
+// 外部由来の任意テキストがURLに紛れ込むことはないため、ドメイン単位で
+// 許可しても安全と判断した。
+// **2026-09-06追記(その2)**: 作者(株式会社エーオン代表取締役社長・
+// 石塚正浩)のホームページ/WEBサイトを尋ねられた際に紹介する自社
+// ドメイン4件(`aon.co.jp`/`aon.tokyo`/`nasa.tokyo`/`aruaru.tokyo`)を
+// 追加(`audiocafe.tokyo`は既に許可済み)。いずれも自社が管理する
+// 固定のドメインであり、AI生成テキストが任意に生成しうる文字列
+// ではないため安全と判断した(`creatorWebsiteLinksText`参照)。
 const AUDIOCAFE_LINK_PATTERN =
-  /https:\/\/audiocafe\.tokyo(?:\/[^\s)]*)?|https:\/\/www\.amazon\.co\.jp\/dp\/B0H14VXGCC\/?|https:\/\/ameblo\.jp\/www-aon\/entry-12977122655\.html/g;
+  /https:\/\/audiocafe\.tokyo(?:\/[^\s)]*)?|https:\/\/aon\.co\.jp(?:\/[^\s)]*)?|https:\/\/aon\.tokyo(?:\/[^\s)]*)?|https:\/\/nasa\.tokyo(?:\/[^\s)]*)?|https:\/\/aruaru\.tokyo(?:\/[^\s)]*)?|https:\/\/www\.amazon\.co\.jp\/dp\/B0H14VXGCC\/?|https:\/\/ameblo\.jp\/www-aon\/entry-12977122655\.html|https:\/\/www\.youtube\.com\/results\?search_query=[^\s)]*/g;
 
 /** テキストを、既知ドメインのURLだけ`<a>`化した上で`container`へ描画する。 */
 function renderMessageBody(container, text) {
@@ -1507,8 +1837,10 @@ async function advanceTrainingMode(userText) {
   reply += govConsultingSuffix(userText);
   reply += fairTradeSuffix(userText);
   reply += await newsSuffix(userText);
-  reply += troubledSuffix(userText);
+  reply += await troubledSuffix(userText);
   reply += nuclearDeterrenceSuffix(userText);
+  reply += backPainExerciseSuffix(userText);
+  reply += backPainDietSuffix(userText);
   reply += audioUsbDacJourneySuffix(userText);
   reply += audioHeadphoneManiaSuffix(userText);
   reply += egovSuffix(userText);
@@ -1692,8 +2024,10 @@ async function askTrainer(userText) {
       reply += govConsultingSuffix(userText);
       reply += fairTradeSuffix(userText);
       reply += await newsSuffix(userText);
-      reply += troubledSuffix(userText);
+      reply += await troubledSuffix(userText);
       reply += nuclearDeterrenceSuffix(userText);
+  reply += backPainExerciseSuffix(userText);
+  reply += backPainDietSuffix(userText);
       reply += egovSuffix(userText);
       return reply;
     }
@@ -1858,8 +2192,10 @@ async function askTrainer(userText) {
   reply += govConsultingSuffix(userText);
   reply += fairTradeSuffix(userText);
   reply += await newsSuffix(userText);
-  reply += troubledSuffix(userText);
+  reply += await troubledSuffix(userText);
   reply += nuclearDeterrenceSuffix(userText);
+  reply += backPainExerciseSuffix(userText);
+  reply += backPainDietSuffix(userText);
   reply += audioUsbDacJourneySuffix(userText);
   reply += audioHeadphoneManiaSuffix(userText);
   reply += egovSuffix(userText);
@@ -2341,20 +2677,230 @@ function troubledEncouragementText() {
     "この問題についての問題点はここが明白で明確で、私はこの様に思うの" +
     "ですが、皆様、解決策をご提案下さい。もしくは、ご意見をお述べ" +
     "下さい。大胆かつ繊細が成功しやすく、小心者はおどおどして失敗" +
-    "しやすいものです。";
+    "しやすいものです。これは、株式会社エーオン代表取締役社長　石塚正浩　" +
+    "に最高の質問のあり方への御提案で御座います。" +
+    "\n\nまだ問題が解決していない様でしたら、成功者への道のりとして、" +
+    "大胆かつ繊細な気持ちを持って、問題点を一緒に明確に明白にして、" +
+    "もう一度、質問なさってみてください。" +
+    "\n\n売れる商品は、より便利に、よりお買い得感があり、より効率的や、" +
+    "より美しくや、良い所どりのハイブリッドやトライブリッドや第三の道で" +
+    "あったり、より良い音質やより大胆かつ繊細だったりします。売れるなら" +
+    "売れるなりの理由が、売れないなら売れないなりの理由が必ず御座います。";
   const en =
     "Let's try thinking hypothetically — \"suppose that...\" — and ask a " +
     "constructive question. The core issue here seems clear, and here is " +
     "what I think: everyone, please suggest a solution, or share your " +
     "thoughts. Being bold yet " +
     "careful tends to lead to success, while being overly timid tends to " +
-    "lead to failure.";
+    "lead to failure. This is a proposal on the best way to ask questions, " +
+    "offered by Masahiro Ishizuka, President and CEO of Aon Co., Ltd." +
+    "\n\nIf the problem still hasn't been resolved, as part of the path to " +
+    "success, please hold onto a bold yet delicate spirit, work together " +
+    "once more to make the problem clear and plain, and try asking your " +
+    "question again." +
+    "\n\nA product that sells well is usually more convenient, feels like " +
+    "better value for money, is more efficient, more beautiful, or takes " +
+    "the best of a hybrid/tribrid \"third way\" approach, or offers better " +
+    "sound quality, or is bolder yet more delicate. If something sells, " +
+    "there is always a reason it sells; if it doesn't sell, there is " +
+    "always a reason for that too.";
   return `\n\n💡 ${en}\n\n${ja}`;
 }
 
-function troubledSuffix(userText) {
+// 相談・悩み事の内容についてインターネット(Google/YouTube検索)から
+// ヒントを探す機能(ユーザー指示、2026-09-06「Google検索やGithub調査や
+// AIなどネットを使い効率よくアドバイスを得られる機能」「Googleや
+// YouTubeが親切に相談に乗っていくつか質問してくれるAI機能」への対応)。
+//
+// **設計方針(既存の"666"・宗教史・クイズ回答と同じ誠実さの方針)**:
+// GPT-2系(aruaru-llm)に確認質問そのものを自由生成させると、事実で
+// ない・的外れな質問を作ってしまうリスクが高いため、確認質問自体は
+// 相談内容によらず常に有効な定型の4問(日英併記、Google/YouTubeの
+// カスタマーサポートが親身に聞くような相談スタイル)を固定文として
+// 用意する。一方、実際の検索(「解決策」「アドバイス」)は本物の
+// Google検索(訪問者自身のAPIキー設定時)またはAPIキー不要のGoogle/
+// YouTube検索結果ページへの直リンクを必ず提示し、リンク先で実際の
+// 情報を確認してもらう——固定文とインターネット検索を組み合わせる
+// ことで、生成AIの不確かさを検索の実データで補う設計。
+function troubledAdviceSearchQuery(userText) {
+  const trimmed = (userText || "").trim().slice(0, 80);
+  return `${trimmed} 解決策 アドバイス advice how to solve`;
+}
+
+async function troubledAdviceLinks(userText) {
+  const query = troubledAdviceSearchQuery(userText);
+  const googleUrl = `https://www.google.com/search?q=${encodeURIComponent(query)}`;
+  const youtubeUrl = `https://www.youtube.com/results?search_query=${encodeURIComponent(query)}`;
+  let text = "\n\n🔎 Let's look for advice together / 一緒にアドバイスを探しましょう";
+  text += `\n・Google search / Google検索: ${googleUrl}`;
+  text += `\n・YouTube search / YouTube検索: ${youtubeUrl}`;
+
+  // 訪問者自身のGoogle検索APIキーが設定済みなら、実際の検索結果
+  // タイトルも併記する(既存の`loadOwnGoogleSearchCredentials`/
+  // `googleSearchDirect`/`googleSearchRequestVault`をそのまま再利用、
+  // 新しい鍵管理の仕組みは追加しない)。未設定なら上記のリンクのみ
+  // (APIキー不要で誰でも使える)。
+  try {
+    const mode = document.getElementById("google-search-key-mode")?.value || "plain";
+    if (mode === "vault") {
+      const results = await googleSearchRequestVault(query, 3);
+      if (results && results.length) {
+        text += "\n\nTop results / 上位の検索結果:";
+        results.slice(0, 3).forEach((r) => { text += `\n・${r.title}`; });
+      }
+    } else {
+      const creds = loadOwnGoogleSearchCredentials();
+      if (creds && creds.apiKey && creds.cx) {
+        const results = await googleSearchDirect(query, creds.apiKey, creds.cx, 3);
+        if (results && results.length) {
+          text += "\n\nTop results / 上位の検索結果:";
+          results.slice(0, 3).forEach((r) => { text += `\n・${r.title}`; });
+        }
+      }
+    }
+  } catch (err) {
+    // 検索APIキー未設定・失敗時は上記のリンクのみで十分機能するため、
+    // ここでは黙って握りつぶす(既存の`tourSearchText`と同じ方針)。
+  }
+  return text;
+}
+
+// 「売れる商品・売れない商品」の話題検出(ユーザー指示、2026-09-06
+// 「売れる商品や売れない商品の質問は、上記に加えて、無料のマーケティング
+// ツールをGoogle検索したりして」への対応)。悩み相談の中でも「なぜ
+// 売れる/売れないのか」という商品・マーケティングの話題に限り、
+// 無料マーケティングツールの検索リンクを追加で提示する。
+const PRODUCT_SALES_KEYWORDS_JA = ["売れる商品", "売れない商品", "売れる理由", "売れない理由", "マーケティング", "売上"];
+const PRODUCT_SALES_KEYWORDS_EN = ["sells well", "doesn't sell", "does not sell", "why it sells", "marketing", "best-selling", "best selling"];
+
+function isProductSalesQuestion(userText) {
+  const lower = (userText || "").toLowerCase();
+  return PRODUCT_SALES_KEYWORDS_JA.some((k) => userText.includes(k)) ||
+    PRODUCT_SALES_KEYWORDS_EN.some((k) => lower.includes(k));
+}
+
+// 「売れる商品・売れない商品」相談へのマーケティングツール案内を拡張
+// (ユーザー指示、2026-09-06「Amazonで星4以上の本を紹介」「YouTube/
+// Facebook広告」「CRM/BIツール/名刺管理ソフト/SATORI」「開拓営業代行」
+// 「開拓＋自動収集メール1円」への対応)。
+//
+// **正直な設計判断(著作権への配慮)**: ユーザーが貼り付けたGoogle AI
+// による概要の全文は、他者(Google)が生成した長文コンテンツであり、
+// そのまま複製・再配布はしない(著作権配慮の既存方針、消費税提案等の
+// 「開発者個人の一意見」明記と同じ誠実さの精神)。要点を自分の言葉で
+// 短く要約し、出典として検索ワード自体を案内するに留める。
+//
+// **正直な開示(価格・星評価)**: SATORIの価格(2026-09-06時点、初期
+// 費用30万円・月額14.8万円)はユーザー提供情報をそのまま記載するが、
+// 価格は変動するため最新情報は公式サイトで確認するよう案内する。
+// Amazonの「星4以上」の絞り込みはAmazon検索結果ページ上の評価
+// フィルターで利用者自身が操作する必要があり、URLパラメータだけで
+// 自動的に星4以上のみを表示することはできない(Amazon側の仕様上の
+// 制約、既存の「安全リンクドメイン許可リスト」等と同じ誠実さの
+// 方針で、できないことをできると偽らない)——検索キーワードのURLを
+// 提示し、星評価での絞り込みは利用者自身に操作してもらう案内文を
+// 添える。
+function freeMarketingToolsLinks() {
+  const freeQuery = "無料 マーケティングツール free marketing tools";
+  const freeUrl = `https://www.google.com/search?q=${encodeURIComponent(freeQuery)}`;
+  const amazonQuery = "売れるマーケティング";
+  const amazonUrl = `https://www.amazon.co.jp/s?k=${encodeURIComponent(amazonQuery)}`;
+  const salesAgentQuery = "開拓営業代行";
+  const salesAgentUrl = `https://www.google.com/search?q=${encodeURIComponent(salesAgentQuery)}`;
+  const emailQuery = "開拓 & 自動収集 e-mail 1円";
+  const emailUrl = `https://www.google.com/search?q=${encodeURIComponent(emailQuery)}`;
+
+  let text = "\n\n📈 Marketing tools & tips / マーケティングツール・売上アップのヒント";
+  text += `\n・Free marketing tools (Google) / 無料マーケティングツール(Google検索): ${freeUrl}`;
+  text += `\n・Amazon books on "売れるマーケティング" / Amazonで「売れるマーケティング」関連書籍: ${amazonUrl}` +
+    "\n  (Please filter by ★4 and up on the Amazon page itself — a URL alone can't " +
+    "auto-filter by star rating. / 星4以上の絞り込みはAmazonのページ上でご自身で" +
+    "操作してください。URLだけでは自動的に星4以上のみに絞り込めません。)";
+  text += "\n・YouTube ads & Facebook ads are well known for being able to create and run " +
+    "ads cheaply. / YouTube広告やFacebook広告は、安く作成・出稿できるツールとして" +
+    "有名です。";
+  text += "\n・Other categories worth researching / 他に調べる価値のあるカテゴリ: " +
+    "email newsletter auto-delivery / メールマガジン自動配信, CRM (customer " +
+    "relationship management) / CRM顧客管理システム, BI tools / BIツール, " +
+    "web customer tools / WEB顧客ツール, business card management software / " +
+    "名刺管理ソフト.";
+  text += "\n・SATORI (a well-known Japanese marketing tool, somewhat pricier) — as of " +
+    "2026-09-06: about ¥300,000 setup + about ¥148,000/month (prices change, please " +
+    "confirm current pricing on the official site). / SATORI(日本で有名な" +
+    "マーケティングツール、少し高め)——2026年09月06日時点で初期費用約30万円・" +
+    "月額約14.8万円(価格は変動するため公式サイトで最新情報をご確認ください)。";
+  text += `\n・Cheaper way to grow sales — try searching "開拓営業代行" (sales outreach ` +
+    `agency) on Google; there are affordable agencies for new-customer outreach. / ` +
+    `安く売上を伸ばす方法として、Google検索で「開拓営業代行」を検索してみてください。` +
+    `格安で新規開拓営業を代行してくれる業者があります: ${salesAgentUrl}`;
+  text += `\n・For bulk email prospecting, try searching "開拓 ＆ 自動収集 e-mail 1円" ` +
+    "on Google / メール開拓・自動収集について「開拓 ＆ 自動収集 e-mail 1円」で" +
+    `検索してみてください: ${emailUrl}` +
+    "\n  Summary / 要約: at high sending volumes (roughly 10,000+ emails/month), " +
+    "services such as Amazon SES or SendGrid can bring the cost down to well under " +
+    "¥1 per email; marketing-automation tools (e.g. BowNow, HubSpot) can help collect " +
+    "and manage leads. / 送信量が多い場合(目安として月1万通以上)、Amazon SESや" +
+    "SendGrid等を使うと1通あたり1円を大きく下回るコストで運用できることがあり、" +
+    "MA(マーケティングオートメーション)ツール(BowNow・HubSpot等)がリストの収集・" +
+    "管理に役立ちます。" +
+    "\n  ⚠ Important / 重要: in Japan, unsolicited commercial email is regulated by " +
+    "the Act on Regulation of Transmission of Specified Electronic Mail — you must " +
+    "include a clear opt-out (unsubscribe) link and your sender's name/company/" +
+    "address/contact details, or it can be illegal. / 日本国内では、同意のない" +
+    "営業メール送信は「特定電子メール法」の規制対象です。配信停止(オプトアウト)" +
+    "リンクの明記、送信者(会社名・住所・連絡先)の明記が無いと違法になり得ます。";
+  return text;
+}
+
+// 商品の売れる/売れない相談時にAIから追加で尋ねる確認質問(ユーザーが
+// 貼り付けたGoogle AI概要の末尾にあった3つの質問と同趣旨、日英併記の
+// 定型文で実装——固定文にする理由はtroubledClarifyingQuestionsText()と
+// 同じ)。
+function productSalesClarifyingQuestionsText() {
+  const ja =
+    "\n\n🤝 マーケティングについてもう少し伺えますか？" +
+    "\n1. どのような業種・職種のお客様を開拓したいですか？(例: 飲食店のオーナー、IT企業の総務など)" +
+    "\n2. 月におおよそ何件くらいアプローチ・配信したいですか？(例: 数千件、数万件など)" +
+    "\n3. ご自身、または社内にIT・プログラミングの知識がある方はいますか？";
+  const en =
+    "\n\n🤝 A few more questions about your marketing:" +
+    "\n1. What industry or job role are you trying to reach? (e.g. restaurant owners, " +
+    "IT company admin staff)" +
+    "\n2. Roughly how many outreach emails per month would you like to send? (e.g. a " +
+    "few thousand, tens of thousands)" +
+    "\n3. Do you (or anyone on your team) have IT/programming knowledge?";
+  return `${en}${ja}`;
+}
+
+function troubledClarifyingQuestionsText() {
+  const ja =
+    "\n\n🤝 もう少し詳しく聞かせて頂けますか？(Google・YouTubeの" +
+    "サポート窓口の様に、いくつか確認させてください)" +
+    "\n1. 一番の障害・ネックになっている点は何ですか？" +
+    "\n2. いつまでに解決したいとお考えですか？" +
+    "\n3. すでに試したことがあれば教えて頂けますか？" +
+    "\n4. 理想的にはどのような状態になれば解決と言えますか？";
+  const en =
+    "\n\n🤝 Could you tell us a bit more? (Like a Google/YouTube support " +
+    "desk, let's check a few things)" +
+    "\n1. What is the biggest obstacle or sticking point?" +
+    "\n2. By when would you like this resolved?" +
+    "\n3. Have you already tried anything?" +
+    "\n4. What would an ideal resolution look like to you?";
+  return `${en}${ja}`;
+}
+
+async function troubledSuffix(userText) {
   if (!soundsTroubledOrFrustrated(userText)) return "";
-  return troubledEncouragementText();
+  let text = troubledEncouragementText();
+  text += await troubledAdviceLinks(userText);
+  if (isProductSalesQuestion(userText)) {
+    text += freeMarketingToolsLinks();
+    text += productSalesClarifyingQuestionsText();
+  } else {
+    text += troubledClarifyingQuestionsText();
+  }
+  return text;
 }
 
 // 核抑止・同盟関係についての議論トピック例(ユーザー指示、2026-08-20)。
@@ -2408,6 +2954,79 @@ function nuclearDeterrenceOpinionText() {
 function nuclearDeterrenceSuffix(userText) {
   if (!mentionsNuclearDeterrenceTopic(userText)) return "";
   return nuclearDeterrenceOpinionText();
+}
+
+// 腰痛改善体操の話題検出(ユーザー指示、2026-09-06「open-englishの質問で
+// 腰痛改善体操関連は、YouTubeで腰痛改善体操をYoutubeで検索結果を見せて
+// あげてクリック出来るようにして」への対応)。`troubledAdviceLinks`と
+// 同じ「APIキー不要のYouTube検索結果ページへの直リンク」方式——
+// 特定の動画を「これが正解」として紹介するのではなく、検索結果ページを
+// 開いて利用者自身に選んでもらう(既存の`vschoolYoutubeUrl`等と同じ
+// 誠実さの方針)。検索ワードは常に固定の「腰痛改善体操」とする
+// (ユーザー指示通り、発話内容に応じて動的に変えない)。
+const BACK_PAIN_EXERCISE_KEYWORDS_JA = ["腰痛改善体操", "腰痛体操", "腰痛改善", "腰痛"];
+const BACK_PAIN_EXERCISE_KEYWORDS_EN = [
+  "back pain exercise", "back pain stretch", "lower back pain exercise",
+  "lower back pain stretch", "exercise for back pain",
+];
+
+function mentionsBackPainExerciseTopic(userText) {
+  const lower = (userText || "").toLowerCase();
+  return (
+    BACK_PAIN_EXERCISE_KEYWORDS_JA.some((k) => userText.includes(k)) ||
+    BACK_PAIN_EXERCISE_KEYWORDS_EN.some((k) => lower.includes(k))
+  );
+}
+
+function backPainExerciseYoutubeUrl() {
+  return "https://www.youtube.com/results?search_query=" + encodeURIComponent("腰痛改善体操");
+}
+
+function backPainExerciseSuffix(userText) {
+  if (!mentionsBackPainExerciseTopic(userText)) return "";
+  const url = backPainExerciseYoutubeUrl();
+  return (
+    "\n\n🧘 Here are YouTube search results for \"腰痛改善体操\" (back pain " +
+    "improvement exercises) / 「腰痛改善体操」のYouTube検索結果です。動画の " +
+    "内容の正しさは保証しませんので、ご自身の体調に合わせて無理のない範囲で " +
+    "お試しください。心配な場合は医師にご相談ください。" +
+    `\n${url}`
+  );
+}
+
+// 腰痛・ダイエット・体操(足フリ運動)の話題検出(ユーザー指示、2026-09-06
+// 「腰痛 ダイエット 体操 などの質問があったら、腰痛改善体操 ダイエット
+// 足フリ のYoutube検索ワードでの検索結果を見せてあげてクリックも可能で」
+// への対応)。`backPainExerciseSuffix`と同じ「APIキー不要のYouTube検索
+// 結果ページへの直リンク」方式だが、こちらは検索ワードを「腰痛改善体操
+// ダイエット 足フリ」という固定の複合ワードにする(ユーザー指示通り、
+// 発話内容に応じて動的に変えない)。
+const BACK_PAIN_DIET_KEYWORDS_JA = ["腰痛", "ダイエット", "体操", "足フリ"];
+const BACK_PAIN_DIET_KEYWORDS_EN = ["diet", "exercise", "workout", "leg shake", "leg swing"];
+
+function mentionsBackPainDietTopic(userText) {
+  const lower = (userText || "").toLowerCase();
+  return (
+    BACK_PAIN_DIET_KEYWORDS_JA.some((k) => userText.includes(k)) ||
+    BACK_PAIN_DIET_KEYWORDS_EN.some((k) => lower.includes(k))
+  );
+}
+
+function backPainDietYoutubeUrl() {
+  return "https://www.youtube.com/results?search_query=" + encodeURIComponent("腰痛改善体操 ダイエット 足フリ");
+}
+
+function backPainDietSuffix(userText) {
+  if (!mentionsBackPainDietTopic(userText)) return "";
+  const url = backPainDietYoutubeUrl();
+  return (
+    "\n\n🦵 Here are YouTube search results for \"腰痛改善体操 ダイエット " +
+    "足フリ\" (back pain improvement exercise + diet + leg-shake exercise) " +
+    "/ 「腰痛改善体操 ダイエット 足フリ」のYouTube検索結果です。動画の " +
+    "内容の正しさは保証しませんので、ご自身の体調に合わせて無理のない範囲で " +
+    "お試しください。心配な場合は医師にご相談ください。" +
+    `\n${url}`
+  );
 }
 
 // AUDIO(オーディオ趣味)の会話ネタ(ユーザー提供、2026-08-29追加)。
@@ -3034,6 +3653,59 @@ function creatorIntroductionText() {
     "大きなシアタールーム付きの大きな家を建てて、U-NEXTの映画や" +
     "ライブ・コンサートを家族で一緒に視聴したいです。";
   return `👤 ${en}\n\n${ja}`;
+}
+
+// 作者(株式会社エーオン代表取締役社長・石塚正浩)のホームページ/WEBサイト
+// を尋ねる質問かどうかを判定する(2026-09-06新設、ユーザー指示)。
+// `isCreatorQuestion`と同じ「作者への言及」に加えて、ホームページ/
+// WEBサイトという単語(または会社名・代表取締役社長という肩書き)を
+// 尋ねている場合にのみ発火する——単に「誰が作ったか」だけの質問
+// (`isCreatorQuestion`)とは区別し、こちらはサイト一覧を追加提示する。
+const CREATOR_NAME_JA = ["石塚正浩", "石塚 正浩", "いしづかまさひろ", "いしづか まさひろ"];
+const CREATOR_NAME_EN = ["masahiro ishizuka", "ishizuka"];
+const CREATOR_COMPANY_JA = ["株式会社エーオン", "エーオン", "代表取締役社長"];
+const CREATOR_COMPANY_EN = ["aon co", "aon corporation", "aon inc"];
+const CREATOR_SITE_WORD_JA = ["ホームページ", "ホーム・ページ", "WEBサイト", "ウェブサイト", "公式サイト", "公式ホームページ", "サイト"];
+const CREATOR_SITE_WORD_EN = ["homepage", "home page", "website", "web site", "official site", "official website"];
+
+function mentionsCreatorReference(userText) {
+  const lower = userText.toLowerCase();
+  return (
+    isCreatorQuestion(userText) ||
+    CREATOR_NAME_JA.some((k) => userText.includes(k)) ||
+    CREATOR_NAME_EN.some((k) => lower.includes(k)) ||
+    CREATOR_COMPANY_JA.some((k) => userText.includes(k)) ||
+    CREATOR_COMPANY_EN.some((k) => lower.includes(k))
+  );
+}
+
+function isCreatorWebsiteQuestion(userText) {
+  const lower = userText.toLowerCase();
+  const siteWord =
+    CREATOR_SITE_WORD_JA.some((k) => userText.includes(k)) ||
+    CREATOR_SITE_WORD_EN.some((k) => lower.includes(k));
+  return siteWord && mentionsCreatorReference(userText);
+}
+
+// 紹介するサイト一覧(ユーザー提供、固定)。実際のドメインをクリック
+// 可能にするには`AUDIOCAFE_LINK_PATTERN`のホワイトリストにも追加が必要
+// (追加済み、上記参照)。
+const CREATOR_WEBSITE_URLS = [
+  "https://aon.co.jp",
+  "https://aon.tokyo",
+  "https://audiocafe.tokyo",
+  "https://nasa.tokyo",
+  "https://aruaru.tokyo",
+];
+
+function creatorWebsiteLinksText() {
+  const listText = CREATOR_WEBSITE_URLS.map((u) => `・${u}`).join("\n");
+  const en =
+    "[Websites related to the creator (Masahiro Ishizuka, President & " +
+    "Representative Director of aon Co., Ltd.)]\n" + listText;
+  const ja =
+    "【作者(株式会社エーオン 代表取締役社長 石塚正浩)関連のWEBサイト】\n" + listText;
+  return `🌐 ${en}\n\n${ja}`;
 }
 
 // 「風天のとらさん(トラさん)の職業・仕事は何か」という趣旨の質問
@@ -3948,6 +4620,16 @@ formEl.addEventListener("submit", async (e) => {
     return;
   }
 
+  // 作者(株式会社エーオン代表取締役社長・石塚正浩)のホームページ/WEB
+  // サイトを尋ねる質問には、クリック可能な自社サイト一覧を返す
+  // (ユーザー指示、2026-09-06新設)。`isCreatorQuestion`より先に判定
+  // することで、「誰が作ったのか+そのサイトも教えて」のような複合的な
+  // 質問でもサイト一覧が優先して案内される。
+  if (isCreatorWebsiteQuestion(text)) {
+    appendMessage("trainer", creatorWebsiteLinksText());
+    return;
+  }
+
   // 「誰が作ったのか」という質問には、AI推論を経ずに固定の自己紹介を
   // 即座に返す(LLMは作者について何も知らないため、推論に任せると
   // 事実でない答えを作ってしまう)。日次利用回数は消費しない。
@@ -4442,6 +5124,76 @@ function trimSilenceVad(pcm, sampleRate) {
   }
 }
 
+// ── ブラウザ内OCR(Tesseract.js)──────────────────────────────────
+// フリーランス開発コーナーで写真の設計書をUPLOADした際に、文字起こし
+// して案件メモへ反映する(2026-09-01新設、ユーザー指示「写真の設計書を
+// OCR+AIで解析して読み取れる様にして」への対応)。Whisperと同じ設計
+// (同一オリジンの/vendor/配下、未配置なら静かに無効化してフォールバック)。
+// Tesseract.jsはUMDビルド(ESMのdynamic importでは`export`が無く使えない)
+// のため、<script>タグの動的挿入で読み込みグローバル`Tesseract`を使う。
+const TESSERACT_VENDOR_URL = WHISPER_APP_BASE + "vendor/tesseract/tesseract.min.js";
+const TESSERACT_WORKER_URL = WHISPER_APP_BASE + "vendor/tesseract/worker.min.js";
+const TESSERACT_CORE_URL = WHISPER_APP_BASE + "vendor/tesseract/tesseract-core-simd.wasm.js";
+const TESSERACT_LANG_PATH = WHISPER_APP_BASE + "vendor/tesseract/";
+const tesseractState = { loadPromise: null, disabled: false, workerPromise: null };
+
+function loadTesseractModule() {
+  if (tesseractState.disabled) return Promise.resolve(null);
+  if (tesseractState.loadPromise) return tesseractState.loadPromise;
+  tesseractState.loadPromise = (async () => {
+    if (window.Tesseract) return window.Tesseract;
+    try {
+      await new Promise((resolve, reject) => {
+        const script = document.createElement("script");
+        script.src = TESSERACT_VENDOR_URL;
+        script.onload = resolve;
+        script.onerror = () => reject(new Error("failed to load tesseract.min.js"));
+        document.head.appendChild(script);
+      });
+      if (!window.Tesseract) throw new Error("Tesseract global not found after load");
+      return window.Tesseract;
+    } catch (e) {
+      tesseractState.disabled = true;
+      return null;
+    }
+  })();
+  return tesseractState.loadPromise;
+}
+
+/**
+ * 学びたい言語からTesseractの言語コードへの対応表(現状は英語・日本語の
+ * 2言語のみ vendor 済み——他言語が必要になった場合はfetch-tesseractへ
+ * traineddataを追加すること)。未対応言語は既定で英語のみを試す。
+ */
+function tesseractLangFor(learnTarget) {
+  if (learnTarget === "japanese") return "jpn+eng";
+  return "eng";
+}
+
+/**
+ * 画像ファイルをOCRし、認識したテキストを返す。vendorファイル未配置・
+ * 実行失敗の場合は null を返す(呼び出し側はファイル名のみの既存の
+ * 正直なフォールバック表示に戻る、回帰なし)。
+ */
+async function ocrImageFile(file) {
+  const Tesseract = await loadTesseractModule();
+  if (!Tesseract) return null;
+  try {
+    const learnTarget = document.getElementById("learn-target")?.value || "english";
+    const lang = tesseractLangFor(learnTarget);
+    const result = await Tesseract.recognize(file, lang, {
+      workerPath: TESSERACT_WORKER_URL,
+      corePath: TESSERACT_CORE_URL,
+      langPath: TESSERACT_LANG_PATH,
+      gzip: true,
+    });
+    const text = (result?.data?.text || "").trim();
+    return text || null;
+  } catch (e) {
+    return null;
+  }
+}
+
 // ── Silero VAD(ONNX)本命の第二段 ──────────────────────────────────
 // `onnx-community/silero-vad`(v5、~2.2MB)を、既に vendor 済みの ORT
 // (transformers.js の `env.backends.onnx`)経由で走らせる。512 サンプル
@@ -4909,6 +5661,78 @@ setupRecheck.addEventListener("click", async () => {
   await checkHealth();
   updateSetupAlreadyConnectedBanner();
 });
+
+// Model Foldingの「ここから実行」ボタン(2026-09-02、ユーザー指示
+// 「open-englishのUI(該当ページのソースを探して特定すること)に
+// 実際に呼び出すボタンを追加」への対応)。従来この開示文にはAPI仕様の
+// 説明のみがあり、実際にボタンを押して`POST /v1/models/fold-layers`を
+// 呼び出す導線が無かった(`aruaru-llm/CLAUDE.md`2026-09-01 HANDOFF
+// 参照)。既存の`apiBaseEl.value.trim()`パターン(aruaru-llmサーバー
+// URL欄)をそのまま再利用し、新しい接続先入力は増やさない。
+const foldLayersBtn = document.getElementById("fold-layers-btn");
+const foldLayersNumEl = document.getElementById("fold-layers-num");
+const foldLayersAdapterEl = document.getElementById("fold-layers-adapter");
+const foldLayersRidgeEl = document.getElementById("fold-layers-ridge");
+const foldLayersStatusEl = document.getElementById("fold-layers-status");
+if (foldLayersBtn) {
+  foldLayersBtn.addEventListener("click", async () => {
+    const base = apiBaseEl.value.trim();
+    if (!base) {
+      foldLayersStatusEl.textContent = "⚠ Set the aruaru-llm server URL first. / 先にaruaru-llmサーバーURLを設定してください。";
+      return;
+    }
+    const body = {};
+    const numRaw = foldLayersNumEl.value.trim();
+    if (numRaw !== "") {
+      const n = parseInt(numRaw, 10);
+      if (!Number.isFinite(n) || n < 1) {
+        foldLayersStatusEl.textContent = "⚠ \"Layers to remove\" must be a positive integer. / 「除去する層数」は1以上の整数にしてください。";
+        return;
+      }
+      body.num_layers_to_remove = n;
+    }
+    const useAdapter = !!(foldLayersAdapterEl && foldLayersAdapterEl.checked);
+    if (useAdapter) body.use_linear_adapter = true;
+    const ridgeRaw = foldLayersRidgeEl.value.trim();
+    if (ridgeRaw !== "") {
+      const r = parseFloat(ridgeRaw);
+      if (!Number.isFinite(r) || r <= 0) {
+        foldLayersStatusEl.textContent = "⚠ ridge_lambda must be a finite positive number. / ridge_lambdaは有限の正の数にしてください。";
+        return;
+      }
+      body.ridge_lambda = r;
+    }
+    foldLayersBtn.disabled = true;
+    foldLayersStatusEl.textContent = "…running fold-layers / fold-layers実行中…";
+    try {
+      const res = await fetchWithTimeout(
+        `${base}/v1/models/fold-layers`,
+        { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(body) },
+        60000
+      );
+      const data = await res.json().catch(() => null);
+      if (!res.ok || !data) {
+        const msg = (data && data.error) ? data.error : `HTTP ${res.status}`;
+        foldLayersStatusEl.textContent = `❌ fold-layers failed / 失敗: ${msg}`;
+        return;
+      }
+      const removed = Array.isArray(data.removed_layer_indices) ? data.removed_layer_indices.join(", ") : "?";
+      foldLayersStatusEl.textContent =
+        `✅ ${data.original_layer_count} → ${data.pruned_layer_count} layers (removed: [${removed}]) / ` +
+        `${data.original_layer_count} → ${data.pruned_layer_count} 層(除去: [${removed}])\n` +
+        `Before / 折りたたみ前: ${data.completion_before_fold}\n` +
+        `After / 折りたたみ後: ${data.completion_after_fold}` +
+        (data.quality_hint ? `\nQuality hint / 品質見込み: ${data.quality_hint}` : "") +
+        (data.attention_compute_skipped
+          ? `\nThe inserted adapter layer skips the whole attention sub-layer at inference, so that block's attention compute is actually eliminated. / 挿入したアダプタ層は推論時にAttentionを丸ごとスキップするため、その分の計算コストが実際に削減されます。`
+          : "");
+    } catch (err) {
+      foldLayersStatusEl.textContent = `❌ Request failed / リクエスト失敗: ${err && err.message ? err.message : err}`;
+    } finally {
+      foldLayersBtn.disabled = false;
+    }
+  });
+}
 
 // aruaru-db & PostgreSQLセットアップ案内(ユーザー指示「open-easy-web
 // とPostgreSQLとaruaru-dbをSETUPして頂きますと、将来大量の情報をより
@@ -5457,6 +6281,220 @@ async function googleSearchDirect(query, apiKey, cx, maxResults) {
   }));
 }
 
+// 画像検索(Google Custom Search JSON API、searchType=image)。
+// 2026-09-01新設(ユーザー指示「質問や相談への回答で写真も表示できる
+// 機能を」「Google画像検索結果から選択可能に」への対応)。
+// **安全設計(ユーザー指示「高額請求サイト等へ画面遷移しない
+// セキュリティ機能」への対応、最重要)**: Googleの`safe=active`
+// (Googleが管理するアダルトコンテンツ除外フィルタ)を必ず付与する。
+// 画像そのものは`<img src>`で埋め込むだけ(クリックしてもどこにも
+// 遷移しない)。画像の掲載元ページへのリンクは`isSafeLinkDomain()`で
+// 許可リストに載っているドメインのみ実際のリンクとして描画し、
+// それ以外は正直に「開けません」と表示してURLをコピーする手段のみ
+// 提供する(ブロックリスト方式ではなく許可リスト方式——無数にある
+// 詐欺・アダルトサイトを網羅的に列挙するのは不可能なため、確認できる
+// 範囲のみ許可する設計のほうが安全)。
+async function googleImageSearchDirect(query, apiKey, cx, maxResults) {
+  const url = `https://www.googleapis.com/customsearch/v1?key=${encodeURIComponent(apiKey)}&cx=${encodeURIComponent(cx)}&q=${encodeURIComponent(query)}&searchType=image&safe=active&num=${Math.min(Math.max(maxResults || 6, 1), 10)}`;
+  const res = await fetch(url);
+  if (!res.ok) {
+    let detail = "";
+    try {
+      const body = await res.json();
+      detail = body?.error?.message ? ` — ${body.error.message}` : "";
+    } catch { /* ignore */ }
+    throw new Error(`Google Custom Search API (image) returned HTTP ${res.status}${detail}`);
+  }
+  const data = await res.json();
+  const items = Array.isArray(data.items) ? data.items : [];
+  return items.map((item) => ({
+    title: item.title || "",
+    imageUrl: item.link || "",
+    thumbnailUrl: item.image?.thumbnailLink || item.link || "",
+    contextLink: item.image?.contextLink || "",
+  }));
+}
+
+// YouTube限定の動画検索。汎用のGoogle検索ではランダムなサイトが
+// 「動画」を騙って混ざり得るため、`site:youtube.com`で絞り込んだ上で
+// さらにクライアント側でも実際にyoutube.com/youtu.beドメインの結果
+// だけへ二重にフィルタする(許可リスト方式、ユーザー指示の安全機能)。
+async function googleYoutubeSearchDirect(query, apiKey, cx, maxResults) {
+  const results = await googleSearchDirect(`${query} site:youtube.com`, apiKey, cx, maxResults || 6);
+  return results
+    .map((r) => ({ ...r, videoId: extractYoutubeVideoId(r.link) }))
+    .filter((r) => !!r.videoId);
+}
+
+/** youtube.com/watch?v=... または youtu.be/... からvideo IDだけを取り出す。 */
+function extractYoutubeVideoId(url) {
+  try {
+    const u = new URL(url);
+    const host = u.hostname.replace(/^www\./, "");
+    if (host === "youtube.com" || host === "m.youtube.com") {
+      if (u.pathname === "/watch") return u.searchParams.get("v");
+      const embedMatch = u.pathname.match(/^\/embed\/([\w-]{6,})/);
+      if (embedMatch) return embedMatch[1];
+    }
+    if (host === "youtu.be") {
+      return u.pathname.replace(/^\//, "") || null;
+    }
+  } catch { /* ignore */ }
+  return null;
+}
+
+// 外部リンクを実際にクリック可能なリンクとして描画してよいドメインの
+// 許可リスト(2026-09-01新設)。**ブロックリストではなく許可リスト**
+// である理由: アダルトサイト・ワンクリック請求詐欺サイト等は無数に
+// 存在し形を変え続けるため、それらを網羅的に列挙して弾く方式(ブロック
+// リスト)は原理的に穴を塞ぎきれない。逆に「確認済みの著名なドメイン
+// だけを許可する」方式なら、未知の危険サイトも構造的に弾かれる。
+const SAFE_EXTERNAL_LINK_DOMAINS = [
+  "wikipedia.org", "youtube.com", "youtu.be", "vimeo.com", "google.com",
+  "github.com", "github.io", "developer.mozilla.org", "w3.org",
+  "nhk.or.jp", "asahi.com", "yomiuri.co.jp", "mainichi.jp", "nikkei.com",
+  "bbc.com", "bbc.co.uk", "cnn.com", "reuters.com", "apnews.com",
+  "nasa.gov", "go.jp", "gov", "ac.jp", "edu",
+];
+
+/** ドメインが上記許可リストに含まれるか(サブドメイン含む)を判定する。 */
+function isSafeLinkDomain(url) {
+  try {
+    const host = new URL(url).hostname.toLowerCase();
+    return SAFE_EXTERNAL_LINK_DOMAINS.some((safe) => host === safe || host.endsWith(`.${safe}`));
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * 検索結果のリンクを安全に描画する<a>要素、または(許可リスト外の
+ * 場合)URLをコピーするだけのボタンを返す。**自動でページ遷移する
+ * リンクを許可リスト外のドメインへは絶対に張らない**という一点が
+ * このセキュリティ機能の核。
+ */
+function buildSafeResultLink(url, labelText) {
+  if (isSafeLinkDomain(url)) {
+    const a = document.createElement("a");
+    a.href = url;
+    a.target = "_blank";
+    a.rel = "noopener noreferrer";
+    a.textContent = labelText;
+    return a;
+  }
+  const wrap = document.createElement("span");
+  const host = (() => { try { return new URL(url).hostname; } catch { return url; } })();
+  wrap.textContent = `${labelText}(${host}、安全確認済みドメイン一覧に無いため自動では開きません / not in the verified-safe domain list, won't auto-open) `;
+  const copyBtn = document.createElement("button");
+  copyBtn.type = "button";
+  copyBtn.className = "setup-btn";
+  copyBtn.textContent = "📋 URLをコピー / Copy URL";
+  copyBtn.addEventListener("click", async () => {
+    try {
+      await navigator.clipboard.writeText(url);
+      copyBtn.textContent = "✅ コピーしました / Copied";
+      setTimeout(() => { copyBtn.textContent = "📋 URLをコピー / Copy URL"; }, 2000);
+    } catch { /* ignore */ }
+  });
+  wrap.appendChild(copyBtn);
+  return wrap;
+}
+
+// 話題の画像・動画検索パネル(2026-09-01新設、ユーザー指示「質問や
+// 相談で写真やYoutube動画を表示する機能」への対応)。直近のやり取り
+// (最後のトレーナー発話、無ければ最後のユーザー発話)を検索語として
+// 使い、画像はサムネイルを直接埋め込み(クリックしてもどこにも遷移
+// しない)、動画はyoutube.com/embedのiframeのみ埋め込む(許可リスト
+// 方式、上記のセキュリティ設計を参照)。
+document.getElementById("media-search-btn")?.addEventListener("click", async () => {
+  const resultsEl = document.getElementById("media-search-results");
+  if (!resultsEl) return;
+  const creds = typeof loadOwnGoogleSearchCredentials === "function" ? loadOwnGoogleSearchCredentials() : null;
+  if (!creds || !creds.api_key || !creds.cx) {
+    resultsEl.textContent =
+      "Google検索APIキーが未設定のため画像・動画は表示できません。「🔎 Setup Google Search.」から設定してください。 / " +
+      "Google Search API key isn't set up, so images/video can't be shown — set it up via \"🔎 Setup Google Search.\"";
+    return;
+  }
+  const lastTrainer = typeof lastTrainerUtterance === "function" ? lastTrainerUtterance() : "";
+  const lastUserMsg = document.querySelector("#log .msg.user:last-of-type")?.textContent || "";
+  const query = (lastTrainer || lastUserMsg || document.getElementById("chat-input")?.value || "").trim().slice(0, 200);
+  if (!query) {
+    resultsEl.textContent = "検索語がありません。まず何か会話してから押してください。 / No query yet — chat a bit first.";
+    return;
+  }
+  resultsEl.textContent = `検索中... / Searching for "${query}"...`;
+  try {
+    const [images, videos] = await Promise.all([
+      googleImageSearchDirect(query, creds.api_key, creds.cx, 6).catch(() => []),
+      googleYoutubeSearchDirect(query, creds.api_key, creds.cx, 4).catch(() => []),
+    ]);
+    resultsEl.innerHTML = "";
+    const heading = document.createElement("p");
+    heading.className = "setup-note";
+    heading.textContent = `"${query}" の検索結果 / Results for "${query}"`;
+    resultsEl.appendChild(heading);
+
+    const imgRow = document.createElement("div");
+    imgRow.style.cssText = "display:flex; flex-wrap:wrap; gap:8px;";
+    if (images.length === 0) {
+      const none = document.createElement("p");
+      none.className = "setup-note";
+      none.textContent = "画像が見つかりませんでした。 / No images found.";
+      imgRow.appendChild(none);
+    }
+    for (const img of images) {
+      const fig = document.createElement("figure");
+      fig.style.cssText = "margin:0; width:120px;";
+      const thumb = document.createElement("img");
+      thumb.src = img.thumbnailUrl || img.imageUrl;
+      thumb.alt = img.title || "";
+      thumb.loading = "lazy";
+      thumb.style.cssText = "width:100%; height:90px; object-fit:cover; border-radius:6px; cursor:pointer;";
+      thumb.addEventListener("click", () => { thumb.style.cssText = thumb.style.cssText.replace("height:90px", "height:auto"); thumb.src = img.imageUrl; });
+      fig.appendChild(thumb);
+      if (img.contextLink) {
+        const cap = document.createElement("figcaption");
+        cap.style.cssText = "font-size:0.75rem;";
+        cap.appendChild(buildSafeResultLink(img.contextLink, "元ページ / source"));
+        fig.appendChild(cap);
+      }
+      imgRow.appendChild(fig);
+    }
+    resultsEl.appendChild(imgRow);
+
+    const vidRow = document.createElement("div");
+    vidRow.style.cssText = "display:flex; flex-wrap:wrap; gap:8px; margin-top:10px;";
+    if (videos.length === 0) {
+      const none = document.createElement("p");
+      none.className = "setup-note";
+      none.textContent = "動画(YouTube)が見つかりませんでした。 / No YouTube video found.";
+      vidRow.appendChild(none);
+    }
+    for (const v of videos.slice(0, 2)) {
+      const wrap = document.createElement("div");
+      wrap.style.cssText = "width:280px;";
+      const iframe = document.createElement("iframe");
+      iframe.width = "280";
+      iframe.height = "158";
+      iframe.style.border = "0";
+      iframe.src = `https://www.youtube.com/embed/${encodeURIComponent(v.videoId)}`;
+      iframe.title = v.title || "YouTube video";
+      iframe.allow = "encrypted-media; picture-in-picture";
+      iframe.referrerPolicy = "strict-origin-when-cross-origin";
+      wrap.appendChild(iframe);
+      const cap = document.createElement("p");
+      cap.style.cssText = "font-size:0.8rem; margin:2px 0 0;";
+      cap.textContent = v.title || "";
+      wrap.appendChild(cap);
+      vidRow.appendChild(wrap);
+    }
+    resultsEl.appendChild(vidRow);
+  } catch (err) {
+    resultsEl.textContent = `検索に失敗しました / Search failed: ${err.message || err}`;
+  }
+});
+
 // `aruaru-llm::web_search::format_results_as_context`と同一の書式
 // (番号付き箇条書き)。GPT-2のQ&Aパターン補完に乗せやすくする狙いは
 // Rust側と同じ(`aruaru-llm/CLAUDE.md`2026-08-26エントリ参照)。
@@ -5850,6 +6888,28 @@ if (googleSearchBtn && googleSearchModal) {
   }
   renderList();
 
+  // プロバイダごとのAPIキー入力欄の隣に、このブラウザのlocalStorageへ
+  // 既に保存済みかどうかを即座に(サーバーへ問い合わせず)表示する
+  // (2026-09-01追記、ユーザー指示「Geminiなどを選択してもSETUPも
+  // 簡単にしてSETUP済みならその様に表示する機能」への対応)。下の
+  // `refreshProviderPriorityStatus`(サーバー側の実状態を問い合わせる
+  // 既存機能)とは独立——こちらはネットワーク往復無しで即座に
+  // わかる「このブラウザ内の保存有無」のみを示す。
+  function refreshLocalProviderKeyStatus() {
+    for (const provider of ["openai", "deepseek", "gemini", "claude"]) {
+      const el = document.getElementById(`provider-key-status-${provider}`);
+      if (!el) continue;
+      let hasKey = false;
+      try {
+        hasKey = !!localStorage.getItem(PROVIDER_KEY_LOCAL_PREFIX + provider);
+      } catch (e) {
+        /* ignore */
+      }
+      el.textContent = hasKey ? "✅ SETUP済み / Already set up" : "未SETUP / Not set up";
+    }
+  }
+  refreshLocalProviderKeyStatus();
+
   // パネルを開くたびaruaru-llm側の実際の現状(有効/無効・順序・設定済み
   // プロバイダ)を取得して表示する(2026-08-26追記、実機TEST中に発見した
   // 使いやすさの粗——従来は保存操作をするまでサーバー側の実状態が
@@ -5887,6 +6947,7 @@ if (googleSearchBtn && googleSearchModal) {
   if (btn && modal) {
     btn.addEventListener("click", () => {
       modal.classList.remove("hidden");
+      refreshLocalProviderKeyStatus();
       refreshProviderPriorityStatus();
     });
     closeBtn.addEventListener("click", () => modal.classList.add("hidden"));
@@ -5954,6 +7015,7 @@ if (googleSearchBtn && googleSearchModal) {
       }
       el.value = "";
     }
+    refreshLocalProviderKeyStatus();
 
     await maybeOfferProviderKeyDbSave(savedValues);
 
@@ -6163,6 +7225,7 @@ if (googleSearchBtn && googleSearchModal) {
       if (githubTokenEl) githubTokenEl.value = "";
       if (youtubeKeyEl) youtubeKeyEl.value = "";
       renderList();
+      refreshLocalProviderKeyStatus();
       if (base) {
         try {
           await fetchWithTimeout(`${base}/v1/settings/chat-providers`, { method: "DELETE" }, 8000);
@@ -12713,12 +13776,289 @@ const FREELANCE_PROGRAMMING_LANGUAGES = [
   "Nix", "PostScript", "Pure Data", "Q#", "Red", "Rebol", "SuperCollider", "Wolfram Language",
 ];
 
+// 産業・カテゴリの既定一覧(フリーランス開発案件でよく見かける区分、
+// 誤字脱字補正の比較対象として使う。ユーザーが「＋追加」した独自
+// カテゴリはlocalStorageへ永続化され、この既定一覧に追加表示される)。
+const FREELANCE_INDUSTRIES_DEFAULT = [
+  "EC / Web制作", "SaaS / 業務システム", "フィンテック / 金融", "ヘルスケア / 医療",
+  "教育 / EdTech", "ゲーム", "IoT / 組み込み", "AI / 機械学習", "ブロックチェーン / Web3",
+  "不動産", "物流 / ロジスティクス", "人事 / HR Tech", "マーケティング / 広告",
+  "メディア / エンタメ", "旅行 / 観光", "農業 / AgriTech", "製造業 / 産業DX",
+  "小売 / リテール", "保険", "官公庁 / 自治体", "非営利 / NPO",
+  "音楽 / オーディオ", "モビリティ / 自動車", "エネルギー / 環境", "セキュリティ",
+  "データ分析 / BI", "CRM / SFA", "決済 / 電子マネー", "スポーツ", "飲食",
+];
+const FREELANCE_INDUSTRY_CUSTOM_LOCAL_KEY = "open-english.freelanceIndustryCustomList";
+
+function freelanceLoadCustomIndustries() {
+  try {
+    const raw = localStorage.getItem(FREELANCE_INDUSTRY_CUSTOM_LOCAL_KEY);
+    const list = raw ? JSON.parse(raw) : [];
+    return Array.isArray(list) ? list.filter((x) => typeof x === "string" && x.trim()) : [];
+  } catch {
+    return [];
+  }
+}
+
+function freelanceSaveCustomIndustries(list) {
+  try {
+    localStorage.setItem(FREELANCE_INDUSTRY_CUSTOM_LOCAL_KEY, JSON.stringify(list));
+  } catch {
+    // localStorageが使えない環境(プライベートモード等)では黙って諦める。
+    // 一覧への追加が今回のセッション限りになるだけで、致命的な失敗ではない。
+  }
+}
+
+function freelanceAllIndustries() {
+  return [...FREELANCE_INDUSTRIES_DEFAULT, ...freelanceLoadCustomIndustries()];
+}
+
+// 単純なLevenshtein距離(誤字脱字補正用、外部ライブラリへ依存しない)。
+function freelanceLevenshtein(a, b) {
+  const m = a.length, n = b.length;
+  if (m === 0) return n;
+  if (n === 0) return m;
+  const dp = Array.from({ length: m + 1 }, (_, i) => [i, ...Array(n).fill(0)]);
+  for (let j = 0; j <= n; j++) dp[0][j] = j;
+  for (let i = 1; i <= m; i++) {
+    for (let j = 1; j <= n; j++) {
+      const cost = a[i - 1] === b[j - 1] ? 0 : 1;
+      dp[i][j] = Math.min(dp[i - 1][j] + 1, dp[i][j - 1] + 1, dp[i - 1][j - 1] + cost);
+    }
+  }
+  return dp[m][n];
+}
+
+// 入力文字列に最も近いカテゴリを1件返す(距離が長さの40%以内、かつ
+// 距離>0の場合のみ「誤字っぽい候補」として提案する。完全一致・
+// 距離0は補正の必要が無いので候補として返さない)。
+function freelanceSuggestIndustry(input) {
+  const needle = input.trim().toLowerCase();
+  if (!needle) return null;
+  let best = null;
+  let bestDist = Infinity;
+  for (const candidate of freelanceAllIndustries()) {
+    // 表示ラベルは"日本語 / English"の併記のため、全体ではなく各片ごとに
+    // 比較する(全体比較だと片方だけ似ていても距離が大きくなってしまう)。
+    for (const segment of candidate.split(" / ")) {
+      const hay = segment.trim().toLowerCase();
+      if (!hay) continue;
+      if (hay === needle) return null; // 完全一致は補正不要
+      const dist = freelanceLevenshtein(needle, hay);
+      if (dist < bestDist) {
+        bestDist = dist;
+        best = candidate;
+      }
+    }
+  }
+  const threshold = Math.max(1, Math.floor(needle.length * 0.4));
+  return best && bestDist <= threshold ? best : null;
+}
+
+function freelancePopulateIndustrySelect() {
+  if (!freelanceIndustrySelectEl) return;
+  const previous = freelanceIndustrySelectEl.value;
+  freelanceIndustrySelectEl.innerHTML = "";
+  const blank = document.createElement("option");
+  blank.value = "";
+  blank.textContent = "(選択しない / none)";
+  freelanceIndustrySelectEl.appendChild(blank);
+  for (const industry of freelanceAllIndustries()) {
+    const opt = document.createElement("option");
+    opt.value = industry;
+    opt.textContent = industry;
+    freelanceIndustrySelectEl.appendChild(opt);
+  }
+  if (previous && freelanceAllIndustries().includes(previous)) {
+    freelanceIndustrySelectEl.value = previous;
+  }
+  if (freelanceIndustryDatalistEl) {
+    freelanceIndustryDatalistEl.innerHTML = "";
+    for (const industry of freelanceAllIndustries()) {
+      const opt = document.createElement("option");
+      opt.value = industry;
+      freelanceIndustryDatalistEl.appendChild(opt);
+    }
+  }
+}
+
+// 進捗の保存先設定(2026-09-01新設、ユーザー指示「まずは設定保存から」)。
+// このパスは設定の保存・読み込みのみを実装し、実際の書き込み処理
+// (aruaru-db/PostgreSQL/VPS/Googleドライブ/ローカルドライブへの実送信)は
+// 次のパスで実装する(意図的に段階分割、ユーザー指示による)。
+const FREELANCE_SAVEDEST_LOCAL_KEY = "open-english.freelanceSaveDestinations";
+
+function freelanceLoadSaveDestinations() {
+  try {
+    const raw = localStorage.getItem(FREELANCE_SAVEDEST_LOCAL_KEY);
+    return raw ? JSON.parse(raw) : {};
+  } catch {
+    return {};
+  }
+}
+
+function freelancePopulateSaveDestinationFields() {
+  const saved = freelanceLoadSaveDestinations();
+  const aruaruDbEl = document.getElementById("freelance-savedest-aruaru-db");
+  const aruaruDbUrlEl = document.getElementById("freelance-savedest-aruaru-db-url");
+  const postgresEl = document.getElementById("freelance-savedest-postgres");
+  const vpsEl = document.getElementById("freelance-savedest-vps");
+  const googleDriveEl = document.getElementById("freelance-savedest-google-drive");
+  const localDriveEl = document.getElementById("freelance-savedest-local-drive");
+  if (aruaruDbEl) aruaruDbEl.checked = !!saved.aruaru_db;
+  if (aruaruDbUrlEl) aruaruDbUrlEl.value = saved.aruaru_db_url || "";
+  if (postgresEl) postgresEl.checked = !!saved.postgres;
+  if (vpsEl) vpsEl.checked = !!saved.vps;
+  if (googleDriveEl) googleDriveEl.checked = !!saved.google_drive;
+  if (localDriveEl) localDriveEl.checked = !!saved.local_drive;
+}
+
+function freelanceSaveDestinationSettings() {
+  const settings = {
+    aruaru_db: !!document.getElementById("freelance-savedest-aruaru-db")?.checked,
+    aruaru_db_url: (document.getElementById("freelance-savedest-aruaru-db-url")?.value || "").trim(),
+    postgres: !!document.getElementById("freelance-savedest-postgres")?.checked,
+    vps: !!document.getElementById("freelance-savedest-vps")?.checked,
+    google_drive: !!document.getElementById("freelance-savedest-google-drive")?.checked,
+    local_drive: !!document.getElementById("freelance-savedest-local-drive")?.checked,
+  };
+  try {
+    localStorage.setItem(FREELANCE_SAVEDEST_LOCAL_KEY, JSON.stringify(settings));
+  } catch (e) {
+    return { ok: false, error: e.message || String(e) };
+  }
+  return { ok: true, settings };
+}
+
+// 保存済みの送信先名を日英併記のラベルへ変換(要約表示用)。
+const FREELANCE_SAVEDEST_LABELS = {
+  aruaru_db: "aruaru-db",
+  postgres: "PostgreSQL",
+  vps: "VPS",
+  google_drive: "Googleドライブ / Google Drive",
+  local_drive: "ローカルドライブ / Local drive",
+};
+
+// 「設定を〇〇と〇〇に保存済み」の要約表示⇔チェックボックスでの編集を
+// 切り替える(2026-09-01追記、ユーザー指示「設定を〇〇と〇〇に保存済みも
+// 表示して、変更ボタンから再度保存先変更も可能にして」への対応)。
+// 保存先が1つも無い(初回)場合は編集画面をそのまま出す——「変更」ボタンで
+// 開くべき既存設定が無いため。
+function freelanceRefreshSaveDestinationSummary() {
+  const summaryEl = document.getElementById("freelance-savedest-summary");
+  const summaryTextEl = document.getElementById("freelance-savedest-summary-text");
+  const editEl = document.getElementById("freelance-savedest-edit");
+  if (!summaryEl || !editEl) return;
+  const saved = freelanceLoadSaveDestinations();
+  const enabled = Object.keys(FREELANCE_SAVEDEST_LABELS).filter((k) => saved[k]);
+  if (enabled.length === 0) {
+    summaryEl.classList.add("hidden");
+    editEl.classList.remove("hidden");
+    return;
+  }
+  const labels = enabled.map((k) => FREELANCE_SAVEDEST_LABELS[k]);
+  if (summaryTextEl) {
+    summaryTextEl.textContent = `✅ 設定を${labels.join("と")}に保存済み / Already saved to ${labels.join(" and ")}`;
+  }
+  summaryEl.classList.remove("hidden");
+  editEl.classList.add("hidden");
+}
+
+document.getElementById("freelance-savedest-change-btn")?.addEventListener("click", () => {
+  document.getElementById("freelance-savedest-summary")?.classList.add("hidden");
+  document.getElementById("freelance-savedest-edit")?.classList.remove("hidden");
+});
+
+document.getElementById("freelance-savedest-save-btn")?.addEventListener("click", () => {
+  const statusEl = document.getElementById("freelance-savedest-status");
+  const result = freelanceSaveDestinationSettings();
+  if (!statusEl) return;
+  if (!result.ok) {
+    statusEl.textContent = `保存に失敗しました / Save failed: ${result.error}`;
+    return;
+  }
+  const enabled = Object.entries(result.settings)
+    .filter(([k, v]) => v === true)
+    .map(([k]) => k);
+  statusEl.textContent = enabled.length
+    ? `✅ 保存しました(有効: ${enabled.join(", ")}) / Saved (enabled: ${enabled.join(", ")})`
+    : "✅ 保存しました(送信先は1つも有効になっていません) / Saved (no destinations enabled)";
+  freelanceRefreshSaveDestinationSummary();
+});
+
+function freelanceSelectedIndustry() {
+  const custom = (freelanceIndustryCustomEl?.value || "").trim();
+  if (custom) return custom;
+  return freelanceIndustrySelectEl?.value || "";
+}
+
+// フレームワーク/WEBサーバー/DATABASEの既定一覧。エコシステム自身の
+// プロジェクト(RPoem/open-web-server/aruaru-db)を選択肢の先頭に含める
+// (ユーザー指示)。いずれも「選択」+「自由入力」の併用に対応し、自由
+// 入力欄に値があればそちらを優先する(既存の言語選択と同じパターン)。
+const FREELANCE_FRAMEWORKS_DEFAULT = [
+  "RPoem", "React", "Vue", "Angular", "Svelte", "SvelteKit", "Next.js", "Nuxt",
+  "Remix", "Astro", "Gatsby", "Django", "Flask", "FastAPI", "Ruby on Rails",
+  "Sinatra", "Laravel", "Symfony", "CodeIgniter", "Spring Boot", "Quarkus",
+  "Micronaut", "Express.js", "NestJS", "Koa", "Hapi", "Fastify", "ASP.NET Core",
+  "Blazor", "Actix Web", "Axum", "Rocket (Rust)", "Poem (Rust)", "Warp (Rust)",
+  "Phoenix (Elixir)", "Gin (Go)", "Fiber (Go)", "Echo (Go)", "Beego (Go)",
+  "Play Framework (Scala)", "Ktor (Kotlin)", "Vapor (Swift)", "Yew (Rust/WASM)",
+  "Flutter", "React Native", "Ionic", "Xamarin", ".NET MAUI", "SwiftUI",
+  "UIKit", "Jetpack Compose", "Electron", "Tauri", "Unity", "Unreal Engine",
+  "Godot", "TensorFlow", "PyTorch", "LangChain", "Hugging Face Transformers",
+];
+const FREELANCE_WEBSERVERS_DEFAULT = [
+  "open-web-server", "Nginx", "Apache", "Caddy", "IIS", "Traefik", "HAProxy",
+  "Envoy", "LiteSpeed", "OpenLiteSpeed", "Tomcat", "Jetty", "Undertow",
+  "Gunicorn", "uWSGI", "Puma", "Unicorn", "PM2", "Cloudflare Workers",
+  "AWS API Gateway", "Vercel Edge", "Netlify Edge Functions",
+];
+const FREELANCE_DATABASES_DEFAULT = [
+  "aruaru-db", "PostgreSQL", "MySQL / MariaDB", "SQLite", "MongoDB", "Redis",
+  "SQL Server", "Oracle Database", "CockroachDB", "TiDB", "YugabyteDB",
+  "DynamoDB", "Cassandra", "ScyllaDB", "Elasticsearch", "OpenSearch",
+  "Firebase / Firestore", "Supabase", "PlanetScale", "Neon", "Snowflake",
+  "BigQuery", "ClickHouse", "InfluxDB", "TimescaleDB", "Neo4j", "CouchDB",
+  "Memcached", "Amazon Aurora", "IBM Db2", "H2",
+];
+
+function freelancePopulateSelect(selectEl, defaults) {
+  if (!selectEl || selectEl.options.length > 0) return;
+  const blank = document.createElement("option");
+  blank.value = "";
+  blank.textContent = "(選択しない / none)";
+  selectEl.appendChild(blank);
+  for (const item of defaults) {
+    const opt = document.createElement("option");
+    opt.value = item;
+    opt.textContent = item;
+    selectEl.appendChild(opt);
+  }
+}
+
+function freelanceSelectedValue(selectEl, customEl) {
+  const custom = (customEl?.value || "").trim();
+  if (custom) return custom;
+  return selectEl?.value || "";
+}
+
 const freelanceCornerBtn = document.getElementById("freelance-corner-btn");
 const freelanceCornerModal = document.getElementById("freelance-corner-modal");
 const freelanceCornerClose = document.getElementById("freelance-corner-close");
+const freelanceIndustrySelectEl = document.getElementById("freelance-industry-select");
+const freelanceIndustryCustomEl = document.getElementById("freelance-industry-custom");
+const freelanceIndustryDatalistEl = document.getElementById("freelance-industry-datalist");
+const freelanceIndustrySuggestionEl = document.getElementById("freelance-industry-suggestion");
+const freelanceIndustryAddBtn = document.getElementById("freelance-industry-add-btn");
 const freelanceLanguageSelectEl = document.getElementById("freelance-language-select");
 const freelanceLanguageCustomEl = document.getElementById("freelance-language-custom");
+const freelanceFrameworkSelectEl = document.getElementById("freelance-framework-select");
 const freelanceFrameworkInputEl = document.getElementById("freelance-framework-input");
+const freelanceWebserverSelectEl = document.getElementById("freelance-webserver-select");
+const freelanceWebserverCustomEl = document.getElementById("freelance-webserver-custom");
+const freelanceDatabaseSelectEl = document.getElementById("freelance-database-select");
+const freelanceDatabaseCustomEl = document.getElementById("freelance-database-custom");
 const freelanceSearchOfficialBtn = document.getElementById("freelance-search-official-btn");
 const freelanceCopyOfficialUrlBtn = document.getElementById("freelance-copy-official-url-btn");
 const freelanceSearchJobsBtn = document.getElementById("freelance-search-jobs-btn");
@@ -12726,6 +14066,127 @@ const freelanceCopyJobsUrlBtn = document.getElementById("freelance-copy-jobs-url
 const freelanceJobNotesEl = document.getElementById("freelance-job-notes");
 const freelanceSampleListEl = document.getElementById("freelance-sample-list");
 const freelanceAskTeacherBtn = document.getElementById("freelance-ask-teacher-btn");
+const freelanceUploadInputEl = document.getElementById("freelance-upload-input");
+const freelanceUploadStatusEl = document.getElementById("freelance-upload-status");
+const freelanceStartBtn = document.getElementById("freelance-start-btn");
+const freelanceStartStatusEl = document.getElementById("freelance-start-status");
+
+// CADフォーマット対応(2026-09-01追記、ユーザー指示「CAD関連のフォーマット
+// も読み込めて、AIが判断出来るようにして」への対応)。
+// **正直な設計方針**: 専用のCAD解析エンジンは実装しない(この規模の
+// エコシステムには既に姉妹プロジェクト`open-cg-cad`が図面専用の
+// アップロード・合成・再設計機能を持つため、本格解析はそちらに委ねる)。
+// ここでの対応は「テキストベースのCADフォーマットなら、生のジオメトリ
+// データをテキストとしてAI先生(aruaru-llm)へ渡す」ところまで——AIが
+// 座標列やコマンド列を読んでどこまで意味を汲み取れるかは保証しない
+// (GPT-2系モデルの既存の限界と同じ)。DXF/SVG/OBJ/IGES/ASCII-STLは
+// テキスト形式のため読める。DWG(Autodesk独自バイナリ、仕様非公開)・
+// バイナリSTEP・バイナリSTLはブラウザ単体では解析できないため、
+// ファイル名のみ記録し正直にopen-cg-cadを案内する。
+const FREELANCE_CAD_TEXT_EXTENSIONS = /\.(dxf|svg|obj|iges|igs)$/i;
+const FREELANCE_CAD_BINARY_EXTENSIONS = /\.(dwg|step|stp)$/i;
+
+/** STLはASCII/バイナリ両方あり、拡張子だけでは判別できないため中身の先頭を見る。 */
+async function freelanceIsAsciiStl(file) {
+  if (!/\.stl$/i.test(file.name)) return false;
+  try {
+    const head = await file.slice(0, 5).text();
+    return head.trim().toLowerCase().startsWith("solid");
+  } catch {
+    return false;
+  }
+}
+
+// 案件URL/テキスト/写真/CAD図面のUPLOAD(2026-09-01新設、ユーザー指示への
+// 対応)。テキスト系ファイル・テキストベースCADフォーマットは中身を読んで
+// 案件メモへ追記。画像はブラウザ内OCR(Tesseract.js、上記`ocrImageFile`)で
+// 文字起こしを試み、成功すれば認識テキストを案件メモへ追記する——OCRの
+// vendorファイルが未配置・認識失敗の場合は、その旨を正直に明記した上で
+// ファイル名のみを記録する(「読めた」ふりをしない)。バイナリCAD形式
+// (DWG・バイナリSTEP/STL)は姉妹プロジェクトopen-cg-cadへ誘導する。
+// 認識後の設計書の意味解釈自体は既存の「AI先生に相談」/STARTフロー
+// (aruaru-llm)に委ねる——OCR/CADテキスト抽出は文字を拾うところまでで、
+// その先の理解はテキストとして渡された内容を通常のチャットとして処理する
+// 既存経路がそのまま担う。
+freelanceUploadInputEl?.addEventListener("change", async () => {
+  const files = Array.from(freelanceUploadInputEl.files || []);
+  if (!freelanceUploadStatusEl) return;
+  if (files.length === 0) {
+    freelanceUploadStatusEl.textContent = "";
+    return;
+  }
+  freelanceUploadStatusEl.textContent = "読み込み中... / Reading...";
+  const appended = [];
+  let ocrCount = 0;
+  let cadTextCount = 0;
+  for (const file of files) {
+    const isTextLike = /\.(txt|md|json)$/i.test(file.name) || file.type.startsWith("text/");
+    const isImage = file.type.startsWith("image/");
+    const isCadText = FREELANCE_CAD_TEXT_EXTENSIONS.test(file.name) || (await freelanceIsAsciiStl(file));
+    const isCadBinary = FREELANCE_CAD_BINARY_EXTENSIONS.test(file.name) || (/\.stl$/i.test(file.name) && !isCadText);
+    if (isTextLike || isCadText) {
+      try {
+        const text = await file.text();
+        const truncated = text.length > 20000 ? text.slice(0, 20000) + "\n... (以降省略/truncated) ..." : text;
+        const label = isCadText
+          ? `${file.name}(CAD図面データ、生のジオメトリをテキストとして渡します / raw CAD geometry passed as text)`
+          : file.name;
+        appended.push(`--- ${label} ---\n${truncated}`);
+        if (isCadText) cadTextCount++;
+      } catch (err) {
+        appended.push(`--- ${file.name} (読み込み失敗 / read failed: ${err}) ---`);
+      }
+    } else if (isCadBinary) {
+      appended.push(
+        `[バイナリCAD形式(DWG/バイナリSTEP・STL等)はこのブラウザでは解析できないためファイル名のみ記録。` +
+          `本格的な図面解析には姉妹プロジェクトopen-cg-cadをご利用ください / ` +
+          `binary CAD format (DWG/binary STEP or STL, etc.) can't be parsed by this browser — filename only recorded. ` +
+          `For real drawing analysis, please use the sister project open-cg-cad: ${file.name}]`
+      );
+    } else if (isImage) {
+      freelanceUploadStatusEl.textContent = `OCR解析中... / Running OCR on ${file.name}...`;
+      const ocrText = await ocrImageFile(file);
+      if (ocrText) {
+        ocrCount++;
+        appended.push(
+          `--- ${file.name}(OCR文字起こし結果、誤読の可能性あり / OCR transcript, may contain misreads) ---\n${ocrText}`
+        );
+      } else {
+        appended.push(
+          `[画像ファイル、OCRが利用できない/認識できなかったためファイル名のみ記録 / image file, OCR unavailable or failed — filename only: ${file.name}]`
+        );
+      }
+    } else {
+      appended.push(`[画像/バイナリファイル、内容の自動解析は未対応 / image or binary file, content not auto-analyzed: ${file.name}]`);
+    }
+  }
+  if (freelanceJobNotesEl) {
+    const prefix = freelanceJobNotesEl.value.trim() ? freelanceJobNotesEl.value.trim() + "\n\n" : "";
+    freelanceJobNotesEl.value = prefix + appended.join("\n\n");
+  }
+  const notes = [];
+  if (ocrCount > 0) notes.push(`OCR成功 ${ocrCount}件 / ${ocrCount} OCR success`);
+  if (cadTextCount > 0) notes.push(`CAD図面データ読込 ${cadTextCount}件 / ${cadTextCount} CAD file(s) read`);
+  const extraNote = notes.length ? `(${notes.join(", ")})` : "";
+  freelanceUploadStatusEl.textContent = `✅ ${files.length}件を案件メモへ反映しました ${extraNote} / Added ${files.length} file(s) to job notes.`;
+});
+
+// STARTボタン(2026-09-01新設): 案件メモ・進め方(レッスンあり/なし+
+// レベル)を確定させ、既存の「AI先生に相談」フロー(freelanceAskTeacherBtn)
+// をそのまま起動する——新しい送信経路は作らず、既存の確立済みフローを
+// 呼び出すだけに留める(重複実装を避ける)。
+freelanceStartBtn?.addEventListener("click", () => {
+  if (!freelanceJobNotesEl || !freelanceJobNotesEl.value.trim()) {
+    if (freelanceStartStatusEl) {
+      freelanceStartStatusEl.textContent =
+        "案件のURL・テキスト・UPLOADのいずれかを入力してからSTARTしてください。 / " +
+        "Please enter a job URL/text or upload a file before pressing START.";
+    }
+    return;
+  }
+  if (freelanceStartStatusEl) freelanceStartStatusEl.textContent = "";
+  freelanceAskTeacherBtn?.click();
+});
 
 // GitHub連携要素(2026-08-27: トークンの受け渡し方法を3種類に拡張)
 const freelanceGithubTokenModeEl = document.getElementById("freelance-github-token-mode");
@@ -12805,17 +14266,88 @@ async function freelanceCopyText(text, statusEl) {
   }
 }
 
+// 既にセットアップ済みのGoogle検索APIキー(平文localStorage、または
+// 復号済みメモリ上の暗号化/ファイル資格情報)を自動的に再利用して検索し、
+// 結果を指定コンテナへ描画する。キー未設定の場合は正直にその旨を表示し
+// (新規に入力させることはしない、既存の「新しいタブで開く」ボタンで
+// 代替できる旨を案内する)、既存の`loadOwnGoogleSearchCredentials`/
+// `googleSearchDirect`(2026-08-26/27新設、Google検索設定パネルと共用)を
+// そのまま呼ぶだけで、この機能専用の資格情報入力欄は追加しない。
+async function freelanceAutoSearch(query, containerId) {
+  const container = document.getElementById(containerId);
+  if (!container) return;
+  container.innerHTML = "";
+  const creds = typeof loadOwnGoogleSearchCredentials === "function" ? loadOwnGoogleSearchCredentials() : null;
+  if (!creds || !creds.api_key || !creds.cx) {
+    container.textContent =
+      "(Google検索APIキー未設定のため、自動検索結果はここに表示されません。上のボタンで新しいタブからご確認ください。 / " +
+      "No Google Search API key configured, so results can't be shown here automatically — use the button above to check in a new tab.)";
+    return;
+  }
+  const statusLine = document.createElement("p");
+  statusLine.innerHTML = "<strong>✅ SETUP済み(以前設定したGoogle検索APIキーを自動使用中) / Already set up (auto-using your previously configured Google Search API key)</strong>";
+  container.appendChild(statusLine);
+  const searching = document.createElement("p");
+  searching.textContent = "検索中... / Searching...";
+  container.appendChild(searching);
+  try {
+    const results = await googleSearchDirect(query, creds.api_key, creds.cx, 5);
+    searching.remove();
+    if (results.length === 0) {
+      const none = document.createElement("p");
+      none.textContent = "該当する検索結果が見つかりませんでした。 / No results found.";
+      container.appendChild(none);
+      return;
+    }
+    for (const r of results) {
+      const item = document.createElement("p");
+      const link = document.createElement("a");
+      link.href = r.link;
+      link.target = "_blank";
+      link.rel = "noopener noreferrer";
+      link.textContent = r.title || r.link;
+      item.appendChild(link);
+      if (r.snippet) {
+        const snippet = document.createElement("div");
+        snippet.textContent = r.snippet;
+        item.appendChild(snippet);
+      }
+      container.appendChild(item);
+    }
+  } catch (err) {
+    searching.remove();
+    const failed = document.createElement("p");
+    failed.textContent = `検索に失敗しました / Search failed: ${err.message || err}`;
+    container.appendChild(failed);
+  }
+}
+
+function freelanceSelectedFramework() {
+  return freelanceSelectedValue(freelanceFrameworkSelectEl, freelanceFrameworkInputEl);
+}
+function freelanceSelectedWebserver() {
+  return freelanceSelectedValue(freelanceWebserverSelectEl, freelanceWebserverCustomEl);
+}
+function freelanceSelectedDatabase() {
+  return freelanceSelectedValue(freelanceDatabaseSelectEl, freelanceDatabaseCustomEl);
+}
+
 function freelanceBuildOfficialSearchUrl() {
   const lang = freelanceSelectedLanguage();
-  const fw = (freelanceFrameworkInputEl?.value || "").trim();
-  const parts = [lang, fw, "official site OR github.com OR blog"].filter(Boolean);
+  const fw = freelanceSelectedFramework();
+  const web = freelanceSelectedWebserver();
+  const db = freelanceSelectedDatabase();
+  const parts = [lang, fw, web, db, "official site OR github.com OR blog"].filter(Boolean);
   return `https://www.google.com/search?q=${encodeURIComponent(parts.join(" "))}`;
 }
 
 function freelanceBuildJobSearchUrl() {
+  const industry = freelanceSelectedIndustry();
   const lang = freelanceSelectedLanguage();
-  const fw = (freelanceFrameworkInputEl?.value || "").trim();
-  const parts = [lang, fw, "フリーランス 案件 OR freelance job"].filter(Boolean);
+  const fw = freelanceSelectedFramework();
+  const web = freelanceSelectedWebserver();
+  const db = freelanceSelectedDatabase();
+  const parts = [industry, lang, fw, web, db, "フリーランス 案件 OR freelance job"].filter(Boolean);
   return `https://www.google.com/search?q=${encodeURIComponent(parts.join(" "))}`;
 }
 
@@ -12857,7 +14389,7 @@ function freelanceRenderSamples() {
 // 実際にGitHub APIへ渡すトークン文字列を1つ返す(無ければ空文字列)。
 // ①②はメモリ上の変数のみ、③のみlocalStorageを読む。
 function freelanceLoadGithubToken() {
-  const mode = freelanceGithubTokenModeEl?.value || "file";
+  const mode = "server"; // 2026-09-01: GitHubトークンはサーバー側管理モードのみに一本化
   if (mode === "file") return freelanceGithubFileToken || "";
   if (mode === "encrypted") return freelanceGithubUnlockedToken || "";
   // 2026-08-27防御的修正: ④vaultモードではキーの復号・使用はvault.html
@@ -12875,8 +14407,15 @@ function freelanceLoadGithubToken() {
 }
 
 function freelanceRefreshGithubTokenStatus() {
+  // 2026-09-01修正(ユーザー報告バグ「トークンファイルを置いた後、
+  // 上部の自動読み書きSETUP状況バナーが更新されずボタンも無い」への
+  // 対応): このモーダル内欄だけでなく、ページ上部のautorwバナーも
+  // 常に同時に更新する——トークンの状態変化(ファイル選択・復号・
+  // 保存・vault読込)は全てこの関数を呼ぶ経路を通るため、ここ1箇所に
+  // 集約するのが最も取りこぼしが無い。
+  if (typeof autorwRefreshGithubStatus === "function") autorwRefreshGithubStatus();
   if (!freelanceGithubTokenStatusEl) return;
-  const mode = freelanceGithubTokenModeEl?.value || "file";
+  const mode = "server"; // 2026-09-01: GitHubトークンはサーバー側管理モードのみに一本化
   if (mode === "file") {
     freelanceGithubTokenStatusEl.textContent = freelanceGithubFileToken
       ? "ファイルから読み込み済み(保存はされていません)。 / Loaded from file (not saved anywhere)."
@@ -12893,6 +14432,19 @@ function freelanceRefreshGithubTokenStatus() {
     freelanceGithubTokenStatusEl.textContent = freelanceVaultOrigin
       ? `Vault読み込み済み(${freelanceVaultOrigin})。トークンの解錠はvault内で行います。 / Vault loaded (${freelanceVaultOrigin}). Unlock the token inside the vault itself.`
       : "Vault未読み込みです。上の欄でURLを指定して読み込んでください。 / Vault not loaded yet — enter its URL above and load it.";
+  } else if (mode === "server") {
+    freelanceGithubTokenStatusEl.textContent = "確認中... / Checking...";
+    fetch("/v1/agent/github/status", { cache: "no-store" })
+      .then((res) => res.json())
+      .then((data) => {
+        if (!freelanceGithubTokenStatusEl) return;
+        freelanceGithubTokenStatusEl.textContent = data.configured
+          ? "✅ サーバー側でSETUP済みです(OPEN_ENGLISH_GITHUB_TOKEN)。 / Already set up on the server (OPEN_ENGLISH_GITHUB_TOKEN)."
+          : "未SETUP: サーバー起動時にOPEN_ENGLISH_GITHUB_TOKENを設定してください。 / Not set up — configure OPEN_ENGLISH_GITHUB_TOKEN when starting the server.";
+      })
+      .catch((err) => {
+        if (freelanceGithubTokenStatusEl) freelanceGithubTokenStatusEl.textContent = `確認に失敗しました / Check failed: ${err.message || err}`;
+      });
   } else {
     const token = (() => { try { return window.localStorage.getItem(FREELANCE_GITHUB_TOKEN_LOCAL_KEY) || ""; } catch { return ""; } })();
     freelanceGithubTokenStatusEl.textContent = token
@@ -12902,6 +14454,7 @@ function freelanceRefreshGithubTokenStatus() {
 }
 
 const freelanceGithubTokenVaultSectionEl = document.getElementById("freelance-github-token-vault-section");
+const freelanceGithubTokenServerSectionEl = document.getElementById("freelance-github-token-server-section");
 const freelanceVaultUrlEl = document.getElementById("freelance-vault-url");
 const freelanceVaultLoadBtn = document.getElementById("freelance-vault-load-btn");
 const freelanceVaultStatusEl = document.getElementById("freelance-vault-status");
@@ -12909,11 +14462,12 @@ const freelanceVaultIframeEl = document.getElementById("freelance-vault-iframe")
 let freelanceVaultOrigin = null; // 読み込み済みvaultのorigin(postMessage送信先の検証に使う)
 
 function freelanceUpdateGithubTokenModeSections() {
-  const mode = freelanceGithubTokenModeEl?.value || "file";
+  const mode = "server"; // 2026-09-01: GitHubトークンはサーバー側管理モードのみに一本化
   freelanceGithubTokenFileSectionEl?.classList.toggle("hidden", mode !== "file");
   freelanceGithubTokenEncryptedSectionEl?.classList.toggle("hidden", mode !== "encrypted");
   freelanceGithubTokenPlainSectionEl?.classList.toggle("hidden", mode !== "plain");
   freelanceGithubTokenVaultSectionEl?.classList.toggle("hidden", mode !== "vault");
+  freelanceGithubTokenServerSectionEl?.classList.toggle("hidden", mode !== "server");
   freelanceRefreshGithubTokenStatus();
 }
 if (freelanceGithubTokenModeEl) {
@@ -13163,12 +14717,81 @@ if (freelanceGithubClearTokenPlainBtn) {
 
 if (freelanceCornerBtn && freelanceCornerModal) {
   freelanceCornerBtn.addEventListener("click", () => {
+    freelancePopulateIndustrySelect();
     freelancePopulateLanguageSelect();
+    freelancePopulateSelect(freelanceFrameworkSelectEl, FREELANCE_FRAMEWORKS_DEFAULT);
+    freelancePopulateSelect(freelanceWebserverSelectEl, FREELANCE_WEBSERVERS_DEFAULT);
+    freelancePopulateSelect(freelanceDatabaseSelectEl, FREELANCE_DATABASES_DEFAULT);
+    freelancePopulateSaveDestinationFields();
+    freelanceRefreshSaveDestinationSummary();
     freelanceRenderSamples();
     freelanceUpdateGithubTokenModeSections();
+    const officialResults = document.getElementById("freelance-official-results");
+    const jobResults = document.getElementById("freelance-job-results");
+    if (officialResults) officialResults.innerHTML = "";
+    if (jobResults) jobResults.innerHTML = "";
     freelanceCornerModal.classList.remove("hidden");
   });
 }
+
+if (freelanceIndustryCustomEl && freelanceIndustrySuggestionEl) {
+  freelanceIndustryCustomEl.addEventListener("input", () => {
+    const suggestion = freelanceSuggestIndustry(freelanceIndustryCustomEl.value);
+    if (suggestion) {
+      freelanceIndustrySuggestionEl.style.display = "";
+      freelanceIndustrySuggestionEl.innerHTML = "";
+      const label = document.createElement("span");
+      label.textContent = "もしかして / Did you mean: ";
+      freelanceIndustrySuggestionEl.appendChild(label);
+      const btn = document.createElement("button");
+      btn.type = "button";
+      btn.className = "setup-btn";
+      btn.textContent = suggestion;
+      btn.addEventListener("click", () => {
+        freelanceIndustryCustomEl.value = suggestion;
+        freelanceIndustrySuggestionEl.style.display = "none";
+      });
+      freelanceIndustrySuggestionEl.appendChild(btn);
+    } else {
+      freelanceIndustrySuggestionEl.style.display = "none";
+    }
+  });
+}
+
+if (freelanceIndustryAddBtn) {
+  freelanceIndustryAddBtn.addEventListener("click", () => {
+    const value = (freelanceIndustryCustomEl?.value || "").trim();
+    if (!value) {
+      alert("追加するカテゴリ名を入力してください。 / Please type a category name to add.");
+      return;
+    }
+    const suggestion = freelanceSuggestIndustry(value);
+    if (suggestion && !confirm(
+      `「${suggestion}」と似ています。それでも「${value}」を新規カテゴリとして追加しますか?\n` +
+      `This looks similar to "${suggestion}". Add "${value}" as a new category anyway?`
+    )) {
+      return;
+    }
+    const custom = freelanceLoadCustomIndustries();
+    if (!freelanceAllIndustries().includes(value)) {
+      custom.push(value);
+      freelanceSaveCustomIndustries(custom);
+    }
+    freelancePopulateIndustrySelect();
+    freelanceIndustrySelectEl.value = value;
+    freelanceIndustryCustomEl.value = "";
+    if (freelanceIndustrySuggestionEl) freelanceIndustrySuggestionEl.style.display = "none";
+  });
+}
+document.querySelectorAll('input[name="freelance-develop-mode"]').forEach((radio) => {
+  radio.addEventListener("change", () => {
+    const levelGroup = document.getElementById("freelance-develop-level-group");
+    if (levelGroup) {
+      levelGroup.style.display = radio.value === "lesson" && radio.checked ? "" : "none";
+    }
+  });
+});
+
 if (freelanceCornerClose && freelanceCornerModal) {
   freelanceCornerClose.addEventListener("click", () => {
     freelanceCornerModal.classList.add("hidden");
@@ -13181,6 +14804,12 @@ if (freelanceCornerClose && freelanceCornerModal) {
 if (freelanceSearchOfficialBtn) {
   freelanceSearchOfficialBtn.addEventListener("click", () => {
     window.open(freelanceBuildOfficialSearchUrl(), "_blank", "noopener,noreferrer");
+    const lang = freelanceSelectedLanguage();
+    const fw = freelanceSelectedFramework();
+    const web = freelanceSelectedWebserver();
+    const db = freelanceSelectedDatabase();
+    const query = [lang, fw, web, db, "official site OR github.com OR blog"].filter(Boolean).join(" ");
+    freelanceAutoSearch(query, "freelance-official-results");
   });
 }
 if (freelanceCopyOfficialUrlBtn) {
@@ -13191,6 +14820,13 @@ if (freelanceCopyOfficialUrlBtn) {
 if (freelanceSearchJobsBtn) {
   freelanceSearchJobsBtn.addEventListener("click", () => {
     window.open(freelanceBuildJobSearchUrl(), "_blank", "noopener,noreferrer");
+    const industry = freelanceSelectedIndustry();
+    const lang = freelanceSelectedLanguage();
+    const fw = freelanceSelectedFramework();
+    const web = freelanceSelectedWebserver();
+    const db = freelanceSelectedDatabase();
+    const query = [industry, lang, fw, web, db, "フリーランス 案件 OR freelance job"].filter(Boolean).join(" ");
+    freelanceAutoSearch(query, "freelance-job-results");
   });
 }
 if (freelanceCopyJobsUrlBtn) {
@@ -13201,16 +14837,33 @@ if (freelanceCopyJobsUrlBtn) {
 
 if (freelanceAskTeacherBtn) {
   freelanceAskTeacherBtn.addEventListener("click", () => {
+    const industry = freelanceSelectedIndustry();
     const lang = freelanceSelectedLanguage();
-    const fw = (freelanceFrameworkInputEl?.value || "").trim();
+    const fw = freelanceSelectedFramework();
+    const web = freelanceSelectedWebserver();
+    const db = freelanceSelectedDatabase();
     const notes = (freelanceJobNotesEl?.value || "").trim();
     if (!lang) {
       alert("言語を選択または入力してください。 / Please choose or type a language first.");
       return;
     }
+    const developMode = document.querySelector('input[name="freelance-develop-mode"]:checked')?.value || "lesson";
+    const developLevelLabels = {
+      "super-beginner": "超初心者(プログラミング未経験者向け) / super beginner (no programming experience)",
+      "beginner": "初心者 / beginner",
+      "intermediate": "中級者 / intermediate",
+      "veteran": "ベテラン(経験豊富な開発者向け) / veteran (experienced developer)",
+    };
+    const developLevel = document.querySelector('input[name="freelance-develop-level"]:checked')?.value || "super-beginner";
     let question = `${lang}`;
     if (fw) question += ` + ${fw}`;
-    question += " を使ったフリーランス案件について、学ぶべき基礎とレッスンの進め方を教えてください。";
+    if (web) question += ` + ${web}`;
+    if (db) question += ` + ${db}`;
+    if (industry) question += `(${industry}分野)`;
+    question += " を使ったフリーランス案件について、";
+    question += developMode === "lesson"
+      ? `プログラムレッスンを受けながら一緒に開発したいです。私のレベルは「${developLevelLabels[developLevel]}」です。このレベルに合わせて、学ぶべき基礎から順に教えながら、この案件の開発を一緒に進めてください。`
+      : "レッスンは不要なので、この案件の開発を一緒に進めてください(基礎の説明は省略で構いません)。";
     if (notes) question += `\n\n参考にしている案件メモ:\n${notes}`;
     if (inputEl && formEl) {
       inputEl.value = question;
@@ -13231,6 +14884,30 @@ function freelanceUtf8ToBase64(str) {
   let binary = "";
   for (const b of bytes) binary += String.fromCharCode(b);
   return btoa(binary);
+}
+
+// ⑤サーバー側管理モード(2026-09-01新設): トークンをブラウザへ一切
+// 渡さず、`open-english-server`自身が(サーバー起動時の環境変数
+// `OPEN_ENGLISH_GITHUB_TOKEN`を使って)GitHubへリポジトリ作成+pushの
+// 両方を代行する。ブラウザが送るのはリポジトリ名・ファイル内容等の
+// 非機密情報のみ。
+async function freelanceGithubServerCreateRepoAndPush() {
+  const repoName = (freelanceGithubRepoNameEl?.value || "").trim();
+  if (!repoName) throw new Error("リポジトリ名を入力してください。 / Please enter a repository name.");
+  const res = await fetch("/v1/agent/github/create-and-push", {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({
+      repo_name: repoName,
+      private: !!freelanceGithubPrivateEl?.checked,
+      file_path: (freelanceGithubFilePathEl?.value || "README.md").trim() || "README.md",
+      file_content: freelanceGithubFileContentEl?.value || "",
+      message: (freelanceGithubCommitMessageEl?.value || "Initial commit").trim() || "Initial commit",
+    }),
+  });
+  const data = await res.json();
+  if (!res.ok || !data.ok) throw new Error(data.error || `HTTP ${res.status}`);
+  return data.html_url;
 }
 
 // GitHub REST APIをブラウザから直接呼び、(1)リポジトリを新規作成し
@@ -13293,7 +14970,7 @@ if (freelanceGithubPushBtn) {
     }
     freelanceGithubPushBtn.disabled = true;
     try {
-      const mode = freelanceGithubTokenModeEl?.value || "file";
+      const mode = "server"; // 2026-09-01: GitHubトークンはサーバー側管理モードのみに一本化
       const url = mode === "vault"
         ? await freelanceRequestVaultGithubPush({
             repoName: (freelanceGithubRepoNameEl?.value || "").trim(),
@@ -13302,6 +14979,8 @@ if (freelanceGithubPushBtn) {
             fileContent: freelanceGithubFileContentEl?.value || "",
             commitMessage: (freelanceGithubCommitMessageEl?.value || "Initial commit").trim() || "Initial commit",
           })
+        : mode === "server"
+        ? await freelanceGithubServerCreateRepoAndPush()
         : await freelanceGithubCreateRepoAndPush();
       if (freelanceGithubPushStatusEl) {
         freelanceGithubPushStatusEl.innerHTML =
@@ -13316,3 +14995,11 @@ if (freelanceGithubPushBtn) {
     }
   });
 }
+
+// autorw初期状態の反映(全ての定数・関数定義が済んだ後、ファイル末尾で
+// 呼ぶ——freelanceGithubTokenModeEl等より前で呼ぶとTDZ(Temporal Dead
+// Zone)のReferenceErrorでスクリプト全体の初期化が止まる実バグを起こす
+// ため、このファイルの最後に置くこと)。
+autorwRefreshGithubStatus();
+autorwRefreshLocalDriveStatus();
+autorwRefreshVpsStatus();

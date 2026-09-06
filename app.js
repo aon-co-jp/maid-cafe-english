@@ -1220,8 +1220,21 @@ function playToraSanJingle() {
 // 別の(未検証の)Amazon URLを生成した場合にもリンク化してしまうため、
 // 意図的に個別URL単位のホワイトリストにしている。他の紹介リンクを
 // クリック可能にしたい場合はこのパターンへ追加すればよい。
+// **2026-09-06追記**: `https://www.youtube.com/results?search_query=...`
+// (YouTube「検索結果ページ」のURL形式)も許可対象に追加した
+// (`backPainExerciseSuffix`等、腰痛改善体操などの話題でYouTube検索結果
+// リンクをクリック可能にするため)。このURLは常にこちら側の
+// `encodeURIComponent`で組み立てた固定・既知の検索ワードのみを含み、
+// 外部由来の任意テキストがURLに紛れ込むことはないため、ドメイン単位で
+// 許可しても安全と判断した。
+// **2026-09-06追記(その2)**: 作者(株式会社エーオン代表取締役社長・
+// 石塚正浩)のホームページ/WEBサイトを尋ねられた際に紹介する自社
+// ドメイン4件(`aon.co.jp`/`aon.tokyo`/`nasa.tokyo`/`aruaru.tokyo`)を
+// 追加(`audiocafe.tokyo`は既に許可済み)。いずれも自社が管理する
+// 固定のドメインであり、AI生成テキストが任意に生成しうる文字列
+// ではないため安全と判断した(`creatorWebsiteLinksText`参照)。
 const AUDIOCAFE_LINK_PATTERN =
-  /https:\/\/audiocafe\.tokyo(?:\/[^\s)]*)?|https:\/\/www\.amazon\.co\.jp\/dp\/B0H14VXGCC\/?|https:\/\/ameblo\.jp\/www-aon\/entry-12977122655\.html/g;
+  /https:\/\/audiocafe\.tokyo(?:\/[^\s)]*)?|https:\/\/aon\.co\.jp(?:\/[^\s)]*)?|https:\/\/aon\.tokyo(?:\/[^\s)]*)?|https:\/\/nasa\.tokyo(?:\/[^\s)]*)?|https:\/\/aruaru\.tokyo(?:\/[^\s)]*)?|https:\/\/www\.amazon\.co\.jp\/dp\/B0H14VXGCC\/?|https:\/\/ameblo\.jp\/www-aon\/entry-12977122655\.html|https:\/\/www\.youtube\.com\/results\?search_query=[^\s)]*/g;
 
 /** テキストを、既知ドメインのURLだけ`<a>`化した上で`container`へ描画する。 */
 function renderMessageBody(container, text) {
@@ -1824,8 +1837,10 @@ async function advanceTrainingMode(userText) {
   reply += govConsultingSuffix(userText);
   reply += fairTradeSuffix(userText);
   reply += await newsSuffix(userText);
-  reply += troubledSuffix(userText);
+  reply += await troubledSuffix(userText);
   reply += nuclearDeterrenceSuffix(userText);
+  reply += backPainExerciseSuffix(userText);
+  reply += backPainDietSuffix(userText);
   reply += audioUsbDacJourneySuffix(userText);
   reply += audioHeadphoneManiaSuffix(userText);
   reply += egovSuffix(userText);
@@ -2009,8 +2024,10 @@ async function askTrainer(userText) {
       reply += govConsultingSuffix(userText);
       reply += fairTradeSuffix(userText);
       reply += await newsSuffix(userText);
-      reply += troubledSuffix(userText);
+      reply += await troubledSuffix(userText);
       reply += nuclearDeterrenceSuffix(userText);
+  reply += backPainExerciseSuffix(userText);
+  reply += backPainDietSuffix(userText);
       reply += egovSuffix(userText);
       return reply;
     }
@@ -2175,8 +2192,10 @@ async function askTrainer(userText) {
   reply += govConsultingSuffix(userText);
   reply += fairTradeSuffix(userText);
   reply += await newsSuffix(userText);
-  reply += troubledSuffix(userText);
+  reply += await troubledSuffix(userText);
   reply += nuclearDeterrenceSuffix(userText);
+  reply += backPainExerciseSuffix(userText);
+  reply += backPainDietSuffix(userText);
   reply += audioUsbDacJourneySuffix(userText);
   reply += audioHeadphoneManiaSuffix(userText);
   reply += egovSuffix(userText);
@@ -2658,20 +2677,230 @@ function troubledEncouragementText() {
     "この問題についての問題点はここが明白で明確で、私はこの様に思うの" +
     "ですが、皆様、解決策をご提案下さい。もしくは、ご意見をお述べ" +
     "下さい。大胆かつ繊細が成功しやすく、小心者はおどおどして失敗" +
-    "しやすいものです。";
+    "しやすいものです。これは、株式会社エーオン代表取締役社長　石塚正浩　" +
+    "に最高の質問のあり方への御提案で御座います。" +
+    "\n\nまだ問題が解決していない様でしたら、成功者への道のりとして、" +
+    "大胆かつ繊細な気持ちを持って、問題点を一緒に明確に明白にして、" +
+    "もう一度、質問なさってみてください。" +
+    "\n\n売れる商品は、より便利に、よりお買い得感があり、より効率的や、" +
+    "より美しくや、良い所どりのハイブリッドやトライブリッドや第三の道で" +
+    "あったり、より良い音質やより大胆かつ繊細だったりします。売れるなら" +
+    "売れるなりの理由が、売れないなら売れないなりの理由が必ず御座います。";
   const en =
     "Let's try thinking hypothetically — \"suppose that...\" — and ask a " +
     "constructive question. The core issue here seems clear, and here is " +
     "what I think: everyone, please suggest a solution, or share your " +
     "thoughts. Being bold yet " +
     "careful tends to lead to success, while being overly timid tends to " +
-    "lead to failure.";
+    "lead to failure. This is a proposal on the best way to ask questions, " +
+    "offered by Masahiro Ishizuka, President and CEO of Aon Co., Ltd." +
+    "\n\nIf the problem still hasn't been resolved, as part of the path to " +
+    "success, please hold onto a bold yet delicate spirit, work together " +
+    "once more to make the problem clear and plain, and try asking your " +
+    "question again." +
+    "\n\nA product that sells well is usually more convenient, feels like " +
+    "better value for money, is more efficient, more beautiful, or takes " +
+    "the best of a hybrid/tribrid \"third way\" approach, or offers better " +
+    "sound quality, or is bolder yet more delicate. If something sells, " +
+    "there is always a reason it sells; if it doesn't sell, there is " +
+    "always a reason for that too.";
   return `\n\n💡 ${en}\n\n${ja}`;
 }
 
-function troubledSuffix(userText) {
+// 相談・悩み事の内容についてインターネット(Google/YouTube検索)から
+// ヒントを探す機能(ユーザー指示、2026-09-06「Google検索やGithub調査や
+// AIなどネットを使い効率よくアドバイスを得られる機能」「Googleや
+// YouTubeが親切に相談に乗っていくつか質問してくれるAI機能」への対応)。
+//
+// **設計方針(既存の"666"・宗教史・クイズ回答と同じ誠実さの方針)**:
+// GPT-2系(aruaru-llm)に確認質問そのものを自由生成させると、事実で
+// ない・的外れな質問を作ってしまうリスクが高いため、確認質問自体は
+// 相談内容によらず常に有効な定型の4問(日英併記、Google/YouTubeの
+// カスタマーサポートが親身に聞くような相談スタイル)を固定文として
+// 用意する。一方、実際の検索(「解決策」「アドバイス」)は本物の
+// Google検索(訪問者自身のAPIキー設定時)またはAPIキー不要のGoogle/
+// YouTube検索結果ページへの直リンクを必ず提示し、リンク先で実際の
+// 情報を確認してもらう——固定文とインターネット検索を組み合わせる
+// ことで、生成AIの不確かさを検索の実データで補う設計。
+function troubledAdviceSearchQuery(userText) {
+  const trimmed = (userText || "").trim().slice(0, 80);
+  return `${trimmed} 解決策 アドバイス advice how to solve`;
+}
+
+async function troubledAdviceLinks(userText) {
+  const query = troubledAdviceSearchQuery(userText);
+  const googleUrl = `https://www.google.com/search?q=${encodeURIComponent(query)}`;
+  const youtubeUrl = `https://www.youtube.com/results?search_query=${encodeURIComponent(query)}`;
+  let text = "\n\n🔎 Let's look for advice together / 一緒にアドバイスを探しましょう";
+  text += `\n・Google search / Google検索: ${googleUrl}`;
+  text += `\n・YouTube search / YouTube検索: ${youtubeUrl}`;
+
+  // 訪問者自身のGoogle検索APIキーが設定済みなら、実際の検索結果
+  // タイトルも併記する(既存の`loadOwnGoogleSearchCredentials`/
+  // `googleSearchDirect`/`googleSearchRequestVault`をそのまま再利用、
+  // 新しい鍵管理の仕組みは追加しない)。未設定なら上記のリンクのみ
+  // (APIキー不要で誰でも使える)。
+  try {
+    const mode = document.getElementById("google-search-key-mode")?.value || "plain";
+    if (mode === "vault") {
+      const results = await googleSearchRequestVault(query, 3);
+      if (results && results.length) {
+        text += "\n\nTop results / 上位の検索結果:";
+        results.slice(0, 3).forEach((r) => { text += `\n・${r.title}`; });
+      }
+    } else {
+      const creds = loadOwnGoogleSearchCredentials();
+      if (creds && creds.apiKey && creds.cx) {
+        const results = await googleSearchDirect(query, creds.apiKey, creds.cx, 3);
+        if (results && results.length) {
+          text += "\n\nTop results / 上位の検索結果:";
+          results.slice(0, 3).forEach((r) => { text += `\n・${r.title}`; });
+        }
+      }
+    }
+  } catch (err) {
+    // 検索APIキー未設定・失敗時は上記のリンクのみで十分機能するため、
+    // ここでは黙って握りつぶす(既存の`tourSearchText`と同じ方針)。
+  }
+  return text;
+}
+
+// 「売れる商品・売れない商品」の話題検出(ユーザー指示、2026-09-06
+// 「売れる商品や売れない商品の質問は、上記に加えて、無料のマーケティング
+// ツールをGoogle検索したりして」への対応)。悩み相談の中でも「なぜ
+// 売れる/売れないのか」という商品・マーケティングの話題に限り、
+// 無料マーケティングツールの検索リンクを追加で提示する。
+const PRODUCT_SALES_KEYWORDS_JA = ["売れる商品", "売れない商品", "売れる理由", "売れない理由", "マーケティング", "売上"];
+const PRODUCT_SALES_KEYWORDS_EN = ["sells well", "doesn't sell", "does not sell", "why it sells", "marketing", "best-selling", "best selling"];
+
+function isProductSalesQuestion(userText) {
+  const lower = (userText || "").toLowerCase();
+  return PRODUCT_SALES_KEYWORDS_JA.some((k) => userText.includes(k)) ||
+    PRODUCT_SALES_KEYWORDS_EN.some((k) => lower.includes(k));
+}
+
+// 「売れる商品・売れない商品」相談へのマーケティングツール案内を拡張
+// (ユーザー指示、2026-09-06「Amazonで星4以上の本を紹介」「YouTube/
+// Facebook広告」「CRM/BIツール/名刺管理ソフト/SATORI」「開拓営業代行」
+// 「開拓＋自動収集メール1円」への対応)。
+//
+// **正直な設計判断(著作権への配慮)**: ユーザーが貼り付けたGoogle AI
+// による概要の全文は、他者(Google)が生成した長文コンテンツであり、
+// そのまま複製・再配布はしない(著作権配慮の既存方針、消費税提案等の
+// 「開発者個人の一意見」明記と同じ誠実さの精神)。要点を自分の言葉で
+// 短く要約し、出典として検索ワード自体を案内するに留める。
+//
+// **正直な開示(価格・星評価)**: SATORIの価格(2026-09-06時点、初期
+// 費用30万円・月額14.8万円)はユーザー提供情報をそのまま記載するが、
+// 価格は変動するため最新情報は公式サイトで確認するよう案内する。
+// Amazonの「星4以上」の絞り込みはAmazon検索結果ページ上の評価
+// フィルターで利用者自身が操作する必要があり、URLパラメータだけで
+// 自動的に星4以上のみを表示することはできない(Amazon側の仕様上の
+// 制約、既存の「安全リンクドメイン許可リスト」等と同じ誠実さの
+// 方針で、できないことをできると偽らない)——検索キーワードのURLを
+// 提示し、星評価での絞り込みは利用者自身に操作してもらう案内文を
+// 添える。
+function freeMarketingToolsLinks() {
+  const freeQuery = "無料 マーケティングツール free marketing tools";
+  const freeUrl = `https://www.google.com/search?q=${encodeURIComponent(freeQuery)}`;
+  const amazonQuery = "売れるマーケティング";
+  const amazonUrl = `https://www.amazon.co.jp/s?k=${encodeURIComponent(amazonQuery)}`;
+  const salesAgentQuery = "開拓営業代行";
+  const salesAgentUrl = `https://www.google.com/search?q=${encodeURIComponent(salesAgentQuery)}`;
+  const emailQuery = "開拓 & 自動収集 e-mail 1円";
+  const emailUrl = `https://www.google.com/search?q=${encodeURIComponent(emailQuery)}`;
+
+  let text = "\n\n📈 Marketing tools & tips / マーケティングツール・売上アップのヒント";
+  text += `\n・Free marketing tools (Google) / 無料マーケティングツール(Google検索): ${freeUrl}`;
+  text += `\n・Amazon books on "売れるマーケティング" / Amazonで「売れるマーケティング」関連書籍: ${amazonUrl}` +
+    "\n  (Please filter by ★4 and up on the Amazon page itself — a URL alone can't " +
+    "auto-filter by star rating. / 星4以上の絞り込みはAmazonのページ上でご自身で" +
+    "操作してください。URLだけでは自動的に星4以上のみに絞り込めません。)";
+  text += "\n・YouTube ads & Facebook ads are well known for being able to create and run " +
+    "ads cheaply. / YouTube広告やFacebook広告は、安く作成・出稿できるツールとして" +
+    "有名です。";
+  text += "\n・Other categories worth researching / 他に調べる価値のあるカテゴリ: " +
+    "email newsletter auto-delivery / メールマガジン自動配信, CRM (customer " +
+    "relationship management) / CRM顧客管理システム, BI tools / BIツール, " +
+    "web customer tools / WEB顧客ツール, business card management software / " +
+    "名刺管理ソフト.";
+  text += "\n・SATORI (a well-known Japanese marketing tool, somewhat pricier) — as of " +
+    "2026-09-06: about ¥300,000 setup + about ¥148,000/month (prices change, please " +
+    "confirm current pricing on the official site). / SATORI(日本で有名な" +
+    "マーケティングツール、少し高め)——2026年09月06日時点で初期費用約30万円・" +
+    "月額約14.8万円(価格は変動するため公式サイトで最新情報をご確認ください)。";
+  text += `\n・Cheaper way to grow sales — try searching "開拓営業代行" (sales outreach ` +
+    `agency) on Google; there are affordable agencies for new-customer outreach. / ` +
+    `安く売上を伸ばす方法として、Google検索で「開拓営業代行」を検索してみてください。` +
+    `格安で新規開拓営業を代行してくれる業者があります: ${salesAgentUrl}`;
+  text += `\n・For bulk email prospecting, try searching "開拓 ＆ 自動収集 e-mail 1円" ` +
+    "on Google / メール開拓・自動収集について「開拓 ＆ 自動収集 e-mail 1円」で" +
+    `検索してみてください: ${emailUrl}` +
+    "\n  Summary / 要約: at high sending volumes (roughly 10,000+ emails/month), " +
+    "services such as Amazon SES or SendGrid can bring the cost down to well under " +
+    "¥1 per email; marketing-automation tools (e.g. BowNow, HubSpot) can help collect " +
+    "and manage leads. / 送信量が多い場合(目安として月1万通以上)、Amazon SESや" +
+    "SendGrid等を使うと1通あたり1円を大きく下回るコストで運用できることがあり、" +
+    "MA(マーケティングオートメーション)ツール(BowNow・HubSpot等)がリストの収集・" +
+    "管理に役立ちます。" +
+    "\n  ⚠ Important / 重要: in Japan, unsolicited commercial email is regulated by " +
+    "the Act on Regulation of Transmission of Specified Electronic Mail — you must " +
+    "include a clear opt-out (unsubscribe) link and your sender's name/company/" +
+    "address/contact details, or it can be illegal. / 日本国内では、同意のない" +
+    "営業メール送信は「特定電子メール法」の規制対象です。配信停止(オプトアウト)" +
+    "リンクの明記、送信者(会社名・住所・連絡先)の明記が無いと違法になり得ます。";
+  return text;
+}
+
+// 商品の売れる/売れない相談時にAIから追加で尋ねる確認質問(ユーザーが
+// 貼り付けたGoogle AI概要の末尾にあった3つの質問と同趣旨、日英併記の
+// 定型文で実装——固定文にする理由はtroubledClarifyingQuestionsText()と
+// 同じ)。
+function productSalesClarifyingQuestionsText() {
+  const ja =
+    "\n\n🤝 マーケティングについてもう少し伺えますか？" +
+    "\n1. どのような業種・職種のお客様を開拓したいですか？(例: 飲食店のオーナー、IT企業の総務など)" +
+    "\n2. 月におおよそ何件くらいアプローチ・配信したいですか？(例: 数千件、数万件など)" +
+    "\n3. ご自身、または社内にIT・プログラミングの知識がある方はいますか？";
+  const en =
+    "\n\n🤝 A few more questions about your marketing:" +
+    "\n1. What industry or job role are you trying to reach? (e.g. restaurant owners, " +
+    "IT company admin staff)" +
+    "\n2. Roughly how many outreach emails per month would you like to send? (e.g. a " +
+    "few thousand, tens of thousands)" +
+    "\n3. Do you (or anyone on your team) have IT/programming knowledge?";
+  return `${en}${ja}`;
+}
+
+function troubledClarifyingQuestionsText() {
+  const ja =
+    "\n\n🤝 もう少し詳しく聞かせて頂けますか？(Google・YouTubeの" +
+    "サポート窓口の様に、いくつか確認させてください)" +
+    "\n1. 一番の障害・ネックになっている点は何ですか？" +
+    "\n2. いつまでに解決したいとお考えですか？" +
+    "\n3. すでに試したことがあれば教えて頂けますか？" +
+    "\n4. 理想的にはどのような状態になれば解決と言えますか？";
+  const en =
+    "\n\n🤝 Could you tell us a bit more? (Like a Google/YouTube support " +
+    "desk, let's check a few things)" +
+    "\n1. What is the biggest obstacle or sticking point?" +
+    "\n2. By when would you like this resolved?" +
+    "\n3. Have you already tried anything?" +
+    "\n4. What would an ideal resolution look like to you?";
+  return `${en}${ja}`;
+}
+
+async function troubledSuffix(userText) {
   if (!soundsTroubledOrFrustrated(userText)) return "";
-  return troubledEncouragementText();
+  let text = troubledEncouragementText();
+  text += await troubledAdviceLinks(userText);
+  if (isProductSalesQuestion(userText)) {
+    text += freeMarketingToolsLinks();
+    text += productSalesClarifyingQuestionsText();
+  } else {
+    text += troubledClarifyingQuestionsText();
+  }
+  return text;
 }
 
 // 核抑止・同盟関係についての議論トピック例(ユーザー指示、2026-08-20)。
@@ -2725,6 +2954,79 @@ function nuclearDeterrenceOpinionText() {
 function nuclearDeterrenceSuffix(userText) {
   if (!mentionsNuclearDeterrenceTopic(userText)) return "";
   return nuclearDeterrenceOpinionText();
+}
+
+// 腰痛改善体操の話題検出(ユーザー指示、2026-09-06「open-englishの質問で
+// 腰痛改善体操関連は、YouTubeで腰痛改善体操をYoutubeで検索結果を見せて
+// あげてクリック出来るようにして」への対応)。`troubledAdviceLinks`と
+// 同じ「APIキー不要のYouTube検索結果ページへの直リンク」方式——
+// 特定の動画を「これが正解」として紹介するのではなく、検索結果ページを
+// 開いて利用者自身に選んでもらう(既存の`vschoolYoutubeUrl`等と同じ
+// 誠実さの方針)。検索ワードは常に固定の「腰痛改善体操」とする
+// (ユーザー指示通り、発話内容に応じて動的に変えない)。
+const BACK_PAIN_EXERCISE_KEYWORDS_JA = ["腰痛改善体操", "腰痛体操", "腰痛改善", "腰痛"];
+const BACK_PAIN_EXERCISE_KEYWORDS_EN = [
+  "back pain exercise", "back pain stretch", "lower back pain exercise",
+  "lower back pain stretch", "exercise for back pain",
+];
+
+function mentionsBackPainExerciseTopic(userText) {
+  const lower = (userText || "").toLowerCase();
+  return (
+    BACK_PAIN_EXERCISE_KEYWORDS_JA.some((k) => userText.includes(k)) ||
+    BACK_PAIN_EXERCISE_KEYWORDS_EN.some((k) => lower.includes(k))
+  );
+}
+
+function backPainExerciseYoutubeUrl() {
+  return "https://www.youtube.com/results?search_query=" + encodeURIComponent("腰痛改善体操");
+}
+
+function backPainExerciseSuffix(userText) {
+  if (!mentionsBackPainExerciseTopic(userText)) return "";
+  const url = backPainExerciseYoutubeUrl();
+  return (
+    "\n\n🧘 Here are YouTube search results for \"腰痛改善体操\" (back pain " +
+    "improvement exercises) / 「腰痛改善体操」のYouTube検索結果です。動画の " +
+    "内容の正しさは保証しませんので、ご自身の体調に合わせて無理のない範囲で " +
+    "お試しください。心配な場合は医師にご相談ください。" +
+    `\n${url}`
+  );
+}
+
+// 腰痛・ダイエット・体操(足フリ運動)の話題検出(ユーザー指示、2026-09-06
+// 「腰痛 ダイエット 体操 などの質問があったら、腰痛改善体操 ダイエット
+// 足フリ のYoutube検索ワードでの検索結果を見せてあげてクリックも可能で」
+// への対応)。`backPainExerciseSuffix`と同じ「APIキー不要のYouTube検索
+// 結果ページへの直リンク」方式だが、こちらは検索ワードを「腰痛改善体操
+// ダイエット 足フリ」という固定の複合ワードにする(ユーザー指示通り、
+// 発話内容に応じて動的に変えない)。
+const BACK_PAIN_DIET_KEYWORDS_JA = ["腰痛", "ダイエット", "体操", "足フリ"];
+const BACK_PAIN_DIET_KEYWORDS_EN = ["diet", "exercise", "workout", "leg shake", "leg swing"];
+
+function mentionsBackPainDietTopic(userText) {
+  const lower = (userText || "").toLowerCase();
+  return (
+    BACK_PAIN_DIET_KEYWORDS_JA.some((k) => userText.includes(k)) ||
+    BACK_PAIN_DIET_KEYWORDS_EN.some((k) => lower.includes(k))
+  );
+}
+
+function backPainDietYoutubeUrl() {
+  return "https://www.youtube.com/results?search_query=" + encodeURIComponent("腰痛改善体操 ダイエット 足フリ");
+}
+
+function backPainDietSuffix(userText) {
+  if (!mentionsBackPainDietTopic(userText)) return "";
+  const url = backPainDietYoutubeUrl();
+  return (
+    "\n\n🦵 Here are YouTube search results for \"腰痛改善体操 ダイエット " +
+    "足フリ\" (back pain improvement exercise + diet + leg-shake exercise) " +
+    "/ 「腰痛改善体操 ダイエット 足フリ」のYouTube検索結果です。動画の " +
+    "内容の正しさは保証しませんので、ご自身の体調に合わせて無理のない範囲で " +
+    "お試しください。心配な場合は医師にご相談ください。" +
+    `\n${url}`
+  );
 }
 
 // AUDIO(オーディオ趣味)の会話ネタ(ユーザー提供、2026-08-29追加)。
@@ -3351,6 +3653,59 @@ function creatorIntroductionText() {
     "大きなシアタールーム付きの大きな家を建てて、U-NEXTの映画や" +
     "ライブ・コンサートを家族で一緒に視聴したいです。";
   return `👤 ${en}\n\n${ja}`;
+}
+
+// 作者(株式会社エーオン代表取締役社長・石塚正浩)のホームページ/WEBサイト
+// を尋ねる質問かどうかを判定する(2026-09-06新設、ユーザー指示)。
+// `isCreatorQuestion`と同じ「作者への言及」に加えて、ホームページ/
+// WEBサイトという単語(または会社名・代表取締役社長という肩書き)を
+// 尋ねている場合にのみ発火する——単に「誰が作ったか」だけの質問
+// (`isCreatorQuestion`)とは区別し、こちらはサイト一覧を追加提示する。
+const CREATOR_NAME_JA = ["石塚正浩", "石塚 正浩", "いしづかまさひろ", "いしづか まさひろ"];
+const CREATOR_NAME_EN = ["masahiro ishizuka", "ishizuka"];
+const CREATOR_COMPANY_JA = ["株式会社エーオン", "エーオン", "代表取締役社長"];
+const CREATOR_COMPANY_EN = ["aon co", "aon corporation", "aon inc"];
+const CREATOR_SITE_WORD_JA = ["ホームページ", "ホーム・ページ", "WEBサイト", "ウェブサイト", "公式サイト", "公式ホームページ", "サイト"];
+const CREATOR_SITE_WORD_EN = ["homepage", "home page", "website", "web site", "official site", "official website"];
+
+function mentionsCreatorReference(userText) {
+  const lower = userText.toLowerCase();
+  return (
+    isCreatorQuestion(userText) ||
+    CREATOR_NAME_JA.some((k) => userText.includes(k)) ||
+    CREATOR_NAME_EN.some((k) => lower.includes(k)) ||
+    CREATOR_COMPANY_JA.some((k) => userText.includes(k)) ||
+    CREATOR_COMPANY_EN.some((k) => lower.includes(k))
+  );
+}
+
+function isCreatorWebsiteQuestion(userText) {
+  const lower = userText.toLowerCase();
+  const siteWord =
+    CREATOR_SITE_WORD_JA.some((k) => userText.includes(k)) ||
+    CREATOR_SITE_WORD_EN.some((k) => lower.includes(k));
+  return siteWord && mentionsCreatorReference(userText);
+}
+
+// 紹介するサイト一覧(ユーザー提供、固定)。実際のドメインをクリック
+// 可能にするには`AUDIOCAFE_LINK_PATTERN`のホワイトリストにも追加が必要
+// (追加済み、上記参照)。
+const CREATOR_WEBSITE_URLS = [
+  "https://aon.co.jp",
+  "https://aon.tokyo",
+  "https://audiocafe.tokyo",
+  "https://nasa.tokyo",
+  "https://aruaru.tokyo",
+];
+
+function creatorWebsiteLinksText() {
+  const listText = CREATOR_WEBSITE_URLS.map((u) => `・${u}`).join("\n");
+  const en =
+    "[Websites related to the creator (Masahiro Ishizuka, President & " +
+    "Representative Director of aon Co., Ltd.)]\n" + listText;
+  const ja =
+    "【作者(株式会社エーオン 代表取締役社長 石塚正浩)関連のWEBサイト】\n" + listText;
+  return `🌐 ${en}\n\n${ja}`;
 }
 
 // 「風天のとらさん(トラさん)の職業・仕事は何か」という趣旨の質問
@@ -4262,6 +4617,16 @@ formEl.addEventListener("submit", async (e) => {
   if (levelEl.value === "maid-cafe-training") {
     recordDailyUsage();
     await advanceTrainingMode(text);
+    return;
+  }
+
+  // 作者(株式会社エーオン代表取締役社長・石塚正浩)のホームページ/WEB
+  // サイトを尋ねる質問には、クリック可能な自社サイト一覧を返す
+  // (ユーザー指示、2026-09-06新設)。`isCreatorQuestion`より先に判定
+  // することで、「誰が作ったのか+そのサイトも教えて」のような複合的な
+  // 質問でもサイト一覧が優先して案内される。
+  if (isCreatorWebsiteQuestion(text)) {
+    appendMessage("trainer", creatorWebsiteLinksText());
     return;
   }
 
