@@ -930,6 +930,20 @@ const LOGIN_PROMPT_SHOWN_KEY = "open-english.loginPromptShown";
     return;
   }
 
+  // 実バグ修正(2026-09-07): デモ環境(パスに/demoを含む)では、
+  // サーバー側は正しくlogin_required:falseを返しているにも関わらず、
+  // この「ログインを導入しますか?」という一度きりの案内オーバーレイ
+  // (#login-setup-prompt、position:fixed・z-index:9999)が全画面を覆って
+  // しまい、利用者からは「デモなのにログインを要求された」バグに
+  // 見えていた(ユーザー報告)。デモは不特定多数が毎回新規ブラウザ
+  // (localStorageフラグ無し)で訪れる前提のため、この一度きり案内は
+  // デモでは常に表示され続けることになり実害が大きい——デモパスでは
+  // このオンボーディング案内自体を表示しないようにする。
+  const isDemoPath = /\/demo(\/|$)/.test(location.pathname);
+  if (isDemoPath) {
+    return;
+  }
+
   // ログイン保護は無効——まだ一度も尋ねていなければ案内する。
   let alreadyShown = false;
   try {
