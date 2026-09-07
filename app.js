@@ -2121,6 +2121,12 @@ async function checkHealth() {
     wasConnected = false;
     renderRuntimeBadge(null);
   }
+  // PC版起動案内バナー内の「未起動」表示(2026-09-07新設): aruaru-llmへの
+  // 接続有無(wasConnected)をそのままPC版の起動有無とみなす。起動済みの
+  // 場合はこの一文を消すのみ(「起動しました」等の追加表示はしない、
+  // ユーザー指示)。
+  const pcLaunchStatusEl = document.getElementById("pc-version-launch-status");
+  if (pcLaunchStatusEl) pcLaunchStatusEl.classList.toggle("hidden", wasConnected);
   // パネルが開いている間に接続状態が変わった場合(例: セットアップ手順を
   // 実行してaruaru-llmが起動した)も、ポーリングのたびにバナー表示を
   // 追従させる(`updateSetupAlreadyConnectedBanner`はこの関数より後で
