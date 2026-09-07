@@ -7,16 +7,18 @@
 # DistilGPT-2の実モデル重み(数百MB〜数GB)・aruaru-db・PostgreSQLは
 # 含まない——それぞれ別途セットアップが必要(README-INSTALLED.txt参照)。
 #
-# open-cuda について / About open-cuda:
-#   aruaru-llm を使うなら open-cuda も必要だが、別途ダウンロードは不要。
-#   open-cuda(opencuda-blas/opencuda-bert/open-cuda-llm 等)は
-#   aruaru-llm バイナリへ静的リンクされており、取得済みバイナリに既に
-#   含まれている。Vulkan/DirectX の GPU バックエンドだけは aruaru-llm
-#   側の GPU ビルドを使う場合のみ有効。
-#   If you use aruaru-llm you also need open-cuda, but nothing extra to
-#   download: open-cuda is statically linked into the aruaru-llm binary
-#   and is already inside the fetched artifact. Only the Vulkan/DirectX
-#   GPU backends need aruaru-llm's separate GPU build.
+# open-cuda / open-cpu について / About open-cuda / open-cpu:
+#   aruaru-llm を使うなら open-cuda・open-cpu も必要だが、別途ダウン
+#   ロードは不要。open-cuda(opencuda-blas/opencuda-bert/open-cuda-llm
+#   等)・open-cpu(CPU命令セット検出・SIMD加速)はいずれもaruaru-llm
+#   バイナリへCargoのpath依存として静的リンクされており、取得済み
+#   バイナリに既に含まれている。Vulkan/DirectX の GPU バックエンドだけは
+#   aruaru-llm 側の GPU ビルドを使う場合のみ有効。
+#   If you use aruaru-llm you also need open-cuda and open-cpu, but
+#   nothing extra to download: both are Cargo path dependencies
+#   statically linked into the aruaru-llm binary and are already inside
+#   the fetched artifact. Only the Vulkan/DirectX GPU backends need
+#   aruaru-llm's separate GPU build.
 
 set -eu
 
