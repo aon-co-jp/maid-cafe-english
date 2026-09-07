@@ -4,6 +4,36 @@
 // を受けていない素のGPT-2であり、応答品質・レベル遵守は保証されない。
 // このスクリプトはそれを誠実に開示した上で、実際にaruaru-llmへ接続する。
 
+// 実バグ修正(2026-09-07): このファイル全体で`fetch("/v1/...")`のように
+// **絶対パス**でサーバー自身のAPIを呼んでいる箇所が多数あるため、
+// `https://easy-web.tokyo/open-english/`のようなパスプレフィックス配下に
+// マウントされている場合(本番・デモとも同一バイナリ・同一静的ファイル)、
+// ブラウザはこれをオリジン直下(`https://easy-web.tokyo/v1/...`)へ解決
+// してしまい、別のテナント(本番の`open-english`バックエンド)へ誤って
+// 到達する——例えば`/open-english/demo`から見た`/v1/auth/config`が
+// 本番の`login_required:true`を返してしまい、デモなのにログインを
+// 要求する画面になる、という実害のあるバグとして発覚した(open-redmine/
+// RS-Sync/open-giteaで過去に踏んだのと同じ既知のパターン)。
+// `location.pathname`から実行時に判定した接頭辞を、`/v1/`宛の絶対パス
+// fetchにのみ機械的に前置する(相対パス・他オリジンへのfetchは無変更)。
+(function patchFetchForPathPrefix() {
+  const path = location.pathname;
+  let prefix = "";
+  if (path.startsWith("/open-english/demo")) {
+    prefix = "/open-english/demo";
+  } else if (path.startsWith("/open-english")) {
+    prefix = "/open-english";
+  }
+  if (!prefix) return; // ルート直下配信(localhost等)は無変更のまま。
+  const originalFetch = window.fetch.bind(window);
+  window.fetch = (input, init) => {
+    if (typeof input === "string" && input.startsWith("/v1/")) {
+      return originalFetch(prefix + input, init);
+    }
+    return originalFetch(input, init);
+  };
+})();
+
 const levelInstructions = {
   "super-beginner": "Use only very simple words and short sentences.",
   beginner: "Use simple vocabulary and short sentences.",
