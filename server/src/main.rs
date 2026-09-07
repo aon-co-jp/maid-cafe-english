@@ -351,6 +351,67 @@ async fn maybe_launch_aruaru_llm() {
     }
 }
 
+/// `open-easy-web`をローカルモード(簡易リバースプロキシ+DuckDNS)で
+/// 自動起動する(2026-09-07新設、ユーザー指示「PC版のeasy-web.tokyoも
+/// 同梱してそこでopen-englishを起動するべき」への対応)。
+///
+/// 設計は`maybe_launch_aruaru_llm`と全く同じパターン——インストーラーの
+/// 「open-easy-webも一緒にインストール」タスク(既定オフ)を選んだ場合の
+/// み`{app}\open-easy-web\open-easy-web-server.exe`が実在し、この関数が
+/// 毎回の起動時にそれを検出して自動起動する。**正直な開示**: バイナリが
+/// 無ければ何もしない(エラーにしない)——open-easy-webはopen-english本体
+/// の動作に必須ではないオプション機能のため。
+///
+/// 起動した`open-easy-web`は`OPEN_EASY_WEB_LOCAL_MODE=1`(ローカムモード
+/// を有効化)・`OPEN_EASY_WEB_LOCAL_BACKEND=<このサーバー自身のbind先>`
+/// (このopen-englishサーバーの手前でリバースプロキシとして働く)で
+/// 起動する。既定の待受先(`OPEN_EASY_WEB_LOCAL_BIND`、既定
+/// `127.0.0.1:8090`)は`open-easy-web`側のデフォルトのまま変更しない
+/// (open-english自身はこのポートを知らなくても動作に支障はない——
+/// DuckDNS/独自ドメインの設定方法は`index.html`の案内文でこのポートを
+/// 明記して案内する)。
+async fn maybe_launch_open_easy_web_local() {
+    let server_bind = std::env::var("OPEN_ENGLISH_SERVER_BIND").unwrap_or_else(|_| "127.0.0.1:4601".to_string());
+    let local_bind = std::env::var("OPEN_EASY_WEB_LOCAL_BIND").unwrap_or_else(|_| "127.0.0.1:8090".to_string());
+    let health_url = format!("http://{local_bind}/v1/platform-info");
+    let client = reqwest::Client::builder()
+        .timeout(std::time::Duration::from_millis(700))
+        .build()
+        .expect("building a minimal reqwest client cannot fail");
+    if client.get(&health_url).send().await.is_ok() {
+        println!("open-easy-web (local mode) already running at http://{local_bind}/ (skip auto-launch)");
+        return;
+    }
+
+    let Ok(exe) = std::env::current_exe() else { return };
+    let Some(exe_dir) = exe.parent() else { return };
+    let binary_name = if cfg!(target_os = "windows") { "open-easy-web-server.exe" } else { "open-easy-web-server" };
+    let candidate = exe_dir.join("open-easy-web").join(binary_name);
+    if !candidate.exists() {
+        println!(
+            "open-easy-web binary not found at {} - skipping auto-launch (install it via the installer's \
+             \"Also install open-easy-web\" option, or start it manually with OPEN_EASY_WEB_LOCAL_MODE=1)",
+            candidate.display()
+        );
+        return;
+    }
+
+    match std::process::Command::new(&candidate)
+        .env("OPEN_EASY_WEB_LOCAL_MODE", "1")
+        .env("OPEN_EASY_WEB_LOCAL_BACKEND", &server_bind)
+        .env("OPEN_EASY_WEB_LOCAL_BIND", &local_bind)
+        .current_dir(&exe_dir.join("open-easy-web"))
+        .spawn()
+    {
+        Ok(child) => println!(
+            "auto-launched open-easy-web (pid {}) from {} on http://{local_bind}/ -> http://{server_bind}/",
+            child.id(),
+            candidate.display()
+        ),
+        Err(e) => println!("failed to auto-launch open-easy-web from {}: {e}", candidate.display()),
+    }
+}
+
 /// ブラウザ内 Whisper 音声認識(P2-α、docs/SPEECH_RECOGNITION_REDESIGN.md)用の
 /// ONNX モデルが無ければ、起動時の自動メンテナンスで取得する
 /// (2026-08-29新設、ユーザー指示「メンテナンスで自動インストールして」への対応)。
@@ -519,6 +580,26 @@ async fn healthz() -> Response {
     rs_json_response(StatusCode::OK, &serde_json::json!({"ok": true}))
 }
 
+/// このサーバーが動いているOS種別を返すエンドポイント(2026-09-07新設、
+/// ユーザー指示「Windowsならブラウザ上でWindows版起動中と表示して」への
+/// 対応)。
+///
+/// フロントエンド(`app.js`)は`location.hostname`がlocalhost/127.0.0.1の
+/// 場合(=ローカルPC版を自分自身のブラウザから見ている場合)にこの
+/// エンドポイントを呼び、返ってきた`os`に応じて「Windows版起動中/
+/// Windows version running」等のバッジを表示する。`std::env::consts::OS`
+/// はコンパイル時に決まる定数(実行時判定ではない)ため、クロス
+/// コンパイルしたバイナリを別OSで動かすような特殊なケースは想定しない。
+async fn platform_info() -> Response {
+    rs_json_response(
+        StatusCode::OK,
+        &serde_json::json!({
+            "os": std::env::consts::OS,
+            "arch": std::env::consts::ARCH,
+        }),
+    )
+}
+
 /// デプロイ固有の設定を返すエンドポイント(2026-08-25新設)。
 ///
 /// **背景**: `app.js`の`apiBaseEl`(aruaru-llm接続先)は、ローカルPC版の
@@ -532,7 +613,29 @@ async fn healthz() -> Response {
 /// 自動補完に任せる。
 async fn app_config() -> Response {
     let aruaru_llm_base_url = std::env::var("OPEN_ENGLISH_ARUARU_LLM_BASE_URL").ok();
-    rs_json_response(StatusCode::OK, &serde_json::json!({"aruaru_llm_base_url": aruaru_llm_base_url}))
+    // 2026-09-07追記(ユーザー指示): DuckDNS等で自分のPC版へ独自ドメインを
+    // 割り当てて公開している場合、そのホスト名でアクセスしても
+    // 「PC版を起動してご利用下さい」(共有デモ向け)ではなく「PC版起動中」
+    // (localhostアクセス時と同じ扱い)を表示したい、という要望への対応。
+    // `location.hostname`がlocalhost/127.0.0.1かどうかだけで判定する既存の
+    // `isLocalHost`ロジックでは、外部ドメイン経由アクセスを区別できない
+    // ——サーバー起動時に`OPEN_ENGLISH_SELF_HOSTED_HOSTNAMES`(カンマ区切り、
+    // 例: "open-english.duckdns.org")を設定することで、そのホスト名を
+    // 「これは(共有デモではなく)自分自身のPC版インスタンスである」と
+    // app.js側へ伝える。未設定なら空配列(既存の挙動を一切変えない)。
+    let self_hosted_hostnames: Vec<String> = std::env::var("OPEN_ENGLISH_SELF_HOSTED_HOSTNAMES")
+        .unwrap_or_default()
+        .split(',')
+        .map(|s| s.trim().to_ascii_lowercase())
+        .filter(|s| !s.is_empty())
+        .collect();
+    rs_json_response(
+        StatusCode::OK,
+        &serde_json::json!({
+            "aruaru_llm_base_url": aruaru_llm_base_url,
+            "self_hosted_hostnames": self_hosted_hostnames,
+        }),
+    )
 }
 
 /// 実行基盤(CPU)の情報を返すエンドポイント(2026-08-22新設)。
@@ -2389,6 +2492,7 @@ async fn main() {
     }
     app = app.at("/healthz", get(handler_fn(move |_req, _p| async move { healthz().await })));
     app = app.at("/v1/config", get(handler_fn(move |_req, _p| async move { app_config().await })));
+    app = app.at("/v1/platform-info", get(handler_fn(move |_req, _p| async move { platform_info().await })));
     // `/health`はopen-web-server/open-easy-web側の「分身の術」テナント
     // 登録パターン(他リポジトリのCLAUDE.md HANDOFF多数参照)が汎用的に
     // 期待するヘルスチェック命名に形状を揃えるための別名(2026-08-24新設)。
@@ -2708,6 +2812,11 @@ async fn main() {
     // バックグラウンド実行する(ヘルスチェック自体に最大700msかかり
     // 得るため)。
     tokio::spawn(maybe_launch_aruaru_llm());
+
+    // open-easy-web(ローカルモード)の自動起動(2026-09-07新設、上記
+    // maybe_launch_open_easy_web_localのdoc参照)。同様にバックグラウンド
+    // タスクとして起動し、本体サーバーの起動をブロックしない。
+    tokio::spawn(maybe_launch_open_easy_web_local());
 
     // ブラウザ内 Whisper 音声認識モデルの自動取得(2026-08-29新設、
     // ユーザー指示「メンテナンスで自動インストールして」)。無ければ

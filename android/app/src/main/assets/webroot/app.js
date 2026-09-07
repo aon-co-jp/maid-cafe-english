@@ -497,8 +497,54 @@ makeCollapsiblePanel("download-recommend-banner", "download-recommend-banner-tog
 // 自身に「PC版を起動してください」と案内するのは無意味なため。
 // ブラウザ版(共有VPS等、localhost以外のホスト名でアクセスしている
 // 場合)にのみ表示する。
+//
+// 2026-09-07追記(続き、ユーザー指示): DuckDNS等で自分のPC版へ独自
+// ドメイン(例: open-english.duckdns.org)を割り当てて公開している
+// 場合、そのドメイン経由でアクセスしても「共有デモ」ではなく
+// 「自分のPC版が起動中」の扱いにしたい、という要望への対応。
+// hostnameの文字列判定だけでは区別できないため、サーバー自身に
+// `/v1/config`(既存、2026-08-25新設)経由で「これは自分自身のPC版
+// インスタンスである」と申告してもらう
+// (`OPEN_ENGLISH_SELF_HOSTED_HOSTNAMES`環境変数、未設定なら従来通り
+// localhost/127.0.0.1のみが対象)。
+const PLATFORM_BADGE_LABELS = {
+  windows: { ja: "🖥️ Windows版起動中", en: "Windows version running" },
+  macos: { ja: "🖥️ macOS版起動中", en: "macOS version running" },
+  linux: { ja: "🖥️ Linux版起動中", en: "Linux version running" },
+};
+function showLocalInstanceBadgeFromPlatformInfo() {
+  fetch("/v1/platform-info")
+    .then((r) => (r.ok ? r.json() : null))
+    .then((data) => {
+      const label = data && PLATFORM_BADGE_LABELS[data.os];
+      const badgeEl = document.getElementById("local-instance-badge");
+      if (label && badgeEl) {
+        badgeEl.textContent = `${label.ja} / ${label.en}`;
+        badgeEl.classList.remove("hidden");
+      }
+    })
+    .catch(() => {
+      // このAPI自体に到達できないケース(古いビルド等)は単に非表示の
+      // ままにする(既存の可用性優先方針、握りつぶすのみ)。
+    });
+}
 if (/^(127\.0\.0\.1|localhost|\[::1\])$/.test(location.hostname)) {
   document.getElementById("launch-pc-version-banner")?.classList.add("hidden");
+  showLocalInstanceBadgeFromPlatformInfo();
+} else {
+  fetch("/v1/config", { cache: "no-store" })
+    .then((r) => (r.ok ? r.json() : null))
+    .then((data) => {
+      const selfHostedHostnames = (data && data.self_hosted_hostnames) || [];
+      if (selfHostedHostnames.includes(location.hostname.toLowerCase())) {
+        document.getElementById("launch-pc-version-banner")?.classList.add("hidden");
+        showLocalInstanceBadgeFromPlatformInfo();
+      }
+    })
+    .catch(() => {
+      // `/v1/config`未提供の配信形態(file://直開き等)では黙って
+      // 既定(共有デモ扱い)のままにする。
+    });
 }
 // 2026-09-01追記(ユーザー指示): 「これはデモです、インストーラー版を
 // ダウンロードしてください」という案内は、本番(/open-english/)ではなく

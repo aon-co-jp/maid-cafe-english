@@ -148,6 +148,19 @@ Name: "installwhispermodel"; Description: "Also download the browser Whisper spe
 ; open-web-serverもopen-englishの同梱に含めて」への対応、2026-08-19。
 ; 2026-08-26追記: ユーザー指摘「必要なのか?一緒にインストールする
 ; メリットを明確に」を受け、下記の通り具体的な利用場面を明記した)。
+; 2026-09-07追記(ユーザー指示「PC版のeasy-web.tokyoも同梱してそこで
+; open-englishを起動するべき」への対応): open-easy-webへ新規実装した
+; 「ローカルモード」(簡易リバースプロキシ+DuckDNS動的DNS対応、
+; `open-easy-web/server/src/local_proxy.rs`参照)により、このタスクの
+; 役割が「VPS専用ツール」から「このPC上でも軽量な簡易プロキシ+
+; ドメイン付与ヘルパーとして使える」へ広がった。選択すると、
+; open-englishサーバー自身が起動のたびに`open-easy-web-server.exe`を
+; 自動的にローカルモード(`OPEN_EASY_WEB_LOCAL_MODE=1`、既定
+; `http://127.0.0.1:8090/`で待受・`127.0.0.1:4601`のopen-englishへ
+; 転送)で起動するようになる(`server/src/main.rs`の
+; `maybe_launch_open_easy_web_local`参照、aruaru-llmの自動起動と
+; 同じパターン)。DuckDNS(無料)または有料の独自ドメインの設定方法は
+; index.htmlの「🔗 Icon & Custom URL」パネルに日英併記で案内がある。
 ;
 ; 正直な開示・具体的な必要性(いつ必要か、いつ不要か):
 ; - open-englishを**このPC単体でローカルに使うだけなら、どちらも
@@ -158,14 +171,18 @@ Name: "installwhispermodel"; Description: "Also download the browser Whisper spe
 ;   したい場合(汎用リバースプロキシ/Webサーバーとして機能する)。
 ;   単にLAN内で使うだけならopen-web-server無しでも既存のLANアクセス
 ;   機能(ホスト名:4600への自動接続、CLAUDE.md参照)で足りる。
-; - **open-easy-web**が役立つ場面: 自分のVPS(レンタルサーバー)上に
+; - **open-easy-web**が役立つ場面: (a) 自分のVPS(レンタルサーバー)上に
 ;   open-english(や他のaon-co-jp製アプリ)を**複数まとめて**デプロイ・
 ;   ドメイン登録・HTTPS自動発行したい場合(VPS側のアプリ配布・管理
-;   ツール)。PC/スマホでの利用のみなら不要。
+;   ツール、従来からの用途)。(b) **新設のローカルモード**——このPC上の
+;   open-englishへ、DuckDNS(無料)または有料の独自ドメインで名前を
+;   付けたい場合(簡易HTTPリバースプロキシとして働く、TLS/HTTPS
+;   終端は含まない——平文HTTPのみ、正直な開示)。単にPC単体でローカルに
+;   使うだけなら不要。
 ; - いずれもopen-english自身のCLAUDE.md「アーキテクチャ」節に明記の
 ;   通り、open-englishの英会話AI機能自体への技術的な依存関係は無い
 ;   ——上記の追加ユースケースに該当しない場合は不要。既定オフのまま。
-Name: "installopeneasyweb"; Description: "Also install open-easy-web — useful if you want to deploy open-english (or other aon-co-jp apps) on your own VPS/rental server with domain + auto-HTTPS; NOT needed for local PC/phone use / open-easy-webも一緒にインストール——ご自身のVPS/レンタルサーバーへopen-english(や他のaon-co-jp製アプリ)をドメイン+自動HTTPS付きでデプロイしたい場合に便利です。PC/スマホでのローカル利用のみなら不要です"; Flags: unchecked
+Name: "installopeneasyweb"; Description: "Also install open-easy-web — runs a lightweight local reverse proxy (with free DuckDNS support) in front of this PC's open-english, or deploys apps on your own VPS with domain + auto-HTTPS; NOT needed for local-only use / open-easy-webも一緒にインストール——このPC上のopen-englishの手前で軽量なリバースプロキシ(無料DuckDNS対応)として動くほか、ご自身のVPSへドメイン+自動HTTPS付きでデプロイする用途にも使えます。ローカル利用のみなら不要です"; Flags: unchecked
 Name: "installopenwebserver"; Description: "Also install open-web-server — useful if you want to expose this PC's open-english to other devices on your LAN or the internet with a proper domain + TLS; NOT needed for local-only use / open-web-serverも一緒にインストール——このPCのopen-englishを独自ドメイン+正式なTLSでLAN内の他端末やインターネットへ公開したい場合に便利です。ローカル利用のみなら不要です"; Flags: unchecked
 ; open-cg-cad同梱タスク(ユーザー指示「open-englishかopen-easy-webから
 ; open-cg-cadをインストールすると、open-englishとopen-cg-cadはハイブリッド

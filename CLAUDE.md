@@ -1194,6 +1194,116 @@ AIコーディング支援パネル)にとどめている。
 
 ## HANDOFF
 
+- **2026-09-07(続き3) 独自ドメイン(DuckDNS等)経由アクセス時も
+  「PC版起動中」表示にできる設定を追加(ユーザー指示「open-englishの
+  ブラウザ版とPC版が起動中と表示するのは
+  http://open-english.duckdns.org となる」への対応)**:
+  1. **問題**: 既存の判定ロジック(`isLocalHost`正規表現)は
+     `location.hostname`が`localhost`/`127.0.0.1`かどうかだけで、
+     「共有デモ環境」と「DuckDNS等の独自ドメイン経由で公開している
+     自分のPC版」を区別できなかった——後者でアクセスしても
+     「PC版を起動してご利用下さい」という無意味な共有デモ向けバナーが
+     表示されてしまう。
+  2. **実装**: `server/src/main.rs`の`app_config()`
+     (既存`/v1/config`)に`self_hosted_hostnames`フィールドを追加。
+     `OPEN_ENGLISH_SELF_HOSTED_HOSTNAMES`環境変数(カンマ区切り、既定
+     空)で、サーバー起動時に「これは共有デモではなく自分自身のPC版
+     インスタンスである」ホスト名を申告できる。`app.js`側は
+     `location.hostname`がlocalhost系でなければ`/v1/config`を取得し、
+     `self_hosted_hostnames`に一致すればlocalhostアクセス時と同じ扱い
+     (「PC版を起動してご利用下さい」非表示+「PC版起動中」バッジ表示)
+     にする。
+  3. **UI**: 「🔗 Icon & Custom URL」モーダルのステップ4に、この環境
+     変数の設定方法を日英併記で案内するヒントを追加。
+  4. **実機検証**: `OPEN_ENGLISH_SELF_HOSTED_HOSTNAMES=open-english.
+     duckdns.org`でサーバーを起動し、`/v1/config`が正しく
+     `self_hosted_hostnames: ["open-english.duckdns.org"]`を返すこと、
+     `app.js`側の一致判定ロジックが正しく`true`を返すことを実ブラウザ
+     (JS実行)で確認。既存のlocalhost経由の判定(バッジ表示)への
+     リグレッションが無いことも確認済み。
+  5. **正直な開示**: この環境変数はユーザー自身が自宅PCでサーバーを
+     起動する際に設定する必要がある(このセッションからは
+     ユーザーの自宅PCのプロセス起動コマンドを直接操作できないため)。
+     `open-english.duckdns.org`自体のDNS更新は、VPS
+     (easy-web.tokyoと同じconohaサーバー)上に新設した独立した
+     systemdタイマー(`duckdns-open-english.timer`、5分間隔で
+     DuckDNS更新APIを呼ぶ、open-web-server本体〈featureフラグの都合で
+     この機能を持たない本番バイナリ〉には一切手を加えていない)で
+     維持している。
+  - 次にすべきこと: ユーザーの自宅PCで実際に
+    `OPEN_ENGLISH_SELF_HOSTED_HOSTNAMES=open-english.duckdns.org`を
+    設定した状態でサーバーを起動し、外部から
+    `http://open-english.duckdns.org:8090/`(または設定したポート)へ
+    アクセスして実際に「PC版起動中」バッジが表示されることを確認する
+    こと(このセッションでは自宅PC・ルーターへの直接操作ができない
+    ため、ロジック自体の検証〈上記4番〉までにとどまる)。
+
+- **2026-09-07(続き2) 「Windows版起動中」バッジ+open-easy-webローカル
+  モードの自動起動を実装(ユーザー指示「起動後もブラウザでWindows版
+  起動中と表示」+「PC版のeasy-web.tokyoも同梱してそこでopen-englishを
+  起動するべきで、有料/DuckDNSドメインの利用方法説明も表示して」への
+  対応)**:
+  1. **調査で判明した重要な事実訂正**: ユーザーが指す「easy-web.tokyo」
+     の実体(実際にトラフィックを処理しているソフトウェア)は
+     `open-easy-web`ではなく**`open-web-server`**だった(過去のHANDOFF
+     記録でも確認済み)。`open-easy-web`はVPS側のnginx/PHP-FPM連携
+     ツールでWindows版のビルド自体が存在せず、ローカルでリバース
+     プロキシとして動く機能もDuckDNS連携も無かった。この事実を
+     `AskUserQuestion`でユーザーへ明示した上で、**「それでも
+     open-easy-webへ新規実装する」という明示的な選択**をユーザーから
+     得て、この方針で実装した(open-web-serverへの実装が技術的には
+     素直だが、ユーザーの明示的判断を優先)。
+  2. **「Windows版起動中」バッジ**: `server/src/main.rs`に新規
+     `GET /v1/platform-info`(`std::env::consts::OS`/`ARCH`を返すのみ)を
+     追加。`app.js`のローカルホスト判定(既存の`isLocalHost`正規表現)に
+     続けて、ローカルPC版の場合のみこのAPIを呼び、OS別ラベル
+     (`PLATFORM_BADGE_LABELS`、windows/macos/linux)で`#local-instance-
+     badge`(新規、`index.html`/`style.css`)を表示する。実ブラウザで
+     `🖥️ Windows版起動中 / Windows version running`が正しく表示される
+     ことを確認済み。
+  3. **open-easy-webへローカルモード(簡易リバースプロキシ+DuckDNS)を
+     新規実装**(別リポジトリ`open-easy-web`側、詳細は同リポジトリの
+     CLAUDE.md 2026-09-07エントリ参照): `OPEN_EASY_WEB_LOCAL_MODE=1`
+     でopt-inする経路(既存のVPS向けnginx/PHP-FPM経路とは完全分離)。
+     `OPEN_EASY_WEB_LOCAL_BIND`(既定`127.0.0.1:8090`、80/443番への既定
+     bindはしない)・`OPEN_EASY_WEB_LOCAL_BACKEND`(既定`127.0.0.1:4601`、
+     open-englishの既定ポート)で設定するhyper直接実装のリバースプロキシ。
+     `POST /v1/duckdns/update`もopen-english側と同じ設計・同じ開示文言で
+     実装済み。TLS/ACMEは意図的にスコープ外(平文HTTPのみ)。
+  4. **open-english側の自動起動配線**(`server/src/main.rs`新規
+     `maybe_launch_open_easy_web_local()`): 既存の`maybe_launch_
+     aruaru_llm()`と全く同じパターン——サーバー起動のたびに
+     `{app}\open-easy-web\open-easy-web-server.exe`の存在を確認し、
+     あれば`OPEN_EASY_WEB_LOCAL_MODE=1`・`OPEN_EASY_WEB_LOCAL_BACKEND=
+     <このサーバー自身のbind先>`で自動起動する。バイナリが無ければ
+     エラーにせず正直にスキップ(既存方針を踏襲)。
+     `installer/windows/open-english.iss`の`installopeneasyweb`タスクの
+     説明文を、「VPS専用ツール」から「ローカルの簡易プロキシとしても
+     使える」という新しい役割を反映した内容へ更新。
+  5. **UI(`index.html`)**: 既存の「🔗 Icon & Custom URL」モーダルの
+     DuckDNS説明(ステップ3)の直後に、ステップ4「同梱のopen-easy-web
+     経由でそのドメインからアクセス」を日英併記で追加。ポート8090・
+     ポートフォワーディングの必要性・TLS/HTTPS非対応(平文HTTPのみ、
+     必要なら`open-web-server`を併用)という正直な開示を明記。
+  6. **実機検証(型チェック・ビルド成功だけで完了と報告しない方針の
+     徹底)**: (a) `cargo build --release`(open-english/server)成功。
+     (b) `cargo build --release`(open-easy-web/server)成功(新規
+     コードによる警告0件)。(c) **実際に2つのバイナリを同時に動かし、
+     open-english-server起動→自動的にopen-easy-web-serverが
+     ローカルモードで起動→`http://127.0.0.1:8090/`経由で実際に
+     open-englishのページ(200)・`/v1/platform-info`が正しく中継される
+     ことを実HTTPで確認**(本物のエンドツーエンド検証、モックではない)。
+     (d) 実ブラウザで`local-instance-badge`・新設ステップ4の見出し
+     (日英併記)が正しく描画されコンソールエラーが無いことを確認。
+  7. **正直な開示・未実施**: (a) 実際のDuckDNSアカウント+実ドメイン+
+     実ルーターのポートフォワーディングを使った本当のインターネット
+     経由アクセスのE2E検証は行っていない(ローカルループバック経由の
+     検証のみ)。(b) open-easy-webローカルモードのTLS対応(ACME等)は
+     今回スコープ外のまま(平文HTTPのみ)。
+  - 次にすべきこと: (1) 実DuckDNSアカウント+実ポートフォワーディング
+    環境での本当のインターネット経由アクセスのE2E検証、(2) 必要であれば
+    open-easy-webローカルモードへのTLS対応の追加。
+
 - **2026-09-07 「PC版を起動してご利用下さい」バナーを共有デモ環境限定で
   追加(ユーザー指示、複数回の段階的な要件変更を経て決着)**:
   1. **経緯**: 当初「ブラウザからPC版インストーラーを起動するボタン」を

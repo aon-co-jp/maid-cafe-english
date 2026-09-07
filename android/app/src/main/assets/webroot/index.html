@@ -173,6 +173,7 @@
       <strong>Please launch the PC version to use it.</strong>
     </p>
   </div>
+  <div id="local-instance-badge" class="local-instance-badge hidden"></div>
   <div id="free-tier-banner" class="free-tier-banner hidden">
     <div class="free-tier-toggle-row">
       <button type="button" id="free-tier-toggle" class="free-tier-toggle">
@@ -1830,6 +1831,22 @@ cd aruaru-db
         他の動的DNSや独自ドメインをお使いになりたい場合は、ご自身でIPへ割り当ててください——
         このボタンはDuckDNS向けの簡易ヘルパーに過ぎません。
       </p>
+      <p class="setup-note">
+        <strong>About DuckDNS's free-tier limits:</strong> A single DuckDNS account (one token) can
+        register up to <strong>5 free subdomains</strong> (<code>*.duckdns.org</code>) from the
+        "domains" section of your account page. You can point multiple subdomains at the
+        <strong>same global IP address</strong>. If you're publishing several services from your
+        home server (e.g. Home Assistant, file sharing, and this app), combine this with a reverse
+        proxy (e.g. Nginx, or the bundled open-easy-web local mode described in step 4 below) to
+        route each subdomain to a different service.<br />
+        <strong>DuckDNSの無料枠について：</strong>DuckDNSは1つのアカウント(1つのトークン)につき、
+        アカウントページの「domains」セクションから最大<strong>5つまで</strong>無料のサブドメイン
+        (<code>*.duckdns.org</code>)を取得・登録できます。取得した複数のサブドメインには
+        <strong>同じグローバルIPアドレス</strong>を割り当てて管理することが可能です。ホーム
+        アシスタントやファイル共有、このアプリなど、自宅サーバーで複数のサービスを公開する場合は、
+        リバースプロキシ(Nginx、または下記ステップ4の同梱open-easy-webローカルモード等)を
+        組み合わせて、ドメインごとに異なるサービスへ振り分けてください。
+      </p>
       <label>DuckDNS subdomain / サブドメイン (e.g. "your-name"):
         <input type="text" id="duckdns-domain" class="setup-input" placeholder="your-name" />
       </label>
@@ -1838,6 +1855,54 @@ cd aruaru-db
       </label>
       <button type="button" id="duckdns-update-btn" class="setup-btn">🔄 Update DuckDNS now / 今すぐDuckDNSを更新</button>
       <p class="setup-note" id="duckdns-status"></p>
+
+      <h3>4. Reach it under that domain via the bundled open-easy-web (Windows installer option) / 同梱のopen-easy-web(Windowsインストーラーの任意オプション)経由でそのドメインからアクセス</h3>
+      <p class="setup-note">
+        If you checked "Also install open-easy-web" during setup, this open-english server
+        automatically starts a lightweight local reverse proxy each time it launches — listening on
+        <code>http://127.0.0.1:8090/</code> and forwarding everything to this server
+        (<code>127.0.0.1:4601</code> by default). Point either a free DuckDNS subdomain (step 3
+        above) or a paid domain you own at your router's public IP address, then set up port
+        forwarding on your router so port 8090 (or whichever port you choose) reaches this PC.<br />
+        セットアップ時に「open-easy-webも一緒にインストール」にチェックを入れていた場合、
+        このopen-englishサーバーは起動のたびに軽量なローカルリバースプロキシを自動起動します
+        ——<code>http://127.0.0.1:8090/</code>で待ち受け、すべてこのサーバー(既定
+        <code>127.0.0.1:4601</code>)へ転送します。上記ステップ3の無料DuckDNSサブドメイン、
+        またはご自身が所有する有料ドメインのいずれかを、ルーターのグローバルIPアドレスへ
+        割り当てた上で、ルーター側でポート8090(または任意に変更したポート)がこのPCへ届くよう
+        ポートフォワーディング設定を行ってください。
+      </p>
+      <p class="setup-honest">
+        <strong>Honest disclosure:</strong> This bundled proxy speaks <strong>plain HTTP only</strong>
+        — it does not perform TLS/HTTPS termination. If you need real HTTPS for the domain, put a
+        TLS-capable reverse proxy (e.g.
+        <a href="https://github.com/aon-co-jp/open-web-server" target="_blank" rel="noopener noreferrer">open-web-server</a>,
+        which has ACME/Let's Encrypt support) in front of it instead, or in addition. As always, we
+        deliberately do not auto-configure router port forwarding (UPnP) — you need to do that
+        yourself.<br />
+        <strong>正直な開示：</strong>この同梱プロキシは<strong>平文HTTPのみ</strong>に対応して
+        おり、TLS/HTTPS終端は行いません。そのドメインで本物のHTTPSが必要な場合は、代わりに
+        (または追加で)TLS対応のリバースプロキシ(例: ACME/Let's Encrypt対応の
+        <a href="https://github.com/aon-co-jp/open-web-server" target="_blank" rel="noopener noreferrer">open-web-server</a>)を
+        手前に置いてください。これまでと同様、ルーターのポートフォワーディング(UPnP等)を
+        自動設定することはあえて行っていません——ご自身で設定してください。
+      </p>
+      <p class="setup-note">
+        <strong>Tip:</strong> If you access this server from outside via your own domain (e.g. one
+        set up in step 3), the page will show the "please launch the PC version" banner by default
+        (since it can't tell your domain apart from a shared demo). To make it correctly show
+        "PC version running" instead, start this server with the
+        <code>OPEN_ENGLISH_SELF_HOSTED_HOSTNAMES</code> environment variable set to that domain
+        (comma-separated if you use more than one), e.g.
+        <code>OPEN_ENGLISH_SELF_HOSTED_HOSTNAMES=open-english.duckdns.org</code>.<br />
+        <strong>ヒント：</strong>ご自身のドメイン(上記ステップ3で設定したもの等)経由で外部から
+        このサーバーへアクセスした場合、既定では「PC版を起動してご利用下さい」という共有デモ向け
+        バナーが表示されます(このドメインが共有デモなのかご自身のPC版なのかを区別できないため)。
+        代わりに正しく「PC版起動中」と表示させたい場合は、このサーバーを起動する際に
+        <code>OPEN_ENGLISH_SELF_HOSTED_HOSTNAMES</code>環境変数へそのドメイン名を設定してください
+        (複数ある場合はカンマ区切り)。例:
+        <code>OPEN_ENGLISH_SELF_HOSTED_HOSTNAMES=open-english.duckdns.org</code>
+      </p>
     </div>
   </div>
 

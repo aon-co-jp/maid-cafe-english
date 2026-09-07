@@ -447,6 +447,24 @@ body {
   display: none;
 }
 
+.local-instance-badge {
+  position: fixed;
+  top: 8px;
+  right: 8px;
+  background: #2e7d32;
+  color: #ffffff;
+  padding: 4px 10px;
+  border-radius: 12px;
+  font-size: 0.85rem;
+  font-weight: bold;
+  z-index: 21;
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.3);
+}
+
+.local-instance-badge.hidden {
+  display: none;
+}
+
 /* `.setup-note`は既定で暗い背景(#3a2a1a)を持つため、周囲の
    `.maintenance-banner`の文字色(#222、暗い背景を想定)をそのまま
    継承すると暗背景に暗文字で読めなくなる(ユーザー報告により発見・
