@@ -9399,7 +9399,13 @@ const NETWORK_STATUS_LABELS = {
 async function refreshNetworkStatus() {
   if (!networkStatusBadge || !networkStatusTextEl) return;
   try {
-    const res = await fetch(`${apiBaseEl ? apiBaseEl.value.replace(/\/$/, "") : ""}/v1/network/status`);
+    // 実バグ修正(2026-09-07): `/v1/network/status`はこのopen-english-
+    // server自身のエンドポイント(server/src/main.rsのnetwork_status)で
+    // あり、aruaru-llm側のベースURL(apiBaseEl、別オリジンかつ別ポート)
+    // ではない。誤って`apiBaseEl`を付けていたためaruaru-llm側へCORS
+    // ブロック済みのクロスオリジンリクエストを送ってしまい、常に失敗して
+    // いた——同一オリジンの相対パスで呼ぶよう修正。
+    const res = await fetch("/v1/network/status");
     const data = await res.json();
     const isPublic = !!data.is_public;
     networkStatusBadge.classList.toggle("is-public", isPublic);
