@@ -538,16 +538,25 @@ makeCollapsiblePanel("download-recommend-banner", "download-recommend-banner-tog
 // (`OPEN_ENGLISH_SELF_HOSTED_HOSTNAMES`環境変数、未設定なら従来通り
 // localhost/127.0.0.1のみが対象)。
 const PLATFORM_BADGE_LABELS = {
-  windows: { ja: "🖥️ Windows版起動中", en: "Windows version running" },
-  macos: { ja: "🖥️ macOS版起動中", en: "macOS version running" },
-  linux: { ja: "🖥️ Linux版起動中", en: "Linux version running" },
+  windows: { ja: "🖥️ Windows版の起動に成功致しました！", en: "Windows version launched successfully!" },
+  macos: { ja: "🖥️ macOS版の起動に成功致しました！", en: "macOS version launched successfully!" },
+  linux: { ja: "🖥️ Linux版の起動に成功致しました！", en: "Linux version launched successfully!" },
 };
+// 起動中(問い合わせ確定前)の一時表示。OS別の確定ラベル
+// (PLATFORM_BADGE_LABELS、成功時に上書きされる)とは別に、
+// 「起動中です！」という日英併記の暫定文言を先に出す
+// (ユーザー指示、2026-09-07)。
+const LAUNCHING_BADGE_LABEL = { ja: "🖥️ 起動中です！", en: "Launching!" };
 function showLocalInstanceBadgeFromPlatformInfo() {
+  const badgeEl = document.getElementById("local-instance-badge");
+  if (badgeEl) {
+    badgeEl.textContent = `${LAUNCHING_BADGE_LABEL.ja} / ${LAUNCHING_BADGE_LABEL.en}`;
+    badgeEl.classList.remove("hidden");
+  }
   fetch("/v1/platform-info")
     .then((r) => (r.ok ? r.json() : null))
     .then((data) => {
       const label = data && PLATFORM_BADGE_LABELS[data.os];
-      const badgeEl = document.getElementById("local-instance-badge");
       if (label && badgeEl) {
         badgeEl.textContent = `${label.ja} / ${label.en}`;
         badgeEl.classList.remove("hidden");

@@ -2448,6 +2448,31 @@ async fn main() {
         let _ = tokio_rustls::rustls::crypto::ring::default_provider().install_default();
     }
 
+    // Windowsのスタートメニューからダブルクリックで起動すると、コンソール
+    // ウィンドウが一瞬表示されてすぐ閉じ、原因が分からないまま起動しない
+    // という報告(2026-09-07)への対応。コンソールが無い/一瞬で閉じる環境
+    // でも原因を追えるよう、パニック内容を実行ファイルと同じディレクトリの
+    // `crash.log`へ追記するフックを最初に設定する(標準のpanicメッセージ
+    // 表示は`take_hook`で維持したまま、副作用として追記するのみ)。
+    {
+        let default_hook = std::panic::take_hook();
+        std::panic::set_hook(Box::new(move |info| {
+            default_hook(info);
+            let log_path = std::env::current_exe()
+                .ok()
+                .and_then(|p| p.parent().map(|d| d.join("crash.log")))
+                .unwrap_or_else(|| PathBuf::from("crash.log"));
+            if let Ok(mut f) = std::fs::OpenOptions::new().create(true).append(true).open(&log_path) {
+                use std::io::Write;
+                let secs = std::time::SystemTime::now()
+                    .duration_since(std::time::UNIX_EPOCH)
+                    .map(|d| d.as_secs())
+                    .unwrap_or(0);
+                let _ = writeln!(f, "[unix:{secs}] {}", info);
+            }
+        }));
+    }
+
     let root = repo_root();
     let db_path = db::db_path(&root);
     let db = Arc::new(Db::open(db_path).expect("failed to open local SQLite DB (data/open-english.sqlite3)"));
