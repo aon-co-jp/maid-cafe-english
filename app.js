@@ -537,10 +537,15 @@ makeCollapsiblePanel("download-recommend-banner", "download-recommend-banner-tog
 // インスタンスである」と申告してもらう
 // (`OPEN_ENGLISH_SELF_HOSTED_HOSTNAMES`環境変数、未設定なら従来通り
 // localhost/127.0.0.1のみが対象)。
+// 2026-09-09変更(ユーザー指示): Windows/macOS/Linuxを別々の名称
+// (「open-english-windows」的な個別ブランド)にはせず、まとめて
+// 「open-english-pc」(PC版)として統一表示する。OS別の文言は廃止し、
+// どのOSで検出されても同じ「PC版起動中！」バッジを出す。
+const PC_RUNNING_BADGE_LABEL = { ja: "🖥️ PC版起動中！", en: "PC version running!" };
 const PLATFORM_BADGE_LABELS = {
-  windows: { ja: "🖥️ Windows版の起動に成功致しました！", en: "Windows version launched successfully!" },
-  macos: { ja: "🖥️ macOS版の起動に成功致しました！", en: "macOS version launched successfully!" },
-  linux: { ja: "🖥️ Linux版の起動に成功致しました！", en: "Linux version launched successfully!" },
+  windows: PC_RUNNING_BADGE_LABEL,
+  macos: PC_RUNNING_BADGE_LABEL,
+  linux: PC_RUNNING_BADGE_LABEL,
 };
 // 起動中(問い合わせ確定前)の一時表示。OS別の確定ラベル
 // (PLATFORM_BADGE_LABELS、成功時に上書きされる)とは別に、
@@ -567,7 +572,50 @@ function showLocalInstanceBadgeFromPlatformInfo() {
       // ままにする(既存の可用性優先方針、握りつぶすのみ)。
     });
 }
-if (/^(127\.0\.0\.1|localhost|\[::1\])$/.test(location.hostname)) {
+// 2026-09-09新設(ユーザー指示): ガラケー・スマホでの利用は
+// 「open-english-mobile」として扱い、PC版(Windows/macOS/Linuxを
+// まとめた「open-english-pc」)とは別のバッジ「モバイル版起動中！/
+// Mobile version running!」を上部に表示する。判定はサーバー側の
+// OS(`/v1/platform-info`はPC側のプロセスのビルドOSしか返さない)
+// ではなく、閲覧している端末自身のUser-Agentで行う(PCサーバーへ
+// スマホから接続してくるケースも含め、あくまで「今見ている端末」を
+// 表す)。
+const MOBILE_RUNNING_BADGE_LABEL = { ja: "📱 モバイル版起動中！", en: "Mobile version running!" };
+// 2026-09-09追加(ユーザー指示): タブレット版(open-english-tablet)は
+// ガラケー/スマホ(open-english-mobile、二画面・三画面折りたたみスマホも
+// 含む)とは別枠として「タブレット版起動中！」を表示する。
+const TABLET_RUNNING_BADGE_LABEL = { ja: "📱 タブレット版起動中！", en: "Tablet version running!" };
+function isTabletUserAgent() {
+  const ua = navigator.userAgent || "";
+  // iPadOS: iPadOS 13+のSafariは既定でデスクトップ扱いのUAを名乗るため
+  // (「iPad」の文字列を含まない)、タッチ対応+Macintosh表記の組み合わせ
+  // でも判定する。Androidタブレットは通常UAに"Mobile"を含まない
+  // (含む場合はスマホ扱い)。
+  if (/iPad/i.test(ua)) return true;
+  if (/Macintosh/i.test(ua) && navigator.maxTouchPoints > 1) return true;
+  if (/Android/i.test(ua) && !/Mobile/i.test(ua)) return true;
+  return false;
+}
+function isMobileOrFeaturePhoneUserAgent() {
+  return /Android|iPhone|iPod|Mobile|KAIOS|SymbianOS|BlackBerry|IEMobile|Opera Mini|UP\.Browser|DoCoMo|KDDI|SoftBank\/|J-PHONE/i.test(
+    navigator.userAgent || ""
+  );
+}
+if (isTabletUserAgent()) {
+  document.getElementById("launch-pc-version-banner")?.classList.add("hidden");
+  const badgeEl = document.getElementById("local-instance-badge");
+  if (badgeEl) {
+    badgeEl.textContent = `${TABLET_RUNNING_BADGE_LABEL.ja} / ${TABLET_RUNNING_BADGE_LABEL.en}`;
+    badgeEl.classList.remove("hidden");
+  }
+} else if (isMobileOrFeaturePhoneUserAgent()) {
+  document.getElementById("launch-pc-version-banner")?.classList.add("hidden");
+  const badgeEl = document.getElementById("local-instance-badge");
+  if (badgeEl) {
+    badgeEl.textContent = `${MOBILE_RUNNING_BADGE_LABEL.ja} / ${MOBILE_RUNNING_BADGE_LABEL.en}`;
+    badgeEl.classList.remove("hidden");
+  }
+} else if (/^(127\.0\.0\.1|localhost|\[::1\])$/.test(location.hostname)) {
   document.getElementById("launch-pc-version-banner")?.classList.add("hidden");
   showLocalInstanceBadgeFromPlatformInfo();
 } else {
