@@ -43,7 +43,17 @@ try {
     $asset = $release.assets | Where-Object { $_.name -like "*windows*x86_64*.zip" } | Select-Object -First 1
 
     if (-not $asset) {
-        Write-Output "aruaru-llm: no Windows release asset found. Please download it manually from https://github.com/aon-co-jp/aruaru-llm/releases"
+        $msg = "aruaru-llm: no Windows release asset found in the latest release. open-english's chat feature will show 'Setup aruaru-llm' until you install it manually from https://github.com/aon-co-jp/aruaru-llm/releases"
+        Write-Output $msg
+        # 2026-09-08 BUG修正: このタスクはFlags: runhiddenで実行される
+        # ため、失敗してもコンソールが一切表示されず利用者が気づけな
+        # かった(実際にaruaru-llmの最新リリースにWindows資産が無い
+        # 期間が生じ、この分岐へ黙って落ちていた——open-cpuのsibling
+        # checkout漏れが原因、aruaru-llm/.github/workflows/release.yml
+        # 参照)。必須コンポーネントの取得失敗なので、runhiddenでも
+        # 表示されるメッセージボックスで明示的に警告する。
+        Add-Type -AssemblyName System.Windows.Forms
+        [System.Windows.Forms.MessageBox]::Show($msg, "open-english setup", "OK", "Warning") | Out-Null
         exit 0
     }
 
@@ -55,7 +65,12 @@ try {
     Write-Output "aruaru-llm downloaded to $DestDir. Model weights are NOT included - no manual commands needed, just open open-english, go to 'Setup aruaru-llm', and click the 'Recommend LLM' button."
 } catch {
     # ダウンロード失敗はインストーラー全体を止めない(可用性優先、
-    # 既存のaruaru-llm自体の「サービスを止めない」設計方針と同じ)。
-    Write-Output "aruaru-llm download failed: $_. You can install it manually later from https://github.com/aon-co-jp/aruaru-llm/releases"
+    # 既存のaruaru-llm自体の「サービスを止めない」設計方針と同じ)が、
+    # 必須コンポーネントのため上記と同様にメッセージボックスで警告する
+    # (2026-09-08、runhidden下で無音失敗していた実バグへの対応)。
+    $msg = "aruaru-llm download failed: $_. You can install it manually later from https://github.com/aon-co-jp/aruaru-llm/releases"
+    Write-Output $msg
+    Add-Type -AssemblyName System.Windows.Forms
+    [System.Windows.Forms.MessageBox]::Show($msg, "open-english setup", "OK", "Warning") | Out-Null
     exit 0
 }
