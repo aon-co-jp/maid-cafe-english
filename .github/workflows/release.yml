@@ -24,6 +24,10 @@ name: Release installers (Windows/Linux/macOS)
 # **さらに、`RS-SmartTCP`自身も`open-raid-z`(open_raid_z_core/
 # zfs_accel_hlsl、RAID-Z2/Z3パリティ計算ブリッジ)へのsibling path依存を
 # 持つ**(v0.6.0リリースタグで初めて実際に踏んだCI失敗、2026-08-11)。
+# **さらに、server/Cargo.tomlは`open-cpu`(SIMD実行基盤)と`RS-JSON`にも
+# sibling path依存する**(この2つのcheckoutが漏れており、v0.7.0タグの
+# リリースワークフローが`open-cpu`未取得で`cargo build --release`失敗——
+# 2026-09-09に追加。以降v0.6.8のまま新リリースが出ていなかった原因)。
 
 on:
   push:
@@ -48,6 +52,10 @@ jobs:
         run: git clone --depth=1 https://github.com/aon-co-jp/RS-SmartTCP.git ../RS-SmartTCP
       - name: Checkout open-raid-z (RS-SmartTCP's own sibling path dependency)
         run: git clone --depth=1 https://github.com/aon-co-jp/open-raid-z.git ../open-raid-z
+      - name: Checkout open-cpu (server/Cargo.toml sibling path dependency)
+        run: git clone --depth=1 https://github.com/aon-co-jp/open-cpu.git ../open-cpu
+      - name: Checkout RS-JSON (server/Cargo.toml sibling path dependency)
+        run: git clone --depth=1 https://github.com/aon-co-jp/RS-JSON.git ../RS-JSON
       - name: Build open-english-server
         working-directory: server
         run: cargo build --release
@@ -92,6 +100,10 @@ jobs:
         run: git clone --depth=1 https://github.com/aon-co-jp/RS-SmartTCP.git ../RS-SmartTCP
       - name: Checkout open-raid-z (RS-SmartTCP's own sibling path dependency)
         run: git clone --depth=1 https://github.com/aon-co-jp/open-raid-z.git ../open-raid-z
+      - name: Checkout open-cpu (server/Cargo.toml sibling path dependency)
+        run: git clone --depth=1 https://github.com/aon-co-jp/open-cpu.git ../open-cpu
+      - name: Checkout RS-JSON (server/Cargo.toml sibling path dependency)
+        run: git clone --depth=1 https://github.com/aon-co-jp/RS-JSON.git ../RS-JSON
       - name: Build open-english-server
         working-directory: server
         run: cargo build --release
