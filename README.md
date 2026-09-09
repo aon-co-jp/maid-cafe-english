@@ -787,7 +787,8 @@
 > voices your browser/OS provides.
 
 > 📌 **最新の更新(2026-08-20)**: 定期的な自動アップデートチェック
-> (起動時に加え6時間ごと)+手動ダウングレード機能を追加しました。
+> (起動時に加え30分ごと。2026-09-09に6時間→30分へ短縮)+手動
+> ダウングレード機能を追加しました。
 > 新バージョンに切り替えた後で不具合に気づいた場合、`GET /v1/updates/
 > history`(現在バージョン+保持している旧バージョン一覧)・
 > `POST /v1/updates/downgrade`(open-english本体・aruaru-llm・
@@ -798,8 +799,9 @@
 > このマシンで一度も自動更新が発生していないバージョンへは戻せません。
 > 詳細・実機検証結果は[CLAUDE.md](CLAUDE.md)の2026-08-20 HANDOFF参照。
 >
-> *English*: Added periodic automatic update checks (every 6 hours, in
-> addition to the startup check) and a manual downgrade feature. If a
+> *English*: Added periodic automatic update checks (every 30 minutes, in
+> addition to the startup check; shortened from 6 hours on 2026-09-09) and
+> a manual downgrade feature. If a
 > new version turns out to be buggy after a while, `GET /v1/updates/
 > history` (current + retained previous versions) and `POST /v1/updates/
 > downgrade` (roll back open-english itself, aruaru-llm, or aruaru-db

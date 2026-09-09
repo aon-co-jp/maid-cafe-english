@@ -2875,15 +2875,18 @@ async fn main() {
     // 機能も確実に」への対応)。従来は起動時のみのチェックだったため、
     // 長時間起動しっぱなしのユーザーには新バージョンがいつまでも
     // 反映されない可能性があった。GitHub REST APIの未認証レート制限
-    // (1時間あたり60リクエスト)に配慮し、過度に頻繁にはせず6時間間隔
-    // とした(本体+aruaru-llm+aruaru-dbで1回あたり最大3リクエスト、
-    // 24時間でも12リクエスト程度に収まる現実的な値)。
+    // (1時間あたり60リクエスト)に配慮しつつ、新バージョンの反映を
+    // より早くするため30分間隔とした(2026-09-09変更、ユーザー指示
+    // 「30分ごとに確認する様に変更して」への対応)。本体+aruaru-llm+
+    // aruaru-dbで1回あたり最大3リクエスト、30分間隔なら1時間あたり
+    // 最大6リクエスト・24時間でも144リクエスト程度で、未認証レート
+    // 制限(60req/h)に対しても十分な余裕がある。
     tokio::spawn(async {
-        let mut interval = tokio::time::interval(std::time::Duration::from_secs(6 * 60 * 60));
+        let mut interval = tokio::time::interval(std::time::Duration::from_secs(30 * 60));
         interval.tick().await; // 1回目のtickは即時発火するため消費するだけ(起動時チェックは上で既に実施済み)
         loop {
             interval.tick().await;
-            println!("open-english periodic maintenance: running scheduled update check (every 6h)");
+            println!("open-english periodic maintenance: running scheduled update check (every 30m)");
             self_update::check_and_apply_update().await;
             component_update::check_and_apply_all().await;
             maybe_fetch_whisper_model().await;
