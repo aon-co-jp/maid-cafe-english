@@ -1101,6 +1101,16 @@ PC・タブレット・スマートフォンで動く英会話学習Webアプリ
   `http://localhost:4600`(aruaru-llmの既定ポート)へオンライン/オフライン
   問わずローカル接続する「ハイブリッド」構成。
 
+## 関連リポジトリ: クライアント(PC/タブレット/モバイル)
+
+利用者端末で動くクライアント実装(デスクトップ Windows/Linux/macOS、
+タブレット、モバイル)は
+[`open-english-pc`](https://github.com/aon-co-jp/open-english-pc)へ分離集約中
+(`pc/` `tablet/` `mobile/` のモノレポ)。
+
+- リポジトリ: https://github.com/aon-co-jp/open-english-pc
+- 最新リリース: https://github.com/aon-co-jp/open-english-pc/releases/latest
+
 ## 現在のスコープ(Phase 0)・正直な開示
 
 - **AI応答の品質について**: `aruaru-llm`の`/v1/generate`はGPT-2(124M〜

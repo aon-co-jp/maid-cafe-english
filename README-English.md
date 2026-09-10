@@ -916,6 +916,16 @@ students from complete beginner to advanced.
   connects to `http://localhost:4600` (aruaru-llm's default port)
   locally, online or offline — a "hybrid" design.
 
+## Related repo: the client (PC / tablet / mobile)
+
+The client implementation that runs on the user's device (desktop
+Windows/Linux/macOS, tablet, mobile) is being split out into
+[`open-english-pc`](https://github.com/aon-co-jp/open-english-pc)
+(a `pc/` `tablet/` `mobile/` monorepo).
+
+- Repo: https://github.com/aon-co-jp/open-english-pc
+- Latest release: https://github.com/aon-co-jp/open-english-pc/releases/latest
+
 ## Current scope (Phase 0) — honest disclosure
 
 - **AI response quality**: `aruaru-llm`'s `/v1/generate` performs
