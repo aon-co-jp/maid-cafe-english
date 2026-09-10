@@ -101,6 +101,11 @@ Source: "fetch-aruaru-db.ps1"; DestDir: "{app}"; Flags: ignoreversion
 ; 同梱し、あとからモデルだけ再取得/更新したい利用者が使えるようにする。
 Source: "fetch-whisper-model.ps1"; DestDir: "{app}"; Flags: ignoreversion
 Source: "whisper-model-installer.exe"; DestDir: "{app}"; Flags: ignoreversion
+; OCR(tesseract)の再取得スクリプトも同梱する。従来同梱漏れがあり、
+; インストール済みコピーで起動時の `tesseract auto-fetch` が
+; 「fetch-tesseract.ps1 not found」で常にスキップされていた
+; (2026-09-11 追加、v0.8.2 のサイレントインストール検証で判明)。
+Source: "fetch-tesseract.ps1"; DestDir: "{app}"; Flags: ignoreversion
 Source: "fetch-open-easy-web.ps1"; DestDir: "{app}"; Flags: ignoreversion
 Source: "fetch-open-web-server.ps1"; DestDir: "{app}"; Flags: ignoreversion
 Source: "fetch-open-cg-cad.ps1"; DestDir: "{app}"; Flags: ignoreversion
