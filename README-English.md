@@ -685,8 +685,13 @@
 > 無関係なオリジナル問題です。詳細は[CLAUDE.md](CLAUDE.md)参照。
 
 > 📌 **Latest update (2026-08-20)**: Added periodic automatic update
-> checks (every 30 minutes, in addition to the startup check; shortened
-> from 6 hours on 2026-09-09) and a manual downgrade feature. If a new version turns out to be buggy
+> checks. In addition to the startup check, the "maintenance" phase right
+> after launch polls **every 30 seconds** and auto-upgrades open-english
+> plus every related repo (aruaru-llm, aruaru-db) — capped at ~3 min / 6
+> ticks, tunable via `OPEN_ENGLISH_MAINTENANCE_FAST_TICKS`; after that it
+> settles to **every 30 minutes** (steady interval shortened from 6 hours
+> on 2026-09-09; the 30-second maintenance phase added 2026-09-10). Also a
+> manual downgrade feature. If a new version turns out to be buggy
 > after a while, `GET /v1/updates/history` (current + retained
 > previous versions) and `POST /v1/updates/downgrade` (roll back
 > open-english itself, aruaru-llm, or aruaru-db individually to a
@@ -697,8 +702,10 @@
 > further, or to a version that was never actually applied on this
 > machine. See the 2026-08-20 HANDOFF entry in [CLAUDE.md](CLAUDE.md).
 >
-> *日本語*: 定期的な自動アップデートチェック(起動時に加え30分ごと。
-> 2026-09-09に6時間→30分へ短縮)+
+> *日本語*: 定期的な自動アップデートチェック(起動直後のメンテナンス表示中は
+> 30秒ごとに本体＋関連リポジトリ全てを自動バージョンアップ〈最大約3分〉、
+> 以降は30分ごと。2026-09-09に定常間隔を6時間→30分、2026-09-10に
+> メンテナンス中30秒フェーズを追加)+
 > 手動ダウングレード機能を追加しました。`GET /v1/updates/history`・
 > `POST /v1/updates/downgrade`で、open-english本体・aruaru-llm・
 > aruaru-dbのいずれかを個別に旧バージョンへ戻せます。保持世代は

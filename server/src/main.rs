@@ -2874,16 +2874,50 @@ async fn main() {
     // 「メンテナンスのタイミングで自動バージョンアップの自動アップデート
     // 機能も確実に」への対応)。従来は起動時のみのチェックだったため、
     // 長時間起動しっぱなしのユーザーには新バージョンがいつまでも
-    // 反映されない可能性があった。GitHub REST APIの未認証レート制限
-    // (1時間あたり60リクエスト)に配慮しつつ、新バージョンの反映を
-    // より早くするため30分間隔とした(2026-09-09変更、ユーザー指示
-    // 「30分ごとに確認する様に変更して」への対応)。本体+aruaru-llm+
-    // aruaru-dbで1回あたり最大3リクエスト、30分間隔なら1時間あたり
-    // 最大6リクエスト・24時間でも144リクエスト程度で、未認証レート
-    // 制限(60req/h)に対しても十分な余裕がある。
+    // 反映されない可能性があった。
+    //
+    // 2フェーズ構成(2026-09-10変更、ユーザー指示「起動してメンテナンス
+    // 表示中は30秒にして、メンテナンス中に関連リポジトリも含めて全て
+    // バージョンチェックして自動でバージョンアップ」への対応):
+    //
+    //  (1) 起動直後の「メンテナンス表示中」フェーズ … 30秒間隔で
+    //      本体(self_update)+同梱コンポーネント全て(component_update、
+    //      aruaru-llm・aruaru-db)をチェックし、新版があれば即適用する。
+    //      GitHub未認証レート制限(60req/h)に配慮し、最大
+    //      `MAINTENANCE_FAST_TICKS`回(既定6回=約3分)で切り上げる。
+    //      1tickあたり最大3リクエスト → このフェーズ合計でも最大18程度。
+    //  (2) 以降の定常フェーズ … 30分間隔(2026-09-09にユーザー指示で
+    //      6時間→30分へ短縮)。1時間あたり最大6リクエスト。
+    //
+    // 環境変数 `OPEN_ENGLISH_MAINTENANCE_FAST_TICKS` で (1) の回数を
+    // 上書き可能(0で (1) を丸ごと無効化=定常フェーズのみ)。
     tokio::spawn(async {
+        const DEFAULT_FAST_TICKS: u32 = 6;
+        let fast_ticks: u32 = std::env::var("OPEN_ENGLISH_MAINTENANCE_FAST_TICKS")
+            .ok()
+            .and_then(|s| s.trim().parse().ok())
+            .unwrap_or(DEFAULT_FAST_TICKS);
+
+        // (1) メンテナンス表示中: 30秒間隔
+        if fast_ticks > 0 {
+            let mut fast = tokio::time::interval(std::time::Duration::from_secs(30));
+            fast.tick().await; // 1回目の即時tickは消費(起動時チェックは上で実施済み)
+            for i in 1..=fast_ticks {
+                fast.tick().await;
+                println!(
+                    "open-english maintenance-window update check ({i}/{fast_ticks}, every 30s): \
+                     checking all related repos"
+                );
+                self_update::check_and_apply_update().await;
+                component_update::check_and_apply_all().await;
+                maybe_fetch_whisper_model().await;
+                maybe_fetch_tesseract().await;
+            }
+        }
+
+        // (2) 定常フェーズ: 30分間隔
         let mut interval = tokio::time::interval(std::time::Duration::from_secs(30 * 60));
-        interval.tick().await; // 1回目のtickは即時発火するため消費するだけ(起動時チェックは上で既に実施済み)
+        interval.tick().await; // 直近のtickを消費
         loop {
             interval.tick().await;
             println!("open-english periodic maintenance: running scheduled update check (every 30m)");
