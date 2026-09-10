@@ -129,9 +129,40 @@ jobs:
           name: open-english-installer-${{ matrix.os_label }}
           path: open-english-installer-${{ matrix.os_label }}.tar.gz
 
+  # Android スマホ版 / タブレット版 APK(submodule client/ = aon-co-jp/
+  # open-english-pc の mobile/android/ を product flavor phone/tablet で
+  # ビルド。設計は open-english-pc/BUILD.md 参照)。
+  # 当面は Debug ビルド(debug キーで自動署名 → そのままインストール可)。
+  # ストア提出用のリリース署名鍵導入後に assemble*Release へ切替予定。
+  build-android:
+    name: Android APK (phone / tablet)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: recursive
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+      - uses: android-actions/setup-android@v3
+      - name: Build phone & tablet APKs
+        working-directory: client/mobile/android
+        run: |
+          set -eu
+          chmod +x gradlew
+          ./gradlew --no-daemon assemblePhoneDebug assembleTabletDebug
+          mkdir -p ../../../android-apks
+          cp app/build/outputs/apk/phone/debug/app-phone-debug.apk ../../../android-apks/open-english-phone.apk
+          cp app/build/outputs/apk/tablet/debug/app-tablet-debug.apk ../../../android-apks/open-english-tablet.apk
+      - uses: actions/upload-artifact@v4
+        with:
+          name: open-english-android-apks
+          path: android-apks/*.apk
+
   release:
     name: GitHub Releaseへ添付
-    needs: [build-windows-installer, build-unix-installer]
+    needs: [build-windows-installer, build-unix-installer, build-android]
     runs-on: ubuntu-latest
     if: startsWith(github.ref, 'refs/tags/v')
     steps:
@@ -142,3 +173,4 @@ jobs:
             open-english-windows-installer/*.exe
             open-english-installer-linux-x86_64/*.tar.gz
             open-english-installer-macos-aarch64/*.tar.gz
+            open-english-android-apks/*.apk
