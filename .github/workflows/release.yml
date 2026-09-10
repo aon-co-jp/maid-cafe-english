@@ -44,6 +44,8 @@ jobs:
     runs-on: windows-latest
     steps:
       - uses: actions/checkout@v4
+        with:
+          submodules: recursive
       - name: Checkout RPoem (sibling path dependency)
         run: git clone --depth=1 https://github.com/aon-co-jp/RPoem.git ../RPoem
       - name: Checkout open-web-server (RPoem's own sibling path dependency)
@@ -92,6 +94,8 @@ jobs:
     runs-on: ${{ matrix.runner }}
     steps:
       - uses: actions/checkout@v4
+        with:
+          submodules: recursive
       - name: Checkout RPoem (sibling path dependency)
         run: git clone --depth=1 https://github.com/aon-co-jp/RPoem.git ../RPoem
       - name: Checkout open-web-server (RPoem's own sibling path dependency)
@@ -113,8 +117,10 @@ jobs:
           PKG="open-english-installer-${{ matrix.os_label }}"
           mkdir -p "$PKG/icons"
           cp server/target/release/open-english-server "$PKG/"
-          cp index.html style.css app.js auto-update.js version.json manifest.json exam-prep-questions.json "$PKG/"
-          cp icons/* "$PKG/icons/"
+          # クライアント静的ファイルは submodule client/ (aon-co-jp/open-english-pc)
+          # の client/web/ が正本(Phase 2b、2026-09-10)。README.md 以外を全て入れる。
+          find client/web -maxdepth 1 -type f ! -name README.md -exec cp {} "$PKG/" \;
+          cp client/web/icons/* "$PKG/icons/"
           cp installer/unix/install.sh installer/unix/fetch-aruaru-llm.sh "$PKG/"
           chmod +x "$PKG/install.sh" "$PKG/fetch-aruaru-llm.sh" "$PKG/open-english-server"
           tar -czf "$PKG.tar.gz" "$PKG"

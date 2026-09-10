@@ -285,6 +285,49 @@ fn repo_root() -> PathBuf {
         .to_path_buf()
 }
 
+/// クライアント静的ファイル正本の submodule (`client/` → `aon-co-jp/
+/// open-english-pc`) から、`client/web/` の中身を配信ルート `root` へ
+/// ミラーする(Phase 2b、2026-09-10)。
+///
+/// - `client/web/index.html` が無い場合(インストール済みコピー・
+///   submodule 未チェックアウト)は**何もしない**——実行ファイル同梱の
+///   静的ファイルをそのまま使う従来動作。
+/// - ある場合はファイル/ディレクトリ単位で `root` 直下へ上書きコピー。
+///   小さなファイル群(HTML/CSS/JS/JSON/アイコン)なので毎起動コピーで
+///   問題ない。コピー失敗は致命的ではない(ログのみ、既存ファイルで続行)。
+fn sync_client_from_submodule(root: &Path) {
+    let web = root.join("client").join("web");
+    if !web.join("index.html").exists() {
+        return;
+    }
+    let entries = match std::fs::read_dir(&web) {
+        Ok(e) => e,
+        Err(e) => {
+            println!("client sync: skipped (cannot read {}: {e})", web.display());
+            return;
+        }
+    };
+    let mut copied = 0u32;
+    for entry in entries.flatten() {
+        let name = entry.file_name();
+        // README.md は正本リポジトリ側の説明用。配信ルートへは持ち込まない。
+        if name == "README.md" {
+            continue;
+        }
+        let dst = root.join(&name);
+        let res = match entry.file_type() {
+            Ok(ft) if ft.is_dir() => self_update::copy_dir_recursive(&entry.path(), &dst),
+            Ok(_) => std::fs::copy(entry.path(), &dst).map(|_| ()),
+            Err(e) => Err(e),
+        };
+        match res {
+            Ok(()) => copied += 1,
+            Err(e) => println!("client sync: failed to copy {}: {e}", name.to_string_lossy()),
+        }
+    }
+    println!("client sync: mirrored {copied} entries from client/web/ into {}", root.display());
+}
+
 /// aruaru-llm(AI応答エンジン)をコマンド操作なしで自動起動する
 /// (2026-08-19新設)。
 ///
@@ -2474,6 +2517,15 @@ async fn main() {
     }
 
     let root = repo_root();
+
+    // クライアント静的ファイルの正本は別リポジトリ
+    // [`aon-co-jp/open-english-pc`](このリポジトリでは submodule `client/`)へ
+    // 移設中(Phase 2b、2026-09-10)。`client/web/` が存在する場合(=submodule が
+    // チェックアウト済みの開発機・VPS・CI)、その内容を配信ルート(`root`)へ
+    // ミラーする。インストール済みコピー(`client/` が同梱されない)では
+    // 何もしない——従来どおり実行ファイル同梱の静的ファイルをそのまま使う。
+    sync_client_from_submodule(&root);
+
     let db_path = db::db_path(&root);
     let db = Arc::new(Db::open(db_path).expect("failed to open local SQLite DB (data/open-english.sqlite3)"));
     println!(

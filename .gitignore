@@ -8,3 +8,22 @@
 /install/
 /models/
 /vendor/
+
+# クライアント静的ファイルの正本は submodule client/ (aon-co-jp/open-english-pc)
+# の client/web/。起動時に sync_client_from_submodule() がここへミラーする
+# (Phase 2b、2026-09-10)。CI/インストーラは client/web/ から直接参照する。
+/index.html
+/style.css
+/app.js
+/auto-update.js
+/manifest.json
+/sw.js
+/facebook.html
+/qr-confirm.html
+/vault.html
+/exam-prep-questions.json
+/version.json
+/world-language-exams.json
+/world-language-phrases.json
+/world-language-regions.json
+/icons/
