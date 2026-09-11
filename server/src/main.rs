@@ -872,6 +872,73 @@ async fn public_aruaru_llm_select(req: Request) -> Response {
     }
 }
 
+// デモ利用者向けチャット生成の公開プロキシ(2026-09-12新設)。
+//
+// **背景**: WEBデモ来場者の会話機能は元々`apiBaseEl`(閲覧者自身の
+// `localhost:4600`)を叩く設計で、来場者が自分の端末にaruaru-llmを
+// 用意していなければ「🔌 Could not reach aruaru-llm」となり会話できない
+// (ユーザー報告、2026-09-12)。これをVPS共有のaruaru-llmでも動くように
+// する一方、匿名の誰でも無制限に推論(CPUコスト)を叩けてしまうのは
+// リソース・コスト面で問題があるため、**全来場者合算のグローバルな
+// レート制限**を課す(個別訪問者単位のIP制限は、このサーバーが動く
+// リバースプロキシ層のクライアントIP転送設定に依存せず確実に効く
+// よう、まずはシンプルなグローバル制限から始める——ユーザー承認
+// 「レート制限付きで導入」に対応)。
+static ARUARU_LLM_CHAT_TIMESTAMPS: std::sync::Mutex<std::collections::VecDeque<std::time::Instant>> =
+    std::sync::Mutex::new(std::collections::VecDeque::new());
+const ARUARU_LLM_CHAT_RATE_LIMIT: usize = 10;
+const ARUARU_LLM_CHAT_RATE_WINDOW: std::time::Duration = std::time::Duration::from_secs(60);
+
+/// 直近`ARUARU_LLM_CHAT_RATE_WINDOW`以内のリクエスト数が上限未満なら
+/// 記録して`true`(許可)、上限に達していれば`false`(拒否)を返す。
+fn aruaru_llm_chat_rate_limit_allow() -> bool {
+    let Ok(mut q) = ARUARU_LLM_CHAT_TIMESTAMPS.lock() else { return true };
+    let now = std::time::Instant::now();
+    while let Some(&front) = q.front() {
+        if now.duration_since(front) > ARUARU_LLM_CHAT_RATE_WINDOW {
+            q.pop_front();
+        } else {
+            break;
+        }
+    }
+    if q.len() >= ARUARU_LLM_CHAT_RATE_LIMIT {
+        false
+    } else {
+        q.push_back(now);
+        true
+    }
+}
+
+/// `POST /v1/public/aruaru-llm/generate` / `POST /v1/public/aruaru-llm/generate-with-search`
+/// — デモ来場者向け、グローバルレート制限付きのチャット生成プロキシ。
+/// `path`は`"/v1/generate"`または`"/v1/generate-with-search"`。
+async fn public_aruaru_llm_generate(path: &str, req: Request) -> Response {
+    if !aruaru_llm_chat_rate_limit_allow() {
+        return rs_json_response(
+            StatusCode::TOO_MANY_REQUESTS,
+            &serde_json::json!({
+                "error": format!("this shared demo server allows at most {ARUARU_LLM_CHAT_RATE_LIMIT} chat replies per {} seconds across all visitors; please try again shortly", ARUARU_LLM_CHAT_RATE_WINDOW.as_secs()),
+                "error_ja": format!("この共有デモサーバーは全利用者合計で{}秒あたり最大{ARUARU_LLM_CHAT_RATE_LIMIT}回までの会話返信に制限しています。しばらくしてからもう一度お試しください", ARUARU_LLM_CHAT_RATE_WINDOW.as_secs()),
+            }),
+        );
+    }
+    proxy_aruaru_llm_post(path, req).await
+}
+
+/// `GET /v1/config`の`aruaru_llm_public_chat_available`用。サーバー自身
+/// (ループバック)からaruaru-llmへ到達できるかを短いタイムアウトで確認
+/// する——閲覧者のブラウザへ生のループバックURLを渡す2026-09-12の失敗
+/// (訪問者自身の`127.0.0.1`を指してしまい無関係な接続先になっていた
+/// バグ)を繰り返さないよう、可否のbool値だけを返す設計にする。
+async fn aruaru_llm_reachable_from_server() -> bool {
+    let base = aruaru_llm_base_url();
+    let client = match reqwest::Client::builder().timeout(std::time::Duration::from_millis(1500)).build() {
+        Ok(c) => c,
+        Err(_) => return false,
+    };
+    client.get(format!("{base}/healthz")).send().await.map(|r| r.status().is_success()).unwrap_or(false)
+}
+
 /// `GET /v1/admin/aruaru-llm/models` — GPT-2系・Qwen系両カタログ+
 /// ハードウェア推奨を1回でまとめて返す(管理画面が1リクエストで
 /// 「選択可能な一覧」を描画できるように)。
@@ -948,11 +1015,19 @@ async fn app_config() -> Response {
         .map(|s| s.trim().to_ascii_lowercase())
         .filter(|s| !s.is_empty())
         .collect();
+    // 2026-09-12追加: 生のループバックURLを`aruaru_llm_base_url`として
+    // ブラウザへ渡す方式は、訪問者の端末自身の127.0.0.1を指してしまい
+    // 無関係な接続先になる失敗を経験済み(このコミットの直前で発覚)。
+    // 代わりに「サーバー自身から見てaruaru-llmへ到達できるか」のbool値
+    // だけを返し、app.js側は同一オリジンの`/v1/public/aruaru-llm/*`
+    // プロキシ経由で使う(ユーザー承認「レート制限付きで導入」)。
+    let aruaru_llm_public_chat_available = aruaru_llm_reachable_from_server().await;
     rs_json_response(
         StatusCode::OK,
         &serde_json::json!({
             "aruaru_llm_base_url": aruaru_llm_base_url,
             "self_hosted_hostnames": self_hosted_hostnames,
+            "aruaru_llm_public_chat_available": aruaru_llm_public_chat_available,
         }),
     )
 }
@@ -2860,6 +2935,8 @@ async fn main() {
     app = app.at("/v1/public/aruaru-llm/models/catalog", get(handler_fn(|_req, _p| Box::pin(proxy_aruaru_llm_get("/v1/models/catalog")))));
     app = app.at("/v1/public/aruaru-llm/models/select", post(handler_fn(|req, _p| async move { public_aruaru_llm_select(req).await })));
     app = app.at("/v1/public/aruaru-llm/switch-status", get(handler_fn(|_req, _p| async move { public_aruaru_llm_switch_status().await })));
+    app = app.at("/v1/public/aruaru-llm/generate", post(handler_fn(|req, _p| Box::pin(public_aruaru_llm_generate("/v1/generate", req)))));
+    app = app.at("/v1/public/aruaru-llm/generate-with-search", post(handler_fn(|req, _p| Box::pin(public_aruaru_llm_generate("/v1/generate-with-search", req)))));
     app = app.at("/v1/config", get(handler_fn(move |_req, _p| async move { app_config().await })));
     app = app.at("/v1/platform-info", get(handler_fn(move |_req, _p| async move { platform_info().await })));
     // `/health`はopen-web-server/open-easy-web側の「分身の術」テナント
