@@ -132,8 +132,9 @@ jobs:
   # Android スマホ版 / タブレット版 APK(submodule client/ = aon-co-jp/
   # open-english-pc の mobile/android/ を product flavor phone/tablet で
   # ビルド。設計は open-english-pc/BUILD.md 参照)。
-  # 当面は Debug ビルド(debug キーで自動署名 → そのままインストール可)。
-  # ストア提出用のリリース署名鍵導入後に assemble*Release へ切替予定。
+  # リリース署名鍵(2026-09-11追加、ANDROID_KEYSTORE_* シークレット)が
+  # 設定されていれば assemble*Release(リリース署名済み)、無ければ
+  # assemble*Debug(debug署名、ビルド自体は常に成功する)にフォールバックする。
   build-android:
     name: Android APK (phone / tablet)
     runs-on: ubuntu-latest
@@ -146,15 +147,41 @@ jobs:
           distribution: temurin
           java-version: "17"
       - uses: android-actions/setup-android@v3
+      - name: Decode release keystore
+        if: ${{ secrets.ANDROID_KEYSTORE_BASE64 != '' }}
+        env:
+          ANDROID_KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
+        run: |
+          set -eu
+          echo "$ANDROID_KEYSTORE_BASE64" | base64 -d > "$RUNNER_TEMP/open-english-release.jks"
       - name: Build phone & tablet APKs
         working-directory: client/mobile/android
+        env:
+          # 前ステップで secrets.ANDROID_KEYSTORE_BASE64 が空なら鍵ファイルを
+          # 作らないため、その場合は ANDROID_KEYSTORE_PATH も未設定のままにし
+          # (`env: {}` で空文字を渡さない)、build.gradle.kts 側が debug 署名へ
+          # フォールバックする(BUILD.md 参照)。
+          ANDROID_KEYSTORE_PATH: ${{ secrets.ANDROID_KEYSTORE_BASE64 != '' && format('{0}/open-english-release.jks', runner.temp) || '' }}
+          ANDROID_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+          ANDROID_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+          ANDROID_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
         run: |
           set -eu
           chmod +x gradlew
-          ./gradlew --no-daemon assemblePhoneDebug assembleTabletDebug
+          if [ -n "${ANDROID_KEYSTORE_PATH:-}" ]; then
+            echo "signing: release keystore present -> assemble*Release"
+            ./gradlew --no-daemon assemblePhoneRelease assembleTabletRelease
+            OUT_PHONE=app/build/outputs/apk/phone/release/app-phone-release.apk
+            OUT_TABLET=app/build/outputs/apk/tablet/release/app-tablet-release.apk
+          else
+            echo "signing: no release keystore secret -> assemble*Debug (debug-signed, installable but not for distribution)"
+            ./gradlew --no-daemon assemblePhoneDebug assembleTabletDebug
+            OUT_PHONE=app/build/outputs/apk/phone/debug/app-phone-debug.apk
+            OUT_TABLET=app/build/outputs/apk/tablet/debug/app-tablet-debug.apk
+          fi
           mkdir -p ../../../android-apks
-          cp app/build/outputs/apk/phone/debug/app-phone-debug.apk ../../../android-apks/open-english-phone.apk
-          cp app/build/outputs/apk/tablet/debug/app-tablet-debug.apk ../../../android-apks/open-english-tablet.apk
+          cp "$OUT_PHONE" ../../../android-apks/open-english-phone.apk
+          cp "$OUT_TABLET" ../../../android-apks/open-english-tablet.apk
       - uses: actions/upload-artifact@v4
         with:
           name: open-english-android-apks
