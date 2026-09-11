@@ -738,6 +738,140 @@ async fn proxy_aruaru_llm_post(path: &str, req: Request) -> Response {
     }
 }
 
+// デモ利用者向け「おすすめLLM」公開エンドポイント(2026-09-12新設)。
+//
+// 背景: `/v1/admin/aruaru-llm/*` は管理者用(メンテナンス画面)で、
+// install(新規ダウンロード)まで含めて無制限に叩ける。これをそのまま
+// 一般来場者へ公開すると、匿名の誰でも他の全利用者が使う共有モデルを
+// 勝手に切り替えたり、大容量モデルの再ダウンロードを繰り返し
+// トリガーできてしまう(帯域・ディスクの消耗、他利用者への意図しない
+// 影響)。そのため公開版は
+//   (1) 閲覧系(recommend/catalog)はそのまま中継してよい、
+//   (2) 切替は「既にインストール済みのモデルへのselectのみ」許可し、
+//       installは一切呼ばない(新規ダウンロードは管理者のみ)、
+//   (3) 切替中は他の全閲覧者へ「LLM変更中」を見せられるよう、
+//       プロセス内で共有する簡易フラグを立てる(単一プロセス前提、
+//       複数ワーカーへのスケールアウトはこのサーバーの現構成には無い)、
+// という制限を課す。
+static ARUARU_LLM_SWITCHING: std::sync::atomic::AtomicBool = std::sync::atomic::AtomicBool::new(false);
+static ARUARU_LLM_SWITCHING_TARGET: std::sync::Mutex<Option<String>> = std::sync::Mutex::new(None);
+/// 直近の切替完了時刻(いたずら防止のクールダウン判定用、2026-09-12
+/// ユーザー指示「LLMをだれかが変更すると5分間は変更出来ない仕様に」)。
+/// 管理者用`/v1/admin/aruaru-llm/*`経由の切替はこのクールダウンの対象外
+/// (VPS管理者自身の操作までは制限しない)。
+static ARUARU_LLM_LAST_SWITCH: std::sync::Mutex<Option<std::time::Instant>> = std::sync::Mutex::new(None);
+const ARUARU_LLM_SWITCH_COOLDOWN: std::time::Duration = std::time::Duration::from_secs(5 * 60);
+
+fn aruaru_llm_switch_cooldown_remaining() -> Option<std::time::Duration> {
+    let last = ARUARU_LLM_LAST_SWITCH.lock().ok()?.clone()?;
+    let elapsed = last.elapsed();
+    if elapsed < ARUARU_LLM_SWITCH_COOLDOWN {
+        Some(ARUARU_LLM_SWITCH_COOLDOWN - elapsed)
+    } else {
+        None
+    }
+}
+
+async fn public_aruaru_llm_switch_status() -> Response {
+    let switching = ARUARU_LLM_SWITCHING.load(std::sync::atomic::Ordering::SeqCst);
+    let target = ARUARU_LLM_SWITCHING_TARGET.lock().ok().and_then(|g| g.clone());
+    let cooldown_seconds_remaining = aruaru_llm_switch_cooldown_remaining().map(|d| d.as_secs());
+    rs_json_response(
+        StatusCode::OK,
+        &serde_json::json!({
+            "switching": switching,
+            "model_id": target,
+            "cooldown_seconds_remaining": cooldown_seconds_remaining,
+        }),
+    )
+}
+
+/// `POST /v1/public/aruaru-llm/models/select` — 来場者向け、install無し・
+/// 既にインストール済みのモデルへの切替のみ。切替中は
+/// [`ARUARU_LLM_SWITCHING`] を立てて他の閲覧者の画面に「LLM変更中」を
+/// 表示できるようにする。
+async fn public_aruaru_llm_select(req: Request) -> Response {
+    let base = aruaru_llm_base_url();
+    let body: serde_json::Value = match read_rs_json_body(req).await {
+        Ok(v) => v,
+        Err(resp) => return resp,
+    };
+    let id = match body.get("id").and_then(|v| v.as_str()) {
+        Some(id) => id.to_string(),
+        None => {
+            return rs_json_response(
+                StatusCode::BAD_REQUEST,
+                &serde_json::json!({"error": "missing \"id\"", "error_ja": "\"id\"が指定されていません"}),
+            );
+        }
+    };
+    // いたずら防止のクールダウン(2026-09-12ユーザー指示): 直近の切替から
+    // 5分以内なら拒否する。誰か1人が繰り返し切替を連打して他の全利用者を
+    // 巻き込む「荒らし」を防ぐのが目的。
+    if let Some(remaining) = aruaru_llm_switch_cooldown_remaining() {
+        return rs_json_response(
+            StatusCode::TOO_MANY_REQUESTS,
+            &serde_json::json!({
+                "error": format!("cooldown active, try again in {}s", remaining.as_secs()),
+                "error_ja": format!("いたずら防止のクールダウン中です。あと{}秒お待ちください", remaining.as_secs()),
+                "cooldown_seconds_remaining": remaining.as_secs(),
+            }),
+        );
+    }
+    let client = match reqwest::Client::builder().timeout(std::time::Duration::from_secs(15)).build() {
+        Ok(c) => c,
+        Err(e) => return rs_json_response(StatusCode::INTERNAL_SERVER_ERROR, &serde_json::json!({"error": format!("failed to build HTTP client: {e}")})),
+    };
+    // installを一切呼ばず、カタログの`is_installed`だけを見て未インストール
+    // モデルへの切替を拒否する(新規ダウンロードは管理者専用のまま)。
+    let catalog_url = format!("{base}/v1/models/catalog");
+    let catalog: serde_json::Value = match client.get(&catalog_url).send().await {
+        Ok(resp) if resp.status().is_success() => resp.json().await.unwrap_or(serde_json::Value::Null),
+        Ok(resp) => return rs_json_response(StatusCode::BAD_GATEWAY, &serde_json::json!({"error": format!("catalog HTTP {}", resp.status())})),
+        Err(e) => return aruaru_llm_unreachable_response(&catalog_url, e),
+    };
+    let is_installed = catalog
+        .get("installed_ids")
+        .and_then(|m| m.as_array())
+        .map(|ids| ids.iter().any(|v| v.as_str() == Some(id.as_str())))
+        .unwrap_or(false);
+    if !is_installed {
+        return rs_json_response(
+            StatusCode::FORBIDDEN,
+            &serde_json::json!({
+                "error": format!("model \"{id}\" is not installed on this shared server; only already-installed models can be selected by visitors"),
+                "error_ja": format!("モデル「{id}」はこの共有サーバーに未インストールです。来場者は既にインストール済みのモデルのみ選択できます"),
+            }),
+        );
+    }
+    ARUARU_LLM_SWITCHING.store(true, std::sync::atomic::Ordering::SeqCst);
+    if let Ok(mut g) = ARUARU_LLM_SWITCHING_TARGET.lock() {
+        *g = Some(id.clone());
+    }
+    let select_url = format!("{base}/v1/models/select");
+    let result = client.post(&select_url).json(&serde_json::json!({"id": id})).send().await;
+    ARUARU_LLM_SWITCHING.store(false, std::sync::atomic::Ordering::SeqCst);
+    if let Ok(mut g) = ARUARU_LLM_SWITCHING_TARGET.lock() {
+        *g = None;
+    }
+    // 成功・失敗を問わずクールダウンを開始する(失敗直後の連打も
+    // 荒らしになり得るため)。
+    if let Ok(mut g) = ARUARU_LLM_LAST_SWITCH.lock() {
+        *g = Some(std::time::Instant::now());
+    }
+    match result {
+        Ok(resp) => {
+            let status = resp.status();
+            let content_type = resp.headers().get("content-type").and_then(|v| v.to_str().ok()).map(|s| s.to_string());
+            match resp.bytes().await {
+                Ok(body) => passthrough_response(status, content_type, body),
+                Err(e) => rs_json_response(StatusCode::BAD_GATEWAY, &serde_json::json!({"error": format!("failed to read aruaru-llm response: {e}")})),
+            }
+        }
+        Err(e) => aruaru_llm_unreachable_response(&select_url, e),
+    }
+}
+
 /// `GET /v1/admin/aruaru-llm/models` — GPT-2系・Qwen系両カタログ+
 /// ハードウェア推奨を1回でまとめて返す(管理画面が1リクエストで
 /// 「選択可能な一覧」を描画できるように)。
@@ -2722,6 +2856,10 @@ async fn main() {
     app = app.at("/v1/admin/aruaru-llm/download-smaller", post(handler_fn(|_req, _p| Box::pin(proxy_aruaru_llm_get_as_post("/v1/download-smaller")))));
     app = app.at("/v1/admin/aruaru-llm/qwen/select", post(handler_fn(|req, _p| Box::pin(proxy_aruaru_llm_post("/v1/qwen/select", req)))));
     app = app.at("/v1/admin/aruaru-llm/qwen/install", post(handler_fn(|req, _p| Box::pin(proxy_aruaru_llm_post("/v1/qwen/install", req)))));
+    app = app.at("/v1/public/aruaru-llm/recommend", get(handler_fn(|_req, _p| Box::pin(proxy_aruaru_llm_get("/v1/recommend")))));
+    app = app.at("/v1/public/aruaru-llm/models/catalog", get(handler_fn(|_req, _p| Box::pin(proxy_aruaru_llm_get("/v1/models/catalog")))));
+    app = app.at("/v1/public/aruaru-llm/models/select", post(handler_fn(|req, _p| async move { public_aruaru_llm_select(req).await })));
+    app = app.at("/v1/public/aruaru-llm/switch-status", get(handler_fn(|_req, _p| async move { public_aruaru_llm_switch_status().await })));
     app = app.at("/v1/config", get(handler_fn(move |_req, _p| async move { app_config().await })));
     app = app.at("/v1/platform-info", get(handler_fn(move |_req, _p| async move { platform_info().await })));
     // `/health`はopen-web-server/open-easy-web側の「分身の術」テナント
