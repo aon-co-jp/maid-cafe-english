@@ -623,6 +623,148 @@ async fn healthz() -> Response {
     rs_json_response(StatusCode::OK, &serde_json::json!({"ok": true}))
 }
 
+// ── aruaru-llm モデル管理プロキシ(2026-09-11新設) ───────────────────
+//
+// ユーザー指示「WEBデモ版でオススメLLMを自動インストール」を確認した
+// ところ、実際には「VPSレンタルサーバーの管理者が、メンテナンス画面
+// から選んでインストールする機能」を指していた(訪問者のPCへ無断で
+// インストールする機能は技術的に不可能・実装しない、CLAUDE.md参照)。
+//
+// `maybe_launch_aruaru_llm`と同じ`ARUARU_LLM_BIND`(既定
+// `127.0.0.1:4600`)を使い、**この open-english-server プロセスと同じ
+// マシン上の** aruaru-llm へ中継する。ブラウザから直接
+// `http://localhost:4600/...`を叩く既存の「PC版ハイブリッド」経路とは
+// 別に、この中継経路は「open-english-server が動いているマシン
+// (= VPSではVPS自身、ローカルPC版ではそのPC自身)の aruaru-llm を、
+// 管理者がブラウザ越しに操作する」ためのもの——ポート4600を外部
+// ネットワークへ公開せずに済む(ループバックのみのまま)。
+//
+// GET系はレスポンスをそのまま透過(JSON再パースなし、`fixed_body`直結)、
+// POST系はリクエストボディをそのまま転送する。aruaru-llm未起動・
+// 到達不能時は`503`+正直なエラーメッセージを返す(既存の可用性優先
+// 方針、サービス全体は壊さない)。
+fn aruaru_llm_base_url() -> String {
+    let bind = std::env::var("ARUARU_LLM_BIND").unwrap_or_else(|_| "127.0.0.1:4600".to_string());
+    format!("http://{bind}")
+}
+
+fn aruaru_llm_unreachable_response(url: &str, e: reqwest::Error) -> Response {
+    rs_json_response(
+        StatusCode::SERVICE_UNAVAILABLE,
+        &serde_json::json!({
+            "error": format!("aruaru-llm is not reachable at {url}: {e}"),
+            "hint_ja": "このマシン上で aruaru-llm(既定 127.0.0.1:4600)が起動しているか確認してください。",
+            "hint_en": "Check that aruaru-llm (default 127.0.0.1:4600) is running on this machine.",
+        }),
+    )
+}
+
+/// レスポンスをボディ・ステータス・content-typeそのまま中継する
+/// (JSONとして再解釈しない——aruaru-llm側のレスポンス形が変わっても
+/// このプロキシ層の修正が要らない)。
+fn passthrough_response(status: reqwest::StatusCode, content_type: Option<String>, body: bytes::Bytes) -> Response {
+    let status = StatusCode::from_u16(status.as_u16()).unwrap_or(StatusCode::BAD_GATEWAY);
+    let mut builder = hyper::Response::builder().status(status);
+    if let Some(ct) = content_type {
+        builder = builder.header("content-type", ct);
+    }
+    builder
+        .body(open_runo_poem_compat::hyper_compat::fixed_body(body))
+        .unwrap_or_else(|_| rs_json_response(StatusCode::BAD_GATEWAY, &serde_json::json!({"error": "failed to build proxied response"})))
+}
+
+async fn proxy_aruaru_llm_get(path: &str) -> Response {
+    let url = format!("{}{}", aruaru_llm_base_url(), path);
+    let client = match reqwest::Client::builder().timeout(std::time::Duration::from_secs(15)).build() {
+        Ok(c) => c,
+        Err(e) => return rs_json_response(StatusCode::INTERNAL_SERVER_ERROR, &serde_json::json!({"error": format!("failed to build HTTP client: {e}")})),
+    };
+    match client.get(&url).send().await {
+        Ok(resp) => {
+            let status = resp.status();
+            let content_type = resp.headers().get("content-type").and_then(|v| v.to_str().ok()).map(|s| s.to_string());
+            match resp.bytes().await {
+                Ok(body) => passthrough_response(status, content_type, body),
+                Err(e) => rs_json_response(StatusCode::BAD_GATEWAY, &serde_json::json!({"error": format!("failed to read aruaru-llm response: {e}")})),
+            }
+        }
+        Err(e) => aruaru_llm_unreachable_response(&url, e),
+    }
+}
+
+/// [`proxy_aruaru_llm_post`]のボディ無し版(`download-larger`/
+/// `download-smaller`はaruaru-llm側もPOSTだがボディを取らない)。
+async fn proxy_aruaru_llm_get_as_post(path: &str) -> Response {
+    let url = format!("{}{}", aruaru_llm_base_url(), path);
+    let client = match reqwest::Client::builder().timeout(std::time::Duration::from_secs(600)).build() {
+        Ok(c) => c,
+        Err(e) => return rs_json_response(StatusCode::INTERNAL_SERVER_ERROR, &serde_json::json!({"error": format!("failed to build HTTP client: {e}")})),
+    };
+    match client.post(&url).send().await {
+        Ok(resp) => {
+            let status = resp.status();
+            let content_type = resp.headers().get("content-type").and_then(|v| v.to_str().ok()).map(|s| s.to_string());
+            match resp.bytes().await {
+                Ok(body) => passthrough_response(status, content_type, body),
+                Err(e) => rs_json_response(StatusCode::BAD_GATEWAY, &serde_json::json!({"error": format!("failed to read aruaru-llm response: {e}")})),
+            }
+        }
+        Err(e) => aruaru_llm_unreachable_response(&url, e),
+    }
+}
+
+async fn proxy_aruaru_llm_post(path: &str, req: Request) -> Response {
+    let url = format!("{}{}", aruaru_llm_base_url(), path);
+    // ボディはJSONとして解釈せず、そのまま転送する(aruaru-llm側の
+    // リクエスト型が変わってもこのプロキシ層は無改修で済む)。
+    let body: serde_json::Value = match read_rs_json_body(req).await {
+        Ok(v) => v,
+        Err(resp) => return resp,
+    };
+    let client = match reqwest::Client::builder().timeout(std::time::Duration::from_secs(600)).build() {
+        Ok(c) => c,
+        Err(e) => return rs_json_response(StatusCode::INTERNAL_SERVER_ERROR, &serde_json::json!({"error": format!("failed to build HTTP client: {e}")})),
+    };
+    match client.post(&url).json(&body).send().await {
+        Ok(resp) => {
+            let status = resp.status();
+            let content_type = resp.headers().get("content-type").and_then(|v| v.to_str().ok()).map(|s| s.to_string());
+            match resp.bytes().await {
+                Ok(body) => passthrough_response(status, content_type, body),
+                Err(e) => rs_json_response(StatusCode::BAD_GATEWAY, &serde_json::json!({"error": format!("failed to read aruaru-llm response: {e}")})),
+            }
+        }
+        Err(e) => aruaru_llm_unreachable_response(&url, e),
+    }
+}
+
+/// `GET /v1/admin/aruaru-llm/models` — GPT-2系・Qwen系両カタログ+
+/// ハードウェア推奨を1回でまとめて返す(管理画面が1リクエストで
+/// 「選択可能な一覧」を描画できるように)。
+async fn admin_aruaru_llm_models() -> Response {
+    let base = aruaru_llm_base_url();
+    let client = match reqwest::Client::builder().timeout(std::time::Duration::from_secs(15)).build() {
+        Ok(c) => c,
+        Err(e) => return rs_json_response(StatusCode::INTERNAL_SERVER_ERROR, &serde_json::json!({"error": format!("failed to build HTTP client: {e}")})),
+    };
+    async fn fetch_json(client: &reqwest::Client, url: &str) -> serde_json::Value {
+        match client.get(url).send().await {
+            Ok(resp) if resp.status().is_success() => resp.json::<serde_json::Value>().await.unwrap_or(serde_json::Value::Null),
+            Ok(resp) => serde_json::json!({"error": format!("HTTP {}", resp.status())}),
+            Err(e) => serde_json::json!({"error": format!("unreachable: {e}")}),
+        }
+    }
+    let gpt2_catalog_url = format!("{base}/v1/models/catalog");
+    let qwen_catalog_url = format!("{base}/v1/qwen/catalog");
+    let recommend_url = format!("{base}/v1/recommend");
+    let (gpt2_catalog, qwen_catalog, recommend) = tokio::join!(
+        fetch_json(&client, &gpt2_catalog_url),
+        fetch_json(&client, &qwen_catalog_url),
+        fetch_json(&client, &recommend_url),
+    );
+    rs_json_response(StatusCode::OK, &serde_json::json!({"gpt2_catalog": gpt2_catalog, "qwen_catalog": qwen_catalog, "recommend": recommend}))
+}
+
 /// このサーバーが動いているOS種別を返すエンドポイント(2026-09-07新設、
 /// ユーザー指示「Windowsならブラウザ上でWindows版起動中と表示して」への
 /// 対応)。
@@ -2568,6 +2710,18 @@ async fn main() {
         );
     }
     app = app.at("/healthz", get(handler_fn(move |_req, _p| async move { healthz().await })));
+    // aruaru-llm モデル管理プロキシ(このサーバーと同じマシン上の
+    // aruaru-llm、127.0.0.1:4600 既定、へ中継。ポート4600自体は外部
+    // 公開しないまま、管理画面から操作できるようにする)。
+    app = app.at("/v1/admin/aruaru-llm/models", get(handler_fn(|_req, _p| Box::pin(admin_aruaru_llm_models()))));
+    app = app.at("/v1/admin/aruaru-llm/runtime", get(handler_fn(|_req, _p| Box::pin(proxy_aruaru_llm_get("/v1/runtime")))));
+    app = app.at("/v1/admin/aruaru-llm/recommend-and-download", post(handler_fn(|_req, _p| Box::pin(proxy_aruaru_llm_get_as_post("/v1/recommend-and-download")))));
+    app = app.at("/v1/admin/aruaru-llm/models/select", post(handler_fn(|req, _p| Box::pin(proxy_aruaru_llm_post("/v1/models/select", req)))));
+    app = app.at("/v1/admin/aruaru-llm/models/install", post(handler_fn(|req, _p| Box::pin(proxy_aruaru_llm_post("/v1/models/install", req)))));
+    app = app.at("/v1/admin/aruaru-llm/download-larger", post(handler_fn(|_req, _p| Box::pin(proxy_aruaru_llm_get_as_post("/v1/download-larger")))));
+    app = app.at("/v1/admin/aruaru-llm/download-smaller", post(handler_fn(|_req, _p| Box::pin(proxy_aruaru_llm_get_as_post("/v1/download-smaller")))));
+    app = app.at("/v1/admin/aruaru-llm/qwen/select", post(handler_fn(|req, _p| Box::pin(proxy_aruaru_llm_post("/v1/qwen/select", req)))));
+    app = app.at("/v1/admin/aruaru-llm/qwen/install", post(handler_fn(|req, _p| Box::pin(proxy_aruaru_llm_post("/v1/qwen/install", req)))));
     app = app.at("/v1/config", get(handler_fn(move |_req, _p| async move { app_config().await })));
     app = app.at("/v1/platform-info", get(handler_fn(move |_req, _p| async move { platform_info().await })));
     // `/health`はopen-web-server/open-easy-web側の「分身の術」テナント
