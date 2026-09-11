@@ -58,6 +58,34 @@
 
 ## 結果ログ
 
-（まだ実マイク計測を実施していない。P1〜P2-γ は実装・`node --check` /
-`cargo test` までで、WER/CER の実測はマイクのある環境でユーザーが実施予定。
-最初の計測結果をここに貼ること。）
+### 2026-09-11: サーバー側 whisper.cpp(P2-β)、合成音声 16 発話(英8・日8)
+
+**正直な開示**: 実マイクではなく Windows SAPI TTS 合成音声(`docs/asr-eval/refs.jsonl`
+の文をそのまま読み上げ、`.gitignore`済み `audio/*.wav`)を使った計測。
+本文書§5.2が明示的に許可する代替手段("読み上げはTTSで合成してもよい")。
+経路は VPS本番の `POST /v1/transcribe`(`aruaru-llm.service`)を実際に叩いた
+実測値(`tools/asr-bench/wer.mjs`)。
+
+| モデル | 全体WER | 全体CER | en WER | en CER | ja WER | ja CER |
+|---|---|---|---|---|---|---|
+| `ggml-base.bin`(141MB、当初導入) | 10.8% | 5.4% | 2.7% | 2.2% | 87.5% | 13.1% |
+| `ggml-small.bin`(488MB、**本番へ切替**) | 7.2% | 3.1% | 2.7% | 1.9% | 50.0% | **6.2%** |
+
+→ **受け入れ基準(英WER<10%・CJK CER<10%)を両モデル系列語(英)は既に満たし、
+日本語は small モデルで初めて CER<10% を達成**(base: 13.1% → small: 6.2%)。
+本番の `aruaru-llm.service`(`ARUARU_LLM_WHISPER_MODEL`)を `ggml-small.bin`
+へ切替済み(旧 `ggml-base.bin` はロールバック用に残置)。
+
+**残る既知の誤り(homophone、モデルサイズでは解消せず)**:
+- 「開店」→「回転」(ja_4、small でも誤り)。同じ発話に
+  `--prompt "開店、閉店、営業時間"` を付けると **正しく認識**(`TranscribeRequest.
+  prompt`、contextual biasing、既存実装)——コンテキスト依存の語彙バイアスが
+  必須なケースがあることを実証。
+- 「搭乗券」→「登場券」(ja_6、base/small/prompt付きいずれでも未解消) — 次周の
+  改善候補(より大きいモデル medium、またはこの語専用のバイアス強化)。
+- 英語は "maid cafe"→"made cafe"(base、プロンプト無し)を `--prompt "maid cafe"`
+  で修正確認済み、small モデルはプロンプト無しでも正しく認識。
+
+**次の改善候補**: 「搭乗券」等の残存誤りに対する `ggml-medium` での再計測。
+（`serverTranscribePcm()` は既に直前のトレーナー発話を `prompt` として自動送信
+済み——コード確認済み、追加配線は不要だった。）

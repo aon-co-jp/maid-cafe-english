@@ -7688,3 +7688,36 @@ VPS(`easy-web.tokyo`)へも都度デプロイ済み(静的HTMLのみのため
 実在しない」という事実確認)をゼロからやり直さないこと——既に実装
 済みの3手法(独立閾値/連続ブロック探索/線形アダプタ)を土台に、
 追加の改善・別の較正データでの検証等へ進むこと。
+
+## HANDOFF追記(2026-09-11) 音声認識(ASR)実測改善サイクル — サーバー側whisper.cpp導入+ggml-small昇格
+
+`docs/SPEECH_RECOGNITION_REDESIGN.md` の「試作→計測→改善→再計測」ループを
+実際に1周回した(P2-β、初の実測)。
+
+1. **VPS本番に whisper.cpp を新設**(`whisper-cli` をソースからビルド、
+   `ggml-base.bin` 取得) → `POST /v1/transcribe` が `available:true` に
+   (それまでは`503`でスキップされる未導入状態だった)。
+2. **合成音声16発話(英8・日8、Windows SAPI TTS、`docs/asr-eval/README.md`
+   §5.2が明示的に許可する代替手段)で実測**: `tools/asr-bench/wer.mjs`で
+   `ggml-base.bin` は 全体WER 10.8%・全体CER 5.4%(英WER 2.7%は既に受け入れ
+   基準達成、**日本語CER 13.1%は基準未達**)。
+3. **`ggml-small.bin`(488MB)を追加ダウンロード・A/B比較** →
+   全体WER 7.2%・全体CER 3.1%、**日本語CER 6.2%で受け入れ基準
+   (CJK CER<10%)を達成**。本番の `aruaru-llm.service` を
+   `ARUARU_LLM_WHISPER_MODEL=.../ggml-small.bin` へ切替(旧base.binは
+   ロールバック用に残置)。速度コストは3〜5秒発話で1.8s→6.1s
+   (3コアVPS、3.4倍)——会話のテンポは崩さない範囲と判断。
+4. **contextual biasing(`--prompt`)の実効性を実証**: "maid cafe"→"made cafe"
+   (base)は`--prompt "maid cafe"`で修正確認。「開店」→「回転」(ja_4)は
+   small単体では直らず、small+prompt併用で初めて正しく認識——プロンプトと
+   モデルサイズは独立した改善軸であることを実測で確認。
+5. **既に配線済みと判明**: `app.js`の`serverTranscribePcm()`は既に
+   `lastTrainerUtterance()`を`prompt`として自動送信していた(P1-β2で
+   実装済み、追加配線は不要だった)。
+
+結果ログ・残存の既知誤り(「搭乗券」→「登場券」等)は
+`docs/asr-eval/README.md`「結果ログ」節参照。次周は `ggml-medium` での
+再計測を検討。
+
+**正直な開示**: 実マイクでの計測ではなく合成音声(TTS)を使用。実発話・
+実アクセントでの検証は引き続きユーザー環境(マイク実機)での確認が要る。
