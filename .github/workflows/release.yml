@@ -148,12 +148,17 @@ jobs:
           java-version: "17"
       - uses: android-actions/setup-android@v3
       - name: Decode release keystore
-        if: ${{ secrets.ANDROID_KEYSTORE_BASE64 != '' }}
         env:
           ANDROID_KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
         run: |
           set -eu
-          echo "$ANDROID_KEYSTORE_BASE64" | base64 -d > "$RUNNER_TEMP/open-english-release.jks"
+          # step 単位の `if:` は secrets コンテキストを参照できない
+          # (GitHub Actions の制約)ため、シェル側で空チェックする。
+          if [ -n "${ANDROID_KEYSTORE_BASE64:-}" ]; then
+            echo "$ANDROID_KEYSTORE_BASE64" | base64 -d > "$RUNNER_TEMP/open-english-release.jks"
+          else
+            echo "no ANDROID_KEYSTORE_BASE64 secret -> skipping keystore decode"
+          fi
       - name: Build phone & tablet APKs
         working-directory: client/mobile/android
         env:
