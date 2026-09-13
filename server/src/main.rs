@@ -1168,6 +1168,52 @@ async fn db_set_setting(req: Request, db: Arc<Db>) -> Response {
     }
 }
 
+/// `GET /v1/custom-qa` — カスタムQ&Aデータベース(2026-09-13新設)の
+/// 公開読み取り専用エンドポイント(認証不要)。
+///
+/// **背景**: カスタムQ&Aの登録UIは管理者(PC版・VPS本番`/open-english/`)
+/// のみに表示し、デモ(`/open-english/demo`)には表示しない
+/// (ユーザー指示)。一方「デモ画面では、管理者画面で登録した内容に
+/// 反応して自動回答なのは良い」との指示により、デモ来場者の発話も
+/// **管理者が登録した内容と照合して自動応答**できる必要がある。
+/// デモ・本番は同一VPS上でも別プロセス・別SQLiteファイル(意図的に
+/// データ分離、`open-english-demo.service`の説明参照)なので、
+/// `OPEN_ENGLISH_CUSTOM_QA_SOURCE_URL`環境変数が設定されている場合
+/// (デモ側にのみ設定する想定)、自分のDBではなくそのURL先(本番の
+/// この同じエンドポイント)へ中継する。設定が無ければ自分のDBの
+/// `open-english.customQaPairs`設定値をそのまま返す。
+/// 正直な開示: 中身は利用者が自由に登録した文字列であり、この
+/// エンドポイントはそれを検証もサニタイズもしない(既存のフロント
+/// エンド側`matchCustomQa`が組み立てる表示用テキストの一部として
+/// そのまま使われる、外部へは公開情報前提)。
+async fn public_custom_qa(db: Arc<Db>) -> Response {
+    if let Ok(source_url) = std::env::var("OPEN_ENGLISH_CUSTOM_QA_SOURCE_URL") {
+        let url = format!("{}/v1/custom-qa", source_url.trim_end_matches('/'));
+        let client = match reqwest::Client::builder().timeout(std::time::Duration::from_secs(5)).build() {
+            Ok(c) => c,
+            Err(e) => return rs_json_response(StatusCode::INTERNAL_SERVER_ERROR, &serde_json::json!({"error": format!("failed to build HTTP client: {e}")})),
+        };
+        return match client.get(&url).send().await {
+            Ok(resp) => {
+                let status = resp.status();
+                let content_type = resp.headers().get("content-type").and_then(|v| v.to_str().ok()).map(|s| s.to_string());
+                match resp.bytes().await {
+                    Ok(body) => passthrough_response(status, content_type, body),
+                    Err(e) => rs_json_response(StatusCode::BAD_GATEWAY, &serde_json::json!({"error": format!("failed to read response: {e}")})),
+                }
+            }
+            // 到達不能でもデモの会話自体は止めない(空配列を返す、
+            // 既存の可用性優先の設計方針を踏襲)。
+            Err(_) => rs_json_response(StatusCode::OK, &serde_json::json!({"pairs": []})),
+        };
+    }
+    let pairs = match db.get_setting("open-english.customQaPairs") {
+        Ok(Some(raw)) => serde_json::from_str::<serde_json::Value>(&raw).unwrap_or(serde_json::Value::Array(vec![])),
+        _ => serde_json::Value::Array(vec![]),
+    };
+    rs_json_response(StatusCode::OK, &serde_json::json!({"pairs": pairs}))
+}
+
 async fn db_get_settings(db: Arc<Db>) -> Response {
     match db.get_all_settings() {
         Ok(pairs) => {
@@ -3067,6 +3113,14 @@ async fn main() {
                     }
                     db_get_settings(db).await
                 }
+            })),
+        );
+        let db_for_custom_qa = Arc::clone(&db);
+        app = app.at(
+            "/v1/custom-qa",
+            get(handler_fn(move |_req, _p| {
+                let db = Arc::clone(&db_for_custom_qa);
+                async move { public_custom_qa(db).await }
             })),
         );
         let db_for_info = Arc::clone(&db);
