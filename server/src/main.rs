@@ -1120,6 +1120,25 @@ fn rs_json_response(status: StatusCode, value: &impl serde::Serialize) -> Respon
         .expect("building a response from a fixed set of valid headers cannot fail")
 }
 
+/// `rs_json_response`と同じだが`Access-Control-Allow-Origin: *`を付ける。
+/// 2026-09-13新設(ユーザー指示「PC、タブレット、スマホ版でも…毎回最新の
+/// DATABASE Q&AのDATAもdemoと同じ様にAIが自動回答するように」への対応)。
+/// PC/タブレット/スマホ版はそれぞれ別オリジン(`http://localhost:4601`等)
+/// で動くローカルサーバーであり、VPS本番(`https://easy-web.tokyo`)の
+/// カスタムQ&Aを直接fetchするにはCORSの許可が要る。中身は利用者が
+/// 自由に登録した読み取り専用の公開テキストであり秘匿情報を含まない
+/// ため、全オリジンからの読み取りを許可しても実害が無いと判断した
+/// (書き込み系エンドポイントには適用しない)。
+fn rs_json_response_cors(status: StatusCode, value: &impl serde::Serialize) -> Response {
+    let body = rust_json::to_vec_strict(value).unwrap_or_else(|_| b"{}".to_vec());
+    hyper::Response::builder()
+        .status(status)
+        .header("content-type", "application/json")
+        .header("access-control-allow-origin", "*")
+        .body(open_runo_poem_compat::hyper_compat::fixed_body(bytes::Bytes::from(body)))
+        .expect("building a response from a fixed set of valid headers cannot fail")
+}
+
 #[derive(serde::Deserialize)]
 struct AddMessageRequest {
     role: String,
@@ -1204,14 +1223,14 @@ async fn public_custom_qa(db: Arc<Db>) -> Response {
             }
             // 到達不能でもデモの会話自体は止めない(空配列を返す、
             // 既存の可用性優先の設計方針を踏襲)。
-            Err(_) => rs_json_response(StatusCode::OK, &serde_json::json!({"pairs": []})),
+            Err(_) => rs_json_response_cors(StatusCode::OK, &serde_json::json!({"pairs": []})),
         };
     }
     let pairs = match db.get_setting("open-english.customQaPairs") {
         Ok(Some(raw)) => serde_json::from_str::<serde_json::Value>(&raw).unwrap_or(serde_json::Value::Array(vec![])),
         _ => serde_json::Value::Array(vec![]),
     };
-    rs_json_response(StatusCode::OK, &serde_json::json!({"pairs": pairs}))
+    rs_json_response_cors(StatusCode::OK, &serde_json::json!({"pairs": pairs}))
 }
 
 /// `POST /v1/custom-qa` — カスタムQ&A一覧の保存(全置換、認証不要)。
