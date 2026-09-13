@@ -240,3 +240,34 @@ If you want to add or remove any of them after setup is done, run
 "Manage related tools" from the Start Menu — an interactive menu
 shows which of these tools are currently installed and lets you pick
 a number to install or uninstall it.
+
+【謝辞・技術基盤について / Acknowledgments — technical foundation】
+(2026-09-13追記) aruaru-llm(このアプリのAI応答エンジン)は、
+aon-co-jp組織の以下のリポジトリを土台に構築されています。いずれも
+別途ダウンロードいただく必要はなく、aruaru-llm.exeのビルド時に
+既に静的リンク・同梱済みです。
+  - open-cuda (https://github.com/aon-co-jp/open-cuda) —
+    GEMM(行列積)・Attention・GPT-2デコーダ等の推論カーネル実装、
+    Vulkan/DirectX 12/CPU向けの移植可能な計算基盤。
+  - open-cpu (https://github.com/aon-co-jp/open-cpu) —
+    AVX2/AVX-512/FMA3等、実行環境のCPU命令セットを検出し最適な
+    実装を選ぶ実行時ディスパッチ層。
+  - RPoem (https://github.com/aon-co-jp/RPoem) —
+    open-english-server自体が基盤とするHTTPサーバー・ルーター実装。
+どちらのライセンスも各リポジトリ内のLICENSEファイルをご確認ください。
+
+[Acknowledgments — technical foundation] (added 2026-09-13)
+aruaru-llm (this app's AI reply engine) is built on top of the
+following aon-co-jp repositories. You do not need to download these
+separately — both are already statically linked into aruaru-llm.exe
+at build time.
+  - open-cuda (https://github.com/aon-co-jp/open-cuda) — GEMM,
+    attention, and GPT-2 decoder kernels; a portable compute
+    foundation targeting Vulkan / DirectX 12 / CPU.
+  - open-cpu (https://github.com/aon-co-jp/open-cpu) — runtime
+    dispatch layer that detects the CPU's instruction set
+    (AVX2/AVX-512/FMA3, etc.) and picks the fastest implementation.
+  - RPoem (https://github.com/aon-co-jp/RPoem) — the HTTP
+    server/router implementation open-english-server itself is
+    built on.
+See the LICENSE file in each repository for license details.
