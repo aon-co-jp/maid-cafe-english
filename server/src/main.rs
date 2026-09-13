@@ -1214,6 +1214,35 @@ async fn public_custom_qa(db: Arc<Db>) -> Response {
     rs_json_response(StatusCode::OK, &serde_json::json!({"pairs": pairs}))
 }
 
+/// `POST /v1/custom-qa` — カスタムQ&A一覧の保存(全置換、認証不要)。
+///
+/// **実機で発覚したバグの修正(2026-09-13)**: 当初は既存の
+/// `POST /v1/db/settings`(`require_session`でログイン必須)を経由して
+/// いたため、VPS本番`/open-english/`でログインしていない状態だと
+/// ブラウザのlocalStorageには保存されるがサーバー側への同期だけが
+/// サイレントに失敗し(`persistSetting()`の`.catch(() => {})`が握り
+/// つぶしていた)、デモや別端末にその登録内容が一切反映されない実害と
+/// なった(ユーザー報告「demoで消費税と質問したのに」)。カスタムQ&Aの
+/// 登録UI自体が既に管理者(PC版・VPS本番)にしか表示されない設計
+/// (デモには表示されない)ため、書き込みエンドポイント自体には
+/// ログインを課さない——「ボタンが見えない」ことをアクセス制御とする
+/// 既存方針に揃える。
+#[derive(serde::Deserialize)]
+struct SetCustomQaRequest {
+    pairs: serde_json::Value,
+}
+async fn set_custom_qa(req: Request, db: Arc<Db>) -> Response {
+    let body: SetCustomQaRequest = match read_rs_json_body(req).await {
+        Ok(v) => v,
+        Err(resp) => return resp,
+    };
+    let raw = serde_json::to_string(&body.pairs).unwrap_or_else(|_| "[]".to_string());
+    match db.set_setting("open-english.customQaPairs", &raw) {
+        Ok(()) => rs_json_response(StatusCode::OK, &serde_json::json!({"ok": true})),
+        Err(e) => rs_json_response(StatusCode::INTERNAL_SERVER_ERROR, &serde_json::json!({"error": e.to_string()})),
+    }
+}
+
 async fn db_get_settings(db: Arc<Db>) -> Response {
     match db.get_all_settings() {
         Ok(pairs) => {
@@ -3116,11 +3145,16 @@ async fn main() {
             })),
         );
         let db_for_custom_qa = Arc::clone(&db);
+        let db_for_custom_qa_set = Arc::clone(&db);
         app = app.at(
             "/v1/custom-qa",
             get(handler_fn(move |_req, _p| {
                 let db = Arc::clone(&db_for_custom_qa);
                 async move { public_custom_qa(db).await }
+            }))
+            .post(handler_fn(move |req, _p| {
+                let db = Arc::clone(&db_for_custom_qa_set);
+                async move { set_custom_qa(req, db).await }
             })),
         );
         let db_for_info = Arc::clone(&db);
