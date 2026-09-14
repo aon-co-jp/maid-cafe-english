@@ -939,6 +939,56 @@ async fn aruaru_llm_reachable_from_server() -> bool {
     client.get(format!("{base}/healthz")).send().await.map(|r| r.status().is_success()).unwrap_or(false)
 }
 
+// デモ/PC/タブレット/スマホ版共通の「開発者登録済み無料枠プロバイダ」
+// 公開プロキシ(2026-09-14新設)。
+//
+// **背景**: ユーザー指示「easy-web.tokyo/open-englishで開発者が登録した、
+// Google検索の無料枠のAPI Key…ChatGPTやDeepSeekやGeminiやGrokなどの
+// 無料枠をその日に使える範囲で使い切って、その日の分を使い切ったら
+// 次のAIの無料枠に自動で切り替える機能」への対応。PC/タブレット/スマホ版は
+// 自分自身のaruaru-llm(自機のハードウェア)を最優先で使うが、カスタムQ&A
+// にも一致せず自機のAI応答も未設定/未起動の場合、開発者がVPS本番の
+// aruaru-llmへ登録した無料枠キー(`/v1/chat-providers/complete-priority`、
+// 既定優先順位: Google検索→ChatGPT→Gemini→DeepSeek→Grok→Claude、
+// quota_exceededで自動的に次へ)を、この公開プロキシ経由で使えるように
+// する。全来場者・全インストール合算のグローバルレート制限を課す
+// (既存の`aruaru_llm_chat_rate_limit_allow`をそのまま共有する——
+// チャット生成とチャットプロバイダは同じ「1メッセージ=1返信」コストの
+// リソースのため、レート制限プールを分ける必要は無い)。
+async fn public_chat_provider_complete_priority(req: Request) -> Response {
+    if !aruaru_llm_chat_rate_limit_allow() {
+        return rs_json_response_cors(
+            StatusCode::TOO_MANY_REQUESTS,
+            &serde_json::json!({
+                "error": format!("this shared free-tier proxy allows at most {ARUARU_LLM_CHAT_RATE_LIMIT} replies per {} seconds across all installs; please try again shortly", ARUARU_LLM_CHAT_RATE_WINDOW.as_secs()),
+                "error_ja": format!("この共有無料枠プロキシは全インストール合計で{}秒あたり最大{ARUARU_LLM_CHAT_RATE_LIMIT}回までに制限しています。しばらくしてからもう一度お試しください", ARUARU_LLM_CHAT_RATE_WINDOW.as_secs()),
+            }),
+        );
+    }
+    let base = aruaru_llm_base_url();
+    let body: serde_json::Value = match read_rs_json_body(req).await {
+        Ok(v) => v,
+        Err(resp) => return resp,
+    };
+    let client = match reqwest::Client::builder().timeout(std::time::Duration::from_secs(60)).build() {
+        Ok(c) => c,
+        Err(e) => return rs_json_response_cors(StatusCode::INTERNAL_SERVER_ERROR, &serde_json::json!({"error": format!("failed to build HTTP client: {e}")})),
+    };
+    let url = format!("{base}/v1/chat-providers/complete-priority");
+    match client.post(&url).json(&body).send().await {
+        Ok(resp) => {
+            let status = resp.status();
+            match resp.bytes().await {
+                Ok(bytes) => rs_json_response_cors(StatusCode::from_u16(status.as_u16()).unwrap_or(StatusCode::BAD_GATEWAY), &{
+                    serde_json::from_slice::<serde_json::Value>(&bytes).unwrap_or(serde_json::json!({"error": "failed to parse aruaru-llm response"}))
+                }),
+                Err(e) => rs_json_response_cors(StatusCode::BAD_GATEWAY, &serde_json::json!({"error": format!("failed to read aruaru-llm response: {e}")})),
+            }
+        }
+        Err(e) => rs_json_response_cors(StatusCode::SERVICE_UNAVAILABLE, &serde_json::json!({"error": format!("aruaru-llm unreachable: {e}")})),
+    }
+}
+
 /// `GET /v1/admin/aruaru-llm/models` — GPT-2系・Qwen系両カタログ+
 /// ハードウェア推奨を1回でまとめて返す(管理画面が1リクエストで
 /// 「選択可能な一覧」を描画できるように)。
@@ -3031,6 +3081,7 @@ async fn main() {
     app = app.at("/v1/public/aruaru-llm/switch-status", get(handler_fn(|_req, _p| async move { public_aruaru_llm_switch_status().await })));
     app = app.at("/v1/public/aruaru-llm/generate", post(handler_fn(|req, _p| Box::pin(public_aruaru_llm_generate("/v1/generate", req)))));
     app = app.at("/v1/public/aruaru-llm/generate-with-search", post(handler_fn(|req, _p| Box::pin(public_aruaru_llm_generate("/v1/generate-with-search", req)))));
+    app = app.at("/v1/public/chat-providers/complete-priority", post(handler_fn(|req, _p| Box::pin(public_chat_provider_complete_priority(req)))));
     app = app.at("/v1/config", get(handler_fn(move |_req, _p| async move { app_config().await })));
     app = app.at("/v1/platform-info", get(handler_fn(move |_req, _p| async move { platform_info().await })));
     // `/health`はopen-web-server/open-easy-web側の「分身の術」テナント
