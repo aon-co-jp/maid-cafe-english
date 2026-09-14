@@ -58,6 +58,17 @@ jobs:
         run: git clone --depth=1 https://github.com/aon-co-jp/open-cpu.git ../open-cpu
       - name: Checkout RS-JSON (server/Cargo.toml sibling path dependency)
         run: git clone --depth=1 https://github.com/aon-co-jp/RS-JSON.git ../RS-JSON
+      # 2026-09-14追加(ユーザー指示「ビルド速度自体の改善〈キャッシュ戦略の
+      # 見直し等〉が必要」への対応): `~/.cargo`のレジストリ・gitチェック
+      # アウト・`target/`をキャッシュし、依存クレートの再ダウンロード・
+      # 再コンパイルを省略する。sibling path依存(RPoem/open-cpu/RS-JSON等)
+      # はキャッシュキーに含まれないため、それらの内容が変わった場合は
+      # `workspaces`設定でtarget内の当該パッケージ分だけ再ビルドされる
+      # (Swatinem/rust-cacheの標準動作、正直な開示: 完全な差分検知では
+      # なく「Cargo.lock相当のハッシュ+ビルド成果物」ベースの近似)。
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: "server -> target"
       - name: Build open-english-server
         working-directory: server
         run: cargo build --release
@@ -108,6 +119,15 @@ jobs:
         run: git clone --depth=1 https://github.com/aon-co-jp/open-cpu.git ../open-cpu
       - name: Checkout RS-JSON (server/Cargo.toml sibling path dependency)
         run: git clone --depth=1 https://github.com/aon-co-jp/RS-JSON.git ../RS-JSON
+      # 2026-09-14追加(キャッシュ戦略、Windows版ジョブのコメント参照)。
+      # matrixジョブ(Linux/macOS)なので`os_label`をキャッシュキーに含めて
+      # 混ざらないようにする(Swatinem/rust-cacheはOS名を自動的にキーへ
+      # 含めるため、実際には`shared-key`指定が無くても環境ごとに分離
+      # される——明示しておくことで意図を文書化する)。
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: "server -> target"
+          shared-key: ${{ matrix.os_label }}
       - name: Build open-english-server
         working-directory: server
         run: cargo build --release
@@ -147,6 +167,11 @@ jobs:
           distribution: temurin
           java-version: "17"
       - uses: android-actions/setup-android@v3
+      # 2026-09-14追加(キャッシュ戦略、Windows版ジョブのコメント参照)。
+      # Gradleのホームディレクトリ(依存ライブラリのダウンロードキャッシュ)
+      # とビルドキャッシュをGitHub Actionsキャッシュへ保存し、次回以降の
+      # 依存解決・コンパイルを省略する。
+      - uses: gradle/actions/setup-gradle@v4
       - name: Decode release keystore
         env:
           ANDROID_KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
