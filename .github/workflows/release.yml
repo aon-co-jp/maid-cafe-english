@@ -185,8 +185,8 @@ jobs:
             OUT_TABLET=app/build/outputs/apk/tablet/debug/app-tablet-debug.apk
           fi
           mkdir -p ../../../android-apks
-          cp "$OUT_PHONE" ../../../android-apks/open-english-phone.apk
-          cp "$OUT_TABLET" ../../../android-apks/open-english-tablet.apk
+          cp "$OUT_PHONE" ../../../android-apks/open-english-android-phone.apk
+          cp "$OUT_TABLET" ../../../android-apks/open-english-android-tablet.apk
       - uses: actions/upload-artifact@v4
         with:
           name: open-english-android-apks
