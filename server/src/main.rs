@@ -285,25 +285,25 @@ fn repo_root() -> PathBuf {
         .to_path_buf()
 }
 
-/// クライアント静的ファイル正本の submodule (`client/` → `aon-co-jp/
-/// open-english-pc`) から、`client/web/` の中身を配信ルート `root` へ
-/// ミラーする(Phase 2b、2026-09-10)。
+/// クライアント静的ファイル正本(`web/`)の中身を配信ルート `root` へ
+/// ミラーする(2026-09-15、旧`client/`submoduleをopen-english-pcから
+/// 再統合したことに伴い、`web/`は本体直下の通常ディレクトリになった)。
 ///
-/// - `client/web/index.html` が無い場合(インストール済みコピー・
-///   submodule 未チェックアウト)は**何もしない**——実行ファイル同梱の
-///   静的ファイルをそのまま使う従来動作。
+/// - `web/index.html` が無い場合(インストール済みコピーでは`web/`自体を
+///   同梱しない)は**何もしない**——実行ファイル同梱の静的ファイルを
+///   そのまま使う従来動作。
 /// - ある場合はファイル/ディレクトリ単位で `root` 直下へ上書きコピー。
 ///   小さなファイル群(HTML/CSS/JS/JSON/アイコン)なので毎起動コピーで
 ///   問題ない。コピー失敗は致命的ではない(ログのみ、既存ファイルで続行)。
-fn sync_client_from_submodule(root: &Path) {
-    let web = root.join("client").join("web");
+fn sync_web_assets(root: &Path) {
+    let web = root.join("web");
     if !web.join("index.html").exists() {
         return;
     }
     let entries = match std::fs::read_dir(&web) {
         Ok(e) => e,
         Err(e) => {
-            println!("client sync: skipped (cannot read {}: {e})", web.display());
+            println!("web sync: skipped (cannot read {}: {e})", web.display());
             return;
         }
     };
@@ -322,10 +322,10 @@ fn sync_client_from_submodule(root: &Path) {
         };
         match res {
             Ok(()) => copied += 1,
-            Err(e) => println!("client sync: failed to copy {}: {e}", name.to_string_lossy()),
+            Err(e) => println!("web sync: failed to copy {}: {e}", name.to_string_lossy()),
         }
     }
-    println!("client sync: mirrored {copied} entries from client/web/ into {}", root.display());
+    println!("web sync: mirrored {copied} entries from web/ into {}", root.display());
 }
 
 /// aruaru-llm(AI応答エンジン)をコマンド操作なしで自動起動する
@@ -3013,13 +3013,14 @@ async fn main() {
 
     let root = repo_root();
 
-    // クライアント静的ファイルの正本は別リポジトリ
-    // [`aon-co-jp/open-english-pc`](このリポジトリでは submodule `client/`)へ
-    // 移設中(Phase 2b、2026-09-10)。`client/web/` が存在する場合(=submodule が
-    // チェックアウト済みの開発機・VPS・CI)、その内容を配信ルート(`root`)へ
-    // ミラーする。インストール済みコピー(`client/` が同梱されない)では
-    // 何もしない——従来どおり実行ファイル同梱の静的ファイルをそのまま使う。
-    sync_client_from_submodule(&root);
+    // クライアント静的ファイル(`web/`)が存在する場合(=開発機・VPS・CIの
+    // フルチェックアウト)、その内容を配信ルート(`root`)へミラーする
+    // (2026-09-15、旧`open-english-pc`submoduleを本体へ再統合。`web/`は
+    // 本体直下の通常ディレクトリ)。インストール済みコピー(`web/`が
+    // 同梱されない、実行ファイルと同じ場所へ静的ファイルがフラットに
+    // 配置される)では何もしない——従来どおり実行ファイル同梱の静的
+    // ファイルをそのまま使う。
+    sync_web_assets(&root);
 
     let db_path = db::db_path(&root);
     let db = Arc::new(Db::open(db_path).expect("failed to open local SQLite DB (data/open-english.sqlite3)"));

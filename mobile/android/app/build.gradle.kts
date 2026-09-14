@@ -5,7 +5,7 @@ plugins {
     id("org.jetbrains.kotlin.android")
 }
 
-// バージョンの正本は open-english-pc/web/version.json(BUILD.md 参照)。
+// バージョンの正本は web/version.json(BUILD.md 参照)。
 // ここから versionName を読み、versionCode を major*10000+minor*100+patch で導出する。
 // `rootProject.projectDir` = mobile/android なので web/version.json は ../../web/version.json。
 val clientVersionName: String = run {

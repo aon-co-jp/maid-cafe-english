@@ -44,8 +44,6 @@ jobs:
     runs-on: windows-latest
     steps:
       - uses: actions/checkout@v4
-        with:
-          submodules: recursive
       - name: Checkout RPoem (sibling path dependency)
         run: git clone --depth=1 https://github.com/aon-co-jp/RPoem.git ../RPoem
       - name: Checkout open-web-server (RPoem's own sibling path dependency)
@@ -105,8 +103,6 @@ jobs:
     runs-on: ${{ matrix.runner }}
     steps:
       - uses: actions/checkout@v4
-        with:
-          submodules: recursive
       - name: Checkout RPoem (sibling path dependency)
         run: git clone --depth=1 https://github.com/aon-co-jp/RPoem.git ../RPoem
       - name: Checkout open-web-server (RPoem's own sibling path dependency)
@@ -137,10 +133,11 @@ jobs:
           PKG="open-english-installer-${{ matrix.os_label }}"
           mkdir -p "$PKG/icons"
           cp server/target/release/open-english-server "$PKG/"
-          # クライアント静的ファイルは submodule client/ (aon-co-jp/open-english-pc)
-          # の client/web/ が正本(Phase 2b、2026-09-10)。README.md 以外を全て入れる。
-          find client/web -maxdepth 1 -type f ! -name README.md -exec cp {} "$PKG/" \;
-          cp client/web/icons/* "$PKG/icons/"
+          # クライアント静的ファイルの正本は web/(2026-09-15、
+          # open-english-pcの再統合によりsubmoduleではなく本体直下)。
+          # README.md 以外を全て入れる。
+          find web -maxdepth 1 -type f ! -name README.md -exec cp {} "$PKG/" \;
+          cp web/icons/* "$PKG/icons/"
           cp installer/unix/install.sh installer/unix/fetch-aruaru-llm.sh "$PKG/"
           chmod +x "$PKG/install.sh" "$PKG/fetch-aruaru-llm.sh" "$PKG/open-english-server"
           tar -czf "$PKG.tar.gz" "$PKG"
@@ -149,9 +146,9 @@ jobs:
           name: open-english-installer-${{ matrix.os_label }}
           path: open-english-installer-${{ matrix.os_label }}.tar.gz
 
-  # Android スマホ版 / タブレット版 APK(submodule client/ = aon-co-jp/
-  # open-english-pc の mobile/android/ を product flavor phone/tablet で
-  # ビルド。設計は open-english-pc/BUILD.md 参照)。
+  # Android スマホ版 / タブレット版 APK(mobile/android/ を product
+  # flavor phone/tablet でビルド。設計は BUILD.md 参照。2026-09-15、
+  # open-english-pcの再統合によりsubmoduleではなく本体直下)。
   # リリース署名鍵(2026-09-11追加、ANDROID_KEYSTORE_* シークレット)が
   # 設定されていれば assemble*Release(リリース署名済み)、無ければ
   # assemble*Debug(debug署名、ビルド自体は常に成功する)にフォールバックする。
@@ -160,8 +157,6 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-        with:
-          submodules: recursive
       - uses: actions/setup-java@v4
         with:
           distribution: temurin
@@ -185,7 +180,7 @@ jobs:
             echo "no ANDROID_KEYSTORE_BASE64 secret -> skipping keystore decode"
           fi
       - name: Build phone & tablet APKs
-        working-directory: client/mobile/android
+        working-directory: mobile/android
         env:
           # 前ステップで secrets.ANDROID_KEYSTORE_BASE64 が空なら鍵ファイルを
           # 作らないため、その場合は ANDROID_KEYSTORE_PATH も未設定のままにし

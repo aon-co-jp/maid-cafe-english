@@ -75,24 +75,23 @@ Name: "english"; MessagesFile: "compiler:Default.isl"
 
 [Files]
 Source: "..\..\server\target\release\{#MyAppExeName}"; DestDir: "{app}"; Flags: ignoreversion
-; クライアント静的ファイルの正本は submodule client\ (aon-co-jp\open-english-pc)
-; の client\web\(Phase 2b、2026-09-10)。CI の actions/checkout は
-; submodules: recursive で取得する。
-Source: "..\..\client\web\index.html"; DestDir: "{app}"; Flags: ignoreversion
-Source: "..\..\client\web\style.css"; DestDir: "{app}"; Flags: ignoreversion
-Source: "..\..\client\web\app.js"; DestDir: "{app}"; Flags: ignoreversion
-Source: "..\..\client\web\auto-update.js"; DestDir: "{app}"; Flags: ignoreversion
-Source: "..\..\client\web\version.json"; DestDir: "{app}"; Flags: ignoreversion
-Source: "..\..\client\web\manifest.json"; DestDir: "{app}"; Flags: ignoreversion
-Source: "..\..\client\web\exam-prep-questions.json"; DestDir: "{app}"; Flags: ignoreversion
-Source: "..\..\client\web\sw.js"; DestDir: "{app}"; Flags: ignoreversion
-Source: "..\..\client\web\facebook.html"; DestDir: "{app}"; Flags: ignoreversion
-Source: "..\..\client\web\qr-confirm.html"; DestDir: "{app}"; Flags: ignoreversion
-Source: "..\..\client\web\vault.html"; DestDir: "{app}"; Flags: ignoreversion
-Source: "..\..\client\web\world-language-exams.json"; DestDir: "{app}"; Flags: ignoreversion
-Source: "..\..\client\web\world-language-phrases.json"; DestDir: "{app}"; Flags: ignoreversion
-Source: "..\..\client\web\world-language-regions.json"; DestDir: "{app}"; Flags: ignoreversion
-Source: "..\..\client\web\icons\*"; DestDir: "{app}\icons"; Flags: ignoreversion recursesubdirs
+; クライアント静的ファイルの正本は web\(2026-09-15、open-english-pcの
+; 再統合によりsubmoduleではなく本体直下)。
+Source: "..\..\web\index.html"; DestDir: "{app}"; Flags: ignoreversion
+Source: "..\..\web\style.css"; DestDir: "{app}"; Flags: ignoreversion
+Source: "..\..\web\app.js"; DestDir: "{app}"; Flags: ignoreversion
+Source: "..\..\web\auto-update.js"; DestDir: "{app}"; Flags: ignoreversion
+Source: "..\..\web\version.json"; DestDir: "{app}"; Flags: ignoreversion
+Source: "..\..\web\manifest.json"; DestDir: "{app}"; Flags: ignoreversion
+Source: "..\..\web\exam-prep-questions.json"; DestDir: "{app}"; Flags: ignoreversion
+Source: "..\..\web\sw.js"; DestDir: "{app}"; Flags: ignoreversion
+Source: "..\..\web\facebook.html"; DestDir: "{app}"; Flags: ignoreversion
+Source: "..\..\web\qr-confirm.html"; DestDir: "{app}"; Flags: ignoreversion
+Source: "..\..\web\vault.html"; DestDir: "{app}"; Flags: ignoreversion
+Source: "..\..\web\world-language-exams.json"; DestDir: "{app}"; Flags: ignoreversion
+Source: "..\..\web\world-language-phrases.json"; DestDir: "{app}"; Flags: ignoreversion
+Source: "..\..\web\world-language-regions.json"; DestDir: "{app}"; Flags: ignoreversion
+Source: "..\..\web\icons\*"; DestDir: "{app}\icons"; Flags: ignoreversion recursesubdirs
 Source: "README-INSTALLED.txt"; DestDir: "{app}"; Flags: ignoreversion
 Source: "fetch-aruaru-llm.ps1"; DestDir: "{app}"; Flags: ignoreversion
 Source: "fetch-aruaru-db.ps1"; DestDir: "{app}"; Flags: ignoreversion
