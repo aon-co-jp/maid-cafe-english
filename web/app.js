@@ -1645,8 +1645,22 @@ function appendMessage(role, text) {
     div.dir = "rtl";
   }
   logEl.appendChild(div);
-  logEl.scrollTop = logEl.scrollHeight;
+  scrollToMessageTop(div);
   return div;
+}
+
+// 2026-09-15追加(ユーザー報告「消費税と質問して回答を得たけど前半の
+// 文章が消えたBUG」への対応): 従来は`logEl.scrollTop = logEl.scrollHeight`
+// で常に**ログの最下部**へジャンプしていたため、長い回答(複数言語の
+// Q&A等)では回答の末尾しか見えず、冒頭を読むには利用者が自力で上へ
+// スクロールし直す必要があった——しかも新着メッセージのたびに再び
+// 最下部へ引き戻されるため、実質的に「前半が読めない(消えたように
+// 見える)」体験になっていた。新着メッセージ・更新されたメッセージの
+// **先頭**が見える位置へスクロールすることで、上から下へ自然に読み
+// 進められるようにする(`scrollIntoView`はネストしたスクロール
+// コンテナ〈`.log`のoverflow-y:auto〉も正しく扱う)。
+function scrollToMessageTop(el) {
+  el.scrollIntoView({ behavior: "smooth", block: "start" });
 }
 
 function replaceLastMessage(role, text) {
@@ -1654,7 +1668,7 @@ function replaceLastMessage(role, text) {
   const last = nodes[nodes.length - 1];
   if (last) {
     renderMessageBody(last, text);
-    logEl.scrollTop = logEl.scrollHeight;
+    scrollToMessageTop(last);
     return true;
   }
   return false;
@@ -5159,7 +5173,7 @@ formEl.addEventListener("submit", async (e) => {
       fig.className = "tutor-figure";
       fig.innerHTML = currentQuizTexts.figure;
       quizNode.appendChild(fig);
-      logEl.scrollTop = logEl.scrollHeight;
+      scrollToMessageTop(quizNode);
     }
     return;
   }
@@ -5193,7 +5207,7 @@ formEl.addEventListener("submit", async (e) => {
     pending.className = `msg ${role}`;
     pending.dataset.role = role;
     pending.textContent = msg;
-    logEl.scrollTop = logEl.scrollHeight;
+    scrollToMessageTop(pending);
   };
 
   try {
