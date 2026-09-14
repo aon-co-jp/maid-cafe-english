@@ -1,0 +1,13 @@
+{
+  "name": "open-english: Maid Cafe English Trainer",
+  "short_name": "open-english",
+  "description": "AI-powered maid cafe English conversation trainer (Phase 0 prototype, powered by aruaru-llm)",
+  "start_url": "./index.html",
+  "display": "standalone",
+  "background_color": "#1a1220",
+  "theme_color": "#f096be",
+  "icons": [
+    { "src": "icons/icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },
+    { "src": "icons/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any" }
+  ]
+}

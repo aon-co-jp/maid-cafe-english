@@ -7721,3 +7721,53 @@ VPS(`easy-web.tokyo`)へも都度デプロイ済み(静的HTMLのみのため
 
 **正直な開示**: 実マイクでの計測ではなく合成音声(TTS)を使用。実発話・
 実アクセントでの検証は引き続きユーザー環境(マイク実機)での確認が要る。
+
+## クライアント(web/ pc/ tablet/ mobile/)の再統合について(2026-09-15)
+
+2026-09-10にPhase 2として`aon-co-jp/open-english-pc`へクライアント実装
+(`web/` `pc/` `tablet/` `mobile/`)をsubmodule切り出ししたが、分離の
+目的だった「クライアントとサーバー/デモ環境の分離」自体は、インストーラー
+組み立て(`installer/windows/` `installer/unix/`)・リリースCI
+(`.github/workflows/release.yml`)・配信サーバー(`server/`)がいずれも
+本体リポジトリ側に残ったままで実現されず、二重管理のコストだけが残って
+いた(ユーザー指摘「わざわざopen-englishから独立させた意味が無い」)。
+2026-09-15、submoduleを撤去し履歴を保持したまま本体へ再統合した
+(`git merge --allow-unrelated-histories`)。`open-english-pc`リポジトリ
+自体は削除済み。
+
+- `web/` … 共有Webクライアント(`index.html` `style.css` `app.js`
+  `auto-update.js` `version.json` `manifest.json` `exam-prep-questions.json`
+  `sw.js` `facebook.html` `qr-confirm.html` `vault.html` `icons/`)
+- `pc/` … Windows / Linux / macOS デスクトップ版パッケージング(骨組み)
+- `tablet/` … タブレット版パッケージング(骨組み)
+- `mobile/android/` … Android版(Kotlin、WebViewシェル+内蔵サーバー)
+
+再統合に伴い、旧`android/`(移設後CIから参照されなくなっていた死んだ
+重複コピー)は削除し、`server/src/main.rs`・
+`installer/windows/open-english.iss`・`.github/workflows/release.yml`の
+`client/web`・`client/mobile/android`参照はそれぞれ`web`・
+`mobile/android`へ更新した。
+
+- **2026-09-14 Androidキーボード自動スクロールの実機根本修正(v0.8.7)**:
+  ユーザー報告「縦スマホでキーボード表示より上に自動スクロールしない」を
+  OPPO Reno11A実機（ADB接続）で繰り返し検証し、3件の実バグを特定・修正した。
+  1. **根本原因**: `WindowInsetsCompat.Type.ime()` + `View.setPadding()`
+     でWebViewへキーボード高さ分のbottom paddingを適用する方式は、padding
+     自体は正しく適用されていたが、Chromium系WebViewが`onSizeChanged`を
+     受け取らずJS側`window.innerHeight`/`visualViewport`が一切更新されない
+     ことを実機ログ(`currentPadding=897`と適用は確認できるのに画面上は
+     無反応)で特定した。`WebView.layoutParams.height`を直接書き換える方式
+     (`getWindowVisibleDisplayFrame`でキーボード高さを算出)に切り替え、
+     実際のビュー寸法変更として確実に`onSizeChanged`を発火させることで
+     解決。ADB実機テストで入力欄がキーボード上に正しく自動スクロールされ、
+     文字入力も可能なことを確認済み。
+  2. ネイティブ`CLOSE`/`OPEN SETUP`ボタンが画面右上で重なって表示される
+     バグ(`closeSetupBtn`がローカル変数でサーバー起動成功時の自動非表示
+     処理から参照できず、非表示にし忘れていた)を修正。tablet flavor側の
+     レイアウトにも同じオーバーレイボタンを追加。
+  3. `assets/webroot/`(APK同梱の静的アセット)が`web/`(正本)から手動`cp`
+     でしか同期されておらず、同期忘れで旧コンテンツが実機に配信され
+     続ける実害を繰り返し引き起こしていた問題を、Gradle `preBuild`依存の
+     自動コピータスク(`app/build.gradle.kts`の`syncWebrootFromWeb`)で解消。
+  詳細は`mobile/android/app/src/main/java/tokyo/runo/openenglish/MainActivity.kt`
+  のコメント参照。

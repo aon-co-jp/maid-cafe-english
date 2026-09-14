@@ -1,0 +1,92 @@
+<?xml version="1.0" encoding="utf-8"?>
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+
+    <uses-permission android:name="android.permission.INTERNET" />
+    <!-- 2026-08-20追加: PC URL自動検出(サブネットスキャン方式)で
+         自端末のWi-Fi IPアドレスを取得するため(WifiManager、通常権限
+         のため実行時プロンプト不要)。 -->
+    <uses-permission android:name="android.permission.ACCESS_WIFI_STATE" />
+    <!--
+      REQUEST_INSTALL_PACKAGES: 2026-08-17追加(ユーザー指示「Android
+      自動アップデートを進めて」)。Play Store配布ではないため完全に
+      サイレントな自動インストールはOS上不可能——このアプリがAPKを
+      自動ダウンロードした上で、Androidのパッケージインストーラー画面
+      (ユーザーのタップ1回での確認)を起動するところまでを自動化する。
+    -->
+    <uses-permission android:name="android.permission.REQUEST_INSTALL_PACKAGES" />
+
+    <application
+        android:allowBackup="true"
+        android:icon="@drawable/ic_launcher"
+        android:label="@string/app_name"
+        android:supportsRtl="true"
+        android:theme="@style/Theme.OpenEnglish"
+        android:usesCleartextTraffic="true">
+
+        <!--
+          usesCleartextTraffic="true": 接続先はユーザー自身のPC上で動く
+          `server/`(http、既定4601番ポート)+`aruaru-llm`(http、既定4600
+          番ポート)であり、公開インターネット上のhttpsサーバーではない
+          ため平文HTTPを許可する(LAN内接続、正直な開示)。
+        -->
+        <!--
+          android:configChanges: 実機検証(2026-08-12、ユーザー指示
+          「アンドロイドスマホとタブレットは縦画面と横画面の両方に対応
+          して」)で発覚した実バグへの対応。screenOrientationを固定して
+          いない(=デフォルトで両方向とも回転可能)ものの、configChanges
+          未指定のままだと画面回転のたびにActivity自体が破棄・再生成され、
+          WebView側のJS状態(会話履歴・試験問題の進行状況・設定画面の
+          入力内容等)が全て失われることを実機で確認した(内蔵サーバー
+          プロセス自体はlaunchServerProcess()の多重起動防止ガードにより
+          クラッシュしないが、UI状態は毎回リセットされてしまう)。
+          orientation|screenSize|screenLayoutを指定してActivityの再生成
+          自体を止め、WebViewはCSSのレスポンシブレイアウトで画面サイズ
+          変化に追従させる(index.html/style.css側は元々特定の画面向きを
+          前提にしていない)。
+
+          android:windowSoftInputMode="adjustResize": 実機検証
+          (2026-09-14、ユーザー報告「demoから最新のスマホ版をダウンロード
+          してインストールしたけど、入力フォームに文字を入力しようと
+          しても、縦スマホでのキーボード表示の上に自動スクロールしない」)
+          で発覚した実バグへの対応。app.js側で入力欄フォーカス時に
+          scrollIntoView()する仕組み(2026-09-14新設)を先に実装したが、
+          本ActivityにwindowSoftInputModeを指定していなかったため既定の
+          挙動(通常adjustPan相当)のままで、オンスクリーンキーボード表示時に
+          WebView自体の可視領域(ビューポート)がリサイズされず、JS側の
+          scrollIntoView()が実質的に無効化されていた。adjustResizeを指定
+          することでキーボード表示時にWebViewのビューポート自体が縮小され、
+          scrollIntoView()が正しく機能するようになる(通常のモバイル
+          ブラウザ〈Chrome等〉では既定でこの挙動のため今まで気づけなかった
+          ——ネイティブAndroidアプリのWebViewシェル特有の設定漏れだった)。
+        -->
+        <activity
+            android:name=".MainActivity"
+            android:configChanges="orientation|screenSize|screenLayout|keyboardHidden"
+            android:windowSoftInputMode="adjustResize"
+            android:exported="true">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+        </activity>
+
+        <!--
+          FileProvider: 2026-08-17追加。ダウンロードしたAPK
+          (アプリ専用外部ストレージ、`getExternalFilesDir(null)`配下)を
+          パッケージインストーラーへcontent://経由で安全に渡すため
+          (Android 7+ではfile://URIの直接受け渡しがFileUriExposedExceptionで
+          禁止されている)。
+        -->
+        <provider
+            android:name="androidx.core.content.FileProvider"
+            android:authorities="${applicationId}.fileprovider"
+            android:exported="false"
+            android:grantUriPermissions="true">
+            <meta-data
+                android:name="android.support.FILE_PROVIDER_PATHS"
+                android:resource="@xml/file_provider_paths" />
+        </provider>
+
+    </application>
+
+</manifest>

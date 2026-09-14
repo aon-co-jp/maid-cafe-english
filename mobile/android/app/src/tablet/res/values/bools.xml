@@ -1,0 +1,5 @@
+<resources>
+    <!-- タブレットは横向きを既定にしやすいよう UI 側が参照するフラグ
+         (MainActivity 等で任意に利用)。phone 側は既定 false。 -->
+    <bool name="is_tablet_build">true</bool>
+</resources>

@@ -1,0 +1,3 @@
+<resources>
+    <bool name="is_tablet_build">false</bool>
+</resources>

@@ -1,0 +1,5 @@
+<resources>
+    <!-- tablet flavor 固有(BUILD.md 参照)。applicationId は .tablet サフィックスで
+         phone 版と別アプリとして併存できる。共通文字列は ../../main/res/values/strings.xml。 -->
+    <string name="app_name">open-english タブレット版</string>
+</resources>

@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<paths xmlns:android="http://schemas.android.com/apk/res/android">
+    <!-- getExternalFilesDir(null)配下(アプリ専用外部ストレージ)に
+         ダウンロードしたAPKだけを公開する(2026-08-17追加)。 -->
+    <external-files-path name="downloads" path="." />
+</paths>

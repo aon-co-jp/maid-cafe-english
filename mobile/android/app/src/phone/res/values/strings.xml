@@ -1,0 +1,4 @@
+<resources>
+    <!-- phone flavor 固有(BUILD.md 参照)。共通文字列は ../../main/res/values/strings.xml。 -->
+    <string name="app_name">open-english</string>
+</resources>

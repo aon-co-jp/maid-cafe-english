@@ -1,0 +1,171 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  tablet flavor 専用レイアウト(BUILD.md「tablet/」節、2026-09-11新設)。
+  phone 版(../main/res/layout/activity_main.xml)と要素・ID・文字列参照は
+  完全に同一(MainActivity.kt は共通ソース src/main/ を両 flavor で共用する
+  ため、findViewById の対象ビューはここでも同じ ID を持たせる必要がある)。
+  違いはタブレットの広い横幅を活かすため、setup_panel(起動状態表示/
+  モデルDL/端末計算連携などの操作パネル)を画面中央へ幅上限つきで配置する
+  ことだけ——スマホでは match_parent で全幅表示していたパネルが、大画面で
+  横に間延びして読みにくくなる問題への対応。WebView 表示時は従来どおり
+  全画面。
+-->
+<FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:id="@+id/root_layout"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent">
+
+    <ScrollView
+        android:layout_width="match_parent"
+        android:layout_height="match_parent">
+
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="vertical"
+            android:gravity="center_horizontal">
+
+            <!-- タブレットの横幅を持て余さないよう、操作パネルの幅を
+                 600dp に上限。600dp 未満の狭いタブレット/分割画面では
+                 match_parent 相当まで縮む。 -->
+            <LinearLayout
+                android:id="@+id/setup_panel"
+                android:layout_width="600dp"
+                android:layout_height="wrap_content"
+                android:orientation="vertical"
+                android:padding="24dp">
+
+                <TextView
+                    android:id="@+id/setup_help"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:text="@string/setup_help"
+                    android:textSize="16sp"
+                    android:paddingBottom="12dp" />
+
+                <TextView
+                    android:id="@+id/update_notice"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:textColor="#D6336C"
+                    android:layout_marginTop="8dp"
+                    android:visibility="gone" />
+
+                <Button
+                    android:id="@+id/download_model_btn"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="8dp"
+                    android:text="@string/download_model_button" />
+
+                <TextView
+                    android:id="@+id/download_model_status"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:textSize="14sp"
+                    android:layout_marginTop="6dp"
+                    android:visibility="gone" />
+
+                <TextView
+                    android:id="@+id/model_storage_path"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:textSize="13sp"
+                    android:layout_marginTop="10dp"
+                    android:textIsSelectable="true" />
+
+                <Button
+                    android:id="@+id/backup_models_btn"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="4dp"
+                    android:text="@string/backup_models_button" />
+
+                <Button
+                    android:id="@+id/restore_models_btn"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="4dp"
+                    android:text="@string/restore_models_button" />
+
+                <TextView
+                    android:id="@+id/backup_models_status"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:textSize="14sp"
+                    android:layout_marginTop="6dp"
+                    android:visibility="gone" />
+
+                <TextView
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:textSize="13sp"
+                    android:layout_marginTop="10dp"
+                    android:text="@string/phone_accel_help" />
+
+                <EditText
+                    android:id="@+id/phone_accel_pc_url"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="4dp"
+                    android:hint="@string/phone_accel_url_hint"
+                    android:text="http://127.0.0.1:4600"
+                    android:inputType="textUri" />
+
+                <Button
+                    android:id="@+id/phone_accel_autodetect_btn"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="4dp"
+                    android:text="@string/phone_accel_autodetect_button" />
+
+                <Button
+                    android:id="@+id/phone_accel_toggle_btn"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="4dp"
+                    android:text="@string/phone_accel_start_button" />
+
+                <TextView
+                    android:id="@+id/phone_accel_status"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:textSize="13sp"
+                    android:layout_marginTop="6dp"
+                    android:visibility="gone" />
+            </LinearLayout>
+        </LinearLayout>
+    </ScrollView>
+
+    <WebView
+        android:id="@+id/web_view"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:visibility="gone" />
+
+    <!--
+      2026-09-14追加: phone flavor(../main/res/layout/activity_main.xml)
+      と同じ、setupPanelの内容量に左右されない固定位置オーバーレイの
+      close/reopenボタン(MainActivity.kt共通ソースがfindViewByIdで
+      参照するため、tablet flavor側にも同じIDを持たせる必要がある)。
+    -->
+    <Button
+        android:id="@+id/close_setup_btn"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_gravity="top|end"
+        android:layout_margin="4dp"
+        android:elevation="16dp"
+        android:text="@string/close_setup_panel_button" />
+
+    <Button
+        android:id="@+id/reopen_setup_btn"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_gravity="top|end"
+        android:layout_margin="4dp"
+        android:elevation="16dp"
+        android:text="@string/open_setup_panel_button"
+        android:visibility="gone" />
+
+</FrameLayout>
