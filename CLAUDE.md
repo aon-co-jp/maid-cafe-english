@@ -7815,3 +7815,24 @@ GitHub Releaseへの添付がスキップされた(コードではなくCI環境
 **`v0.8.9`として再リリース**(タグ`v0.8.9`、run 35506524104)。SDKセットアップ通過を
 確認済み。完了(約17分)したら`gh release view v0.8.9`でAPK2種が付いているか確認する。
 (v0.8.8タグはRelease未公開のまま残っている。不要なら`git push origin :v0.8.8`で削除可。)
+
+## HANDOFF 2026-09-20(続き): 公開サイト一本化・管理者ログイン・危険API封鎖
+
+ユーザー指示「デモをopen-englishに引っ越し」「上の方に管理者ログインはこちら、e-mailワンタイムパスワード」。
+- **本番`easy-web.tokyo/open-english`を公開(ログイン不要)に変更**(DBの`login_mode=none`)。
+  ページ最上部左に「🔐 管理者ログインはこちら」リンク→email OTP(コードのみ、閉じるボタン付き)。
+- **管理者は環境変数`OPEN_ENGLISH_ADMIN_EMAILS`(`/etc/open-english.env`、値は`norukia.jp@gmail.com`)で限定**。
+  未設定なら従来動作(誰のメールでもログイン可=PC版の自分専用利用向け)。管理者以外にはコードを送らない。
+- Q&A登録ボタンは**管理者ログイン済み、または端末自身のPC版(localhost)のみ表示**。管理者ログイン時に
+  サーバーの最新Q&Aを端末内リストへ取り込む(端末内が古いままサーバーを上書きするのを防ぐ)。
+- `/open-english/demo`は「引っ越しました/We have moved」を日英で全画面表示し、新URLへのボタンを出す。
+- **重大な既存の穴を塞いだ**: 公開サイトで`/v1/fs/list-dir`(サーバーのフォルダ名一覧)・`/v1/duckdns/update`・
+  `/v1/db/storage-path`・`/v1/db/rsync-backup(-all)`・`/v1/db/migrate-legacy`・`/v1/db/install-rsync`・
+  `POST /v1/custom-qa`・`POST /v1/auth/config`・保護対象キーの`/v1/db/settings`書き込みが**認証なしで誰でも
+  実行できた**。今は「端末自身(Hostがlocalhostでプロキシヘッダー無し)か管理者ログイン済み」のみ許可
+  (`require_local_or_admin`、公開URLからは403)。点検した範囲では設定の書き換え・悪用の形跡なし
+  (nginxログは該当行なし)。
+- ⚠️実際に届いたコードでの管理者ログイン成功は**未確認**(Gmail受信箱を読めなかった)。次回ユーザーが
+  リンクから試して結果を教えてもらう。
+- ⚠️`/v1/db/history`・`/v1/db/settings`(保護対象外キー)等は公開のまま。本番に訪問者の会話履歴が
+  溜まる。必要なら分離を検討。
