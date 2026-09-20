@@ -4741,11 +4741,11 @@ function quizNumberRequest(userText) {
   const t = userText
     .replace(/[０-９]/g, (c) => String.fromCharCode(c.charCodeAt(0) - 0xfee0))
     .toLowerCase();
-  if (!isQuizRequest(userText) && !/(問題|クイズ|quiz|puzzle|そのs*[123]|[123]s*(問目|番))/.test(t)) return null;
-  // 3問すべて: 「全部」「すべて」「3問」「1,2,3」「123」「all」
-  if (/(全部|すべて|全て|３問|3問|三問|all|1s*[,、・ ]s*2s*[,、・ ]s*3|123)/.test(t)) return "all";
+  if (!isQuizRequest(userText) && !/(問題|クイズ|quiz|puzzle|その\s*[123]|[123]\s*(問目|番))/.test(t)) return null;
+  // 3問すべて: 「全部」「すべて」「3問」(「3問目」は除く)「1,2,3」「123」「all」
+  if (/(全部|すべて|全て|[3三]問(?!目)|\ball\b|1\s*[,、・ ]\s*2\s*[,、・ ]\s*3|123)/.test(t)) return "all";
   // 番号指定: 「その2」「2問目」「2番」「問題2」「puzzle 2」「no.2」
-  const m = t.match(/(?:その|問題|クイズ|quiz|puzzle|no.?|number)s*([123])(?!d)|([123])s*(?:問目|番|つ目)/);
+  const m = t.match(/(?:その|問題|クイズ|quiz|puzzle|no\.?|number)\s*([123])(?!\d)|([123])\s*(?:問目|番|つ目)/);
   if (m) return parseInt(m[1] || m[2], 10) - 1;
   return null;
 }
