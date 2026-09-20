@@ -1187,6 +1187,7 @@ function startQrLoginPoll(qrLoginId) {
         const finishData = await finishRes.json();
         if (finishRes.ok && finishData.ok) {
           document.getElementById("login-gate").classList.add("hidden");
+          refreshAdminState();
         } else {
           if (qrLoginStatusEl) qrLoginStatusEl.textContent = `⚠ ${finishData.error || "Failed to finish login / ログイン完了に失敗しました"}`;
         }
@@ -1225,6 +1226,7 @@ async function verifyOtpFactorOne(identifier, code) {
     } else if (res.ok) {
       // 旧サーバー(2FA導入前)との後方互換フォールバック
       document.getElementById("login-gate").classList.add("hidden");
+      refreshAdminState();
     } else {
       loginStatusEl.textContent = `⚠ ${data.error || "Incorrect code / コードが正しくありません"}`;
     }
@@ -8592,7 +8594,9 @@ const customQaModal = document.getElementById("custom-qa-modal");
 // 自動的に反映される(`matchCustomQa`のサーバー共有分参照)——デモには
 // 登録"UI"を出さないだけで、登録"内容の反映"はデモでも生きている。
 const isDemoPathForCustomQa = location.pathname.includes("/demo");
-if (customQaBtn && isDemoPathForCustomQa) {
+if (customQaBtn) {
+  // 2026-09-20: 登録UIは管理者ログイン済み(または端末自身のPC版)の場合のみ
+  // `refreshAdminState()`が表示する。既定は非表示。
   customQaBtn.classList.add("hidden");
 }
 if (customQaBtn && customQaModal && !isDemoPathForCustomQa) {
@@ -16070,3 +16074,61 @@ if (freelanceGithubPushBtn) {
 autorwRefreshGithubStatus();
 autorwRefreshLocalDriveStatus();
 autorwRefreshVpsStatus();
+
+
+// ---- 管理者ログイン導線・デモ引っ越し案内(2026-09-20) --------------------
+// ユーザー指示: 「/open-englishの上の方に、管理者ログインはこちらをクリック
+// したりタップしてe-mailのワンタイムパスワードでログインする」「/demoに
+// アクセスしたら/open-englishに引っ越しましたと日本語と英語で表示」。
+// 管理者はサーバー側(OPEN_ENGLISH_ADMIN_EMAILS)で限定される。
+async function syncCustomQaFromServerForAdmin() {
+  // 管理者の端末内リストがサーバーの実データと食い違っていると、管理画面から
+  // 登録/削除した際にサーバー全体を上書きしてしまうため、管理者ログイン時に
+  // サーバー側の最新を端末内リストへ取り込む。
+  try {
+    const pairs = await fetchSharedCustomQaPairs();
+    if (Array.isArray(pairs)) localStorage.setItem(CUSTOM_QA_KEY, JSON.stringify(pairs));
+  } catch (e) {
+    /* 取得できなければ既存の端末内リストのまま */
+  }
+}
+async function refreshAdminState() {
+  const isDemo = location.pathname.includes("/demo");
+  const linkEl = document.getElementById("admin-login-link");
+  const noticeEl = document.getElementById("demo-moved-notice");
+  if (isDemo) {
+    if (noticeEl) noticeEl.classList.remove("hidden");
+    if (linkEl) linkEl.classList.add("hidden");
+    return;
+  }
+  let session = { logged_in: false, admin: false, local: false };
+  try {
+    const res = await fetch("/v1/auth/session", { cache: "no-store" });
+    if (res.ok) session = await res.json();
+  } catch (e) {
+    /* 到達できない配信形態(file://等)では管理機能なしのまま */
+  }
+  const canAdmin = !!(session.admin || session.local);
+  if (customQaBtn) customQaBtn.classList.toggle("hidden", !canAdmin);
+  if (linkEl) linkEl.classList.toggle("hidden", canAdmin);
+  if (canAdmin && session.admin) syncCustomQaFromServerForAdmin();
+}
+(function setupAdminLoginLink() {
+  const linkEl = document.getElementById("admin-login-link");
+  const gateEl = document.getElementById("login-gate");
+  const closeEl = document.getElementById("login-gate-close");
+  if (linkEl && gateEl) {
+    linkEl.addEventListener("click", (e) => {
+      e.preventDefault();
+      applyLoginModeToGate("otp");
+      const note = document.getElementById("login-2fa-note");
+      if (note) note.classList.add("hidden");
+      const title = document.getElementById("login-gate-title");
+      if (title) title.textContent = "🔐 Administrator login / 管理者ログイン";
+      if (closeEl) closeEl.classList.remove("hidden");
+      gateEl.classList.remove("hidden");
+    });
+  }
+  if (closeEl && gateEl) closeEl.addEventListener("click", () => gateEl.classList.add("hidden"));
+})();
+refreshAdminState();

@@ -1273,3 +1273,53 @@ label.setup-note {
   border-radius: 6px;
   padding: 8px 10px;
 }
+
+/* 2026-09-20: 管理者ログインへのリンク(ページ最上部)と、デモの引っ越し案内 */
+.admin-login-link {
+  position: fixed;
+  top: 6px;
+  left: 6px;
+  z-index: 10000;
+  background: #332200;
+  color: #ffd76a;
+  border: 1px solid #ffd76a;
+  border-radius: 999px;
+  padding: 5px 12px;
+  font-size: 12px;
+  font-weight: bold;
+  text-decoration: none;
+  max-width: calc(100vw - 24px);
+}
+.admin-login-link.hidden { display: none; }
+.demo-moved-notice {
+  position: fixed;
+  inset: 0;
+  z-index: 20000;
+  background: rgba(20, 14, 24, 0.97);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 16px;
+  overflow-y: auto;
+}
+.demo-moved-notice.hidden { display: none; }
+.demo-moved-box {
+  background: var(--panel);
+  color: var(--text);
+  border-radius: 12px;
+  padding: 24px;
+  max-width: 460px;
+  width: 100%;
+  text-align: center;
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.5);
+}
+.demo-moved-btn {
+  display: block;
+  margin-top: 16px;
+  padding: 12px;
+  background: var(--accent);
+  color: #332200;
+  font-weight: bold;
+  border-radius: 8px;
+  text-decoration: none;
+}

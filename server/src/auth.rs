@@ -134,6 +134,31 @@ fn random_otp_code() -> String {
     format!("{n:06}")
 }
 
+/// 管理者メールアドレス(環境変数`OPEN_ENGLISH_ADMIN_EMAILS`、カンマ区切り、
+/// 小文字化して比較)。2026-09-20新設(ユーザー指示「管理者ログインはこちら」)。
+/// **未設定(空)の場合は従来動作**(誰のメールでもコードを受け取れて
+/// ログインできる=PC版インストール環境での自分専用利用を想定)。公開
+/// サーバー(VPS本番)では必ず設定すること。
+pub fn admin_emails() -> Vec<String> {
+    std::env::var("OPEN_ENGLISH_ADMIN_EMAILS")
+        .unwrap_or_default()
+        .split(',')
+        .map(|s| s.trim().to_lowercase())
+        .filter(|s| !s.is_empty())
+        .collect()
+}
+
+/// 管理者制限が有効か(`OPEN_ENGLISH_ADMIN_EMAILS`が設定されているか)。
+pub fn admin_restriction_enabled() -> bool {
+    !admin_emails().is_empty()
+}
+
+/// このメールアドレスが管理者として許可されているか。制限が無効なら常にtrue。
+pub fn is_admin_email(email: &str) -> bool {
+    let list = admin_emails();
+    list.is_empty() || list.iter().any(|a| a == &email.trim().to_lowercase())
+}
+
 pub fn is_smtp_configured() -> bool {
     smtp_config().is_ok()
 }
@@ -182,6 +207,9 @@ pub async fn request_otp(email1: &str, email2: Option<&str>) -> Result<()> {
         Some(e) if e == email1 => None, // 同一アドレスを2回送る必要はない
         other => other,
     };
+    if !is_admin_email(&email1) || email2.as_deref().map_or(false, |e| !is_admin_email(e)) {
+        bail!("this login is for administrators only / このログインは管理者専用です");
+    }
     let cfg = smtp_config().context("SMTP not configured")?;
 
     let now = SystemTime::now();

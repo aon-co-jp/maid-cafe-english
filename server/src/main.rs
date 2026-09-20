@@ -1227,10 +1227,17 @@ struct SetSettingRequest {
 }
 
 async fn db_set_setting(req: Request, db: Arc<Db>) -> Response {
+    // 公開サイトで、誰でもQ&Aやログイン設定を書き換えられないようにする
+    // (2026-09-20): 管理者向けキーは管理者/端末自身のみ許可。
+    let is_privileged = is_local_request(&req) || is_admin_request(&req);
     let body: SetSettingRequest = match read_rs_json_body(req).await {
         Ok(v) => v,
         Err(resp) => return resp,
     };
+    let protected = body.key == "open-english.customQaPairs" || body.key.starts_with("login_") || body.key == auth::LOGIN_MODE_SETTING_KEY || body.key == auth::LOGIN_REQUIRED_SETTING_KEY;
+    if protected && !is_privileged {
+        return rs_json_response(StatusCode::FORBIDDEN, &serde_json::json!({"error": "administrator login required / 管理者ログインが必要です"}));
+    }
     match db.set_setting(&body.key, &body.value) {
         Ok(()) => rs_json_response(StatusCode::OK, &serde_json::json!({"ok": true})),
         Err(e) => rs_json_response(StatusCode::INTERNAL_SERVER_ERROR, &serde_json::json!({"error": e.to_string()})),
@@ -1301,6 +1308,9 @@ struct SetCustomQaRequest {
     pairs: serde_json::Value,
 }
 async fn set_custom_qa(req: Request, db: Arc<Db>) -> Response {
+    if let Err(resp) = require_local_or_admin(&req) {
+        return resp;
+    }
     let body: SetCustomQaRequest = match read_rs_json_body(req).await {
         Ok(v) => v,
         Err(resp) => return resp,
@@ -1364,6 +1374,9 @@ struct SetAuthConfigRequest {
 }
 
 async fn auth_set_config(req: Request, db: Arc<Db>) -> Response {
+    if let Err(resp) = require_local_or_admin(&req) {
+        return resp;
+    }
     let body: SetAuthConfigRequest = match read_rs_json_body(req).await {
         Ok(v) => v,
         Err(resp) => return resp,
@@ -1653,7 +1666,7 @@ async fn auth_session(req: Request) -> Response {
     let cookie_header = req.headers().get("cookie").and_then(|v| v.to_str().ok());
     let token = auth::extract_session_cookie(cookie_header);
     let email = token.as_deref().and_then(auth::session_email);
-    rs_json_response(StatusCode::OK, &serde_json::json!({"logged_in": email.is_some(), "email": email}))
+    rs_json_response(StatusCode::OK, &serde_json::json!({"logged_in": email.is_some(), "email": email, "admin": email.as_deref().map_or(false, auth::is_admin_email), "local": is_local_request(&req)}))
 }
 
 async fn auth_logout(req: Request) -> Response {
@@ -1667,6 +1680,42 @@ async fn auth_logout(req: Request) -> Response {
         .header("set-cookie", format!("{}=; HttpOnly; SameSite=Lax; Path=/; Max-Age=0", auth::SESSION_COOKIE_NAME))
         .body(open_runo_poem_compat::hyper_compat::fixed_body(bytes::Bytes::from(&b"{\"ok\":true}"[..])))
         .expect("building a response from a fixed set of valid headers cannot fail")
+}
+
+/// このリクエストが「この端末自身(PC版をlocalhostで開いている)」からか。
+/// Hostがループバックで、かつリバースプロキシ由来のヘッダー
+/// (x-forwarded-for/x-real-ip/x-forwarded-host)が無い場合のみtrue。
+/// VPSのnginx経由ではHostが公開ドメインでプロキシヘッダーも付くため常にfalse。
+fn is_local_request(req: &Request) -> bool {
+    let h = req.headers();
+    if h.contains_key("x-forwarded-for") || h.contains_key("x-real-ip") || h.contains_key("x-forwarded-host") {
+        return false;
+    }
+    let host = h.get("host").and_then(|v| v.to_str().ok()).unwrap_or("");
+    let name = host.rsplit_once(':').filter(|(_, p)| p.chars().all(|c| c.is_ascii_digit())).map(|(n, _)| n).unwrap_or(host);
+    matches!(name, "localhost" | "127.0.0.1" | "[::1]")
+}
+
+/// 有効なセッションCookieを持つ管理者か(管理者メール制限が未設定なら、
+/// ログイン済みであれば管理者扱い)。
+fn is_admin_request(req: &Request) -> bool {
+    let cookie_header = req.headers().get("cookie").and_then(|v| v.to_str().ok());
+    let token = auth::extract_session_cookie(cookie_header);
+    token.as_deref().and_then(auth::session_email).map_or(false, |e| auth::is_admin_email(&e))
+}
+
+/// 危険・管理者向けエンドポイント用のゲート(2026-09-20新設): この端末自身
+/// (PC版のlocalhost)か、管理者ログイン済みの場合のみ許可する。公開サイト
+/// (VPS)ではフォルダ一覧・DB移動・rsync・DuckDNS更新・Q&A登録などが
+/// 認証なしで誰にでも実行できる状態だったのを塞ぐ。
+fn require_local_or_admin(req: &Request) -> Result<(), Response> {
+    if is_local_request(req) || is_admin_request(req) {
+        return Ok(());
+    }
+    Err(rs_json_response(
+        StatusCode::FORBIDDEN,
+        &serde_json::json!({"error": "administrator login required / 管理者ログインが必要です"}),
+    ))
 }
 
 /// ログイン保護が有効な場合のみ、有効なセッションCookieを要求する
@@ -1752,6 +1801,9 @@ async fn db_info(db: Arc<Db>) -> Response {
 /// 詳細は返さず、フォルダ名の一覧+現在位置+親ディレクトリのみを返す
 /// (「保存先フォルダを選ぶ」という目的に必要な最小限の情報)。
 async fn fs_list_dir(req: Request) -> Response {
+    if let Err(resp) = require_local_or_admin(&req) {
+        return resp;
+    }
     let path_param = query_param(&req, "path").filter(|s| !s.is_empty());
     let requested = match path_param {
         Some(p) => PathBuf::from(p),
@@ -1842,6 +1894,9 @@ struct DuckDnsUpdateRequest {
 }
 
 async fn duckdns_update(req: Request) -> Response {
+    if let Err(resp) = require_local_or_admin(&req) {
+        return resp;
+    }
     let body: DuckDnsUpdateRequest = match read_rs_json_body(req).await {
         Ok(v) => v,
         Err(resp) => return resp,
@@ -1944,6 +1999,9 @@ struct RelocateRequest {
 }
 
 async fn db_relocate(req: Request, db: Arc<Db>) -> Response {
+    if let Err(resp) = require_local_or_admin(&req) {
+        return resp;
+    }
     let body: RelocateRequest = match read_rs_json_body(req).await {
         Ok(v) => v,
         Err(resp) => return resp,
@@ -1972,6 +2030,9 @@ const INSTALL_RSYNC_PROMPT_EN: &str = "Let's install RSync! Click \"Install RSyn
 const INSTALL_RSYNC_PROMPT_JA: &str = "RSyncをインストールしましょう！「RSyncをインストール」を押すと自動でセットアップし、そのままバックアップを実行します。";
 
 async fn db_rsync_backup(req: Request, db: Arc<Db>) -> Response {
+    if let Err(resp) = require_local_or_admin(&req) {
+        return resp;
+    }
     let body: RsyncBackupRequest = match read_rs_json_body(req).await {
         Ok(v) => v,
         Err(resp) => return resp,
@@ -2005,6 +2066,9 @@ struct InstallRsyncRequest {
 }
 
 async fn db_install_rsync(req: Request, db: Arc<Db>) -> Response {
+    if let Err(resp) = require_local_or_admin(&req) {
+        return resp;
+    }
     let body: InstallRsyncRequest = match read_rs_json_body(req).await {
         Ok(v) => v,
         Err(resp) => return resp,
@@ -2050,6 +2114,9 @@ async fn db_install_rsync(req: Request, db: Arc<Db>) -> Response {
 /// 直接rsyncではなく`pg_dump`のトランザクション一貫スナップショットを
 /// 経由する)。
 async fn db_rsync_backup_all(req: Request, db: Arc<Db>) -> Response {
+    if let Err(resp) = require_local_or_admin(&req) {
+        return resp;
+    }
     let body: RsyncBackupRequest = match read_rs_json_body(req).await {
         Ok(v) => v,
         Err(resp) => return resp,
@@ -2105,6 +2172,9 @@ struct MigrateLegacyRequest {
 }
 
 async fn db_migrate_legacy(req: Request, db: Arc<Db>) -> Response {
+    if let Err(resp) = require_local_or_admin(&req) {
+        return resp;
+    }
     let body: MigrateLegacyRequest = match read_rs_json_body(req).await {
         Ok(v) => v,
         Err(resp) => return resp,

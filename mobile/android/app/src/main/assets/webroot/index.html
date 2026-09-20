@@ -12,6 +12,19 @@
 <meta name="theme-color" content="#f096be" />
 </head>
 <body>
+  <!-- 2026-09-20新設(ユーザー指示「easy-web.tokyo/open-englishの上の方に、管理者
+       ログインはこちらをクリックしたりタップしてe-mailのワンタイムパスワードで
+       ログインする」「/demoにアクセスしたら/open-englishに引っ越しましたと
+       日本語と英語で表示」): app.jsが表示・非表示を制御する。 -->
+  <a href="#" id="admin-login-link" class="admin-login-link hidden">🔐 管理者ログインはこちら(クリック/タップ) / Admin login — click or tap here</a>
+  <div id="demo-moved-notice" class="demo-moved-notice hidden">
+    <div class="demo-moved-box">
+      <h2>🚚 引っ越しました / We have moved</h2>
+      <p>デモ版は <strong>easy-web.tokyo/open-english</strong> に引っ越しました。下のボタンから新しいページへお進みください。</p>
+      <p>The demo has moved to <strong>easy-web.tokyo/open-english</strong>. Please continue at the new page using the button below.</p>
+      <a class="demo-moved-btn" href="https://easy-web.tokyo/open-english/">➡ easy-web.tokyo/open-english</a>
+    </div>
+  </div>
   <!-- ログインゲート(2026-08-26新設、ユーザー指示「家族や会社で共有する
        場合もあるので、ログインセキュリティシステムを導入しますか?」への
        対応)。既定は非表示——`GET /v1/auth/config`がlogin_required:true を
@@ -20,7 +33,8 @@
        ゲート)が行うため、ここは主にUX上の導線。 -->
   <div id="login-gate" class="login-gate hidden">
     <div class="login-gate-box">
-      <h2>🔒 Login required / ログインが必要です</h2>
+      <button type="button" id="login-gate-close" class="setup-btn hidden">✕ 閉じる / Close</button>
+      <h2 id="login-gate-title">🔒 Login required / ログインが必要です</h2>
       <p class="setup-note">
         This login is unrelated to the encrypted credential hand-over feature (GitHub token /
         Google Search key encryption). /
@@ -29,7 +43,7 @@
         This device is protected with email login. Enter your email to receive a one-time code. /
         この端末はログイン保護が有効になっています。メールアドレスを入力してワンタイムコードを受け取ってください。
       </p>
-      <p class="setup-honest">
+      <p class="setup-honest" id="login-2fa-note">
         <strong>🔐 2026-08-28: this is now two-factor login (2FA).</strong> Step 1: verify a
         one-time code sent to email 1, email 2, or SMS (any one of these works as the first
         factor — the second address/phone is just a backup channel). Step 2: a QR code appears —
