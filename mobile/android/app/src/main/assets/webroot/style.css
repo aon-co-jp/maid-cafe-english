@@ -445,6 +445,33 @@ body {
 .login-gate-box h2 {
   margin-top: 0;
 }
+/* 2026-09-20修正(ユーザー報告「スマホでは左寄せで整列するがPCだと
+   ずれてメールのワンタイムパスワードが送れない」): `.settings-field`に
+   スタイルが無く、ラベル+入力欄がinlineで横に流れ込んでいた(スマホは
+   幅が狭く折り返すため偶然縦に並んでいた)。ログイン枠内は縦積み・
+   全幅に揃える。 */
+.login-gate-box .settings-field {
+  display: block;
+  margin: 12px 0 0;
+  text-align: left;
+}
+.login-gate-box .settings-field input {
+  display: block;
+  width: 100%;
+  box-sizing: border-box;
+  margin-top: 4px;
+  padding: 8px 10px;
+  font-size: 16px;
+}
+.login-gate-box .setup-btn {
+  display: block;
+  width: 100%;
+  margin-top: 12px;
+  padding: 10px 12px;
+}
+.login-gate-box .setup-btn.hidden {
+  display: none;
+}
 
 .maintenance-banner {
   position: fixed;

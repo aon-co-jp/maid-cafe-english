@@ -2376,18 +2376,21 @@ async function askTrainer(userText) {
   // 事前に登録した回答をそのまま返す——「この様な質問にはこの様な回答が
   // 良いでしょう」という利用者自身の判断を、内蔵AIの弱い回答より優先する
   // 設計(ユーザー指示)。
-  const customQaMatch = typeof matchCustomQa === "function" ? await matchCustomQa(userText) : null;
-  if (customQaMatch) {
-    // 2026-09-13変更(ユーザー指示「日本語で登録しても、日本語と英語版と
-    // 中国語版でも同時に自動で回答して」): 日英中3言語を毎回同時に表示
-    // する。旧データ形式(単一`answer`フィールド)で登録された既存の
-    // 組み合わせとの後方互換のため、`answer_ja`が無ければ`answer`へ
-    // フォールバックする。
-    const ja = customQaMatch.answer_ja || customQaMatch.answer || "";
-    const en = customQaMatch.answer_en || "";
-    const zh = customQaMatch.answer_zh || "";
-    const sections = [ja && `🇯🇵 ${ja}`, en && `🇺🇸 ${en}`, zh && `🇨🇳 ${zh}`].filter(Boolean).join("\n\n");
-    return `${sections}\n\n📚 (Custom Q&A match / カスタムQ&Aに一致: ${customQaMatch.keywords.join(", ")})`;
+  const customQaMatches = typeof matchCustomQaAll === "function" ? await matchCustomQaAll(userText) : [];
+  if (customQaMatches.length > 0) {
+    // 日英中3言語を毎回同時に表示する(2026-09-13)。旧データ形式(単一
+    // `answer`フィールド)との後方互換のため、`answer_ja`が無ければ`answer`へ
+    // フォールバックする。複数項目に一致した場合(2026-09-20)は全てを
+    // 区切り線で並べて表示する。
+    const blocks = customQaMatches.map((m) => {
+      const ja = m.answer_ja || m.answer || "";
+      const en = m.answer_en || "";
+      const zh = m.answer_zh || "";
+      const sections = [ja && `🇯🇵 ${ja}`, en && `🇺🇸 ${en}`, zh && `🇨🇳 ${zh}`].filter(Boolean).join("\n\n");
+      return customQaMatches.length > 1 ? `【${m.keywords.join(", ")}】\n${sections}` : sections;
+    });
+    const allKeywords = customQaMatches.map((m) => m.keywords.join(", ")).join(" + ");
+    return `${blocks.join("\n\n────────────\n\n")}\n\n📚 (Custom Q&A match / カスタムQ&Aに一致: ${allKeywords})`;
   }
   const base = apiBaseEl.value.trim();
   const level = levelEl.value;
@@ -8486,18 +8489,33 @@ async function fetchSharedCustomQaPairs() {
  * `null`。このブラウザのlocalStorage分とサーバー側共有分(管理者が
  * 登録した内容、デモでは本番から中継)の両方を合わせて照合する。
  */
-async function matchCustomQa(userText) {
+async function matchCustomQaAll(userText) {
   const localPairs = loadCustomQaPairs();
   const sharedPairs = await fetchSharedCustomQaPairs();
-  const pairs = [...localPairs, ...sharedPairs];
-  const haystack = userText.toLowerCase();
-  for (const pair of pairs) {
-    if (pair.keywords.length === 0) continue;
-    if (pair.keywords.every((kw) => haystack.includes(String(kw).toLowerCase()))) {
-      return pair;
-    }
+  // 2026-09-20変更(ユーザー指示「核武装について などと質問されたら両方
+  // (核・について)を並べて表示して」): 最初の1件だけでなく、一致した
+  // 全ての項目を返す。また、同じキーワードの組が端末内(古いテスト
+  // データ等)とサーバー共有分の両方にある場合は、サーバー共有分
+  // (管理者が登録した最新)を優先し、古い端末内データが上書きして
+  // 表示されないようにする(端末内にしか無い項目は従来通り使う)。
+  const keyOf = (p) => (p.keywords || []).map((k) => String(k).toLowerCase()).join("");
+  const seen = new Set();
+  const pairs = [];
+  for (const pair of [...sharedPairs, ...localPairs]) {
+    const key = keyOf(pair);
+    if (seen.has(key)) continue;
+    seen.add(key);
+    pairs.push(pair);
   }
-  return null;
+  const haystack = userText.toLowerCase();
+  return pairs.filter(
+    (pair) => pair.keywords.length > 0 && pair.keywords.every((kw) => haystack.includes(String(kw).toLowerCase()))
+  );
+}
+
+async function matchCustomQa(userText) {
+  const all = await matchCustomQaAll(userText);
+  return all.length > 0 ? all[0] : null;
 }
 
 /**
