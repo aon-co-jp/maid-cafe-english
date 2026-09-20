@@ -5254,6 +5254,34 @@ formEl.addEventListener("submit", async (e) => {
   // 反応して解答を返す(2段階のやり取り)。**必ず`isQuizRequest`より
   // 先に置くこと**——「もう一問出して」等でない限り、解答待ちの返事を
   // 優先して拾いたいため。
+  // 2026-09-21追加(ユーザー報告「問題１の答えを教えて と書いてSendを押しても
+  // 答えが出ないBUG」): 「問題1の答えを教えて」は「問題」+「教えて」を含むため
+  // 従来は出題要求(isQuizRequest)と判定され、答えが返らなかった。「答え/解答/
+  // 正解/answer」を含む場合は、出題要求より先に**答えの要求**として扱う。
+  // 番号(問題1・その2・3問目)があればその問題の答え、「全部」なら3問すべての
+  // 答え、番号が無く出題済みなら直前の問題の答えを返す。
+  if (/(答え|こたえ|解答|正解|answer|solution)/i.test(text)) {
+    const answerTarget = quizNumberRequest(text);
+    if (answerTarget === "all") {
+      quizAwaitingAnswer = false;
+      for (let i = 0; i < QUIZ_SETS.length; i++) {
+        currentQuizTexts = QUIZ_SETS[i];
+        appendMessage("trainer", quizAnswerText());
+      }
+      return;
+    }
+    if (typeof answerTarget === "number" && answerTarget >= 0 && answerTarget < QUIZ_SETS.length) {
+      currentQuizTexts = QUIZ_SETS[answerTarget];
+      quizAwaitingAnswer = false;
+      appendMessage("trainer", quizAnswerText());
+      return;
+    }
+    if (quizAwaitingAnswer) {
+      quizAwaitingAnswer = false;
+      appendMessage("trainer", quizAnswerText());
+      return;
+    }
+  }
   if (quizAwaitingAnswer && !isQuizRequest(text) && isQuizAnswerRequest(text)) {
     quizAwaitingAnswer = false;
     appendMessage("trainer", quizAnswerText());
