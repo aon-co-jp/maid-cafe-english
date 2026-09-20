@@ -161,7 +161,12 @@ jobs:
         with:
           distribution: temurin
           java-version: "17"
+      # 2026-09-20修正: Googleが`tools`パッケージを配布から外したため、setup-androidの
+      # 既定(`tools platform-tools`)が"Failed to find package 'tools'"で失敗していた
+      # (v0.8.8のAndroidジョブ)。`platform-tools`のみを指定する。
       - uses: android-actions/setup-android@v3
+        with:
+          packages: platform-tools
       # 2026-09-14追加(キャッシュ戦略、Windows版ジョブのコメント参照)。
       # Gradleのホームディレクトリ(依存ライブラリのダウンロードキャッシュ)
       # とビルドキャッシュをGitHub Actionsキャッシュへ保存し、次回以降の
