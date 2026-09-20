@@ -4733,6 +4733,23 @@ function isQuizRequest(userText) {
   return topicEn && askEn;
 }
 
+// 2026-09-21追加(ユーザー指示「１２３の問題を表示して」): 「クイズ出して」は
+// 1→2→3の順に巡回して1問ずつ出すが、番号を指定した場合はその問題を、
+// 「全部」「1、2、3」等の場合は3問すべてを続けて表示する。
+// 全角数字は半角へ正規化して判定する。
+function quizNumberRequest(userText) {
+  const t = userText
+    .replace(/[０-９]/g, (c) => String.fromCharCode(c.charCodeAt(0) - 0xfee0))
+    .toLowerCase();
+  if (!isQuizRequest(userText) && !/(問題|クイズ|quiz|puzzle|そのs*[123]|[123]s*(問目|番))/.test(t)) return null;
+  // 3問すべて: 「全部」「すべて」「3問」「1,2,3」「123」「all」
+  if (/(全部|すべて|全て|３問|3問|三問|all|1s*[,、・ ]s*2s*[,、・ ]s*3|123)/.test(t)) return "all";
+  // 番号指定: 「その2」「2問目」「2番」「問題2」「puzzle 2」「no.2」
+  const m = t.match(/(?:その|問題|クイズ|quiz|puzzle|no.?|number)s*([123])(?!d)|([123])s*(?:問目|番|つ目)/);
+  if (m) return parseInt(m[1] || m[2], 10) - 1;
+  return null;
+}
+
 // 出題後に「わからない」「答えは?」と聞かれたかどうかの判定。
 // **出題済みのとき(`quizAwaitingAnswer === true`)だけ**参照するため、
 // 「わからない」のような一般的すぎる語でも通常の英会話練習を乗っ取らない。
@@ -4764,7 +4781,7 @@ let quizAwaitingAnswer = false;
 const QUIZ_TEXTS_FOUR_NINES = {
   en: {
     intro:
-      "Here is an original puzzle from the creator of this app, Masahiro Ishizuka.",
+      "Here is the first original puzzle from the creator of this app, Masahiro Ishizuka.",
     question:
       "Using four 9s, fill each circle in\n" +
       "    9 ◯ 9 ◯ 9 ◯ 9 = 10\n" +
@@ -4788,7 +4805,7 @@ const QUIZ_TEXTS_FOUR_NINES = {
   },
   ja: {
     intro:
-      "このアプリの作者・石塚正浩さんのオリジナル問題です。",
+      "このアプリの作者・石塚正浩さんのオリジナル問題、その1です。",
     question:
       "数字の9を4つ使って、\n" +
       "    9 ◯ 9 ◯ 9 ◯ 9 = 10\n" +
@@ -5036,12 +5053,32 @@ const QUIZ_SETS = [QUIZ_TEXTS_FOUR_NINES, QUIZ_TEXTS_SNAIL, QUIZ_TEXTS_HEN];
 let currentQuizTexts = QUIZ_SETS[0];
 
 function pickQuizTexts() {
-  // 同じ問題が連続しにくいよう、直前と違う問題を優先して選ぶ
-  // (問題が1問しか無い状況でも無限ループしない単純な実装)。
-  const candidates = QUIZ_SETS.filter((set) => set !== currentQuizTexts);
-  const pool = candidates.length > 0 ? candidates : QUIZ_SETS;
-  return pool[Math.floor(Math.random() * pool.length)];
+  // 2026-09-21変更(ユーザー報告「作者のオリジナル問題のその2だけ表示されて、
+  // その1とその3が表示されないBUGかも」): 従来は「直前と違う問題をランダムに
+  // 選ぶ」だけで、(1)初回は必ず「その1」以外になる(初期値がその1のため)、
+  // (2)偶然同じ問題が続いて他の問題が出ない、という体験になっていた。
+  // 「その1→その2→その3→その1…」の順に必ず巡回する方式へ変更する。巡回位置は
+  // localStorageへ保存し、ページを開き直しても続きから出題する(保存できない
+  // 環境ではメモリ上のみ)。
+  const KEY = "open-english.quizNextIndex";
+  let next = 0;
+  try {
+    const saved = parseInt(localStorage.getItem(KEY) || "0", 10);
+    if (Number.isFinite(saved) && saved >= 0) next = saved % QUIZ_SETS.length;
+  } catch (_) {
+    next = quizMemoryNextIndex % QUIZ_SETS.length;
+  }
+  const chosen = QUIZ_SETS[next];
+  const following = (next + 1) % QUIZ_SETS.length;
+  quizMemoryNextIndex = following;
+  try {
+    localStorage.setItem(KEY, String(following));
+  } catch (_) {
+    /* 保存できない環境ではメモリ上の巡回のみ */
+  }
+  return chosen;
 }
+let quizMemoryNextIndex = 0;
 
 /**
  * 出題に使う言語コードを決める。
@@ -5173,6 +5210,36 @@ formEl.addEventListener("submit", async (e) => {
 
   // 「何か問題を出して」「クイズ出して」への対応(作者のオリジナル問題)。
   // AI推論を経ずに固定文で出題する。日次利用回数は消費しない。
+  const quizNumber = quizNumberRequest(text);
+  if (quizNumber === "all") {
+    // 3問すべてを続けて表示する(それぞれ日本語+英語の併記)。解答は
+    // 「その1の答え」等ではなく、最後に出した問題(その3)に対して返る。
+    for (let i = 0; i < QUIZ_SETS.length; i++) {
+      currentQuizTexts = QUIZ_SETS[i];
+      const node = appendMessage("trainer", quizQuestionText());
+      if (currentQuizTexts.figure && node) {
+        const fig = document.createElement("div");
+        fig.className = "tutor-figure";
+        fig.innerHTML = currentQuizTexts.figure;
+        node.appendChild(fig);
+      }
+    }
+    quizAwaitingAnswer = true;
+    return;
+  }
+  if (typeof quizNumber === "number" && quizNumber >= 0 && quizNumber < QUIZ_SETS.length) {
+    currentQuizTexts = QUIZ_SETS[quizNumber];
+    quizAwaitingAnswer = true;
+    const quizNode = appendMessage("trainer", quizQuestionText());
+    if (currentQuizTexts.figure && quizNode) {
+      const fig = document.createElement("div");
+      fig.className = "tutor-figure";
+      fig.innerHTML = currentQuizTexts.figure;
+      quizNode.appendChild(fig);
+      scrollToMessageTop(quizNode);
+    }
+    return;
+  }
   if (isQuizRequest(text)) {
     // 3問の中からランダムに1問選ぶ(直前と同じ問題は避ける)。
     currentQuizTexts = pickQuizTexts();

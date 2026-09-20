@@ -1,4 +1,4 @@
 {
-  "version": "0.8.9",
-  "buildId": "2026-09-20-fix-android-ci-setup"
+  "version": "0.8.10",
+  "buildId": "2026-09-21-quiz-rotation-and-apk-path-fix"
 }
