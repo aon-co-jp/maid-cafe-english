@@ -228,6 +228,24 @@ const learnTargetEl = document.getElementById("learn-target");
   const countdownEl = document.getElementById("maintenance-countdown");
   const messageEl = document.getElementById("maintenance-banner-message");
   if (!banner || !countdownEl || !messageEl) return;
+  // 2026-09-21変更(ユーザー指示「30秒のメンテナンスは、基本的には一日に一回
+  // まで。最新のバージョンアップがあっても、既にメンテナンス済みなら、その日の
+  // 二回目以降は、自動バージョンアップ作業のみとして」): 端末のローカル日付で
+  // 「今日メンテナンス済みか」を記録し、済みなら30秒のバナー・ニュース収集は
+  // 行わない。バージョンアップの検知・適用は別処理(auto-update.js・サーバー側
+  // self_update)が引き続き行うため、メンテナンス表示だけを省く。
+  // 日付は「開始した時点」で記録する(途中で閉じても同日中に再表示しない)。
+  const today = (() => {
+    const d = new Date();
+    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+  })();
+  const MAINTENANCE_DAY_KEY = "open-english.maintenanceDay";
+  try {
+    if (localStorage.getItem(MAINTENANCE_DAY_KEY) === today) return;
+    localStorage.setItem(MAINTENANCE_DAY_KEY, today);
+  } catch (e) {
+    /* localStorageが使えない環境では従来通り毎回表示する */
+  }
   banner.classList.remove("hidden");
   // メンテナンス中の待ち時間を使い、サーバー接続国のニュースを収集
   // しておく(ユーザー指示、2026-08-17「メンテナンス時にその人のIPアドレス

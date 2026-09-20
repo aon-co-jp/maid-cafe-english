@@ -55,6 +55,10 @@
     "open-english.languageOrder",      // 連続表示・読み上げの順番
     "open-english.languagePromptShown",
     "open-english.customQaPairs",      // カスタムQ&Aデータベース(2026-09-13)
+    // 2026-09-21: 「今日はメンテナンス済み」の日付。バージョンアップのたびに
+    // 消えると、更新の直後に毎回30秒メンテナンスが再実行されてしまう。
+    "open-english.maintenanceDay",
+    "open-english.quizNextIndex",      // 作者のオリジナル問題の巡回位置
   ];
 
   // このアプリ専用の名前空間(`openEnglish.`接頭辞)を持つlocalStorage
