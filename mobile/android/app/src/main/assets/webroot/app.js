@@ -1075,7 +1075,10 @@ const LOGIN_PROMPT_SHOWN_KEY = "open-english.loginPromptShown";
   // デモでは常に表示され続けることになり実害が大きい——デモパスでは
   // このオンボーディング案内自体を表示しないようにする。
   const isDemoPath = /\/demo(\/|$)/.test(location.pathname);
-  if (isDemoPath) {
+  // 2026-09-20: 公開サイト(localhost以外)では、この「ログインを導入しますか?」
+  // 案内を出さない(管理者ログインはページ上部のリンクから行う)。
+  const isLocalHost = /^(127\.0\.0\.1|localhost|\[::1\])$/.test(location.hostname);
+  if (isDemoPath || !isLocalHost) {
     return;
   }
 
