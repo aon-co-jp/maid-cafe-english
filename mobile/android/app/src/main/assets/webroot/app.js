@@ -240,11 +240,45 @@ const learnTargetEl = document.getElementById("learn-target");
     return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
   })();
   const MAINTENANCE_DAY_KEY = "open-english.maintenanceDay";
+  let alreadyMaintainedToday = false;
   try {
-    if (localStorage.getItem(MAINTENANCE_DAY_KEY) === today) return;
-    localStorage.setItem(MAINTENANCE_DAY_KEY, today);
+    alreadyMaintainedToday = localStorage.getItem(MAINTENANCE_DAY_KEY) === today;
+    if (!alreadyMaintainedToday) localStorage.setItem(MAINTENANCE_DAY_KEY, today);
   } catch (e) {
     /* localStorageが使えない環境では従来通り毎回表示する */
+  }
+  if (alreadyMaintainedToday) {
+    // 2026-09-21追記(ユーザー指示「同じ日の2回目以降は、メンテナンス表示を出さず、
+    // ニュースは更新されているか確認して、最新ニュースがあればニュース収集は省かない。
+    // 更新されていなければ収集はしない」): バナーは出さず、静かにニュースの
+    // 鮮度だけ確認する。前回収集(`GET /v1/news/latest`の`fetched_at_unix`)が
+    // NEWS_STALE_HOURS時間より古い、または未収集のときだけ収集し、新しければ
+    // 収集しない。失敗が続いても連打しないよう、確認・収集の試行は1時間に
+    // 1回までに制限する。
+    setTimeout(async () => {
+      const NEWS_STALE_HOURS = 6;
+      const ATTEMPT_KEY = "open-english.newsCheckAt";
+      try {
+        const last = parseInt(localStorage.getItem(ATTEMPT_KEY) || "0", 10);
+        if (Date.now() - last < 60 * 60 * 1000) return;
+        localStorage.setItem(ATTEMPT_KEY, String(Date.now()));
+      } catch (e) {
+        /* 記録できない環境では制限なしで進む */
+      }
+      const base = apiBaseEl.value.trim();
+      try {
+        const res = await fetch(`${base}/v1/news/latest`, { cache: "no-store" });
+        const db = res.ok ? await res.json() : null;
+        const fetchedAt = db && db.fetched_at_unix ? db.fetched_at_unix * 1000 : 0;
+        const stale = !fetchedAt || Date.now() - fetchedAt > NEWS_STALE_HOURS * 60 * 60 * 1000;
+        if (stale) {
+          fetch(`${base}/v1/news/refresh`, { method: "POST" }).catch(() => {});
+        }
+      } catch (e) {
+        /* aruaru-llmに届かない場合は何もしない(次の機会に再確認) */
+      }
+    }, 0);
+    return;
   }
   banner.classList.remove("hidden");
   // メンテナンス中の待ち時間を使い、サーバー接続国のニュースを収集
