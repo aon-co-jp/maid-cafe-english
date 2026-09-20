@@ -1236,7 +1236,12 @@ async function verifyOtpFactorOne(identifier, code) {
 if (loginVerifyBtn) {
   loginVerifyBtn.addEventListener("click", () => {
     const email = (loginVerifyEmailEl?.value || loginEmailEl.value).trim();
-    const code = loginCodeEl.value.trim();
+    // 全角数字(日本語IME)・空白・ハイフンを除去して半角の6桁へ正規化する
+    // (2026-09-20: メールのコードをコピー/手入力した際に全角や空白が
+    // 混ざると「incorrect code」になるため)。
+    const code = loginCodeEl.value
+      .replace(/[０-９]/g, (c) => String.fromCharCode(c.charCodeAt(0) - 0xfee0))
+      .replace(/[\s\-‐－ー]/g, "");
     verifyOtpFactorOne(email, code);
   });
 }
