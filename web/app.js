@@ -4793,11 +4793,20 @@ function quizNumberRequest(userText) {
   const t = userText
     .replace(/[０-９]/g, (c) => String.fromCharCode(c.charCodeAt(0) - 0xfee0))
     .toLowerCase();
-  if (!isQuizRequest(userText) && !/(問題|クイズ|quiz|puzzle|その\s*[123]|[123]\s*(問目|番))/.test(t)) return null;
+  // 英語の序数(first/second/third, 1st/2nd/3rd)は数字へ置き換えて共通処理にする
+  const ord = t
+    .replace(/\b(first|1st)\b/g, "1")
+    .replace(/\b(second|2nd)\b/g, "2")
+    .replace(/\b(third|3rd)\b/g, "3");
+  const hasQuizWord = /(問題|クイズ|quiz|puzzle|problem|question|riddle)/.test(ord);
+  if (!isQuizRequest(userText) && !hasQuizWord && !/(その\s*[123]|[123]\s*(問目|番))/.test(ord)) return null;
   // 3問すべて: 「全部」「すべて」「3問」(「3問目」は除く)「1,2,3」「123」「all」
-  if (/(全部|すべて|全て|[3三]問(?!目)|\ball\b|1\s*[,、・ ]\s*2\s*[,、・ ]\s*3|123)/.test(t)) return "all";
-  // 番号指定: 「その2」「2問目」「2番」「問題2」「puzzle 2」「no.2」
-  const m = t.match(/(?:その|問題|クイズ|quiz|puzzle|no\.?|number)\s*([123])(?!\d)|([123])\s*(?:問目|番|つ目)/);
+  if (/(全部|すべて|全て|[3三]問(?!目)|\ball\b|\bboth\b|1\s*[,、・ ]\s*2\s*[,、・ ]\s*3|123)/.test(ord)) return "all";
+  // 番号指定(日本語): 「その2」「2問目」「2番」「問題2」「クイズ3」
+  let m = ord.match(/(?:その|問題|クイズ)\s*([123])(?!\d)|([123])\s*(?:問目|番|つ目)/);
+  if (m) return parseInt(m[1] || m[2], 10) - 1;
+  // 番号指定(英語): 「puzzle 2」「problem 1」「quiz no.3」「question #2」「2 puzzle」
+  m = ord.match(/(?:quiz|puzzle|problem|question|riddle|no\.?|number|#)\s*([123])(?!\d)|([123])\s*(?:puzzle|problem|quiz|question|riddle)/);
   if (m) return parseInt(m[1] || m[2], 10) - 1;
   return null;
 }
@@ -4825,6 +4834,8 @@ function isQuizAnswerRequest(userText) {
 // 既存の`examPrepMissedQuestions`と同じく、単純なモジュールスコープの
 // 変数1つで持つ(状態機械は組まない)。
 let quizAwaitingAnswer = false;
+// 一度でも出題したか(「全部の答え」等、番号の無い答えの要求を拾うため)。
+let quizEverShown = false;
 
 // 問題文・解答の対訳表。言語コードをキーにした構造で、
 // **既定は日本語と英語**、主要な数言語のみ翻訳を用意する。
@@ -5276,6 +5287,14 @@ formEl.addEventListener("submit", async (e) => {
       appendMessage("trainer", quizAnswerText());
       return;
     }
+    if (answerTarget === null && quizEverShown && /(全部|すべて|全て|\ball\b)/i.test(text)) {
+      quizAwaitingAnswer = false;
+      for (let i = 0; i < QUIZ_SETS.length; i++) {
+        currentQuizTexts = QUIZ_SETS[i];
+        appendMessage("trainer", quizAnswerText());
+      }
+      return;
+    }
     if (quizAwaitingAnswer) {
       quizAwaitingAnswer = false;
       appendMessage("trainer", quizAnswerText());
@@ -5305,11 +5324,13 @@ formEl.addEventListener("submit", async (e) => {
       }
     }
     quizAwaitingAnswer = true;
+    quizEverShown = true;
     return;
   }
   if (typeof quizNumber === "number" && quizNumber >= 0 && quizNumber < QUIZ_SETS.length) {
     currentQuizTexts = QUIZ_SETS[quizNumber];
     quizAwaitingAnswer = true;
+    quizEverShown = true;
     const quizNode = appendMessage("trainer", quizQuestionText());
     if (currentQuizTexts.figure && quizNode) {
       const fig = document.createElement("div");
@@ -5324,6 +5345,7 @@ formEl.addEventListener("submit", async (e) => {
     // 3問の中からランダムに1問選ぶ(直前と同じ問題は避ける)。
     currentQuizTexts = pickQuizTexts();
     quizAwaitingAnswer = true;
+    quizEverShown = true;
     const quizNode = appendMessage("trainer", quizQuestionText());
     // 図解が用意されている問題(カタツムリの井戸)は、本文の下にSVGを添える。
     // `appendMessage`は`textContent`で安全に本文を入れる設計なので、図だけを
