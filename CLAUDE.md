@@ -7771,3 +7771,40 @@ VPS(`easy-web.tokyo`)へも都度デプロイ済み(静的HTMLのみのため
      自動コピータスク(`app/build.gradle.kts`の`syncWebrootFromWeb`)で解消。
   詳細は`mobile/android/app/src/main/java/tokyo/runo/openenglish/MainActivity.kt`
   のコメント参照。
+
+## HANDOFF 2026-09-20(ユーザー「今日はここまで、シャットダウンします」)
+
+**再開時にまず確認**: v0.8.8(タグ`v0.8.8`)のリリースCIは、Windows/Linux/macOSは成功したが
+**Android APKジョブが`android-actions/setup-android`の`sdkmanager`(exit 1)で失敗**し、
+GitHub Releaseへの添付がスキップされた(コードではなくCI環境側の不具合と推定)。
+`gh run rerun 35505199321 --failed`で再実行済み。結果を`gh run list`/`gh release view v0.8.8`で
+確認し、それでも失敗するなら`setup-android`のログ全文を見る。
+
+### 今日入れたもの(全てVPS反映済み、本番/デモとも0.8.8)
+- カスタムQ&A: 複数項目に一致したら**全て並べて表示**(例「核武装について」→【核】+【について】)。
+  端末内の古いテスト用データより**サーバー共有分を優先**(`matchCustomQaAll`)。
+- 本番DBのQ&Aは4件: 核(末尾に「外国に舐められてはいけないのでは」を追記)・消費税・壁・について。
+  全て日本語原文+こちらで書いた英語/中国語訳(MyMemoryの機械翻訳は廃止)。
+  ⚠️キーワード「核」「壁」「について」は短く**過剰一致しやすい**(要検討)。
+  ⚠️管理者画面のQ&A一覧は**端末内(localStorage)分だけ**を表示し、そこから登録/削除すると
+  サーバー全体を上書きする作りなので、DBへ直接書いた項目が消えるおそれがある。
+  ⚠️「作者」のQ&Aは本番DBに無い(アプリ内蔵の`creatorIntroductionText()`があるだけ)。日本語文待ち。
+  ⚠️以前スマホで見た「核」の英語訳末尾にあった「舐められてはいけない=軽く見られてはいけない
+  という意味です」の補足文は未追加(ユーザーに確認中)。
+- ログイン: PCでメール入力欄が横に流れてずれるCSSバグを修正(`.login-gate-box .settings-field`)。
+  コードの全角数字・空白を正規化。デモにもSMTP設定(`/etc/open-english.env`をdrop-inで読込)を追加。
+  ⚠️実際に届いたコードでのログイン成功までは未確認(Gmail受信箱を読めなかった)。
+  ⚠️画面文言は「二段階認証」だが本番の`login_mode`は`otp`(コードのみ)で不一致。
+- スマホ(Android): キーボード自動スクロールの根本修正、回答を先頭からスクロール表示、
+  close/openボタン重複、`assets/webroot`の自動同期(v0.8.7〜0.8.8)。
+
+### リポジトリ構成の変更
+- `open-english-pc`を履歴付きで本体へ再統合(`web/ pc/ tablet/ mobile/`)、submodule撤去。
+  **`open-english-pc`リポジトリの削除は未実行**(GitHub CLIに`delete_repo`権限が無い。
+  `gh auth refresh -h github.com -s delete_repo`のデバイス認証をユーザーが行うか、
+  GitHubのSettings→Danger Zoneから手動削除)。
+
+### 検索・AI切替(aruaru-llm側、詳細は`aruaru-llm/CLAUDE.md`)
+- Gemini(Vertex形式キー`AQ.`)が優先順チェーンの**第1優先**で実回答することを本番/デモの
+  公開URLで確認済み。順序: Google検索(補強)→Gemini→ChatGPT→DeepSeek→Grok→Claude。
+- ChatGPT/DeepSeek/Grok/ClaudeのAPIキーは**未設定**(設定済みはGeminiのみ)。
