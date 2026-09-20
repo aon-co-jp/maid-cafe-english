@@ -7808,3 +7808,10 @@ GitHub Releaseへの添付がスキップされた(コードではなくCI環境
 - Gemini(Vertex形式キー`AQ.`)が優先順チェーンの**第1優先**で実回答することを本番/デモの
   公開URLで確認済み。順序: Google検索(補強)→Gemini→ChatGPT→DeepSeek→Grok→Claude。
 - ChatGPT/DeepSeek/Grok/ClaudeのAPIキーは**未設定**(設定済みはGeminiのみ)。
+
+**追記(同日)**: v0.8.8のAndroid失敗の原因は、Googleが`tools`パッケージを配布から外したため
+`android-actions/setup-android`の既定`packages: tools platform-tools`が
+`Failed to find package 'tools'`で落ちたこと。`release.yml`を`packages: platform-tools`に修正し、
+**`v0.8.9`として再リリース**(タグ`v0.8.9`、run 35506524104)。SDKセットアップ通過を
+確認済み。完了(約17分)したら`gh release view v0.8.9`でAPK2種が付いているか確認する。
+(v0.8.8タグはRelease未公開のまま残っている。不要なら`git push origin :v0.8.8`で削除可。)
