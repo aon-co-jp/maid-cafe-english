@@ -7850,3 +7850,10 @@ GitHub Releaseへの添付がスキップされた(コードではなくCI環境
 - v0.8.10(タグ、run 35521430238)で再リリース中。完了後は`gh release view v0.8.10`でAPK2種
   (`open-english-android-phone.apk`/`-tablet.apk`)が付いているか必ず確認する。
   (v0.8.10の最初のタグは正規表現の不具合に気づいて削除→同名で付け直した。v0.8.8は未公開のまま。)
+
+**追記(2026-09-21)**: 30秒メンテナンス表示を**端末のローカル日付で1日1回まで**に変更
+(`localStorage`の`open-english.maintenanceDay`、`app.js`の`showMaintenanceBanner`)。同日の2回目以降は
+バナーとニュース収集(`/v1/news/refresh`)を省き、バージョンアップの検知・適用は`auto-update.js`と
+サーバー側`self_update`が引き続き行う。この記録は自動更新のlocalStorage初期化から`PRESERVED_KEYS`で
+保護(消えると更新直後に毎回メンテナンスが再実行されるため)。VPS(本番)には反映済み。
+**インストール済みのPC/スマホ版へは次のバージョンタグ(v0.8.11以降)で届く**(v0.8.10には未収録)。
