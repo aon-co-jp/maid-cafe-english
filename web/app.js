@@ -2621,6 +2621,11 @@ async function askTrainer(userText) {
       "有料版もご利用いただけます——🔀 AI Provider Priorityでご自身のAPIキーを登録すると自動的に使われます。\n\n";
   }
 
+  // ローカルLLMをOFFにしている場合は、この端末のaruaru-llmでの生成へは進まない
+  if (!isLocalLlmEnabled()) {
+    return "⚠ クラウドAIから回答を得られず、ローカルLLMもOFFです。下部の「⚙ 選ぶ」でローカルLLMをONにするか、クラウドAIを選び直してください。 / No cloud AI could answer and the local LLM is turned OFF. Turn the local LLM on, or pick cloud AIs, under \"⚙ Choose\" at the bottom.";
+  }
+
   // Google検索補強(ユーザー指示「発話・入力の都度Google検索する」への
   // 対応、ブリッジ式)。2026-09-12以降、キーが設定済みなら手動トグル無しで
   // 毎回自動的にON(強制適用)——`googleSearchKeyConfigured`は
@@ -8220,7 +8225,7 @@ if (googleSearchBtn && googleSearchModal) {
   // への対応——従来この機能は設定パネルからのみ呼び出し可能で、実際の
   // 会話フローには一切配線されていなかった)。
   window.tryPriorityProviderReply = async function tryPriorityProviderReply(prompt) {
-    if (isLocalOnly()) return null;
+    if (isCloudOff()) return null;
     let enabled = false;
     try {
       enabled = localStorage.getItem(PROVIDER_PRIORITY_ENABLED_KEY) === "1";
@@ -8778,13 +8783,23 @@ const SHARED_CUSTOM_QA_ABSOLUTE_URL = "https://easy-web.tokyo/open-english/v1/cu
 // パターン)。
 // 利用者が選んだ同時利用AI(1=単独/2=ハイブリッド/3=トライブリッド)。空なら既定(サーバーの優先順上位2社)。
 const SELECTED_AIS_KEY = "open-english.selectedAis";
-// 「ローカルLLMのみ(クラウドAI 0個)」。ONの間は共有・自端末のクラウドAIを一切呼ばず、この端末のaruaru-llmだけで回答する。
-const LOCAL_ONLY_KEY = "open-english.localOnly";
-function isLocalOnly() {
+// AIの選び方(2つの独立した設定): (1)この端末のローカルLLM(aruaru-llm)を使うか(既定ON)、
+// (2)追加で使うクラウドAI(Gemini・Groq・Mistral・OpenRouter・Cloudflare AI)を0〜3個。
+// クラウド「0個」= cloudOff。ローカルOFFかつクラウド0個は回答手段が無くなるため、UI側でローカルを自動でONに戻す。
+const CLOUD_OFF_KEY = "open-english.cloudOff";
+const USE_LOCAL_KEY = "open-english.useLocal";
+function isCloudOff() {
   try {
-    return localStorage.getItem(LOCAL_ONLY_KEY) === "1";
+    return localStorage.getItem(CLOUD_OFF_KEY) === "1";
   } catch (e) {
     return false;
+  }
+}
+function isLocalLlmEnabled() {
+  try {
+    return localStorage.getItem(USE_LOCAL_KEY) !== "0";
+  } catch (e) {
+    return true;
   }
 }
 function getSelectedAis() {
@@ -8797,7 +8812,7 @@ function getSelectedAis() {
 }
 const SHARED_PRIORITY_PROVIDER_ABSOLUTE_URL = "https://easy-web.tokyo/open-english/v1/public/chat-providers/complete-priority";
 async function trySharedPriorityProviderReply(prompt) {
-  if (isLocalOnly()) return null;
+  if (isCloudOff()) return null;
   const url = location.hostname === "easy-web.tokyo" ? "/v1/public/chat-providers/complete-priority" : SHARED_PRIORITY_PROVIDER_ABSOLUTE_URL;
   try {
     const res = await fetchWithTimeout(url, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ prompt, providers: getSelectedAis() }) }, 45000);
@@ -16533,8 +16548,8 @@ refreshAdminState();
         }
       } catch (e) { /* 自機に無くても共有側だけで続行 */ }
       lastStatus = s;
-      if (isLocalOnly()) {
-        aiLine.textContent = "🖥 ローカルLLMのみで回答中(クラウドAIは使いません) / Answering with the local LLM only (no cloud AIs)";
+      if (isCloudOff()) {
+        aiLine.textContent = "🖥 ローカルLLMのみで回答中(クラウドAI 0個) / Answering with the local LLM only (0 cloud AIs)";
         return;
       }
       const chosen = getSelectedAis().filter((id) => (s.available || []).includes(id));
@@ -16578,17 +16593,28 @@ refreshAdminState();
     h.className = "ai-pick-title";
     h.textContent = "追加で使うクラウドAIを0〜3個選択 / Add 0 to 3 cloud AIs (1=単独 single, 2=ハイブリッド hybrid, 3=トライブリッド tri-hybrid)";
     pickPanel.appendChild(h);
-    const localLab = document.createElement("label");
-    localLab.style.width = "100%";
-    const localCb = document.createElement("input");
-    localCb.type = "checkbox";
-    localCb.checked = isLocalOnly();
-    localCb.addEventListener("change", () => {
-      try { localStorage.setItem(LOCAL_ONLY_KEY, localCb.checked ? "1" : "0"); } catch (e) { /* ignore */ }
+    const mkToggle = (label, checked, onChange) => {
+      const lab = document.createElement("label");
+      lab.style.width = "100%";
+      const cb = document.createElement("input");
+      cb.type = "checkbox";
+      cb.checked = checked;
+      cb.addEventListener("change", () => onChange(cb.checked));
+      lab.append(cb, " " + label);
+      pickPanel.appendChild(lab);
+    };
+    mkToggle("🖥 ローカルLLM(この端末のaruaru-llm)を使う / Use the local LLM (this device's aruaru-llm)", isLocalLlmEnabled(), (on) => {
+      try { localStorage.setItem(USE_LOCAL_KEY, on ? "1" : "0"); } catch (e) { /* ignore */ }
+      if (!on && isCloudOff()) { try { localStorage.setItem(CLOUD_OFF_KEY, "0"); } catch (e) { /* ignore */ } }
       refreshAiInUse();
+      renderPicker();
     });
-    localLab.append(localCb, " 🖥 ローカルLLMのみ(クラウドAI 0個) / Local LLM only (0 cloud AIs)");
-    pickPanel.appendChild(localLab);
+    mkToggle("☁ クラウドAIを使わない(0個) / Use no cloud AIs (0)", isCloudOff(), (on) => {
+      try { localStorage.setItem(CLOUD_OFF_KEY, on ? "1" : "0"); } catch (e) { /* ignore */ }
+      if (on && !isLocalLlmEnabled()) { try { localStorage.setItem(USE_LOCAL_KEY, "1"); } catch (e) { /* ignore */ } }
+      refreshAiInUse();
+      renderPicker();
+    });
     if (!avail.length) {
       const n = document.createElement("div");
       n.textContent = "選べるAIを取得できません / No AIs available to choose";
@@ -16610,7 +16636,7 @@ refreshAdminState();
         } else {
           cur = cur.filter((x) => x !== id);
         }
-        try { localStorage.setItem(SELECTED_AIS_KEY, JSON.stringify(cur)); } catch (e) { /* ignore */ }
+        try { localStorage.setItem(SELECTED_AIS_KEY, JSON.stringify(cur)); localStorage.setItem(CLOUD_OFF_KEY, "0"); } catch (e) { /* ignore */ }
         refreshAiInUse();
       });
       lab.append(cb, " " + nameOf(id) + ((lastStatus && (lastStatus.resting || []).includes(id)) ? " (休止中 / resting)" : ""));
@@ -16620,7 +16646,7 @@ refreshAdminState();
     reset.type = "button";
     reset.textContent = "おまかせに戻す / Reset to automatic";
     reset.addEventListener("click", () => {
-      try { localStorage.removeItem(SELECTED_AIS_KEY); } catch (e) { /* ignore */ }
+      try { localStorage.removeItem(SELECTED_AIS_KEY); localStorage.removeItem(CLOUD_OFF_KEY); localStorage.removeItem(USE_LOCAL_KEY); } catch (e) { /* ignore */ }
       refreshAiInUse();
       renderPicker();
     });
