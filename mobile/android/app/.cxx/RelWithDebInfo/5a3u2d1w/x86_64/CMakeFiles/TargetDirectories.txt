@@ -1,0 +1,3 @@
+F:/open-english/mobile/android/app/.cxx/RelWithDebInfo/5a3u2d1w/x86_64/CMakeFiles/nnapi_probe.dir
+F:/open-english/mobile/android/app/.cxx/RelWithDebInfo/5a3u2d1w/x86_64/CMakeFiles/edit_cache.dir
+F:/open-english/mobile/android/app/.cxx/RelWithDebInfo/5a3u2d1w/x86_64/CMakeFiles/rebuild_cache.dir

@@ -26,6 +26,14 @@ val clientVersionCode: Int = run {
 android {
     namespace = "tokyo.runo.openenglish"
     compileSdk = 35
+    // NNAPI加速器の列挙(src/main/cpp/nnapi_probe.c)用。NDK/CMakeはAGPが未導入なら自動取得する。
+    ndkVersion = "27.1.12297006"
+    externalNativeBuild {
+        cmake {
+            path = file("src/main/cpp/CMakeLists.txt")
+            version = "3.22.1"
+        }
+    }
 
     defaultConfig {
         applicationId = "tokyo.runo.openenglish"

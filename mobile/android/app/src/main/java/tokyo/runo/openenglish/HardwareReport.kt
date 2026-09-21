@@ -111,76 +111,22 @@ class HardwareReport(private val context: Context, private val webView: WebView)
         return o
     }
 
-    /** NNAPIの実測: ベクトル長768の1組と、行列×ベクトル(768×2048 / 768×8192、FP32)でCPUとの速度・数値を比べる。 */
+    /** NNAPIの診断: 実在する加速器の列挙と、行列×ベクトル(768×2048/8192)の実測(`MatVecSelector`)。 */
     private fun nnapiInfo(): JSONObject {
         val o = JSONObject()
         try {
             val pair = NnapiVectorKernel.selectBest(768)
             o.put("pair_768_selected", pair.label)
-            o.put("pair_768_detail", pair.detail)
             pair.kernel?.close()
         } catch (e: Throwable) {
             o.put("pair_error", e.message ?: "failed")
         }
         val rows = JSONArray()
         for (m in intArrayOf(2048, 8192)) {
-            rows.put(matVec(m, 768))
+            try { rows.put(MatVecSelector.evaluate(m, 768)) } catch (t: Throwable) { rows.put(JSONObject().put("rows", m).put("error", t.message ?: "failed")) }
         }
         o.put("matvec", rows)
-        o.put("note", "NNAPIのどの加速器(NPU/DSP/GPU)で走ったかは取得できません。判定はTFLiteのCPUカーネルとの比較(1.3倍以上で加速器が効いていると見なす)。素朴なCPUループとの比較は参考値です。")
-        return o
-    }
-
-    private fun matVec(m: Int, n: Int): JSONObject {
-        val o = JSONObject().put("rows", m).put("cols", n)
-        try {
-            val rnd = java.util.Random(1)
-            val corpus = FloatArray(m * n) { rnd.nextGaussian().toFloat() }
-            val q = FloatArray(n) { rnd.nextGaussian().toFloat() }
-            val ref = NnapiMatVecKernel.cpuMultiply(corpus, m, n, 1, q)
-            val runs = 5
-            for (i in 0 until 2) NnapiMatVecKernel.cpuMultiply(corpus, m, n, 1, q) // CPU側もウォームアップして公平に比べる
-            val t0 = System.nanoTime()
-            for (i in 0 until runs) NnapiMatVecKernel.cpuMultiply(corpus, m, n, 1, q)
-            val cpuMs = (System.nanoTime() - t0) / 1e6 / runs
-            o.put("cpu_ms", cpuMs)
-            // 切り分け: NNAPIを付けない「TFLite自身のCPUカーネル」。素朴なループより速いのはTFLiteの最適化のおかげで
-            // あってNPUとは限らないため、NNAPIの効果はこの基準と比べて判定する。
-            var tfliteCpuMs = Double.NaN
-            NnapiMatVecKernel.create(corpus, m, n, 1, allowFp16 = false, useNnapiDelegate = false, cpuThreads = 1)?.use { kc ->
-                for (i in 0 until 3) kc.multiply(q)
-                val t2 = System.nanoTime()
-                for (i in 0 until runs) kc.multiply(q)
-                tfliteCpuMs = (System.nanoTime() - t2) / 1e6 / runs
-            }
-            if (!tfliteCpuMs.isNaN()) o.put("tflite_cpu_ms", tfliteCpuMs)
-            val k = NnapiMatVecKernel.create(corpus, m, n, 1, allowFp16 = false)
-            if (k == null) {
-                o.put("nnapi", "unavailable")
-            } else {
-                k.use {
-                    val got = it.multiply(q)
-                    var scale = 0.0
-                    for (r in ref) scale += r.toDouble() * r
-                    scale = Math.sqrt(scale / ref.size) + 1e-9
-                    var maxErr = 0.0
-                    for (i in ref.indices) maxErr = maxOf(maxErr, Math.abs((got[i] - ref[i]).toDouble()) / scale)
-                    for (i in 0 until 2) it.multiply(q)
-                    val t1 = System.nanoTime()
-                    for (i in 0 until runs) it.multiply(q)
-                    val nMs = (System.nanoTime() - t1) / 1e6 / runs
-                    o.put("nnapi_ms", nMs).put("max_err", maxErr).put("speedup", cpuMs / nMs)
-                    if (!tfliteCpuMs.isNaN()) {
-                        val gain = tfliteCpuMs / nMs
-                        o.put("gain_vs_tflite_cpu", gain)
-                        // 判定: TFLiteのCPUより明確に速い(1.3倍以上)ときだけ「加速器が効いている」とみなす
-                        o.put("accelerator_effective", gain >= 1.3 && maxErr < 1e-3)
-                    }
-                }
-            }
-        } catch (t: Throwable) {
-            o.put("error", t.message ?: "failed")
-        }
+        o.put("note", "判定はTFLiteのCPUカーネル(NNAPIなし)との比較。実在する加速器を名前指定して測り、1.3倍以上速く品質ゲートも通った場合だけ「加速器が効いている」と見なします。int8は近似(上位10件の一致率で評価)です。")
         return o
     }
 }

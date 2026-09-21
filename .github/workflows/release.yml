@@ -166,7 +166,7 @@ jobs:
       # (v0.8.8のAndroidジョブ)。`platform-tools`のみを指定する。
       - uses: android-actions/setup-android@v3
         with:
-          packages: platform-tools
+          packages: platform-tools ndk;27.1.12297006 cmake;3.22.1
       # 2026-09-14追加(キャッシュ戦略、Windows版ジョブのコメント参照)。
       # Gradleのホームディレクトリ(依存ライブラリのダウンロードキャッシュ)
       # とビルドキャッシュをGitHub Actionsキャッシュへ保存し、次回以降の
