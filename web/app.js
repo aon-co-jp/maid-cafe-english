@@ -1858,7 +1858,7 @@ async function refreshRuntimeInfo() {
 // 高め・話速を気持りゆっくりにして「案内・接客」らしい丁寧さと、
 // メイドカフェらしい明るさを両立させる、という範囲までに留まる。
 let cachedVoices = [];
-const femaleNameHints = ["female", "woman", "kyoko", "haruka", "ayumi", "samantha", "zira", "susan", "google 日本語", "google us english"];
+const femaleNameHints = ["female", "woman", "kyoko", "haruka", "ayumi", "samantha", "zira", "susan", "google 日本語", "google us english", "nanami", "microsoft haruka", "o-ren", "natural"];
 // トラさん風の声(ユーザー指示、2026-08-10「トラさんに切り替えるとトラ
 // さん風の声にして」)を選ぶための男性声ヒント。正直な開示: 実在の
 // 声優・キャラクターの声を再現するものではなく、ブラウザ標準の男性声を
@@ -1911,6 +1911,97 @@ function extractSpeechText(text, lang) {
   return picked.join(wantJapanese ? "。" : ". ");
 }
 
+// --- 読み上げ前処理(2026-09-21、ユーザー指示「AIがもっと漢字を含めた文章を間違いなく読めるように」) ---
+// 誤読の主な原因と対策: (1)日英中を並べた回答を日本語の声で全部読んでいた → 言語ごとの区画だけを
+// 読む、(2)URL・絵文字・旗を読んでしまう → 除去、(3)長文が途中で切れる → 文ごとに分割して順に読む、
+// (4)難読語をエンジン任せにしていた → 読み辞書(下)でひらがなに置換してから読む。
+// **正直な開示**: 辞書に無い語はブラウザ/OS標準の音声合成エンジンの読みに従うため、100%の保証は
+// できない(誤読を見つけたらSPEECH_READINGSへ追記すればよい)。
+const SPEECH_READINGS = [
+  ["常温核融合", "じょうおんかくゆうごう"], ["核融合", "かくゆうごう"], ["核武装", "かくぶそう"], ["非核三原則", "ひかくさんげんそく"],
+  ["核抑止", "かくよくし"], ["核兵器", "かくへいき"], ["核攻撃", "かくこうげき"], ["核保有", "かくほゆう"], ["核の傘", "かくのかさ"],
+  ["核ミサイル", "かくミサイル"], ["原子力", "げんしりょく"], ["三重水素", "さんじゅうすいそ"], ["超伝導", "ちょうでんどう"],
+  ["中性子", "ちゅうせいし"], ["増殖", "ぞうしょく"], ["熱交換器", "ねつこうかんき"], ["遠隔保守", "えんかくほしゅ"],
+  ["通電", "つうでん"], ["実証炉", "じっしょうろ"], ["原型炉", "げんけいろ"], ["燃焼", "ねんしょう"], ["発電", "はつでん"],
+  ["京都フュージョニアリング", "きょうとフュージョニアリング"], ["京都", "きょうと"], ["奈良", "なら"],
+  ["石塚正浩", "いしづかまさひろ"], ["株式会社", "かぶしきがいしゃ"], ["代表取締役社長", "だいひょうとりしまりやくしゃちょう"],
+  ["御座います", "ございます"], ["御座い", "ござい"], ["我が国", "わがくに"], ["一長一短", "いっちょういったん"],
+  ["仕返し", "しかえし"], ["報復措置", "ほうふくそち"], ["舐められ", "なめられ"], ["巻き込", "まきこ"], ["一社", "いっしゃ"],
+  ["神社仏閣", "じんじゃぶっかく"], ["茶道", "さどう"], ["書道", "しょどう"], ["剣道", "けんどう"], ["相撲", "すもう"],
+  ["合気道", "あいきどう"], ["柔道", "じゅうどう"], ["空手", "からて"], ["和食", "わしょく"], ["日本食", "にほんしょく"],
+  ["温泉", "おんせん"], ["工務店", "こうむてん"], ["天井", "てんじょう"], ["埋め込み", "うめこみ"], ["吊り下げ", "つりさげ"],
+  ["家庭教師", "かていきょうし"], ["英会話", "えいかいわ"], ["日本", "にほん"], ["今日", "きょう"], ["昨日", "きのう"], ["明日", "あした"],
+  ["大人", "おとな"], ["一人", "ひとり"], ["二人", "ふたり"], ["最先端", "さいせんたん"], ["安全性", "あんぜんせい"],
+].sort((a, b) => b[0].length - a[0].length);
+
+function applySpeechReadings(text) {
+  let out = text;
+  for (const [kanji, kana] of SPEECH_READINGS) out = out.split(kanji).join(kana);
+  return out;
+}
+
+/** 回答テキストから、読み上げる言語の区画だけを取り出して読める形に整える。 */
+function prepareSpeechText(text, lang) {
+  let t = text;
+  // リンク一覧(🔎…)と「カスタムQ&A一致」の注記は読まない
+  t = t.replace(/🔎[\s\S]*?(?=🇺🇸|🇨🇳|────|$)/g, "");
+  t = t.replace(/📚 \(Custom Q&A match[^\n]*/g, "");
+  const flagFor = lang.startsWith("ja") ? "🇯🇵" : lang.startsWith("zh") ? "🇨🇳" : "🇺🇸";
+  if (t.includes("🇯🇵") || t.includes("🇺🇸") || t.includes("🇨🇳")) {
+    const blocks = t.split(/\n*────────────\n*/);
+    const picked = blocks.map((blk) => {
+      const parts = blk.split(/(?=🇯🇵|🇺🇸|🇨🇳)/).filter((p) => p.trim());
+      const mine = parts.find((p) => p.startsWith(flagFor));
+      return mine || "";
+    }).filter(Boolean);
+    if (picked.length) t = picked.join("\n");
+  } else {
+    t = extractSpeechText(t, lang);
+  }
+  t = t.replace(/https?:\/\/\S+/g, "");
+  t = t.replace(/[\u{1F1E6}-\u{1F1FF}]|\p{Extended_Pictographic}|️/gu, "");
+  t = t.replace(/^\s*[・\-]\s*/gm, "").replace(/^\s*(YouTube|Google):\s*$/gm, "");
+  t = t.replace(/[【】]/g, "、").replace(/\n{2,}/g, "\n").trim();
+  if (lang.startsWith("ja")) t = applySpeechReadings(t);
+  return t;
+}
+
+/** 長文でも途切れないよう、文ごと(最大110字)に分割する。 */
+function splitSpeechChunks(text, lang) {
+  const sentences = text.split(/(?<=[。！？!?\n])|(?<=\. )/).map((s) => s.trim()).filter(Boolean);
+  const chunks = [];
+  let cur = "";
+  for (const s of sentences) {
+    if (cur && cur.length + s.length > 110) {
+      chunks.push(cur);
+      cur = s;
+    } else {
+      cur += (cur && !lang.startsWith("ja") ? " " : "") + s;
+    }
+  }
+  if (cur) chunks.push(cur);
+  return chunks;
+}
+
+/** 整えたテキストを分割して読み上げキューに積む。最後の発話が終わったらonEndを呼ぶ。 */
+function enqueueSpeech(text, lang, isHelper, onEnd) {
+  const chunks = splitSpeechChunks(text, lang);
+  chunks.forEach((chunk, i) => {
+    const utter = new SpeechSynthesisUtterance(chunk);
+    utter.lang = lang;
+    const voice = pickVoice(lang, isHelper);
+    if (voice) utter.voice = voice;
+    utter.pitch = isHelper ? 0.75 : 1.1;
+    utter.rate = isHelper ? 1.05 : 0.82;
+    if (i === chunks.length - 1 && onEnd) {
+      utter.onend = onEnd;
+      utter.onerror = onEnd;
+    }
+    window.speechSynthesis.speak(utter);
+  });
+  return chunks.length;
+}
+
 // メイドカフェ研修モード専用: 英語のワンフレーズを話したら、続けて
 // 対応する日本語も話す(ユーザー指示「英語で一言ワンフレーズしゃべったら
 // 対応する日本語でもしゃべってを繰り返して」への対応)。通常モードの
@@ -1931,18 +2022,7 @@ function speakBilingual(text) {
       { text: jaText, lang: "ja-JP" },
     ].forEach(({ text: part, lang }) => {
       if (!part) return;
-      const utter = new SpeechSynthesisUtterance(part);
-      utter.lang = lang;
-      const voice = pickVoice(lang, isHelper);
-      if (voice) utter.voice = voice;
-      if (isHelper) {
-        utter.pitch = 0.75;
-        utter.rate = 1.05;
-      } else {
-        utter.pitch = 1.1;
-        utter.rate = 0.82;
-      }
-      window.speechSynthesis.speak(utter);
+      enqueueSpeech(lang.startsWith("ja") ? applySpeechReadings(part) : part, lang, isHelper);
     });
     trainerEl.classList.add("speaking");
     const spokenMs = Math.min(6000, (enText.length + jaText.length) * 60);
@@ -1968,28 +2048,10 @@ function speak(text) {
       // 返信テキスト自体に日本語が含まれるかで読み上げ音声を選ぶ方が
       // "auto"以外の既存モードにも通用し、より確実。
       const lang = replyLangEl.value === "ja" || (replyLangEl.value === "auto" && containsJapanese(text)) ? "ja-JP" : "en-US";
-      const utter = new SpeechSynthesisUtterance(extractSpeechText(text, lang));
-      utter.lang = lang;
       const isHelper = typeof activeCharacter !== "undefined" && activeCharacter === "helper";
-      const voice = pickVoice(lang, isHelper);
-      if (voice) utter.voice = voice;
-      if (isHelper) {
-        // トラさん風の声(気さくな中年男性、低めのピッチ+やや速めの話速)。
-        utter.pitch = 0.75;
-        utter.rate = 1.05;
-      } else {
-        // デフォルトの声質(ユーザー指示、2026-08-10「ジャンボジェットの
-        // スチュワーデスの声+メイドカフェの様な声をデフォルトに」):
-        // 大型機の機内アナウンスを思わせる丁寧でゆったりした話速+
-        // メイドカフェらしい明るいピッチ、を両立させる調整値。
-        // 2026-08-10追記: 「もう少しゆっくり喋って」との指示により
-        // さらに話速を落とした(0.92→0.82)。
-        utter.pitch = 1.1;
-        utter.rate = 0.82;
-      }
       trainerEl.classList.add("speaking");
-      utter.onend = () => trainerEl.classList.remove("speaking");
-      window.speechSynthesis.speak(utter);
+      const n = enqueueSpeech(prepareSpeechText(text, lang), lang, isHelper, () => trainerEl.classList.remove("speaking"));
+      if (!n) trainerEl.classList.remove("speaking");
       return;
     } catch (err) {
       // フォールバック: 音声合成に失敗したら口パクのみで継続する。
