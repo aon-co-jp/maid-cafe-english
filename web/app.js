@@ -10212,6 +10212,41 @@ async function detectAndCompareLlm() {
     hwP.textContent = hwLine;
     llmRecommendBody.appendChild(hwP);
 
+    // ハードウェア仕様(CPU命令セット・GPU・NPU・加速段階)。/v1/runtime と /v1/accelerators から取得し、
+    // 古いaruaru-llm(後者が無い)でも取れた分だけ表示する。共有デプロイでは出さない。
+    if (!shared) {
+      try {
+        const [rt, ac] = await Promise.all([
+          fetch(`${base}/v1/runtime`).then((r) => (r.ok ? r.json() : null)).catch(() => null),
+          fetch(`${base}/v1/accelerators`).then((r) => (r.ok ? r.json() : null)).catch(() => null),
+        ]);
+        const lines = [];
+        if (ac) lines.push(`CPU: ${ac.cpu_logical_cores} logical cores / 論理コア ${ac.cpu_logical_cores} (${ac.os}/${ac.arch})`);
+        if (rt && rt.cpu_simd) {
+          lines.push(`CPU命令セット / CPU ISA: ${rt.cpu_simd.features || "?"} — AVX2+FMA: ${rt.cpu_simd.avx2_fma_path ? "ON" : "OFF"}, VNNI(int8): ${rt.cpu_simd.vnni_path ? "ON" : "OFF"}, AVX-512: ${rt.cpu_simd.avx512_opt_in ? "ON" : "OFF(既定/default)"}`);
+        }
+        if (ac && ac.inventory) {
+          lines.push(`NPU: ${ac.inventory.npu_name || "not detected / 未検出"}`);
+          const usb = ac.inventory.usb_android_devices;
+          lines.push(`USB Android: ${usb === null || usb === undefined ? "adb unavailable / adb未使用" : usb.length + " device(s) / 台"}`);
+        }
+        if (rt && rt.acceleration) {
+          const acc = rt.acceleration;
+          const st = (k) => (acc[k] ? (acc[k].active ? "ACTIVE" : acc[k].compiled_in ? "compiled in" : "not compiled in") : "?");
+          lines.push(`アクセラレーター / Accelerators: CUDA ${st("cuda")}, Vulkan ${st("vulkan")}, DirectX ${st("directx")}, CPU SIMD ${st("cpu_simd")} → ${acc.tier_label_ja || acc.tier || ""} / ${acc.tier_label_en || ""}`);
+        }
+        if (lines.length) {
+          const specP = document.createElement("p");
+          specP.className = "setup-note";
+          specP.style.whiteSpace = "pre-line";
+          specP.textContent = "🔧 ハードウェア仕様 / Hardware spec" + String.fromCharCode(10) + lines.join(String.fromCharCode(10));
+          llmRecommendBody.appendChild(specP);
+        }
+      } catch (e) {
+        /* 仕様表示は補助情報。失敗しても推薦は続行する */
+      }
+    }
+
     const questionP = document.createElement("p");
     questionP.className = "setup-note";
     questionP.textContent =

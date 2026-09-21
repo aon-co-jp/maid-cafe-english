@@ -8,7 +8,7 @@
     <string name="download_model_button">📥 AIモデルをダウンロード(約900MB、Wi-Fi推奨) / Download AI model (~900MB, Wi-Fi recommended)</string>
     <string name="backup_models_button">💾 モデルを外部ストレージへバックアップ / Back up model to external storage</string>
     <string name="restore_models_button">📂 外部ストレージから復元 / Restore from external storage</string>
-    <string name="phone_accel_help">📱 使わなくなったスマホもフル動員(実験的機能): PC側aruaru-llmのURLを入力して開始すると、このスマホのCPU(NNAPI対応端末では検出のみ、実際の計算はCPU)が軽量な計算タスクを手伝います。 / Put unused phones to full use (experimental): enter the PC-side aruaru-llm URL and start — this phone\'s CPU (NNAPI is only detected, not yet used for the actual computation) will help with lightweight compute tasks.</string>
+    <string name="phone_accel_help">📱 使わなくなったスマホもフル動員(実験的機能): PC側aruaru-llmのURLを入力して開始すると、このスマホのNPU/GPU/CPUが軽量な計算タスクを手伝います(NNAPI対応端末では、CPUより速く数値が一致する場合だけNNAPIへ計算を委譲し、どのハードウェアで走るかはNNAPIが決めます)。 / Put unused phones to full use (experimental): enter the PC-side aruaru-llm URL and start — this phone\'s CPU (NNAPI is only detected, not yet used for the actual computation) will help with lightweight compute tasks.</string>
     <string name="phone_accel_url_hint">PC aruaru-llm URL (e.g. http://192.168.1.10:4600)</string>
     <string name="phone_accel_autodetect_button">🔍 同一Wi-Fi内のPCを自動検出 / Auto-detect PC on this Wi-Fi</string>
     <string name="phone_accel_start_button">▶️ スマホ計算を開始 / Start phone compute worker</string>

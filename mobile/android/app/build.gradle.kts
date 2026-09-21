@@ -33,6 +33,7 @@ android {
         targetSdk = 35
         versionCode = clientVersionCode
         versionName = clientVersionName
+        testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         // 2026-08-11追加: 単体動作版(PC/Linux WEBサーバー不要)への対応。
         // 実機のスマホ/タブレットはarm64-v8aが主流、x86_64はエミュレータ
         // 検証用(open-web-server/dream-osの既存パターンと同じ)。
@@ -123,6 +124,10 @@ dependencies {
     // 自動的にCPU(Kotlin標準FloatArray計算)へフォールバックする設計
     // (`PhoneAccelWorker.kt`のコメント参照、NPU活用を偽らない)。
     implementation("org.tensorflow:tensorflow-lite:2.16.1")
+    // 2026-09-21追加: NNAPI用の小さなTFLiteモデルを実行時に組み立てるため(`NnapiVectorKernel.kt`)。
+    implementation("com.google.flatbuffers:flatbuffers-java:23.5.26")
+    androidTestImplementation("androidx.test.ext:junit:1.2.1")
+    androidTestImplementation("androidx.test:runner:1.6.2")
     // NnApiDelegateクラス自体は`tensorflow-lite`本体に含まれるため
     // `tensorflow-lite-support`は不要(重複namespace警告を避けるため
     // 追加しなかった)。

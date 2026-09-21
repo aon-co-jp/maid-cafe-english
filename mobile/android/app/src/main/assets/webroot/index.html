@@ -185,6 +185,13 @@
       <a href="https://github.com/aon-co-jp/open-english/releases/latest" target="_blank" rel="noopener noreferrer">📦 すべて / All</a>
     </p>
   </div>
+  <p class="author-github">
+    👤 作者のGitHub / Author's GitHub:
+    <a href="https://github.com/aon-co-jp" target="_blank" rel="noopener noreferrer">aon-co-jp</a> ・
+    <a href="https://github.com/aon-co-jp/open-english" target="_blank" rel="noopener noreferrer">open-english</a> ・
+    <a href="https://github.com/aon-co-jp/aruaru-llm" target="_blank" rel="noopener noreferrer">aruaru-llm</a> ・
+    <a href="https://github.com/aon-co-jp/aruaru-db" target="_blank" rel="noopener noreferrer">aruaru-db</a>
+  </p>
   <div id="launch-pc-version-banner" class="maintenance-banner">
     <p>
       🖥️ <strong>PC版を<a href="https://github.com/aon-co-jp/open-english/releases/latest" target="_blank" rel="noopener noreferrer">ここからダウンロード</a>して起動してからブラウザで御利用下さい。</strong> /
@@ -1044,6 +1051,22 @@ cargo run --release</pre>
       <label class="settings-field">
         Claude (Anthropic) API Key <span id="provider-key-status-claude" class="setup-note" style="display:inline; padding:2px 6px;"></span>
         <input type="password" id="provider-key-claude" autocomplete="off" placeholder="sk-ant-..." />
+      </label>
+      <label class="settings-field">
+        Groq API Key(無料枠 / free tier) <span id="provider-key-status-groq" class="setup-note" style="display:inline; padding:2px 6px;"></span>
+        <input type="password" id="provider-key-groq" autocomplete="off" placeholder="gsk_..." />
+      </label>
+      <label class="settings-field">
+        Mistral API Key(無料枠 / free tier) <span id="provider-key-status-mistral" class="setup-note" style="display:inline; padding:2px 6px;"></span>
+        <input type="password" id="provider-key-mistral" autocomplete="off" placeholder="..." />
+      </label>
+      <label class="settings-field">
+        OpenRouter API Key(無料モデル / free models) <span id="provider-key-status-openrouter" class="setup-note" style="display:inline; padding:2px 6px;"></span>
+        <input type="password" id="provider-key-openrouter" autocomplete="off" placeholder="sk-or-..." />
+      </label>
+      <label class="settings-field">
+        Cloudflare Workers AI(ACCOUNT_ID:API_TOKEN の形式 / format) <span id="provider-key-status-cloudflare" class="setup-note" style="display:inline; padding:2px 6px;"></span>
+        <input type="password" id="provider-key-cloudflare" autocomplete="off" placeholder="ACCOUNT_ID:API_TOKEN" />
       </label>
 
       <div class="settings-buttons">

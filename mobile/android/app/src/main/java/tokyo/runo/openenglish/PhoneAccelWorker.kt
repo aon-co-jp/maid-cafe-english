@@ -37,25 +37,12 @@ import kotlin.math.sqrt
  * (`adb forward`後は`http://127.0.0.1:4600/`、Wi-Fi/テザリングでは
  * `http://<PCのIP>:4600/`を指定する)。
  *
- * ## NNAPI(NPU/GPU)対応について(正直な開示、最重要)
- * TensorFlow Lite NNAPI Delegate(`org.tensorflow:tensorflow-lite`+
- * `tensorflow-lite-support`)をGradle依存に追加し、起動時に
- * `NnApiDelegate`の構築を試みることで、この端末がNNAPI
- * (`android.hardware.neuralnetworks`、NPU/GPU/DSPへのオフロード窓口)を
- * サポートしているかどうかを実際に検出する。しかし、コサイン類似度
- * 計算のような任意長ベクトルの内積を行う`.tflite`モデル自体を
- * (a) 事前にビルド・同梱するか、(b) 実行時にFlatBuffer形式で動的構築
- * する必要があり、いずれもこの開発環境には実機のNPU搭載端末・検証手段が
- * 無いため「正しく動く`.tflite`モデルを実際に検証した上で同梱する」
- * ところまでは実施できなかった。そのため、**実際の計算(内積・コサイン
- * 類似度そのもの)は常にCPU(Kotlin標準の`FloatArray`計算)で行い、
- * NNAPI Delegateは「この端末でNPU/GPUオフロードが利用可能かどうかを
- * 検出してログに残す」用途に限定している**——「NPUを使って計算した」と
- * 偽ることは避け、「NPUが利用可能なら検出・記録するが、実際の計算
- * オフロードは今回のスコープでは実装できなかった」という限界を正直に
- * 開示する設計にした。`nnapiAvailable`フィールドをタスク結果の
- * `device_label`に含め、PC側のログからも実際にどちらの経路で計算
- * されたかが分かるようにしている。
+ * ## NNAPI(NPU/GPU/DSP)対応について(正直な開示、2026-09-21更新)
+ * 内積・二乗和の重い計算は、`NnapiVectorKernel`が実行時に組み立てた小さなTFLiteモデルとしてNNAPIへ委譲する
+ * (ベクトル長ごとに1回、FP32→FP16許可の順に試し、CPUと数値が一致しCPUより速い方式だけを採用。
+ * 条件を満たさなければ従来どおりCPU計算)。**どのハードウェア(NPU/GPU/DSP/CPU)で実行されるかはNNAPI
+ * ランタイムが決める**ため、「NPUで走った」とは断定せず、採用方式・実測時間・数値誤差を`device_label`と
+ * ログに残す。エミュレータ(NPU無し)ではNNAPI参照CPU実装での動作確認まで行い、実機NPUでの速度は端末依存。
  */
 class PhoneAccelWorker(
     private val pcBaseUrl: String,
@@ -84,15 +71,47 @@ class PhoneAccelWorker(
         }
     }
 
+    /** ベクトル長ごとの採用方式(1回だけ選ぶ)。kernelがnullならCPU。 */
+    private val selections = HashMap<Int, NnapiVectorKernel.Companion.Selection>()
+
+    private fun selectionFor(n: Int): NnapiVectorKernel.Companion.Selection = synchronized(selections) {
+        selections.getOrPut(n) {
+            val sel = if (nnapiAvailable) NnapiVectorKernel.selectBest(n) else NnapiVectorKernel.Companion.Selection(null, "cpu", "NNAPI not available")
+            onLog("Compute path for n=$n: ${sel.label} [${sel.detail}] / ベクトル長${n}の計算方式: ${sel.label}(NNAPIが選んだ実行先までは断定しません)")
+            sel
+        }
+    }
+
+    /** 直近に使った計算方式のラベル(結果のdevice_labelに載せる)。 */
+    @Volatile private var lastPathLabel: String = "cpu"
+
+    /** NNAPI(採用された場合)またはCPUでコサイン類似度を計算する。 */
+    private fun computeCosine(a: FloatArray, b: FloatArray): Float {
+        if (a.isEmpty() || a.size != b.size) return 0f
+        val sel = selectionFor(a.size)
+        lastPathLabel = sel.label
+        val k = sel.kernel
+        if (k != null) {
+            try {
+                return k.cosineSimilarity(a, b)
+            } catch (t: Throwable) {
+                Log.w(TAG, "NNAPI kernel failed at runtime, falling back to CPU: ${t.message}")
+                synchronized(selections) { selections[a.size] = NnapiVectorKernel.Companion.Selection(null, "cpu(fallback)", "runtime failure") }
+                try { k.close() } catch (_: Throwable) {}
+            }
+        }
+        lastPathLabel = "cpu"
+        return cosineSimilarity(a, b)
+    }
+
     /** ポーリングループを開始する。既に稼働中なら何もしない。 */
     fun start() {
         if (job?.isActive == true) return
         job = scope.launch {
             onLog(
                 if (nnapiAvailable) {
-                    "NNAPI detected (NPU/GPU offload may be available on this device), but actual computation still runs on CPU in this version. / " +
-                        "このデバイスでNNAPIを検出しました(NPU/GPUオフロードが利用可能な可能性があります)が、" +
-                        "本バージョンでは実際の計算は引き続きCPUで行います。"
+                    "NNAPI detected: vector math is delegated to NNAPI (NPU/GPU/DSP chosen by the runtime) when it is faster and numerically matches the CPU; otherwise CPU. / " +
+                        "NNAPIを検出しました。ベクトル計算は、CPUより速く数値が一致する場合にNNAPI(NPU/GPU/DSPはランタイムが選択)へ委譲し、そうでなければCPUで計算します。"
                 } else {
                     "NNAPI not available on this device; computing on CPU. / このデバイスではNNAPIが利用できないため、CPUで計算します。"
                 }
@@ -102,9 +121,9 @@ class PhoneAccelWorker(
                     val task = fetchTask()
                     if (task != null) {
                         val (taskId, vecA, vecB) = task
-                        val similarity = cosineSimilarity(vecA, vecB)
+                        val similarity = computeCosine(vecA, vecB)
                         submitResult(taskId, similarity)
-                        onLog("Computed task #$taskId: similarity=$similarity (nnapiAvailable=$nnapiAvailable) / タスク#${taskId}を計算しました: 類似度=$similarity")
+                        onLog("Computed task #$taskId: similarity=$similarity (path=$lastPathLabel) / タスク#${taskId}を計算しました: 類似度=$similarity")
                     }
                 } catch (e: Exception) {
                     onLog("Phone accel worker error (will retry): ${e.message} / スマホ計算ワーカーでエラー(再試行します): ${e.message}")
@@ -117,6 +136,10 @@ class PhoneAccelWorker(
     fun stop() {
         job?.cancel()
         job = null
+        synchronized(selections) {
+            selections.values.forEach { try { it.kernel?.close() } catch (_: Throwable) {} }
+            selections.clear()
+        }
     }
 
     private data class Task(val taskId: Long, val vecA: FloatArray, val vecB: FloatArray)
@@ -152,7 +175,7 @@ class PhoneAccelWorker(
         val payload = JSONObject().apply {
             put("task_id", taskId)
             put("similarity", similarity.toDouble())
-            put("device_label", "android-phone-accel-worker(nnapiAvailable=$nnapiAvailable)")
+            put("device_label", "android-phone-accel-worker(nnapiAvailable=$nnapiAvailable,path=$lastPathLabel)")
         }
         try {
             conn.outputStream.use { it.write(payload.toString().toByteArray(Charsets.UTF_8)) }
@@ -170,10 +193,7 @@ class PhoneAccelWorker(
         return out
     }
 
-    /**
-     * コサイン類似度計算(常にCPU、Kotlin標準の`FloatArray`)。
-     * NNAPI経由での実行は上記クラスdocの通り今回は未実装。
-     */
+    /** CPUでのコサイン類似度(NNAPIを使えない/採用されない場合と数値照合の代替)。 */
     private fun cosineSimilarity(a: FloatArray, b: FloatArray): Float {
         if (a.isEmpty() || b.isEmpty() || a.size != b.size) return 0f
         var dot = 0f

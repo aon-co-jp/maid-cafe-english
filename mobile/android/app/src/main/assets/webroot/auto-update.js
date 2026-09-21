@@ -59,7 +59,7 @@
     // 消えると、更新の直後に毎回30秒メンテナンスが再実行されてしまう。
     "open-english.maintenanceDay",
     "open-english.quizNextIndex",      // 作者のオリジナル問題の巡回位置
-    "open-english.newsCheckAt",        // ニュース鮮度確認の最終試行時刻
+    "open-english.newsCheckAt", "open-english.selectedAis", "open-english.cloudOff", "open-english.useLocal",        // ニュース鮮度確認の最終試行時刻
   ];
 
   // このアプリ専用の名前空間(`openEnglish.`接頭辞)を持つlocalStorage

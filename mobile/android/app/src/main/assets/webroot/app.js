@@ -1666,7 +1666,7 @@ function playToraSanJingle() {
 // 固定のドメインであり、AI生成テキストが任意に生成しうる文字列
 // ではないため安全と判断した(`creatorWebsiteLinksText`参照)。
 const AUDIOCAFE_LINK_PATTERN =
-  /https:\/\/audiocafe\.tokyo(?:\/[^\s)]*)?|https:\/\/aon\.co\.jp(?:\/[^\s)]*)?|https:\/\/aon\.tokyo(?:\/[^\s)]*)?|https:\/\/nasa\.tokyo(?:\/[^\s)]*)?|https:\/\/aruaru\.tokyo(?:\/[^\s)]*)?|https:\/\/www\.amazon\.co\.jp\/dp\/B0H14VXGCC\/?|https:\/\/ameblo\.jp\/www-aon\/entry-12977122655\.html|https:\/\/www\.youtube\.com\/results\?search_query=[^\s)]*/g;
+  /https:\/\/audiocafe\.tokyo(?:\/[^\s)]*)?|https:\/\/aon\.co\.jp(?:\/[^\s)]*)?|https:\/\/aon\.tokyo(?:\/[^\s)]*)?|https:\/\/nasa\.tokyo(?:\/[^\s)]*)?|https:\/\/aruaru\.tokyo(?:\/[^\s)]*)?|https:\/\/www\.amazon\.co\.jp\/dp\/B0H14VXGCC\/?|https:\/\/ameblo\.jp\/www-aon\/entry-12977122655\.html|https:\/\/www\.youtube\.com\/results\?search_query=[^\s)]*|https:\/\/www\.youtube\.com\/watch\?v=aN39YEtblZ8|https:\/\/www\.youtube\.com\/watch\?v=ziRRloiP83g|https:\/\/www\.google\.com\/search\?q=[^\s)]*|https:\/\/github\.com\/aon-co-jp(?:\/[A-Za-z0-9._-]+)?/g;
 
 /** テキストを、既知ドメインのURLだけ`<a>`化した上で`container`へ描画する。 */
 function renderMessageBody(container, text) {
@@ -1858,7 +1858,7 @@ async function refreshRuntimeInfo() {
 // 高め・話速を気持りゆっくりにして「案内・接客」らしい丁寧さと、
 // メイドカフェらしい明るさを両立させる、という範囲までに留まる。
 let cachedVoices = [];
-const femaleNameHints = ["female", "woman", "kyoko", "haruka", "ayumi", "samantha", "zira", "susan", "google 日本語", "google us english"];
+const femaleNameHints = ["female", "woman", "kyoko", "haruka", "ayumi", "samantha", "zira", "susan", "google 日本語", "google us english", "nanami", "microsoft haruka", "o-ren", "natural"];
 // トラさん風の声(ユーザー指示、2026-08-10「トラさんに切り替えるとトラ
 // さん風の声にして」)を選ぶための男性声ヒント。正直な開示: 実在の
 // 声優・キャラクターの声を再現するものではなく、ブラウザ標準の男性声を
@@ -1911,6 +1911,107 @@ function extractSpeechText(text, lang) {
   return picked.join(wantJapanese ? "。" : ". ");
 }
 
+// --- 読み上げ前処理(2026-09-21、ユーザー指示「AIがもっと漢字を含めた文章を間違いなく読めるように」) ---
+// 誤読の主な原因と対策: (1)日英中を並べた回答を日本語の声で全部読んでいた → 言語ごとの区画だけを
+// 読む、(2)URL・絵文字・旗を読んでしまう → 除去、(3)長文が途中で切れる → 文ごとに分割して順に読む、
+// (4)難読語をエンジン任せにしていた → 読み辞書(下)でひらがなに置換してから読む。
+// **正直な開示**: 辞書に無い語はブラウザ/OS標準の音声合成エンジンの読みに従うため、100%の保証は
+// できない(誤読を見つけたらSPEECH_READINGSへ追記すればよい)。
+const SPEECH_READINGS = [
+  ["常温核融合", "じょうおんかくゆうごう"], ["核融合", "かくゆうごう"], ["核武装", "かくぶそう"], ["非核三原則", "ひかくさんげんそく"],
+  ["核抑止", "かくよくし"], ["核兵器", "かくへいき"], ["核攻撃", "かくこうげき"], ["核保有", "かくほゆう"], ["核の傘", "かくのかさ"],
+  ["核ミサイル", "かくミサイル"], ["原子力", "げんしりょく"], ["三重水素", "さんじゅうすいそ"], ["超伝導", "ちょうでんどう"],
+  ["中性子", "ちゅうせいし"], ["増殖", "ぞうしょく"], ["熱交換器", "ねつこうかんき"], ["遠隔保守", "えんかくほしゅ"],
+  ["通電", "つうでん"], ["実証炉", "じっしょうろ"], ["原型炉", "げんけいろ"], ["燃焼", "ねんしょう"], ["発電", "はつでん"],
+  ["京都フュージョニアリング", "きょうとフュージョニアリング"], ["京都", "きょうと"], ["奈良", "なら"],
+  ["石塚正浩", "いしづかまさひろ"], ["株式会社", "かぶしきがいしゃ"], ["代表取締役社長", "だいひょうとりしまりやくしゃちょう"],
+  ["御座います", "ございます"], ["御座い", "ござい"], ["我が国", "わがくに"], ["一長一短", "いっちょういったん"],
+  ["仕返し", "しかえし"], ["報復措置", "ほうふくそち"], ["舐められ", "なめられ"], ["巻き込", "まきこ"], ["一社", "いっしゃ"],
+  ["神社仏閣", "じんじゃぶっかく"], ["茶道", "さどう"], ["書道", "しょどう"], ["剣道", "けんどう"], ["相撲", "すもう"],
+  ["合気道", "あいきどう"], ["柔道", "じゅうどう"], ["空手", "からて"], ["和食", "わしょく"], ["日本食", "にほんしょく"],
+  ["温泉", "おんせん"], ["工務店", "こうむてん"], ["天井", "てんじょう"], ["埋め込み", "うめこみ"], ["吊り下げ", "つりさげ"],
+  ["家庭教師", "かていきょうし"], ["英会話", "えいかいわ"], ["日本", "にほん"], ["今日", "きょう"], ["昨日", "きのう"], ["明日", "あした"],
+  ["大人", "おとな"], ["一人", "ひとり"], ["二人", "ふたり"], ["最先端", "さいせんたん"], ["安全性", "あんぜんせい"],
+].sort((a, b) => b[0].length - a[0].length);
+
+function applySpeechReadings(text) {
+  let out = text;
+  for (const [kanji, kana] of SPEECH_READINGS) out = out.split(kanji).join(kana);
+  return out;
+}
+
+/** 回答テキストから、読み上げる言語の区画だけを取り出して読める形に整える。 */
+function prepareSpeechText(text, lang) {
+  let t = text;
+  // リンク一覧(🔎…)と「カスタムQ&A一致」の注記は読まない
+  t = t.replace(/🔎[\s\S]*?(?=🇺🇸|🇨🇳|────|$)/g, "");
+  t = t.replace(/📚 \(Custom Q&A match[^\n]*/g, "");
+  const flagFor = lang.startsWith("ja") ? "🇯🇵" : lang.startsWith("zh") ? "🇨🇳" : "🇺🇸";
+  if (t.includes("🇯🇵") || t.includes("🇺🇸") || t.includes("🇨🇳")) {
+    const blocks = t.split(/\n*────────────\n*/);
+    const picked = blocks.map((blk) => {
+      const parts = blk.split(/(?=🇯🇵|🇺🇸|🇨🇳)/).filter((p) => p.trim());
+      const mine = parts.find((p) => p.startsWith(flagFor));
+      return mine || "";
+    }).filter(Boolean);
+    if (picked.length) t = picked.join("\n");
+  } else {
+    t = extractSpeechText(t, lang);
+  }
+  t = t.replace(/https?:\/\/\S+/g, "");
+  t = t.replace(/[\u{1F1E6}-\u{1F1FF}]|\p{Extended_Pictographic}|️/gu, "");
+  t = t.replace(/^\s*[・\-]\s*/gm, "").replace(/^\s*(YouTube|Google):\s*$/gm, "");
+  t = t.replace(/[【】]/g, "、").replace(/\n{2,}/g, "\n").trim();
+  if (lang.startsWith("ja")) t = applySpeechReadings(t);
+  return t;
+}
+
+/** 長文でも途切れないよう、文ごと(最大110字)に分割する。 */
+function splitSpeechChunks(text, lang) {
+  const sentences = text.split(/(?<=[。！？!?\n])|(?<=\. )/).map((s) => s.trim()).filter(Boolean);
+  // 句点の無い長い行は、読点・カンマ・「:」でさらに分割する
+  for (let i = 0; i < sentences.length; i++) {
+    if (sentences[i].length > 110) {
+      const parts = sentences[i].split(/(?<=[、,，:：;；])/).map((s) => s.trim()).filter(Boolean);
+      if (parts.length > 1) {
+        sentences.splice(i, 1, ...parts);
+        i += parts.length - 1;
+      }
+    }
+  }
+  const chunks = [];
+  let cur = "";
+  for (const s of sentences) {
+    if (cur && cur.length + s.length > 110) {
+      chunks.push(cur);
+      cur = s;
+    } else {
+      cur += (cur && !lang.startsWith("ja") ? " " : "") + s;
+    }
+  }
+  if (cur) chunks.push(cur);
+  return chunks;
+}
+
+/** 整えたテキストを分割して読み上げキューに積む。最後の発話が終わったらonEndを呼ぶ。 */
+function enqueueSpeech(text, lang, isHelper, onEnd) {
+  const chunks = splitSpeechChunks(text, lang);
+  chunks.forEach((chunk, i) => {
+    const utter = new SpeechSynthesisUtterance(chunk);
+    utter.lang = lang;
+    const voice = pickVoice(lang, isHelper);
+    if (voice) utter.voice = voice;
+    utter.pitch = isHelper ? 0.75 : 1.1;
+    utter.rate = isHelper ? 1.05 : 0.82;
+    if (i === chunks.length - 1 && onEnd) {
+      utter.onend = onEnd;
+      utter.onerror = onEnd;
+    }
+    window.speechSynthesis.speak(utter);
+  });
+  return chunks.length;
+}
+
 // メイドカフェ研修モード専用: 英語のワンフレーズを話したら、続けて
 // 対応する日本語も話す(ユーザー指示「英語で一言ワンフレーズしゃべったら
 // 対応する日本語でもしゃべってを繰り返して」への対応)。通常モードの
@@ -1931,18 +2032,7 @@ function speakBilingual(text) {
       { text: jaText, lang: "ja-JP" },
     ].forEach(({ text: part, lang }) => {
       if (!part) return;
-      const utter = new SpeechSynthesisUtterance(part);
-      utter.lang = lang;
-      const voice = pickVoice(lang, isHelper);
-      if (voice) utter.voice = voice;
-      if (isHelper) {
-        utter.pitch = 0.75;
-        utter.rate = 1.05;
-      } else {
-        utter.pitch = 1.1;
-        utter.rate = 0.82;
-      }
-      window.speechSynthesis.speak(utter);
+      enqueueSpeech(lang.startsWith("ja") ? applySpeechReadings(part) : part, lang, isHelper);
     });
     trainerEl.classList.add("speaking");
     const spokenMs = Math.min(6000, (enText.length + jaText.length) * 60);
@@ -1968,28 +2058,10 @@ function speak(text) {
       // 返信テキスト自体に日本語が含まれるかで読み上げ音声を選ぶ方が
       // "auto"以外の既存モードにも通用し、より確実。
       const lang = replyLangEl.value === "ja" || (replyLangEl.value === "auto" && containsJapanese(text)) ? "ja-JP" : "en-US";
-      const utter = new SpeechSynthesisUtterance(extractSpeechText(text, lang));
-      utter.lang = lang;
       const isHelper = typeof activeCharacter !== "undefined" && activeCharacter === "helper";
-      const voice = pickVoice(lang, isHelper);
-      if (voice) utter.voice = voice;
-      if (isHelper) {
-        // トラさん風の声(気さくな中年男性、低めのピッチ+やや速めの話速)。
-        utter.pitch = 0.75;
-        utter.rate = 1.05;
-      } else {
-        // デフォルトの声質(ユーザー指示、2026-08-10「ジャンボジェットの
-        // スチュワーデスの声+メイドカフェの様な声をデフォルトに」):
-        // 大型機の機内アナウンスを思わせる丁寧でゆったりした話速+
-        // メイドカフェらしい明るいピッチ、を両立させる調整値。
-        // 2026-08-10追記: 「もう少しゆっくり喋って」との指示により
-        // さらに話速を落とした(0.92→0.82)。
-        utter.pitch = 1.1;
-        utter.rate = 0.82;
-      }
       trainerEl.classList.add("speaking");
-      utter.onend = () => trainerEl.classList.remove("speaking");
-      window.speechSynthesis.speak(utter);
+      const n = enqueueSpeech(prepareSpeechText(text, lang), lang, isHelper, () => trainerEl.classList.remove("speaking"));
+      if (!n) trainerEl.classList.remove("speaking");
       return;
     } catch (err) {
       // フォールバック: 音声合成に失敗したら口パクのみで継続する。
@@ -2287,6 +2359,7 @@ async function advanceTrainingMode(userText) {
   reply += govConsultingSuffix(userText);
   reply += fairTradeSuffix(userText);
   reply += await newsSuffix(userText);
+  reply += topicGuideSuffix(userText);
   reply += await troubledSuffix(userText);
   reply += nuclearDeterrenceSuffix(userText);
   reply += backPainExerciseSuffix(userText);
@@ -2525,6 +2598,7 @@ async function askTrainer(userText) {
     reply += govConsultingSuffix(userText);
     reply += fairTradeSuffix(userText);
     reply += await newsSuffix(userText);
+  reply += topicGuideSuffix(userText);
     reply += await troubledSuffix(userText);
     reply += nuclearDeterrenceSuffix(userText);
     reply += backPainExerciseSuffix(userText);
@@ -2545,6 +2619,11 @@ async function askTrainer(userText) {
       "設定済みの全AIプロバイダ(共有WEB版・この端末とも)で本日の無料枠は使い切りました。この返信は" +
       "内蔵のローカルAIに切り替えて生成します。より速く高品質な返信をご希望の場合、Claude Code Desktop等の" +
       "有料版もご利用いただけます——🔀 AI Provider Priorityでご自身のAPIキーを登録すると自動的に使われます。\n\n";
+  }
+
+  // ローカルLLMをOFFにしている場合は、この端末のaruaru-llmでの生成へは進まない
+  if (!isLocalLlmEnabled()) {
+    return "⚠ クラウドAIから回答を得られず、ローカルLLMもOFFです。下部の「⚙ 選ぶ」でローカルLLMをONにするか、クラウドAIを選び直してください。 / No cloud AI could answer and the local LLM is turned OFF. Turn the local LLM on, or pick cloud AIs, under \"⚙ Choose\" at the bottom.";
   }
 
   // Google検索補強(ユーザー指示「発話・入力の都度Google検索する」への
@@ -2747,6 +2826,7 @@ async function askTrainer(userText) {
   reply += govConsultingSuffix(userText);
   reply += fairTradeSuffix(userText);
   reply += await newsSuffix(userText);
+  reply += topicGuideSuffix(userText);
   reply += await troubledSuffix(userText);
   reply += nuclearDeterrenceSuffix(userText);
   reply += backPainExerciseSuffix(userText);
@@ -3194,6 +3274,76 @@ const NEWS_TOPIC_KEYWORDS_EN = ["news", "current events", "what's happening", "h
 function mentionsNewsTopic(userText) {
   const lower = userText.toLowerCase();
   return NEWS_TOPIC_KEYWORDS_JA.some((k) => userText.includes(k)) || NEWS_TOPIC_KEYWORDS_EN.some((k) => lower.includes(k));
+}
+
+// 趣味・文化・最先端技術の話題ガイド(ユーザー指示 2026-09-21)。話題を検出したら、
+// YouTube検索とGoogle検索へのリンクを日英併記で添える。**正直な開示**: ここで出すのは
+// 検索リンクと固定の紹介文であり、AIが作った事実情報ではない(最新情報・価格・安全性は
+// 検索結果の出典で確認する)。
+const TOPIC_GUIDES = [
+  { ja: ["作者のgithub", "githubを紹介", "作者について", "ソースコード"], en: ["author's github", "source code", "your github"],
+    title: "👤 作者のGitHub / Author's GitHub",
+    desc: "ソースコードはすべて公開しています。 / All source code is public.",
+    q: [], links: ["https://github.com/aon-co-jp", "https://github.com/aon-co-jp/open-english", "https://github.com/aon-co-jp/aruaru-llm", "https://github.com/aon-co-jp/aruaru-db"] },
+  { ja: ["イヤホン", "ヘッドホン", "ヘッドフォン", "イヤフォン", "usb-c", "4.4mm", "xlr", "ブルートゥース"], en: ["earphone", "headphone", "earbuds", "bluetooth audio"],
+    title: "🎧 イヤホン・ヘッドホン / Earphones & headphones",
+    desc: "安いUSB-C・3.5mm・4.4mmバランス・XLR・Bluetoothまで。 / From cheap USB-C, 3.5mm, 4.4mm balanced, XLR to Bluetooth.",
+    q: ["安い USB-C イヤホン おすすめ", "4.4mm バランス ヘッドホン 比較", "best budget IEM headphones review"] },
+  { ja: ["スピーカー", "アンプ", "ブックシェルフ", "埋め込み", "天井スピーカー", "壁掛け", "自作スピーカー", "特注スピーカー"], en: ["speaker", "amplifier", "bookshelf", "in-ceiling", "in-wall", "diy speaker"],
+    title: "🔊 スピーカー・アンプ / Speakers & amplifiers",
+    desc: "アンプ内蔵の小型、ブックシェルフ、中型・大型、壁・天井の埋め込みや吊り下げ・固定まで。メーカー品のほかに、DIYの自作スピーカーや特別注文(オーダーメイド)のスピーカーもございます。 / Powered compact, bookshelf, floor-standing, in-wall/in-ceiling, hung or fixed. Besides factory-made models, there are also DIY self-built speakers and custom-order (made-to-order) speakers.",
+    q: ["アンプ内蔵 小型スピーカー おすすめ", "ブックシェルフ スピーカー 入門", "天井 埋め込み スピーカー 施工", "in-ceiling speakers installation guide", "スピーカー 自作 DIY 入門 キット", "スピーカー 特注 オーダーメイド 工房", "DIY speaker build guide custom made speakers"] },
+  { ja: ["ホームシアター", "imax", "4dx", "家庭用シアター"], en: ["home theater", "home theatre", "imax", "4dx"],
+    title: "🎬 家庭用IMAX・4DX・ホームシアター / Home cinema",
+    desc: "家庭で映画館の迫力を。 / Cinema-grade sound and picture at home.",
+    q: ["家庭用 IMAX ホームシアター 作り方", "4DX 自宅 体感 シアター", "home theater room build guide"] },
+  { ja: ["工務店", "リフォーム業者", "リフォーム", "防音工事"], en: ["contractor", "renovation", "remodel"],
+    title: "🏠 工務店・リフォーム業者の探し方 / Finding a contractor",
+    desc: "口コミ・施工事例・相見積もり(3社以上)・許可/資格の確認が基本です。 / Check reviews, past work, get 3+ quotes, verify licenses.",
+    q: ["工務店 リフォーム業者 選び方 相見積もり", "防音 シアタールーム リフォーム 業者", "how to choose a renovation contractor"] },
+  { ja: ["核融合", "フュージョン"], en: ["fusion power", "nuclear fusion", "fusion energy"],
+    title: "⚛ 核融合発電 / Fusion power",
+    desc: "安全性の担保・燃料・発電効率の最新情報。京都の企業の動向も。 / Safety, fuel, efficiency; incl. Kyoto-based companies.",
+    q: ["核融合発電", "核融合発電 安全性 燃料 発電効率", "京都フュージョニアリング 核融合", "常温核融合 ストーブ", "fusion energy progress safety"] },
+  { ja: ["omega1", "ピストンレス", "オメガ1"], en: ["omega1", "pistonless engine"],
+    title: "⚙ ピストンレスエンジン OMEGA1 / Pistonless engine OMEGA1",
+    desc: "YouTubeでの紹介動画。 / Introduction videos on YouTube.",
+    q: ["OMEGA1 ピストンレスエンジン", "OMEGA1 pistonless engine Cyclone"] },
+  { ja: ["神社", "仏閣", "お寺", "奈良", "京都"], en: ["shrine", "temple", "kyoto", "nara"],
+    title: "⛩ 奈良・京都の神社仏閣巡り / Shrines & temples of Nara & Kyoto",
+    desc: "アナログな旅の楽しみ。 / An analog kind of travel.",
+    q: ["奈良 京都 神社仏閣 巡り モデルコース", "Kyoto Nara shrine temple travel guide"] },
+  { ja: ["温泉"], en: ["onsen", "hot spring"],
+    title: "♨ 温泉旅行 / Onsen trips", desc: "温泉地選びと宿の探し方。 / Choosing onsen towns and inns.",
+    q: ["温泉旅行 おすすめ 温泉地", "best onsen towns Japan"] },
+  { ja: ["和食", "日本食", "寿司", "ラーメン"], en: ["japanese food", "washoku", "sushi", "ramen"],
+    title: "🍣 おいしい日本食 / Japanese food", desc: "各地の和食と名店。 / Regional dishes and famous shops.",
+    q: ["おいしい 日本食 名店 巡り", "best Japanese food guide"] },
+  { ja: ["茶道", "書道", "剣道", "すもう", "相撲", "合気道", "柔道", "空手", "日本文化"], en: ["tea ceremony", "calligraphy", "kendo", "sumo", "aikido", "judo", "karate", "japanese culture"],
+    title: "🎎 日本文化(茶道・書道・剣道・相撲・合気道・柔道・空手) / Japanese culture",
+    desc: "文字と写真・動画で日本文化を紹介。 / Text, photos and videos on Japanese culture.",
+    q: ["茶道 書道 剣道 相撲 合気道 柔道 空手 入門", "Japanese martial arts and tea ceremony introduction"] },
+  { ja: ["アニメ", "ヒーロー", "ドラマ", "映画", "ライブ", "netflix", "u-next", "プライム"], en: ["anime", "hero show", "drama", "movie", "netflix", "prime video", "u-next"],
+    title: "📺 アニメ・ドラマ・映画・ライブ(U-NEXT/Netflix/Prime Video/YouTube) / Streaming picks",
+    desc: "視聴できる作品の探し方。配信状況は時期で変わります。 / How to find what to watch; availability changes.",
+    q: ["U-NEXT Netflix Amazonプライム おすすめ アニメ ドラマ 映画", "配信 ランキング TOP100"] },
+  { ja: ["top100", "トップ100"], en: ["top 100", "top100", "ranking"],
+    title: "🏆 TOP100で英会話・日本語会話 / Practice with a TOP100 list",
+    desc: "「TOP100の話題で英会話して」とお願いすると、そのテーマで会話練習できます。 / Ask \"practice English with a TOP100 topic\".",
+    q: ["TOP100 ランキング 最新"] },
+];
+const yt = (q) => "https://www.youtube.com/results?search_query=" + encodeURIComponent(q);
+const gg = (q) => "https://www.google.com/search?q=" + encodeURIComponent(q);
+
+function topicGuideSuffix(userText) {
+  const lower = userText.toLowerCase();
+  const hits = TOPIC_GUIDES.filter((t) => t.ja.some((k) => lower.includes(k.toLowerCase())) || t.en.some((k) => lower.includes(k))).slice(0, 2);
+  if (!hits.length) return "";
+  return hits.map((t) => {
+    const direct = (t.links || []).map((u) => `・${u}`).join("\n");
+    const links = direct + t.q.map((q) => `・${q}\n  YouTube: ${yt(q)}\n  Google: ${gg(q)}`).join("\n");
+    return `\n\n${t.title}\n${t.desc}\n${links}${t.links ? "" : "\n(検索リンクです。最新情報・価格・安全性は出典で確認してください / Search links only; verify latest info, prices and safety at the sources.)"}`;
+  }).join("");
 }
 
 async function newsSuffix(userText) {
@@ -5391,7 +5541,7 @@ formEl.addEventListener("submit", async (e) => {
     pending.classList.remove("pending");
     pending.className = `msg ${role}`;
     pending.dataset.role = role;
-    pending.textContent = msg;
+    renderMessageBody(pending, msg);
     scrollToMessageTop(pending);
   };
 
@@ -7715,7 +7865,7 @@ if (googleSearchBtn && googleSearchModal) {
   // 既存機能)とは独立——こちらはネットワーク往復無しで即座に
   // わかる「このブラウザ内の保存有無」のみを示す。
   function refreshLocalProviderKeyStatus() {
-    for (const provider of ["openai", "deepseek", "gemini", "claude"]) {
+    for (const provider of ["openai", "deepseek", "gemini", "claude", "groq", "mistral", "openrouter", "cloudflare"]) {
       const el = document.getElementById(`provider-key-status-${provider}`);
       if (!el) continue;
       let hasKey = false;
@@ -7810,6 +7960,10 @@ if (googleSearchBtn && googleSearchModal) {
       ["deepseek", "provider-key-deepseek"],
       ["gemini", "provider-key-gemini"],
       ["claude", "provider-key-claude"],
+      ["groq", "provider-key-groq"],
+      ["mistral", "provider-key-mistral"],
+      ["openrouter", "provider-key-openrouter"],
+      ["cloudflare", "provider-key-cloudflare"],
     ];
     const savedValues = {};
     for (const [provider, elId] of keyFields) {
@@ -7987,6 +8141,10 @@ if (googleSearchBtn && googleSearchModal) {
     deepseek: "https://platform.deepseek.com/api_keys",
     gemini: "https://aistudio.google.com/apikey",
     claude: "https://console.anthropic.com/settings/keys",
+    groq: "https://console.groq.com/keys",
+    mistral: "https://console.mistral.ai/api-keys",
+    openrouter: "https://openrouter.ai/keys",
+    cloudflare: "https://dash.cloudflare.com/profile/api-tokens",
   };
   Object.entries(PROVIDER_KEY_LINKS).forEach(([provider, baseUrl]) => {
     const input = document.getElementById(`provider-key-${provider}`);
@@ -8020,7 +8178,7 @@ if (googleSearchBtn && googleSearchModal) {
     clearBtn.addEventListener("click", async () => {
       const base = apiBaseEl ? apiBaseEl.value.trim() : "";
       try {
-        ["openai", "deepseek", "gemini", "claude"].forEach((p) => {
+        ["openai", "deepseek", "gemini", "claude", "groq", "mistral", "openrouter", "cloudflare"].forEach((p) => {
           localStorage.removeItem(PROVIDER_KEY_LOCAL_PREFIX + p);
           localStorage.removeItem(`open-english.dbProviderKey.${p}`);
         });
@@ -8067,6 +8225,7 @@ if (googleSearchBtn && googleSearchModal) {
   // への対応——従来この機能は設定パネルからのみ呼び出し可能で、実際の
   // 会話フローには一切配線されていなかった)。
   window.tryPriorityProviderReply = async function tryPriorityProviderReply(prompt) {
+    if (isCloudOff()) return null;
     let enabled = false;
     try {
       enabled = localStorage.getItem(PROVIDER_PRIORITY_ENABLED_KEY) === "1";
@@ -8102,6 +8261,7 @@ if (googleSearchBtn && googleSearchModal) {
     }
 
     try {
+      body.providers = getSelectedAis();
       const res = await fetchWithTimeout(
         `${base}/v1/chat-providers/complete-priority`,
         { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(body) },
@@ -8621,11 +8781,41 @@ const SHARED_CUSTOM_QA_ABSOLUTE_URL = "https://easy-web.tokyo/open-english/v1/cu
 // オリジンの相対パスで済み、それ以外(PC/タブレット/スマホ版)は絶対URL
 // で直接fetchする(カスタムQ&Aの`fetchSharedCustomQaPairs`と同じ
 // パターン)。
+// 利用者が選んだ同時利用AI(1=単独/2=ハイブリッド/3=トライブリッド)。空なら既定(サーバーの優先順上位2社)。
+const SELECTED_AIS_KEY = "open-english.selectedAis";
+// AIの選び方(2つの独立した設定): (1)この端末のローカルLLM(aruaru-llm)を使うか(既定ON)、
+// (2)追加で使うクラウドAI(Gemini・Groq・Mistral・OpenRouter・Cloudflare AI)を0〜3個。
+// クラウド「0個」= cloudOff。ローカルOFFかつクラウド0個は回答手段が無くなるため、UI側でローカルを自動でONに戻す。
+const CLOUD_OFF_KEY = "open-english.cloudOff";
+const USE_LOCAL_KEY = "open-english.useLocal";
+function isCloudOff() {
+  try {
+    return localStorage.getItem(CLOUD_OFF_KEY) === "1";
+  } catch (e) {
+    return false;
+  }
+}
+function isLocalLlmEnabled() {
+  try {
+    return localStorage.getItem(USE_LOCAL_KEY) !== "0";
+  } catch (e) {
+    return true;
+  }
+}
+function getSelectedAis() {
+  try {
+    const v = JSON.parse(localStorage.getItem(SELECTED_AIS_KEY) || "[]");
+    return Array.isArray(v) ? v.filter((x) => typeof x === "string").slice(0, 3) : [];
+  } catch (e) {
+    return [];
+  }
+}
 const SHARED_PRIORITY_PROVIDER_ABSOLUTE_URL = "https://easy-web.tokyo/open-english/v1/public/chat-providers/complete-priority";
 async function trySharedPriorityProviderReply(prompt) {
+  if (isCloudOff()) return null;
   const url = location.hostname === "easy-web.tokyo" ? "/v1/public/chat-providers/complete-priority" : SHARED_PRIORITY_PROVIDER_ABSOLUTE_URL;
   try {
-    const res = await fetchWithTimeout(url, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ prompt }) }, 45000);
+    const res = await fetchWithTimeout(url, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ prompt, providers: getSelectedAis() }) }, 45000);
     if (!res.ok) {
       if (res.status === 429) return null; // レート制限中は静かに自端末側へフォールバック
       return null;
@@ -16338,11 +16528,39 @@ refreshAdminState();
   const nameOf = (id) => AI_NAMES[id] || id;
   const sharedBase = () =>
     location.hostname.endsWith("easy-web.tokyo") ? "/open-english" : "https://easy-web.tokyo/open-english";
+  let lastStatus = null;
   async function refreshAiInUse() {
     try {
       const res = await fetch(sharedBase() + "/v1/public/chat-providers/active", { cache: "no-store" });
       if (!res.ok) throw new Error("HTTP " + res.status);
       const s = await res.json();
+      try {
+        // インストール版(localhost)は、自機のaruaru-llmに設定したAIも選べるようにする
+        if (!document.documentElement.classList.contains("is-web-only")) {
+          const lb = (document.getElementById("api-base") || {}).value;
+          if (lb) {
+            const lr = await fetch(lb.trim().replace(/\/$/, "") + "/v1/chat-providers/active", { cache: "no-store" });
+            if (lr.ok) {
+              const ls = await lr.json();
+              s.available = Array.from(new Set([...(ls.available || []), ...(s.available || [])]));
+            }
+          }
+        }
+      } catch (e) { /* 自機に無くても共有側だけで続行 */ }
+      lastStatus = s;
+      if (isCloudOff()) {
+        aiLine.textContent = "🖥 ローカルLLMのみで回答中(クラウドAI 0個) / Answering with the local LLM only (0 cloud AIs)";
+        return;
+      }
+      const chosen = getSelectedAis().filter((id) => (s.available || []).includes(id));
+      if (chosen.length) {
+        const rest = (s.available || []).filter((id) => !chosen.includes(id) && !(s.resting || []).includes(id));
+        const mode = chosen.length === 1 ? "単独 / single" : chosen.length === 2 ? "ハイブリッド / hybrid" : "トライブリッド / tri-hybrid";
+        let t = "🤖 選択中(" + mode + ") / Your choice: " + chosen.map(nameOf).join(" + ");
+        if (rest.length) t += "  (予備 / standby: " + rest.map(nameOf).join(", ") + ")";
+        aiLine.textContent = t;
+        return;
+      }
       if (!s.active || s.active.length === 0) {
         aiLine.textContent = "🤖 いま使用中の無料AI: なし(この端末の内蔵AIで回答) / Free AIs in use now: none (answering with the built-in on-device AI)";
         return;
@@ -16358,6 +16576,87 @@ refreshAdminState();
   refreshAiInUse();
   setInterval(refreshAiInUse, 60000);
 
+  // --- 使うAIを選ぶ(1個=単独 / 2個=ハイブリッド / 最大3個=トライブリッド) ---
+  const pickBtn = document.createElement("button");
+  pickBtn.type = "button";
+  pickBtn.className = "ai-pick-btn";
+  pickBtn.textContent = "⚙ 選ぶ / Choose";
+  aiLine.insertAdjacentElement("afterend", pickBtn);
+  const pickPanel = document.createElement("div");
+  pickPanel.className = "ai-pick-panel hidden";
+  dock.appendChild(pickPanel);
+  const renderPicker = () => {
+    const avail = (lastStatus && lastStatus.available) || [];
+    const chosen = getSelectedAis().filter((id) => avail.includes(id));
+    pickPanel.replaceChildren();
+    const h = document.createElement("div");
+    h.className = "ai-pick-title";
+    h.textContent = "追加で使うクラウドAIを0〜3個選択 / Add 0 to 3 cloud AIs (1=単独 single, 2=ハイブリッド hybrid, 3=トライブリッド tri-hybrid)";
+    pickPanel.appendChild(h);
+    const mkToggle = (label, checked, onChange) => {
+      const lab = document.createElement("label");
+      lab.style.width = "100%";
+      const cb = document.createElement("input");
+      cb.type = "checkbox";
+      cb.checked = checked;
+      cb.addEventListener("change", () => onChange(cb.checked));
+      lab.append(cb, " " + label);
+      pickPanel.appendChild(lab);
+    };
+    mkToggle("🖥 ローカルLLM(この端末のaruaru-llm)を使う / Use the local LLM (this device's aruaru-llm)", isLocalLlmEnabled(), (on) => {
+      try { localStorage.setItem(USE_LOCAL_KEY, on ? "1" : "0"); } catch (e) { /* ignore */ }
+      if (!on && isCloudOff()) { try { localStorage.setItem(CLOUD_OFF_KEY, "0"); } catch (e) { /* ignore */ } }
+      refreshAiInUse();
+      renderPicker();
+    });
+    mkToggle("☁ クラウドAIを使わない(0個) / Use no cloud AIs (0)", isCloudOff(), (on) => {
+      try { localStorage.setItem(CLOUD_OFF_KEY, on ? "1" : "0"); } catch (e) { /* ignore */ }
+      if (on && !isLocalLlmEnabled()) { try { localStorage.setItem(USE_LOCAL_KEY, "1"); } catch (e) { /* ignore */ } }
+      refreshAiInUse();
+      renderPicker();
+    });
+    if (!avail.length) {
+      const n = document.createElement("div");
+      n.textContent = "選べるAIを取得できません / No AIs available to choose";
+      pickPanel.appendChild(n);
+    }
+    avail.forEach((id) => {
+      const lab = document.createElement("label");
+      const cb = document.createElement("input");
+      cb.type = "checkbox";
+      cb.checked = chosen.includes(id);
+      cb.addEventListener("change", () => {
+        let cur = getSelectedAis().filter((x) => avail.includes(x));
+        if (cb.checked) {
+          if (cur.length >= 3) {
+            cb.checked = false;
+            return;
+          }
+          cur.push(id);
+        } else {
+          cur = cur.filter((x) => x !== id);
+        }
+        try { localStorage.setItem(SELECTED_AIS_KEY, JSON.stringify(cur)); localStorage.setItem(CLOUD_OFF_KEY, "0"); } catch (e) { /* ignore */ }
+        refreshAiInUse();
+      });
+      lab.append(cb, " " + nameOf(id) + ((lastStatus && (lastStatus.resting || []).includes(id)) ? " (休止中 / resting)" : ""));
+      pickPanel.appendChild(lab);
+    });
+    const reset = document.createElement("button");
+    reset.type = "button";
+    reset.textContent = "おまかせに戻す / Reset to automatic";
+    reset.addEventListener("click", () => {
+      try { localStorage.removeItem(SELECTED_AIS_KEY); localStorage.removeItem(CLOUD_OFF_KEY); localStorage.removeItem(USE_LOCAL_KEY); } catch (e) { /* ignore */ }
+      refreshAiInUse();
+      renderPicker();
+    });
+    pickPanel.appendChild(reset);
+  };
+  pickBtn.addEventListener("click", () => {
+    if (pickPanel.classList.contains("hidden")) renderPicker();
+    pickPanel.classList.toggle("hidden");
+  });
+
   // --- 最新の回答を、ドックの回答枠へ映す ---
   let refreshTimer = null;
   const syncAnswer = () => {
@@ -16367,7 +16666,7 @@ refreshAdminState();
       answerBox.classList.add("hidden");
       return;
     }
-    answerBox.textContent = (last.textContent || "").slice(0, 4000);
+    renderMessageBody(answerBox, (last.textContent || "").slice(0, 4000));
     answerBox.classList.remove("hidden");
     answerBox.scrollTop = 0;
     if (!log.querySelector(".msg.pending")) {
@@ -16415,5 +16714,13 @@ refreshAdminState();
         attributeFilter: ["class"],
       });
     }
+  }
+})();
+
+// 自動読み書きSETUP状況パネル(GitHub/ローカルドライブ/VPSの設定)は、PC・タブレット・スマホの
+// インストール版(localhost)だけに表示する(ユーザー指示2026-09-21: セキュリティ上、公開WEB版では出さない)。
+(function () {
+  if (!/^(127\.0\.0\.1|localhost|\[::1\])$/.test(location.hostname)) {
+    document.documentElement.classList.add("is-web-only");
   }
 })();
