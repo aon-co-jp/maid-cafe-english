@@ -1393,3 +1393,6 @@ label.setup-note {
 .ai-pick-title { width: 100%; font-weight: 600; }
 .ai-pick-panel label { cursor: pointer; }
 .ai-pick-panel button { font-size: 12px; padding: 2px 10px; border-radius: 12px; cursor: pointer; }
+
+.is-web-only #autorw-status-banner, .is-web-only #autorw-status-banner-toggle { display: none !important; }
+.author-github { margin: 6px 20px; font-size: 13px; }

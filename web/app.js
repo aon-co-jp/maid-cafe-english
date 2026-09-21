@@ -3204,6 +3204,10 @@ function mentionsNewsTopic(userText) {
 // 検索リンクと固定の紹介文であり、AIが作った事実情報ではない(最新情報・価格・安全性は
 // 検索結果の出典で確認する)。
 const TOPIC_GUIDES = [
+  { ja: ["作者のgithub", "githubを紹介", "作者について", "ソースコード"], en: ["author's github", "source code", "your github"],
+    title: "👤 作者のGitHub / Author's GitHub",
+    desc: "ソースコードはすべて公開しています。 / All source code is public.",
+    q: [], links: ["https://github.com/aon-co-jp", "https://github.com/aon-co-jp/open-english", "https://github.com/aon-co-jp/aruaru-llm", "https://github.com/aon-co-jp/aruaru-db"] },
   { ja: ["イヤホン", "ヘッドホン", "ヘッドフォン", "イヤフォン", "usb-c", "4.4mm", "xlr", "ブルートゥース"], en: ["earphone", "headphone", "earbuds", "bluetooth audio"],
     title: "🎧 イヤホン・ヘッドホン / Earphones & headphones",
     desc: "安いUSB-C・3.5mm・4.4mmバランス・XLR・Bluetoothまで。 / From cheap USB-C, 3.5mm, 4.4mm balanced, XLR to Bluetooth.",
@@ -3259,8 +3263,9 @@ function topicGuideSuffix(userText) {
   const hits = TOPIC_GUIDES.filter((t) => t.ja.some((k) => lower.includes(k.toLowerCase())) || t.en.some((k) => lower.includes(k))).slice(0, 2);
   if (!hits.length) return "";
   return hits.map((t) => {
-    const links = t.q.map((q) => `・${q}\n  YouTube: ${yt(q)}\n  Google: ${gg(q)}`).join("\n");
-    return `\n\n${t.title}\n${t.desc}\n${links}\n(検索リンクです。最新情報・価格・安全性は出典で確認してください / Search links only; verify latest info, prices and safety at the sources.)`;
+    const direct = (t.links || []).map((u) => `・${u}`).join("\n");
+    const links = direct + t.q.map((q) => `・${q}\n  YouTube: ${yt(q)}\n  Google: ${gg(q)}`).join("\n");
+    return `\n\n${t.title}\n${t.desc}\n${links}${t.links ? "" : "\n(検索リンクです。最新情報・価格・安全性は出典で確認してください / Search links only; verify latest info, prices and safety at the sources.)"}`;
   }).join("");
 }
 
@@ -16564,5 +16569,13 @@ refreshAdminState();
         attributeFilter: ["class"],
       });
     }
+  }
+})();
+
+// 自動読み書きSETUP状況パネル(GitHub/ローカルドライブ/VPSの設定)は、PC・タブレット・スマホの
+// インストール版(localhost)だけに表示する(ユーザー指示2026-09-21: セキュリティ上、公開WEB版では出さない)。
+(function () {
+  if (!/^(127\.0\.0\.1|localhost|\[::1\])$/.test(location.hostname)) {
+    document.documentElement.classList.add("is-web-only");
   }
 })();
