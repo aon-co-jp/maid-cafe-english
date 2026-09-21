@@ -1666,7 +1666,7 @@ function playToraSanJingle() {
 // 固定のドメインであり、AI生成テキストが任意に生成しうる文字列
 // ではないため安全と判断した(`creatorWebsiteLinksText`参照)。
 const AUDIOCAFE_LINK_PATTERN =
-  /https:\/\/audiocafe\.tokyo(?:\/[^\s)]*)?|https:\/\/aon\.co\.jp(?:\/[^\s)]*)?|https:\/\/aon\.tokyo(?:\/[^\s)]*)?|https:\/\/nasa\.tokyo(?:\/[^\s)]*)?|https:\/\/aruaru\.tokyo(?:\/[^\s)]*)?|https:\/\/www\.amazon\.co\.jp\/dp\/B0H14VXGCC\/?|https:\/\/ameblo\.jp\/www-aon\/entry-12977122655\.html|https:\/\/www\.youtube\.com\/results\?search_query=[^\s)]*/g;
+  /https:\/\/audiocafe\.tokyo(?:\/[^\s)]*)?|https:\/\/aon\.co\.jp(?:\/[^\s)]*)?|https:\/\/aon\.tokyo(?:\/[^\s)]*)?|https:\/\/nasa\.tokyo(?:\/[^\s)]*)?|https:\/\/aruaru\.tokyo(?:\/[^\s)]*)?|https:\/\/www\.amazon\.co\.jp\/dp\/B0H14VXGCC\/?|https:\/\/ameblo\.jp\/www-aon\/entry-12977122655\.html|https:\/\/www\.youtube\.com\/results\?search_query=[^\s)]*|https:\/\/www\.google\.com\/search\?q=[^\s)]*|https:\/\/github\.com\/aon-co-jp(?:\/[A-Za-z0-9._-]+)?/g;
 
 /** テキストを、既知ドメインのURLだけ`<a>`化した上で`container`へ描画する。 */
 function renderMessageBody(container, text) {
@@ -3227,7 +3227,7 @@ const TOPIC_GUIDES = [
   { ja: ["核融合", "フュージョン"], en: ["fusion power", "nuclear fusion", "fusion energy"],
     title: "⚛ 核融合発電 / Fusion power",
     desc: "安全性の担保・燃料・発電効率の最新情報。京都の企業の動向も。 / Safety, fuel, efficiency; incl. Kyoto-based companies.",
-    q: ["核融合発電 安全性 燃料 発電効率", "京都フュージョニアリング 核融合", "fusion energy progress safety"] },
+    q: ["核融合発電", "核融合発電 安全性 燃料 発電効率", "京都フュージョニアリング 核融合", "常温核融合 ストーブ", "fusion energy progress safety"] },
   { ja: ["omega1", "ピストンレス", "オメガ1"], en: ["omega1", "pistonless engine"],
     title: "⚙ ピストンレスエンジン OMEGA1 / Pistonless engine OMEGA1",
     desc: "YouTubeでの紹介動画。 / Introduction videos on YouTube.",
