@@ -1323,3 +1323,9 @@ Android版ChromeでのPWAインストール(ホーム画面への「ワンタッ
 ウクライナ語・イタリア語)を選択している場合に、その言語への訳文が
 追加表示されるようになった。詳細は本CLAUDE.mdの2026-08-27付
 HANDOFFを参照。
+
+## 2026-09-21の更新 / Update 2026-09-21
+
+- **AIの選び方**: ローカルLLMのON/OFFと、クラウドAI(Gemini・Groq・Mistral・OpenRouter・Cloudflare AI)0〜3個を独立して選択(下部ドック「⚙ 選ぶ」)。 / Independent choice of the local LLM (on/off) and 0-3 cloud AIs (dock "⚙ Choose").
+- **スマホのNPU計算と診断(v0.8.13候補)**: NNAPIの加速器を列挙し、CPUより速く品質を満たす場合だけ採用。「おすすめLLM」画面の「📱 この端末のCPU・GPU・NPU診断」で確認可能(実機OPPO Reno11 Aで一括計算が6〜7倍)。 / Phone NPU compute and diagnosis (v0.8.13 candidate): enumerates NNAPI accelerators and uses them only when faster than CPU and quality gates pass (6-7x on batched compute on a real OPPO Reno11 A).
+- **読み上げ改善・話題ガイド・多言語Q&A** / TTS improvements, topic guides, multilingual Q&A.

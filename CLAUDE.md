@@ -7873,3 +7873,45 @@ solution」を含む要求を**出題より先に答えの要求として処理*
 としてファイルに入り、正規表現が壊れる(見た目は`all`)。正規表現を含む置換は**ファイル経由か
 Editツール**で行い、`grep -P '\x08'`等で制御文字が混入していないか確認すること。
 本番VPSには反映済み。インストール済みアプリへは次のバージョンタグで届く(v0.8.10には未収録)。
+
+## HANDOFF追記(2026-09-21、本日のまとめ) / HANDOFF addendum (2026-09-21, today's summary)
+
+**日本語**
+- **v0.8.12リリース済み**(Windows/macOS/Linux/Android全5点)。含む: 使う無料AIの選択(クラウド0〜3個+ローカルLLMのON/OFF、`⚙ 選ぶ`)、下部固定ドック、話題ガイド(オーディオ・ホームシアター・核融合・日本文化等のYouTube/Google検索リンク)、
+  読み上げ改善(言語区画の抽出・URL/絵文字除去・文分割・漢字読み辞書`SPEECH_READINGS`)、WEB版ではSETUP系パネル/ボタンを非表示(`is-web-only`)、作者のGitHubリンク、Groq/Mistral/OpenRouter/Cloudflareのキー入力欄。
+- **DB(カスタムQ&A)**: 「核武装」「核融合発電」「常温核融合」「核融合発電成功」を日英中3言語で登録(翻訳はClaudeが作成しDBへ保存、回答時はDBから表示)。無料翻訳APIの500文字制限で英中欄がエラー文になっていた不具合を修正。
+- **スマホNPU(NNAPI)の作り直し(未リリース、v0.8.13候補)**: `NnapiProbe`(NDKでNNAPI加速器を列挙)、`NnapiVectorKernel`/`NnapiMatVecKernel`(実行時組立TFLiteモデル、FP32/FP16/int8、加速器名指定)、
+  `MatVecSelector`(TFLite CPUを基準に公平比較+品質ゲート)、`HardwareReport`(JSブリッジ`OpenEnglishNative`、「おすすめLLM」画面の診断ボタン)。
+  実機: OPPO Reno11 A(Dimensity 7050)で`mtk-mdla_shim`/`mtk-neuron_shim`のfp16が**一括計算でTFLite CPU比6〜7倍**(1クエリはCPUが速い)。moto g53y(Snapdragon 480+)はNNAPI加速器なし(確定)。arrows We2 Plus(Snapdragon 7s Gen 2)は**未検証**。
+- **教訓**: (1)CPU基準にはウォームアップ済みのTFLite CPUを使う(素朴ループとの比較は誤認を生む)。(2)`WebView.url`はメインスレッド専用。(3)`.cxx/`はコミットしない(`.gitignore`済み)。(4)ユーザーの実機のUIを盲目的に自動操作しない。
+
+**English**
+- **v0.8.12 released** (Windows/macOS/Linux/Android, 5 assets): AI picker (0-3 cloud AIs + local-LLM on/off), fixed bottom dock, topic guides with YouTube/Google links, TTS improvements (kanji reading dictionary etc.), SETUP panels hidden on the public web version, author GitHub links, key fields for Groq/Mistral/OpenRouter/Cloudflare.
+- **Custom Q&A in the DB**: "核武装", "核融合発電", "常温核融合", "核融合発電成功" registered in ja/en/zh (translations by Claude, stored in and served from the DB). Fixed EN/ZH fields that held a free-API error string (500-char limit).
+- **Phone NPU (NNAPI) rebuild (not released; v0.8.13 candidate)**: `NnapiProbe`, `NnapiVectorKernel`/`NnapiMatVecKernel` (runtime-built TFLite, FP32/FP16/int8, accelerator pinning), `MatVecSelector` (fair comparison vs TFLite CPU + quality gates), `HardwareReport` (JS bridge + diagnosis button).
+  OPPO Reno11 A: fp16 on `mtk-mdla_shim`/`mtk-neuron_shim` is **6-7x faster than TFLite CPU on batched matvec** (single query: CPU wins). moto g53y: no NNAPI accelerator (confirmed). arrows We2 Plus: **not verified yet**.
+- **Lessons**: (1) benchmark against a warmed-up TFLite CPU; (2) `WebView.url` is main-thread-only; (3) never commit `.cxx/`; (4) never blind-drive the user's phone UI.
+
+## 🛑 再開用メッセージ(2026-09-21終了時点) / Resume message (as of the end of 2026-09-21)
+
+**日本語(次回このセッションを続ける人へ)**
+1. **途中だったテスト**: arrows We2 Plus(M06、Snapdragon 7s Gen 2、Android 16)の**診断結果待ち**。USB/Wi-Fiではadb接続できなかったため、診断用APKをBluetoothで送る途中だった。
+   送るファイル: `F:\open-english-diagnostic-tablet.apk`(13,391,989バイト、15:53作成、既存の「open-english タブレット版」へ上書き可)。アプリで「Recommend LLM」→「Detect & Compare」→「📱 この端末のCPU・GPU・NPU診断」を押した画面のスクリーンショットを受け取ること。
+2. **判断待ち**: We2 Plusで`nnapi_devices`に`qti-*`等の実在加速器が出れば、そのままNNAPI版で加速を測る。出なければLiteRT(CompiledModel+QNN、HTP v69以降が対象。Android 14+/arm64)への移行を検討する(LiteRT 2.xはNNAPI Delegateを持たず併存不可)。
+3. **リリース**: v0.8.13は**未リリース**。含む予定: NNAPI作り直し(`NnapiProbe`/int8/`MatVecSelector`/`HardwareReport`)、CPU命令インベントリ、ハードウェア仕様表示、診断ボタン修正(WebView.urlのスレッド問題)。タグ前にCIのNDK/CMake(`release.yml`のsetup-android packages)が通るかをAndroidジョブで確認すること(ローカルassembleは成功済み)。
+4. **手元の状態**: 実機OPPO Reno11 A(IBAUDQYDCA8P6XZ9)にタブレット版APKが入っている(診断画面を開いたまま)。エミュレータ`Pixel_9_Pro`が起動中の可能性あり(`adb -s emulator-5554 emu kill`で停止)。moto g53y(ZY22J7RFND)は接続を外した。
+   Bluetoothの転送画面(fsquirt)を開いた状態のことがある。配布用の一時HTTPサーバーは停止・削除済み。
+5. **テストの再実行**: `cd mobile/android; $env:ANDROID_SERIAL="<serial>"; ./gradlew.bat --no-daemon connectedPhoneDebugAndroidTest`(全9+件)。単体は`-Pandroid.testInstrumentationRunnerArguments.class=tokyo.runo.openenglish.<Test>`。OPPOの重要な結果: 行列16384x768・64クエリで`mtk-mdla_shim` fp16が11.0ms(TFLite CPU 77.9ms、6〜7倍)。
+6. **VPS**: open-english(web)は反映済み(`/root/easy-web.tokyo/open-english`をpull→`open-english{,-demo}`再起動)。aruaru-llmは`../open-cpu`をパス依存するため、更新時は**open-cpu→aruaru-llmの順にpull**して`cargo build --release`、`aruaru-llm.service`再起動。
+7. **注意**: ユーザーの実機のUIを自動操作するときは、1画面ごとにスクリーンショットで位置を確認する(誤タップでホーム画面へ戻った事故があった)。スクリーンショットにはIMEI等が写るので値を転記しない。
+8. **既知の宿題**: 診断のint8はホスト側の量子化変換が律速でfp16より遅い(改善余地)/インストール版に「管理者ログインはこちら」が出る/Model Folding・MLA・int4量子化の本格実装(`open-cuda/DEVELOPMENT-NEXT.md`)/open-directx側のDirectML NPU検討/GitHub側の多言語READMEの追随(今回は日英のみ更新)。
+
+**English (for whoever resumes)**
+1. **Test in progress**: waiting for the **diagnosis output of the arrows We2 Plus** (M06, Snapdragon 7s Gen 2, Android 16). adb over USB/Wi-Fi did not connect, so we were sending the diagnostic APK by Bluetooth. File: `F:\open-english-diagnostic-tablet.apk` (13,391,989 bytes, built 15:53; it can update the already installed "open-english タブレット版"). Get a screenshot of the "Recommend LLM" → "Detect & Compare" → "📱 Diagnose this device" result.
+2. **Pending decision**: if We2 Plus lists a real accelerator (e.g. `qti-*`) under `nnapi_devices`, keep measuring via NNAPI; otherwise consider migrating to LiteRT (CompiledModel + QNN, HTP v69+, Android 14+/arm64). LiteRT 2.x has no NNAPI delegate, so the two cannot coexist.
+3. **Release**: v0.8.13 is **not released**. Planned contents: NNAPI rebuild (`NnapiProbe`/int8/`MatVecSelector`/`HardwareReport`), CPU inventory, hardware-spec view, diagnosis-button fix (WebView.url threading). Before tagging, confirm the CI Android job passes with NDK/CMake (`release.yml` setup-android packages); local assemble already succeeds.
+4. **Local state**: the tablet APK is installed on the OPPO Reno11 A (IBAUDQYDCA8P6XZ9) with the diagnosis view open. The `Pixel_9_Pro` emulator may still be running (`adb -s emulator-5554 emu kill`). moto g53y (ZY22J7RFND) was unplugged. The Bluetooth transfer window (fsquirt) may be open. The temporary HTTP file server was stopped and deleted.
+5. **Re-running tests**: `cd mobile/android; $env:ANDROID_SERIAL="<serial>"; ./gradlew.bat --no-daemon connectedPhoneDebugAndroidTest` (9+ tests); single class via `-Pandroid.testInstrumentationRunnerArguments.class=tokyo.runo.openenglish.<Test>`. Key OPPO result: 16384x768 with 64 batched queries — `mtk-mdla_shim` fp16 11.0 ms vs TFLite CPU 77.9 ms (6-7x).
+6. **VPS**: open-english (web) is deployed (pull `/root/easy-web.tokyo/open-english`, restart `open-english{,-demo}`). aruaru-llm path-depends on `../open-cpu`: **pull open-cpu, then aruaru-llm**, `cargo build --release`, restart `aruaru-llm.service`.
+7. **Caution**: when driving the user's phone UI, check a screenshot after every step (a mis-tap once sent it to the home screen). Screenshots may contain IMEI etc.; never transcribe such values.
+8. **Known TODO**: int8 diagnosis is bottlenecked by host-side quantization and is slower than fp16 / the installed app still shows "admin login" / real Model Folding, MLA and int4 work (`open-cuda/DEVELOPMENT-NEXT.md`) / DirectML NPU for open-directx / update the GitHub multilingual READMEs (only ja/en were updated).

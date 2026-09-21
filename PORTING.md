@@ -1105,3 +1105,21 @@ only lists the reusable takeaways.
             `client/web/`（Phase 2b で完了済み）であり、`open-english-pc/pc/` 側に
             重複したビルド設定を持たせる理由がない（`BUILD.md` の pc/ 節に明記）。
             具体的な要件が出た時点で追加する
+
+## 追記(2026-09-21): スマホNPU(NNAPI)対応の移植ポイント / Phone NPU (NNAPI) porting notes
+
+**日本語**
+- NNAPIは**Android 15で非推奨**。新しい標準はLiteRT(旧TFLite)のCompiledModel API+ベンダー別アクセラレーター(Qualcomm QNN: HTP v69〜v81、MediaTek NeuroPilot: Dimensity 7300/8300/9000〜9500、Tensor、Exynos、Intel)。LiteRT 2.xは`NnApiDelegate`を持たないためNNAPI版と併存できない。
+- 実行時にTFLite FlatBufferモデルを組み立てる(`flatbuffers-java`)。MUL/SUM/FULLY_CONNECTED、int8は対称量子化(zero_point=0)。
+- NNAPI加速器の列挙はNDK(`src/main/cpp/nnapi_probe.c`、`dlopen("libneuralnetworks.so")`)。Gradleは`ndkVersion=27.1.12297006`+CMake 3.22.1、CIの`setup-android`の`packages`にndk/cmakeを追加済み。
+- 加速器名の指定は`NnApiDelegate.Options.setAcceleratorName`(存在しない名前は例外=黙ってCPUに落ちない)。
+- JSブリッジ`OpenEnglishNative.hardwareReport()`はJSスレッドで呼ばれる。`WebView.url`はメインスレッドで読む。127.0.0.1以外のページには返さない。
+- 実機テスト: `./gradlew connectedPhoneDebugAndroidTest`(`ANDROID_SERIAL`で端末指定)。
+
+**English**
+- NNAPI is **deprecated in Android 15**; the new standard is LiteRT's CompiledModel API + vendor accelerators (Qualcomm QNN HTP v69-v81, MediaTek NeuroPilot Dimensity 7300/8300/9000-9500, Tensor, Exynos, Intel). LiteRT 2.x has no `NnApiDelegate`, so it cannot coexist with the NNAPI build.
+- TFLite FlatBuffer models are built at runtime (`flatbuffers-java`): MUL/SUM/FULLY_CONNECTED; int8 uses symmetric quantization (zero_point=0).
+- NNAPI accelerators are enumerated via the NDK (`src/main/cpp/nnapi_probe.c`, `dlopen("libneuralnetworks.so")`). Gradle: `ndkVersion=27.1.12297006` + CMake 3.22.1; CI `setup-android` `packages` now include ndk/cmake.
+- Pin an accelerator with `NnApiDelegate.Options.setAcceleratorName` (an unknown name throws — no silent CPU fallback).
+- The JS bridge `OpenEnglishNative.hardwareReport()` runs on the JS thread; read `WebView.url` on the main thread; answer only 127.0.0.1 pages.
+- Device tests: `./gradlew connectedPhoneDebugAndroidTest` (pick a device with `ANDROID_SERIAL`).
