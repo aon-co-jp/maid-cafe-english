@@ -1969,6 +1969,16 @@ function prepareSpeechText(text, lang) {
 /** 長文でも途切れないよう、文ごと(最大110字)に分割する。 */
 function splitSpeechChunks(text, lang) {
   const sentences = text.split(/(?<=[。！？!?\n])|(?<=\. )/).map((s) => s.trim()).filter(Boolean);
+  // 句点の無い長い行は、読点・カンマ・「:」でさらに分割する
+  for (let i = 0; i < sentences.length; i++) {
+    if (sentences[i].length > 110) {
+      const parts = sentences[i].split(/(?<=[、,，:：;；])/).map((s) => s.trim()).filter(Boolean);
+      if (parts.length > 1) {
+        sentences.splice(i, 1, ...parts);
+        i += parts.length - 1;
+      }
+    }
+  }
   const chunks = [];
   let cur = "";
   for (const s of sentences) {
