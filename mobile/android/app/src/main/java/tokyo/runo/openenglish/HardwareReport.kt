@@ -122,8 +122,9 @@ class HardwareReport(private val context: Context, private val webView: WebView)
             o.put("pair_error", e.message ?: "failed")
         }
         val rows = JSONArray()
-        for (m in intArrayOf(2048, 8192)) {
-            try { rows.put(MatVecSelector.evaluate(m, 768)) } catch (t: Throwable) { rows.put(JSONObject().put("rows", m).put("error", t.message ?: "failed")) }
+        // 小さい計算(1クエリ)と、まとめて計算(64クエリ)の2条件。NPUは後者で有利になる(実機OPPOで確認)。
+        for ((m, b) in listOf(8192 to 1, 16384 to 64)) {
+            try { rows.put(MatVecSelector.evaluate(m, 768, batch = b)) } catch (t: Throwable) { rows.put(JSONObject().put("rows", m).put("batch", b).put("error", t.message ?: "failed")) }
         }
         o.put("matvec", rows)
         o.put("note", "判定はTFLiteのCPUカーネル(NNAPIなし)との比較。実在する加速器を名前指定して測り、1.3倍以上速く品質ゲートも通った場合だけ「加速器が効いている」と見なします。int8は近似(上位10件の一致率で評価)です。")

@@ -17,8 +17,8 @@ object MatVecSelector {
 
     data class Candidate(val label: String, val ms: Double, val normRms: Double, val topK: Double, val passesQuality: Boolean, val note: String = "")
 
-    fun evaluate(m: Int, n: Int, includeReferenceCpu: Boolean = false): JSONObject {
-        val out = JSONObject().put("rows", m).put("cols", n)
+    fun evaluate(m: Int, n: Int, includeReferenceCpu: Boolean = false, batch: Int = 1): JSONObject {
+        val out = JSONObject().put("rows", m).put("cols", n).put("batch", batch)
         val (devices, probeErr) = NnapiProbe.devices()
         out.put("nnapi_devices", JSONArray(devices.map { JSONObject().put("name", it.name).put("type", it.typeLabel).put("version", it.version).put("real_accelerator", it.isRealAccelerator) }))
         if (probeErr != null) out.put("probe_error", probeErr)
@@ -26,9 +26,9 @@ object MatVecSelector {
         val rnd = java.util.Random(1)
         val corpus = FloatArray(m * n) { rnd.nextGaussian().toFloat() }
         val calib = FloatArray(8 * n) { rnd.nextGaussian().toFloat() }
-        val q = FloatArray(n) { rnd.nextGaussian().toFloat() }
-        val ref = NnapiMatVecKernel.cpuMultiply(corpus, m, n, 1, q)
-        val runs = 8
+        val q = FloatArray(batch * n) { rnd.nextGaussian().toFloat() }
+        val ref = NnapiMatVecKernel.cpuMultiply(corpus, m, n, batch, q)
+        val runs = if (batch >= 32) 4 else 8
         val cands = ArrayList<Candidate>()
 
         fun measure(label: String, k: NnapiMatVecKernel?, gate: (NnapiMatVecKernel.Companion.Quality) -> Boolean, note: String = "") {
@@ -36,7 +36,7 @@ object MatVecSelector {
             k.use {
                 try {
                     val got = it.multiply(q)
-                    val ql = NnapiMatVecKernel.quality(ref, got)
+                    val ql = NnapiMatVecKernel.quality(ref.copyOfRange(0, m), got.copyOfRange(0, m)) // 先頭クエリの結果で評価
                     for (i in 0 until 3) it.multiply(q)
                     val t = System.nanoTime()
                     for (i in 0 until runs) it.multiply(q)
@@ -53,7 +53,7 @@ object MatVecSelector {
 
         // CPU基準(NNAPIなし)
         for (th in intArrayOf(1, 4)) {
-            measure("tflite-cpu(threads=$th)", NnapiMatVecKernel.create(corpus, m, m.let { n }, 1, useNnapiDelegate = false, cpuThreads = th), exact)
+            measure("tflite-cpu(threads=$th)", NnapiMatVecKernel.create(corpus, m, n, batch, useNnapiDelegate = false, cpuThreads = th), exact)
         }
         val cpuBest = cands.filter { it.passesQuality && !it.ms.isNaN() }.minByOrNull { it.ms }
 
@@ -61,9 +61,9 @@ object MatVecSelector {
         val targets = devices.filter { it.isRealAccelerator || includeReferenceCpu }
         for (d in targets) {
             val nm = d.name
-            measure("nnapi-fp32@$nm", NnapiMatVecKernel.create(corpus, m, n, 1, allowFp16 = false, acceleratorName = nm), exact)
-            measure("nnapi-fp16@$nm", NnapiMatVecKernel.create(corpus, m, n, 1, allowFp16 = true, acceleratorName = nm), fp16)
-            measure("nnapi-int8@$nm", NnapiMatVecKernel.create(corpus, m, n, 1, acceleratorName = nm, int8 = true, calibrationQueries = calib), int8, "int8量子化(近似)")
+            measure("nnapi-fp32@$nm", NnapiMatVecKernel.create(corpus, m, n, batch, allowFp16 = false, acceleratorName = nm), exact)
+            measure("nnapi-fp16@$nm", NnapiMatVecKernel.create(corpus, m, n, batch, allowFp16 = true, acceleratorName = nm), fp16)
+            measure("nnapi-int8@$nm", NnapiMatVecKernel.create(corpus, m, n, batch, acceleratorName = nm, int8 = true, calibrationQueries = calib), int8, "int8量子化(近似)")
         }
         if (targets.isEmpty()) out.put("accelerator_note", "この端末のNNAPIには実在する加速器(NPU/DSP/GPU)がありません(nnapi-referenceはAndroid標準のCPU実装)。")
 

@@ -10240,14 +10240,13 @@ async function detectAndCompareLlm() {
             L.push(`GPU: ${g.gl_renderer || "?"} (${g.gl_vendor || "?"}), OpenGL ES ${g.gles_version || "?"}, Vulkan: ${g.vulkan ? "yes" : "no"}`);
             const n = r.nnapi || {};
             L.push(`NNAPI ペア計算(768) / pair(768): ${n.pair_768_selected || n.pair_error}`);
+            (n.nnapi_devices_note || "");
             (n.matvec || []).forEach((m) => {
-              if (m.nnapi_ms !== undefined) {
-                const verdict = m.accelerator_effective === undefined ? "" : m.accelerator_effective
-                  ? " → ✅ 加速器が効いています / accelerator effective"
-                  : " → ⚪ NNAPIの加速器は効いていません(TFLiteのCPUと同等) / no accelerator benefit";
-                L.push(`NNAPI 行列×ベクトル ${m.rows}x${m.cols}: NNAPI ${m.nnapi_ms.toFixed(2)}ms / TFLite-CPU ${m.tflite_cpu_ms !== undefined ? m.tflite_cpu_ms.toFixed(2) : "?"}ms / 素朴CPU ${m.cpu_ms.toFixed(2)}ms (誤差 err ${m.max_err.toExponential(1)})${verdict}`);
-              }
-              else L.push(`NNAPI 行列×ベクトル ${m.rows}x${m.cols}: ${m.nnapi || m.error} / CPU ${m.cpu_ms ? m.cpu_ms.toFixed(2) + "ms" : "?"}`);
+              const devs = (m.nnapi_devices || []).map((d) => `${d.name}[${d.type}]`).join(", ");
+              L.push(`NNAPI 加速器 / accelerators: ${devs || "(none)"}`);
+              L.push(`行列×ベクトル ${m.rows}x${m.cols} クエリ${m.batch}件 / batch ${m.batch}: 採用 / chosen = ${m.chosen}${m.gain_vs_best_cpu ? " (CPU比 x" + m.gain_vs_best_cpu.toFixed(2) + ")" : ""} → ${m.accelerator_effective ? "✅ 加速器が効いています / accelerator effective" : "⚪ CPUが最速 / CPU is fastest"}`);
+              (m.candidates || []).filter((c) => c.ms !== null).forEach((c) => L.push(`   ${c.label}: ${c.ms.toFixed(2)}ms (誤差 err ${c.norm_rms_error.toExponential(1)}, top10 ${c.top10_overlap})${c.passes_quality ? "" : " ✗品質不足"}`));
+              if (m.accelerator_note) L.push(m.accelerator_note);
             });
             L.push(n.note || "");
             diagOut.textContent = L.join(String.fromCharCode(10));
