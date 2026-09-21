@@ -27,11 +27,22 @@ class HardwareReport(private val context: Context, private val webView: WebView)
     /** JSから呼ばれる。ローカルサーバー(127.0.0.1)のページ以外には結果を返さない。所要数秒(JSスレッドで実行)。 */
     @JavascriptInterface
     fun hardwareReport(): String {
-        val url = try { webView.url ?: "" } catch (_: Throwable) { "" }
+        val url = currentUrl()
         if (!(url.startsWith("http://127.0.0.1:") || url.startsWith("http://localhost:"))) {
             return JSONObject().put("error", "only available from the local app page").toString()
         }
         return build().toString()
+    }
+
+    /** WebView.getUrl()はメインスレッド専用。JSブリッジのスレッドから呼ばれるため、メインスレッドで読んで受け取る。 */
+    private fun currentUrl(): String {
+        val ref = java.util.concurrent.atomic.AtomicReference("")
+        val latch = java.util.concurrent.CountDownLatch(1)
+        android.os.Handler(android.os.Looper.getMainLooper()).post {
+            try { ref.set(webView.url ?: "") } catch (_: Throwable) {} finally { latch.countDown() }
+        }
+        latch.await(3, java.util.concurrent.TimeUnit.SECONDS)
+        return ref.get()
     }
 
     fun build(): JSONObject {

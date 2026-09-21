@@ -10213,7 +10213,7 @@ async function detectAndCompareLlm() {
     llmRecommendBody.appendChild(hwP);
 
     // Androidアプリ内なら、この端末のCPU/GPU/NPU(NNAPI)診断ボタンを出す(HardwareReport.kt)
-    if (!shared && window.OpenEnglishNative && typeof window.OpenEnglishNative.hardwareReport === "function") {
+    if (!shared && (window.OpenEnglishNative || /; wv\)/.test(navigator.userAgent))) {
       const diagBtn = document.createElement("button");
       diagBtn.type = "button";
       diagBtn.className = "setup-btn";
@@ -10225,6 +10225,7 @@ async function detectAndCompareLlm() {
         diagOut.textContent = "診断中… 数秒かかります / Running…";
         setTimeout(() => {
           try {
+            if (!window.OpenEnglishNative || !window.OpenEnglishNative.hardwareReport) throw new Error("診断ブリッジがありません(アプリが古い可能性) / diagnosis bridge not found (the app may be outdated)");
             const r = JSON.parse(window.OpenEnglishNative.hardwareReport());
             if (r.error) throw new Error(r.error);
             const L = [];
