@@ -8220,6 +8220,7 @@ if (googleSearchBtn && googleSearchModal) {
   // への対応——従来この機能は設定パネルからのみ呼び出し可能で、実際の
   // 会話フローには一切配線されていなかった)。
   window.tryPriorityProviderReply = async function tryPriorityProviderReply(prompt) {
+    if (isLocalOnly()) return null;
     let enabled = false;
     try {
       enabled = localStorage.getItem(PROVIDER_PRIORITY_ENABLED_KEY) === "1";
@@ -8777,6 +8778,15 @@ const SHARED_CUSTOM_QA_ABSOLUTE_URL = "https://easy-web.tokyo/open-english/v1/cu
 // パターン)。
 // 利用者が選んだ同時利用AI(1=単独/2=ハイブリッド/3=トライブリッド)。空なら既定(サーバーの優先順上位2社)。
 const SELECTED_AIS_KEY = "open-english.selectedAis";
+// 「ローカルLLMのみ(クラウドAI 0個)」。ONの間は共有・自端末のクラウドAIを一切呼ばず、この端末のaruaru-llmだけで回答する。
+const LOCAL_ONLY_KEY = "open-english.localOnly";
+function isLocalOnly() {
+  try {
+    return localStorage.getItem(LOCAL_ONLY_KEY) === "1";
+  } catch (e) {
+    return false;
+  }
+}
 function getSelectedAis() {
   try {
     const v = JSON.parse(localStorage.getItem(SELECTED_AIS_KEY) || "[]");
@@ -8787,6 +8797,7 @@ function getSelectedAis() {
 }
 const SHARED_PRIORITY_PROVIDER_ABSOLUTE_URL = "https://easy-web.tokyo/open-english/v1/public/chat-providers/complete-priority";
 async function trySharedPriorityProviderReply(prompt) {
+  if (isLocalOnly()) return null;
   const url = location.hostname === "easy-web.tokyo" ? "/v1/public/chat-providers/complete-priority" : SHARED_PRIORITY_PROVIDER_ABSOLUTE_URL;
   try {
     const res = await fetchWithTimeout(url, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ prompt, providers: getSelectedAis() }) }, 45000);
@@ -16522,6 +16533,10 @@ refreshAdminState();
         }
       } catch (e) { /* 自機に無くても共有側だけで続行 */ }
       lastStatus = s;
+      if (isLocalOnly()) {
+        aiLine.textContent = "🖥 ローカルLLMのみで回答中(クラウドAIは使いません) / Answering with the local LLM only (no cloud AIs)";
+        return;
+      }
       const chosen = getSelectedAis().filter((id) => (s.available || []).includes(id));
       if (chosen.length) {
         const rest = (s.available || []).filter((id) => !chosen.includes(id) && !(s.resting || []).includes(id));
@@ -16561,8 +16576,19 @@ refreshAdminState();
     pickPanel.replaceChildren();
     const h = document.createElement("div");
     h.className = "ai-pick-title";
-    h.textContent = "使うAIを1〜3個選択 / Pick 1 to 3 AIs (1=単独 single, 2=ハイブリッド hybrid, 3=トライブリッド tri-hybrid)";
+    h.textContent = "追加で使うクラウドAIを0〜3個選択 / Add 0 to 3 cloud AIs (1=単独 single, 2=ハイブリッド hybrid, 3=トライブリッド tri-hybrid)";
     pickPanel.appendChild(h);
+    const localLab = document.createElement("label");
+    localLab.style.width = "100%";
+    const localCb = document.createElement("input");
+    localCb.type = "checkbox";
+    localCb.checked = isLocalOnly();
+    localCb.addEventListener("change", () => {
+      try { localStorage.setItem(LOCAL_ONLY_KEY, localCb.checked ? "1" : "0"); } catch (e) { /* ignore */ }
+      refreshAiInUse();
+    });
+    localLab.append(localCb, " 🖥 ローカルLLMのみ(クラウドAI 0個) / Local LLM only (0 cloud AIs)");
+    pickPanel.appendChild(localLab);
     if (!avail.length) {
       const n = document.createElement("div");
       n.textContent = "選べるAIを取得できません / No AIs available to choose";
