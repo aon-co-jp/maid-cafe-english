@@ -2287,6 +2287,7 @@ async function advanceTrainingMode(userText) {
   reply += govConsultingSuffix(userText);
   reply += fairTradeSuffix(userText);
   reply += await newsSuffix(userText);
+  reply += topicGuideSuffix(userText);
   reply += await troubledSuffix(userText);
   reply += nuclearDeterrenceSuffix(userText);
   reply += backPainExerciseSuffix(userText);
@@ -2525,6 +2526,7 @@ async function askTrainer(userText) {
     reply += govConsultingSuffix(userText);
     reply += fairTradeSuffix(userText);
     reply += await newsSuffix(userText);
+  reply += topicGuideSuffix(userText);
     reply += await troubledSuffix(userText);
     reply += nuclearDeterrenceSuffix(userText);
     reply += backPainExerciseSuffix(userText);
@@ -2747,6 +2749,7 @@ async function askTrainer(userText) {
   reply += govConsultingSuffix(userText);
   reply += fairTradeSuffix(userText);
   reply += await newsSuffix(userText);
+  reply += topicGuideSuffix(userText);
   reply += await troubledSuffix(userText);
   reply += nuclearDeterrenceSuffix(userText);
   reply += backPainExerciseSuffix(userText);
@@ -3194,6 +3197,71 @@ const NEWS_TOPIC_KEYWORDS_EN = ["news", "current events", "what's happening", "h
 function mentionsNewsTopic(userText) {
   const lower = userText.toLowerCase();
   return NEWS_TOPIC_KEYWORDS_JA.some((k) => userText.includes(k)) || NEWS_TOPIC_KEYWORDS_EN.some((k) => lower.includes(k));
+}
+
+// 趣味・文化・最先端技術の話題ガイド(ユーザー指示 2026-09-21)。話題を検出したら、
+// YouTube検索とGoogle検索へのリンクを日英併記で添える。**正直な開示**: ここで出すのは
+// 検索リンクと固定の紹介文であり、AIが作った事実情報ではない(最新情報・価格・安全性は
+// 検索結果の出典で確認する)。
+const TOPIC_GUIDES = [
+  { ja: ["イヤホン", "ヘッドホン", "ヘッドフォン", "イヤフォン", "usb-c", "4.4mm", "xlr", "ブルートゥース"], en: ["earphone", "headphone", "earbuds", "bluetooth audio"],
+    title: "🎧 イヤホン・ヘッドホン / Earphones & headphones",
+    desc: "安いUSB-C・3.5mm・4.4mmバランス・XLR・Bluetoothまで。 / From cheap USB-C, 3.5mm, 4.4mm balanced, XLR to Bluetooth.",
+    q: ["安い USB-C イヤホン おすすめ", "4.4mm バランス ヘッドホン 比較", "best budget IEM headphones review"] },
+  { ja: ["スピーカー", "アンプ", "ブックシェルフ", "埋め込み", "天井スピーカー", "壁掛け"], en: ["speaker", "amplifier", "bookshelf", "in-ceiling", "in-wall"],
+    title: "🔊 スピーカー・アンプ / Speakers & amplifiers",
+    desc: "アンプ内蔵の小型、ブックシェルフ、中型・大型、壁・天井の埋め込みや吊り下げ・固定まで。 / Powered compact, bookshelf, floor-standing, in-wall/in-ceiling, hung or fixed.",
+    q: ["アンプ内蔵 小型スピーカー おすすめ", "ブックシェルフ スピーカー 入門", "天井 埋め込み スピーカー 施工", "in-ceiling speakers installation guide"] },
+  { ja: ["ホームシアター", "imax", "4dx", "家庭用シアター"], en: ["home theater", "home theatre", "imax", "4dx"],
+    title: "🎬 家庭用IMAX・4DX・ホームシアター / Home cinema",
+    desc: "家庭で映画館の迫力を。 / Cinema-grade sound and picture at home.",
+    q: ["家庭用 IMAX ホームシアター 作り方", "4DX 自宅 体感 シアター", "home theater room build guide"] },
+  { ja: ["工務店", "リフォーム業者", "リフォーム", "防音工事"], en: ["contractor", "renovation", "remodel"],
+    title: "🏠 工務店・リフォーム業者の探し方 / Finding a contractor",
+    desc: "口コミ・施工事例・相見積もり(3社以上)・許可/資格の確認が基本です。 / Check reviews, past work, get 3+ quotes, verify licenses.",
+    q: ["工務店 リフォーム業者 選び方 相見積もり", "防音 シアタールーム リフォーム 業者", "how to choose a renovation contractor"] },
+  { ja: ["核融合", "フュージョン"], en: ["fusion power", "nuclear fusion", "fusion energy"],
+    title: "⚛ 核融合発電 / Fusion power",
+    desc: "安全性の担保・燃料・発電効率の最新情報。京都の企業の動向も。 / Safety, fuel, efficiency; incl. Kyoto-based companies.",
+    q: ["核融合発電 安全性 燃料 発電効率", "京都フュージョニアリング 核融合", "fusion energy progress safety"] },
+  { ja: ["omega1", "ピストンレス", "オメガ1"], en: ["omega1", "pistonless engine"],
+    title: "⚙ ピストンレスエンジン OMEGA1 / Pistonless engine OMEGA1",
+    desc: "YouTubeでの紹介動画。 / Introduction videos on YouTube.",
+    q: ["OMEGA1 ピストンレスエンジン", "OMEGA1 pistonless engine Cyclone"] },
+  { ja: ["神社", "仏閣", "お寺", "奈良", "京都"], en: ["shrine", "temple", "kyoto", "nara"],
+    title: "⛩ 奈良・京都の神社仏閣巡り / Shrines & temples of Nara & Kyoto",
+    desc: "アナログな旅の楽しみ。 / An analog kind of travel.",
+    q: ["奈良 京都 神社仏閣 巡り モデルコース", "Kyoto Nara shrine temple travel guide"] },
+  { ja: ["温泉"], en: ["onsen", "hot spring"],
+    title: "♨ 温泉旅行 / Onsen trips", desc: "温泉地選びと宿の探し方。 / Choosing onsen towns and inns.",
+    q: ["温泉旅行 おすすめ 温泉地", "best onsen towns Japan"] },
+  { ja: ["和食", "日本食", "寿司", "ラーメン"], en: ["japanese food", "washoku", "sushi", "ramen"],
+    title: "🍣 おいしい日本食 / Japanese food", desc: "各地の和食と名店。 / Regional dishes and famous shops.",
+    q: ["おいしい 日本食 名店 巡り", "best Japanese food guide"] },
+  { ja: ["茶道", "書道", "剣道", "すもう", "相撲", "合気道", "柔道", "空手", "日本文化"], en: ["tea ceremony", "calligraphy", "kendo", "sumo", "aikido", "judo", "karate", "japanese culture"],
+    title: "🎎 日本文化(茶道・書道・剣道・相撲・合気道・柔道・空手) / Japanese culture",
+    desc: "文字と写真・動画で日本文化を紹介。 / Text, photos and videos on Japanese culture.",
+    q: ["茶道 書道 剣道 相撲 合気道 柔道 空手 入門", "Japanese martial arts and tea ceremony introduction"] },
+  { ja: ["アニメ", "ヒーロー", "ドラマ", "映画", "ライブ", "netflix", "u-next", "プライム"], en: ["anime", "hero show", "drama", "movie", "netflix", "prime video", "u-next"],
+    title: "📺 アニメ・ドラマ・映画・ライブ(U-NEXT/Netflix/Prime Video/YouTube) / Streaming picks",
+    desc: "視聴できる作品の探し方。配信状況は時期で変わります。 / How to find what to watch; availability changes.",
+    q: ["U-NEXT Netflix Amazonプライム おすすめ アニメ ドラマ 映画", "配信 ランキング TOP100"] },
+  { ja: ["top100", "トップ100"], en: ["top 100", "top100", "ranking"],
+    title: "🏆 TOP100で英会話・日本語会話 / Practice with a TOP100 list",
+    desc: "「TOP100の話題で英会話して」とお願いすると、そのテーマで会話練習できます。 / Ask \"practice English with a TOP100 topic\".",
+    q: ["TOP100 ランキング 最新"] },
+];
+const yt = (q) => "https://www.youtube.com/results?search_query=" + encodeURIComponent(q);
+const gg = (q) => "https://www.google.com/search?q=" + encodeURIComponent(q);
+
+function topicGuideSuffix(userText) {
+  const lower = userText.toLowerCase();
+  const hits = TOPIC_GUIDES.filter((t) => t.ja.some((k) => lower.includes(k.toLowerCase())) || t.en.some((k) => lower.includes(k))).slice(0, 2);
+  if (!hits.length) return "";
+  return hits.map((t) => {
+    const links = t.q.map((q) => `・${q}\n  YouTube: ${yt(q)}\n  Google: ${gg(q)}`).join("\n");
+    return `\n\n${t.title}\n${t.desc}\n${links}\n(検索リンクです。最新情報・価格・安全性は出典で確認してください / Search links only; verify latest info, prices and safety at the sources.)`;
+  }).join("");
 }
 
 async function newsSuffix(userText) {
