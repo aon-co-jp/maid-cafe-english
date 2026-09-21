@@ -778,7 +778,10 @@ if (isTabletUserAgent()) {
 // ファイル・同じバイナリを共有し実行時のURLでしか区別できないため、
 // open-easy-web等で確立済みの「location.pathnameに/demoを含むかで
 // 出し分ける」パターンをそのまま踏襲する。
-if (!location.pathname.includes("/demo")) {
+// 2026-09-21変更: 本番とデモが1つになったため、「/demoか否か」ではなく「この端末自身
+// (localhost=インストール済みのPC版・アプリ)か否か」で出し分ける。公開サイト(ブラウザ版)では
+// PC・スマホ・タブレット版のインストーラーへの案内を出し、インストール済みの端末では出さない。
+if (/^(127\.0\.0\.1|localhost|\[::1\])$/.test(location.hostname)) {
   document.getElementById("download-recommend-banner")?.classList.add("hidden");
   document.getElementById("download-recommend-banner-toggle")?.classList.add("hidden");
 }
@@ -16304,3 +16307,113 @@ async function refreshAdminState() {
   if (closeEl && gateEl) closeEl.addEventListener("click", () => gateEl.classList.add("hidden"));
 })();
 refreshAdminState();
+
+
+// ---- 下部固定ドック(2026-09-21): 使用中AI表示・回答枠・キャラ・音声入力 --------------------
+// ユーザー指示: 「今Gemini+Grokの無料AIを使用中です、の様に、文字入力と音声入力とメイドちゃんの絵か
+// 風天のトラさんと、回答の表示枠と共に、常時スクロールしても表示して」「画面表示は日本語と英語の
+// ハイブリッド表示を基本に」。
+(function setupChatDock() {
+  const dock = document.getElementById("chat-dock");
+  if (!dock) return;
+  const aiLine = document.getElementById("ai-in-use-line");
+  const answerBox = document.getElementById("dock-answer");
+  const avatarBox = document.getElementById("dock-avatar");
+  const dockMic = document.getElementById("dock-mic");
+  const log = document.getElementById("log");
+  const micMain = document.getElementById("mic-btn");
+
+  // ドックの高さぶんだけページ下に余白を作り、固定ドックが本文を隠さないようにする
+  const applyPadding = () => {
+    document.body.style.paddingBottom = dock.offsetHeight + 8 + "px";
+  };
+  applyPadding();
+  if (window.ResizeObserver) new ResizeObserver(applyPadding).observe(dock);
+
+  // --- 使用中の無料AI(日本語+英語) ---
+  const AI_NAMES = {
+    gemini: "Gemini", groq: "Groq", mistral: "Mistral", openrouter: "OpenRouter", cloudflare: "Cloudflare AI",
+    grok: "Grok", cerebras: "Cerebras", ollama: "Ollama(この端末 / on-device)", openai: "ChatGPT", deepseek: "DeepSeek", claude: "Claude",
+  };
+  const nameOf = (id) => AI_NAMES[id] || id;
+  const sharedBase = () =>
+    location.hostname.endsWith("easy-web.tokyo") ? "/open-english" : "https://easy-web.tokyo/open-english";
+  async function refreshAiInUse() {
+    try {
+      const res = await fetch(sharedBase() + "/v1/public/chat-providers/active", { cache: "no-store" });
+      if (!res.ok) throw new Error("HTTP " + res.status);
+      const s = await res.json();
+      if (!s.active || s.active.length === 0) {
+        aiLine.textContent = "🤖 いま使用中の無料AI: なし(この端末の内蔵AIで回答) / Free AIs in use now: none (answering with the built-in on-device AI)";
+        return;
+      }
+      let t = "🤖 いま使用中の無料AI / Free AIs in use now: " + s.active.map(nameOf).join(" + ");
+      if (s.standby && s.standby.length) t += "  (予備 / standby: " + s.standby.map(nameOf).join(", ") + ")";
+      if (s.resting && s.resting.length) t += "  (休止中 / resting: " + s.resting.map(nameOf).join(", ") + ")";
+      aiLine.textContent = t;
+    } catch (e) {
+      aiLine.textContent = "🤖 使用中のAI情報を取得できません(この端末の内蔵AIで回答します) / Could not get the AI status (using the built-in on-device AI)";
+    }
+  }
+  refreshAiInUse();
+  setInterval(refreshAiInUse, 60000);
+
+  // --- 最新の回答を、ドックの回答枠へ映す ---
+  let refreshTimer = null;
+  const syncAnswer = () => {
+    const nodes = log ? log.querySelectorAll(".msg.trainer, .msg.system") : [];
+    const last = nodes.length ? nodes[nodes.length - 1] : null;
+    if (!last) {
+      answerBox.classList.add("hidden");
+      return;
+    }
+    answerBox.textContent = (last.textContent || "").slice(0, 4000);
+    answerBox.classList.remove("hidden");
+    answerBox.scrollTop = 0;
+    if (!log.querySelector(".msg.pending")) {
+      clearTimeout(refreshTimer);
+      refreshTimer = setTimeout(refreshAiInUse, 1500);
+    }
+  };
+  if (log && window.MutationObserver) {
+    new MutationObserver(syncAnswer).observe(log, { childList: true, subtree: true, characterData: true });
+  }
+
+  // --- キャラクター(メイドちゃん/風天のトラさん)の縮小コピー。切替に追従 ---
+  const cloneAvatar = () => {
+    const svgs = Array.from(document.querySelectorAll("#trainer svg")).filter((s) => !s.closest(".hidden") && s.getBoundingClientRect().height > 0);
+    const src = svgs[0] || document.querySelector("#trainer svg");
+    if (!src) return;
+    const copy = src.cloneNode(true);
+    copy.removeAttribute("id");
+    copy.querySelectorAll("[id]").forEach((n) => n.removeAttribute("id"));
+    copy.removeAttribute("width");
+    copy.removeAttribute("height");
+    avatarBox.replaceChildren(copy);
+  };
+  cloneAvatar();
+  const trainer = document.getElementById("trainer");
+  if (trainer && window.MutationObserver) {
+    let t = null;
+    new MutationObserver(() => {
+      clearTimeout(t);
+      t = setTimeout(cloneAvatar, 300);
+    }).observe(trainer, { attributes: true, subtree: true, attributeFilter: ["class", "hidden", "style"] });
+  }
+  document.getElementById("character-switch-btn")?.addEventListener("click", () => setTimeout(cloneAvatar, 400));
+
+  // --- 音声入力(既存の🎙 Speakボタンを、入力欄のすぐ横から押せるようにする) ---
+  const speechSupported = !!(window.SpeechRecognition || window.webkitSpeechRecognition);
+  if (!speechSupported || !micMain) {
+    dockMic.disabled = true;
+    dockMic.title = "このブラウザは音声入力に対応していません(Chrome/Edge/Safari等をお使いください) / Voice input isn't supported in this browser (try Chrome, Edge or Safari)";
+  } else {
+    dockMic.addEventListener("click", () => micMain.click());
+    if (window.MutationObserver) {
+      new MutationObserver(() => dockMic.classList.toggle("listening", micMain.classList.contains("listening"))).observe(micMain, {
+        attributes: true,
+        attributeFilter: ["class"],
+      });
+    }
+  }
+})();

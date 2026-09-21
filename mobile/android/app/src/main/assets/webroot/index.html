@@ -171,14 +171,18 @@
   <button type="button" id="download-recommend-banner-toggle" class="collapsible-toggle-btn">✕ CLOSE</button>
   <div id="download-recommend-banner" class="maintenance-banner">
     <p>
-      💡 <strong>このWEB版(ブラウザ版)はデモです。</strong>
-      インストーラー付きアプリを、
-      <a href="https://github.com/aon-co-jp/open-english/releases/latest" target="_blank" rel="noopener noreferrer">こちら</a>
-      からダウンロードしてインストールして御利用下さい。/
-      <strong>This WEB version (browser version) is a demo.</strong>
-      Please download and install the app with installer from
-      <a href="https://github.com/aon-co-jp/open-english/releases/latest" target="_blank" rel="noopener noreferrer">here</a>
-      and use it.
+      💡 <strong>PC・スマホ・タブレット版のインストーラーはこちらからダウンロードしてインストールできます。</strong>
+      インストールすると、この画面を開いたときに自動で「PC版起動中!」などと表示され、端末のハードウェア(CPU・GPU・NPU)を活用できます。<br />
+      💡 <strong>Download the installer for PC, phone or tablet here.</strong>
+      Once installed, opening this page automatically shows "PC version running!" and uses your device's hardware (CPU / GPU / NPU).
+    </p>
+    <p class="download-links">
+      <a href="https://github.com/aon-co-jp/open-english/releases/latest/download/open-english-installer.exe" target="_blank" rel="noopener noreferrer">🖥️ Windows</a> ・
+      <a href="https://github.com/aon-co-jp/open-english/releases/latest/download/open-english-installer-macos-aarch64.tar.gz" target="_blank" rel="noopener noreferrer">🍎 macOS</a> ・
+      <a href="https://github.com/aon-co-jp/open-english/releases/latest/download/open-english-installer-linux-x86_64.tar.gz" target="_blank" rel="noopener noreferrer">🐧 Linux</a> ・
+      <a href="https://github.com/aon-co-jp/open-english/releases/latest/download/open-english-android-phone.apk" target="_blank" rel="noopener noreferrer">📱 Android スマホ / phone</a> ・
+      <a href="https://github.com/aon-co-jp/open-english/releases/latest/download/open-english-android-tablet.apk" target="_blank" rel="noopener noreferrer">📱 Android タブレット / tablet</a> ・
+      <a href="https://github.com/aon-co-jp/open-english/releases/latest" target="_blank" rel="noopener noreferrer">📦 すべて / All</a>
     </p>
   </div>
   <div id="launch-pc-version-banner" class="maintenance-banner">
@@ -2870,10 +2874,21 @@ cd aruaru-db
       </p>
       <div id="media-search-results"></div>
 
-      <form id="chat-form" class="chat-form">
-        <input id="chat-input" type="text" placeholder="Type in English or Japanese... / 英語または日本語で入力" autocomplete="off" required />
-        <button type="submit">Send</button>
-      </form>
+      <!-- 2026-09-21新設(ユーザー指示「今使用中の無料AIの表示と、文字入力・音声入力・メイドちゃんか
+           風天のトラさんの絵を、回答の表示枠と共に、常時スクロールしても表示して」): 画面下部に
+           常時固定のドック。既存の#chat-formをそのまま中へ入れている(送信処理は従来どおり)。 -->
+      <div id="chat-dock" class="chat-dock">
+        <div id="ai-in-use-line" class="ai-in-use-line">🤖 使用中の無料AIを確認中… / Checking which free AIs are in use…</div>
+        <div id="dock-answer" class="dock-answer hidden" aria-live="polite"></div>
+        <div class="dock-row">
+          <div id="dock-avatar" class="dock-avatar" aria-hidden="true"></div>
+          <form id="chat-form" class="chat-form">
+            <input id="chat-input" type="text" placeholder="Type in English or Japanese... / 英語または日本語で入力" autocomplete="off" required />
+            <button type="button" id="dock-mic" class="dock-mic" title="音声入力 / Voice input">🎙</button>
+            <button type="submit">Send</button>
+          </form>
+        </div>
+      </div>
 
       <div class="settings">
         <label>

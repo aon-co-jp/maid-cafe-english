@@ -989,6 +989,25 @@ async fn public_chat_provider_complete_priority(req: Request) -> Response {
     }
 }
 
+/// `GET /v1/public/chat-providers/active`(2026-09-21新設): 画面下部の「いま使用中の
+/// 無料AI」表示用。aruaru-llmの`GET /v1/chat-providers/active`(使用中・予備・お休み中の
+/// AI名のみ、キー等は含まない)をそのまま中継する。読み取り専用・軽量のためレート制限は課さない。
+async fn public_chat_provider_active() -> Response {
+    let base = aruaru_llm_base_url();
+    let client = match reqwest::Client::builder().timeout(std::time::Duration::from_secs(5)).build() {
+        Ok(c) => c,
+        Err(e) => return rs_json_response_cors(StatusCode::INTERNAL_SERVER_ERROR, &serde_json::json!({"error": format!("failed to build HTTP client: {e}")})),
+    };
+    match client.get(format!("{base}/v1/chat-providers/active")).send().await {
+        Ok(resp) if resp.status().is_success() => match resp.json::<serde_json::Value>().await {
+            Ok(v) => rs_json_response_cors(StatusCode::OK, &v),
+            Err(e) => rs_json_response_cors(StatusCode::BAD_GATEWAY, &serde_json::json!({"error": format!("bad aruaru-llm response: {e}")})),
+        },
+        Ok(resp) => rs_json_response_cors(StatusCode::BAD_GATEWAY, &serde_json::json!({"error": format!("aruaru-llm HTTP {}", resp.status())})),
+        Err(e) => rs_json_response_cors(StatusCode::SERVICE_UNAVAILABLE, &serde_json::json!({"error": format!("aruaru-llm unreachable: {e}")})),
+    }
+}
+
 /// `GET /v1/admin/aruaru-llm/models` — GPT-2系・Qwen系両カタログ+
 /// ハードウェア推奨を1回でまとめて返す(管理画面が1リクエストで
 /// 「選択可能な一覧」を描画できるように)。
@@ -3153,6 +3172,7 @@ async fn main() {
     app = app.at("/v1/public/aruaru-llm/generate", post(handler_fn(|req, _p| Box::pin(public_aruaru_llm_generate("/v1/generate", req)))));
     app = app.at("/v1/public/aruaru-llm/generate-with-search", post(handler_fn(|req, _p| Box::pin(public_aruaru_llm_generate("/v1/generate-with-search", req)))));
     app = app.at("/v1/public/chat-providers/complete-priority", post(handler_fn(|req, _p| Box::pin(public_chat_provider_complete_priority(req)))));
+    app = app.at("/v1/public/chat-providers/active", get(handler_fn(|_req, _p| Box::pin(public_chat_provider_active()))));
     app = app.at("/v1/config", get(handler_fn(move |_req, _p| async move { app_config().await })));
     app = app.at("/v1/platform-info", get(handler_fn(move |_req, _p| async move { platform_info().await })));
     // `/health`はopen-web-server/open-easy-web側の「分身の術」テナント
