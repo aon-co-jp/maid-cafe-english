@@ -10212,6 +10212,89 @@ async function detectAndCompareLlm() {
     hwP.textContent = hwLine;
     llmRecommendBody.appendChild(hwP);
 
+    // Androidアプリ内なら、この端末のCPU/GPU/NPU(NNAPI)診断ボタンを出す(HardwareReport.kt)
+    if (!shared && window.OpenEnglishNative && typeof window.OpenEnglishNative.hardwareReport === "function") {
+      const diagBtn = document.createElement("button");
+      diagBtn.type = "button";
+      diagBtn.className = "setup-btn";
+      diagBtn.textContent = "📱 この端末のCPU・GPU・NPU診断 / Diagnose this device's CPU, GPU and NPU";
+      const diagOut = document.createElement("pre");
+      diagOut.className = "setup-note";
+      diagOut.style.whiteSpace = "pre-wrap";
+      diagBtn.addEventListener("click", () => {
+        diagOut.textContent = "診断中… 数秒かかります / Running…";
+        setTimeout(() => {
+          try {
+            const r = JSON.parse(window.OpenEnglishNative.hardwareReport());
+            if (r.error) throw new Error(r.error);
+            const L = [];
+            const d = r.device || {};
+            L.push(`端末 / Device: ${d.manufacturer} ${d.model} (Android ${d.android}, ${d.abi})`);
+            if (d.soc_model) L.push(`SoC: ${d.soc_manufacturer} ${d.soc_model} (${d.hardware})`);
+            else L.push(`SoC/Hardware: ${d.hardware} / ${d.board}`);
+            const c = r.cpu || {};
+            L.push(`CPU: ${c.logical_cores} cores`);
+            (c.core_groups || []).forEach((g) => L.push(`  core ${g.implementer_part} x${g.count}`));
+            L.push(`CPU flags: ${(c.flags || []).join(" ")}`);
+            const g = r.gpu || {};
+            L.push(`GPU: ${g.gl_renderer || "?"} (${g.gl_vendor || "?"}), OpenGL ES ${g.gles_version || "?"}, Vulkan: ${g.vulkan ? "yes" : "no"}`);
+            const n = r.nnapi || {};
+            L.push(`NNAPI ペア計算(768) / pair(768): ${n.pair_768_selected || n.pair_error}`);
+            (n.matvec || []).forEach((m) => {
+              if (m.nnapi_ms !== undefined) {
+                const verdict = m.accelerator_effective === undefined ? "" : m.accelerator_effective
+                  ? " → ✅ 加速器が効いています / accelerator effective"
+                  : " → ⚪ NNAPIの加速器は効いていません(TFLiteのCPUと同等) / no accelerator benefit";
+                L.push(`NNAPI 行列×ベクトル ${m.rows}x${m.cols}: NNAPI ${m.nnapi_ms.toFixed(2)}ms / TFLite-CPU ${m.tflite_cpu_ms !== undefined ? m.tflite_cpu_ms.toFixed(2) : "?"}ms / 素朴CPU ${m.cpu_ms.toFixed(2)}ms (誤差 err ${m.max_err.toExponential(1)})${verdict}`);
+              }
+              else L.push(`NNAPI 行列×ベクトル ${m.rows}x${m.cols}: ${m.nnapi || m.error} / CPU ${m.cpu_ms ? m.cpu_ms.toFixed(2) + "ms" : "?"}`);
+            });
+            L.push(n.note || "");
+            diagOut.textContent = L.join(String.fromCharCode(10));
+          } catch (e) {
+            diagOut.textContent = "⚠ 診断できませんでした / Diagnosis failed: " + e.message;
+          }
+        }, 50);
+      });
+      llmRecommendBody.appendChild(diagBtn);
+      llmRecommendBody.appendChild(diagOut);
+    }
+
+    // ハードウェア仕様(CPU命令セット・GPU・NPU・加速段階)。/v1/runtime と /v1/accelerators から取得し、
+    // 古いaruaru-llm(後者が無い)でも取れた分だけ表示する。共有デプロイでは出さない。
+    if (!shared) {
+      try {
+        const [rt, ac] = await Promise.all([
+          fetch(`${base}/v1/runtime`).then((r) => (r.ok ? r.json() : null)).catch(() => null),
+          fetch(`${base}/v1/accelerators`).then((r) => (r.ok ? r.json() : null)).catch(() => null),
+        ]);
+        const lines = [];
+        if (ac) lines.push(`CPU: ${ac.cpu_logical_cores} logical cores / 論理コア ${ac.cpu_logical_cores} (${ac.os}/${ac.arch})`);
+        if (rt && rt.cpu_simd) {
+          lines.push(`CPU命令セット / CPU ISA: ${rt.cpu_simd.features || "?"} — AVX2+FMA: ${rt.cpu_simd.avx2_fma_path ? "ON" : "OFF"}, VNNI(int8): ${rt.cpu_simd.vnni_path ? "ON" : "OFF"}, AVX-512: ${rt.cpu_simd.avx512_opt_in ? "ON" : "OFF(既定/default)"}`);
+        }
+        if (ac && ac.inventory) {
+          lines.push(`NPU: ${ac.inventory.npu_name || "not detected / 未検出"}`);
+          const usb = ac.inventory.usb_android_devices;
+          lines.push(`USB Android: ${usb === null || usb === undefined ? "adb unavailable / adb未使用" : usb.length + " device(s) / 台"}`);
+        }
+        if (rt && rt.acceleration) {
+          const acc = rt.acceleration;
+          const st = (k) => (acc[k] ? (acc[k].active ? "ACTIVE" : acc[k].compiled_in ? "compiled in" : "not compiled in") : "?");
+          lines.push(`アクセラレーター / Accelerators: CUDA ${st("cuda")}, Vulkan ${st("vulkan")}, DirectX ${st("directx")}, CPU SIMD ${st("cpu_simd")} → ${acc.tier_label_ja || acc.tier || ""} / ${acc.tier_label_en || ""}`);
+        }
+        if (lines.length) {
+          const specP = document.createElement("p");
+          specP.className = "setup-note";
+          specP.style.whiteSpace = "pre-line";
+          specP.textContent = "🔧 ハードウェア仕様 / Hardware spec" + String.fromCharCode(10) + lines.join(String.fromCharCode(10));
+          llmRecommendBody.appendChild(specP);
+        }
+      } catch (e) {
+        /* 仕様表示は補助情報。失敗しても推薦は続行する */
+      }
+    }
+
     const questionP = document.createElement("p");
     questionP.className = "setup-note";
     questionP.textContent =

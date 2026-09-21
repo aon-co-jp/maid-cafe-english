@@ -159,6 +159,9 @@ class MainActivity : AppCompatActivity() {
         webView.settings.javaScriptEnabled = true
         webView.settings.cacheMode = WebSettings.LOAD_NO_CACHE
         webView.settings.domStorageEnabled = true
+        // 端末のCPU/GPU/NPU(NNAPI)診断をWebページから呼べるようにする(`HardwareReport.kt`)。
+        // ローカルサーバー(127.0.0.1)のページ以外には結果を返さない設計。
+        webView.addJavascriptInterface(HardwareReport(this, webView), "OpenEnglishNative")
 
         // 2026-09-14追加(ユーザー報告、複数回「縦スマホでキーボード表示
         // より上に自動スクロールしない」): v0.8.5の`android:

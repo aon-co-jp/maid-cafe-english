@@ -219,9 +219,9 @@
   <button type="button" id="phone-accel-banner-toggle" class="collapsible-toggle-btn">✕ CLOSE</button>
   <div id="phone-accel-banner" class="free-tier-banner">
     <p class="free-tier-note" style="margin:0;">
-      📱 使わなくなったスマホもフル動員しましょう！(実験的機能) PC側にタスク配布API(<code>GET /v1/background-fold/task</code>・<code>POST /v1/background-fold/task-result</code>)を、Androidアプリ側にポーリング計算ワーカーを実装しました。実機・NPU搭載機での検証は未実施で、実際の計算はNNAPI対応端末でも常にCPUで行われます(NNAPIは利用可否の検出のみ)。使うにはAndroidアプリ内の「使わなくなったスマホもフル動員」欄にPC側のURLを入力して開始してください。
+      📱 使わなくなったスマホもフル動員しましょう！(実験的機能) PC側にタスク配布API(<code>GET /v1/background-fold/task</code>・<code>POST /v1/background-fold/task-result</code>)を、Androidアプリ側にポーリング計算ワーカーを実装しました。NNAPI対応端末では、ベクトルの内積計算をNNAPI(NPU/GPU/DSP)へ委譲します(CPUより速く数値が一致する場合だけ採用、そうでなければCPU)。どのハードウェアで走るかはNNAPIが決めます。エミュレータ(NPU無し)での動作確認は済みで、実機NPUでの検証は端末ごとに異なります。使うにはAndroidアプリ内の「使わなくなったスマホもフル動員」欄にPC側のURLを入力して開始してください。
       <br />
-      Let's put your unused phones to full use! (Experimental) We've implemented a PC-side task distribution API (<code>GET /v1/background-fold/task</code>, <code>POST /v1/background-fold/task-result</code>) and an Android polling worker that computes tasks. Real-device and NPU-equipped hardware verification has not been done, and the actual computation always runs on CPU even on NNAPI-capable devices (NNAPI is only detected, not yet used for the math). To try it, enter the PC's URL in the "put unused phones to full use" section of the Android app and start.
+      Let's put your unused phones to full use! (Experimental) We've implemented a PC-side task distribution API (<code>GET /v1/background-fold/task</code>, <code>POST /v1/background-fold/task-result</code>) and an Android polling worker that computes tasks. On NNAPI-capable devices the vector dot-product math is delegated to NNAPI (NPU/GPU/DSP) only when it is faster than the CPU and numerically matches; otherwise it runs on the CPU. The NNAPI runtime decides which hardware runs it. Verified on an emulator (no NPU); results on real NPUs vary by device. To try it, enter the PC's URL in the "put unused phones to full use" section of the Android app and start.
     </p>
   </div>
   <!--

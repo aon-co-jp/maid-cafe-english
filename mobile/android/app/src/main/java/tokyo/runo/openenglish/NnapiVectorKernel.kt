@@ -145,8 +145,9 @@ class NnapiVectorKernel private constructor(
                 val t0 = System.nanoTime()
                 for (i in 0 until runs) k.dotAndNorms(a, b)
                 val nnapiMs = (System.nanoTime() - t0) / 1e6 / runs
-                val t1 = System.nanoTime()
                 var sink = 0f
+                for (i in 0 until 30) sink += cpuDotAndNorms(a, b)[0] // CPU側もウォームアップ(JIT)して公平に比べる
+                val t1 = System.nanoTime()
                 for (i in 0 until runs) sink += cpuDotAndNorms(a, b)[0]
                 val cpuMs = (System.nanoTime() - t1) / 1e6 / runs
                 val ok = maxRel < 1e-3
@@ -179,13 +180,13 @@ class NnapiVectorKernel private constructor(
 
         // ---- TFLite FlatBufferモデルの組み立て ----
 
-        private fun intVector(fb: FlatBufferBuilder, values: IntArray): Int {
+        internal fun intVector(fb: FlatBufferBuilder, values: IntArray): Int {
             fb.startVector(4, values.size, 4)
             for (i in values.indices.reversed()) fb.addInt(values[i])
             return fb.endVector()
         }
 
-        private fun tensor(fb: FlatBufferBuilder, shape: IntArray, type: Int, buffer: Int, name: String): Int {
+        internal fun tensor(fb: FlatBufferBuilder, shape: IntArray, type: Int, buffer: Int, name: String): Int {
             val shapeOff = intVector(fb, shape)
             val nameOff = fb.createString(name)
             fb.startTable(6)
@@ -196,7 +197,7 @@ class NnapiVectorKernel private constructor(
             return fb.endTable()
         }
 
-        private fun operator(fb: FlatBufferBuilder, opcodeIndex: Int, inputs: IntArray, outputs: IntArray): Int {
+        internal fun operator(fb: FlatBufferBuilder, opcodeIndex: Int, inputs: IntArray, outputs: IntArray): Int {
             val inOff = intVector(fb, inputs)
             val outOff = intVector(fb, outputs)
             fb.startTable(5)
@@ -207,7 +208,7 @@ class NnapiVectorKernel private constructor(
             return fb.endTable()
         }
 
-        private fun operatorCode(fb: FlatBufferBuilder, builtinCode: Int): Int {
+        internal fun operatorCode(fb: FlatBufferBuilder, builtinCode: Int): Int {
             fb.startTable(4)
             fb.addByte(0, builtinCode.coerceAtMost(127).toByte(), 0) // deprecated_builtin_code
             fb.addInt(2, 1, 0) // version
@@ -215,7 +216,7 @@ class NnapiVectorKernel private constructor(
             return fb.endTable()
         }
 
-        private fun <T> tableVector(fb: FlatBufferBuilder, offsets: List<Int>): Int {
+        internal fun <T> tableVector(fb: FlatBufferBuilder, offsets: List<Int>): Int {
             fb.startVector(4, offsets.size, 4)
             for (i in offsets.indices.reversed()) fb.addOffset(offsets[i])
             return fb.endVector()
