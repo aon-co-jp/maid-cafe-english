@@ -1396,3 +1396,4 @@ label.setup-note {
 
 .is-web-only #autorw-status-banner, .is-web-only #autorw-status-banner-toggle { display: none !important; }
 .author-github { margin: 6px 20px; font-size: 13px; }
+.is-web-only #setup-btn, .is-web-only #aruaru-db-setup-btn, .is-web-only #world-lab-goto-aruaru-llm-btn { display: none !important; }
