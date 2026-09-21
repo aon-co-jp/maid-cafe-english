@@ -7788,7 +7788,7 @@ if (googleSearchBtn && googleSearchModal) {
   // 既存機能)とは独立——こちらはネットワーク往復無しで即座に
   // わかる「このブラウザ内の保存有無」のみを示す。
   function refreshLocalProviderKeyStatus() {
-    for (const provider of ["openai", "deepseek", "gemini", "claude"]) {
+    for (const provider of ["openai", "deepseek", "gemini", "claude", "groq", "mistral", "openrouter", "cloudflare"]) {
       const el = document.getElementById(`provider-key-status-${provider}`);
       if (!el) continue;
       let hasKey = false;
@@ -7883,6 +7883,10 @@ if (googleSearchBtn && googleSearchModal) {
       ["deepseek", "provider-key-deepseek"],
       ["gemini", "provider-key-gemini"],
       ["claude", "provider-key-claude"],
+      ["groq", "provider-key-groq"],
+      ["mistral", "provider-key-mistral"],
+      ["openrouter", "provider-key-openrouter"],
+      ["cloudflare", "provider-key-cloudflare"],
     ];
     const savedValues = {};
     for (const [provider, elId] of keyFields) {
@@ -8060,6 +8064,10 @@ if (googleSearchBtn && googleSearchModal) {
     deepseek: "https://platform.deepseek.com/api_keys",
     gemini: "https://aistudio.google.com/apikey",
     claude: "https://console.anthropic.com/settings/keys",
+    groq: "https://console.groq.com/keys",
+    mistral: "https://console.mistral.ai/api-keys",
+    openrouter: "https://openrouter.ai/keys",
+    cloudflare: "https://dash.cloudflare.com/profile/api-tokens",
   };
   Object.entries(PROVIDER_KEY_LINKS).forEach(([provider, baseUrl]) => {
     const input = document.getElementById(`provider-key-${provider}`);
@@ -8093,7 +8101,7 @@ if (googleSearchBtn && googleSearchModal) {
     clearBtn.addEventListener("click", async () => {
       const base = apiBaseEl ? apiBaseEl.value.trim() : "";
       try {
-        ["openai", "deepseek", "gemini", "claude"].forEach((p) => {
+        ["openai", "deepseek", "gemini", "claude", "groq", "mistral", "openrouter", "cloudflare"].forEach((p) => {
           localStorage.removeItem(PROVIDER_KEY_LOCAL_PREFIX + p);
           localStorage.removeItem(`open-english.dbProviderKey.${p}`);
         });
@@ -16428,6 +16436,19 @@ refreshAdminState();
       const res = await fetch(sharedBase() + "/v1/public/chat-providers/active", { cache: "no-store" });
       if (!res.ok) throw new Error("HTTP " + res.status);
       const s = await res.json();
+      try {
+        // インストール版(localhost)は、自機のaruaru-llmに設定したAIも選べるようにする
+        if (!document.documentElement.classList.contains("is-web-only")) {
+          const lb = (document.getElementById("api-base") || {}).value;
+          if (lb) {
+            const lr = await fetch(lb.trim().replace(/\/$/, "") + "/v1/chat-providers/active", { cache: "no-store" });
+            if (lr.ok) {
+              const ls = await lr.json();
+              s.available = Array.from(new Set([...(ls.available || []), ...(s.available || [])]));
+            }
+          }
+        }
+      } catch (e) { /* 自機に無くても共有側だけで続行 */ }
       lastStatus = s;
       const chosen = getSelectedAis().filter((id) => (s.available || []).includes(id));
       if (chosen.length) {
