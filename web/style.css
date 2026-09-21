@@ -1386,3 +1386,10 @@ label.setup-note {
   .chat-dock .dock-avatar { width: 40px; height: 48px; }
 }
 .download-links a { margin-right: 4px; font-weight: bold; }
+
+.ai-pick-btn { margin: 0 8px 4px; padding: 2px 10px; font-size: 12px; border-radius: 12px; border: 1px solid #c9a14a; background: transparent; color: inherit; cursor: pointer; }
+.ai-pick-panel { padding: 8px 12px; font-size: 13px; display: flex; flex-wrap: wrap; gap: 8px 14px; align-items: center; border-top: 1px solid rgba(201,161,74,.4); }
+.ai-pick-panel.hidden { display: none; }
+.ai-pick-title { width: 100%; font-weight: 600; }
+.ai-pick-panel label { cursor: pointer; }
+.ai-pick-panel button { font-size: 12px; padding: 2px 10px; border-radius: 12px; cursor: pointer; }

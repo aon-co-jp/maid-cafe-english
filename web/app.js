@@ -8102,6 +8102,7 @@ if (googleSearchBtn && googleSearchModal) {
     }
 
     try {
+      body.providers = getSelectedAis();
       const res = await fetchWithTimeout(
         `${base}/v1/chat-providers/complete-priority`,
         { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(body) },
@@ -8621,11 +8622,21 @@ const SHARED_CUSTOM_QA_ABSOLUTE_URL = "https://easy-web.tokyo/open-english/v1/cu
 // オリジンの相対パスで済み、それ以外(PC/タブレット/スマホ版)は絶対URL
 // で直接fetchする(カスタムQ&Aの`fetchSharedCustomQaPairs`と同じ
 // パターン)。
+// 利用者が選んだ同時利用AI(1=単独/2=ハイブリッド/3=トライブリッド)。空なら既定(サーバーの優先順上位2社)。
+const SELECTED_AIS_KEY = "open-english.selectedAis";
+function getSelectedAis() {
+  try {
+    const v = JSON.parse(localStorage.getItem(SELECTED_AIS_KEY) || "[]");
+    return Array.isArray(v) ? v.filter((x) => typeof x === "string").slice(0, 3) : [];
+  } catch (e) {
+    return [];
+  }
+}
 const SHARED_PRIORITY_PROVIDER_ABSOLUTE_URL = "https://easy-web.tokyo/open-english/v1/public/chat-providers/complete-priority";
 async function trySharedPriorityProviderReply(prompt) {
   const url = location.hostname === "easy-web.tokyo" ? "/v1/public/chat-providers/complete-priority" : SHARED_PRIORITY_PROVIDER_ABSOLUTE_URL;
   try {
-    const res = await fetchWithTimeout(url, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ prompt }) }, 45000);
+    const res = await fetchWithTimeout(url, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ prompt, providers: getSelectedAis() }) }, 45000);
     if (!res.ok) {
       if (res.status === 429) return null; // レート制限中は静かに自端末側へフォールバック
       return null;
@@ -16338,11 +16349,22 @@ refreshAdminState();
   const nameOf = (id) => AI_NAMES[id] || id;
   const sharedBase = () =>
     location.hostname.endsWith("easy-web.tokyo") ? "/open-english" : "https://easy-web.tokyo/open-english";
+  let lastStatus = null;
   async function refreshAiInUse() {
     try {
       const res = await fetch(sharedBase() + "/v1/public/chat-providers/active", { cache: "no-store" });
       if (!res.ok) throw new Error("HTTP " + res.status);
       const s = await res.json();
+      lastStatus = s;
+      const chosen = getSelectedAis().filter((id) => (s.available || []).includes(id));
+      if (chosen.length) {
+        const rest = (s.available || []).filter((id) => !chosen.includes(id) && !(s.resting || []).includes(id));
+        const mode = chosen.length === 1 ? "単独 / single" : chosen.length === 2 ? "ハイブリッド / hybrid" : "トライブリッド / tri-hybrid";
+        let t = "🤖 選択中(" + mode + ") / Your choice: " + chosen.map(nameOf).join(" + ");
+        if (rest.length) t += "  (予備 / standby: " + rest.map(nameOf).join(", ") + ")";
+        aiLine.textContent = t;
+        return;
+      }
       if (!s.active || s.active.length === 0) {
         aiLine.textContent = "🤖 いま使用中の無料AI: なし(この端末の内蔵AIで回答) / Free AIs in use now: none (answering with the built-in on-device AI)";
         return;
@@ -16357,6 +16379,65 @@ refreshAdminState();
   }
   refreshAiInUse();
   setInterval(refreshAiInUse, 60000);
+
+  // --- 使うAIを選ぶ(1個=単独 / 2個=ハイブリッド / 最大3個=トライブリッド) ---
+  const pickBtn = document.createElement("button");
+  pickBtn.type = "button";
+  pickBtn.className = "ai-pick-btn";
+  pickBtn.textContent = "⚙ 選ぶ / Choose";
+  aiLine.insertAdjacentElement("afterend", pickBtn);
+  const pickPanel = document.createElement("div");
+  pickPanel.className = "ai-pick-panel hidden";
+  dock.appendChild(pickPanel);
+  const renderPicker = () => {
+    const avail = (lastStatus && lastStatus.available) || [];
+    const chosen = getSelectedAis().filter((id) => avail.includes(id));
+    pickPanel.replaceChildren();
+    const h = document.createElement("div");
+    h.className = "ai-pick-title";
+    h.textContent = "使うAIを1〜3個選択 / Pick 1 to 3 AIs (1=単独 single, 2=ハイブリッド hybrid, 3=トライブリッド tri-hybrid)";
+    pickPanel.appendChild(h);
+    if (!avail.length) {
+      const n = document.createElement("div");
+      n.textContent = "選べるAIを取得できません / No AIs available to choose";
+      pickPanel.appendChild(n);
+    }
+    avail.forEach((id) => {
+      const lab = document.createElement("label");
+      const cb = document.createElement("input");
+      cb.type = "checkbox";
+      cb.checked = chosen.includes(id);
+      cb.addEventListener("change", () => {
+        let cur = getSelectedAis().filter((x) => avail.includes(x));
+        if (cb.checked) {
+          if (cur.length >= 3) {
+            cb.checked = false;
+            return;
+          }
+          cur.push(id);
+        } else {
+          cur = cur.filter((x) => x !== id);
+        }
+        try { localStorage.setItem(SELECTED_AIS_KEY, JSON.stringify(cur)); } catch (e) { /* ignore */ }
+        refreshAiInUse();
+      });
+      lab.append(cb, " " + nameOf(id) + ((lastStatus && (lastStatus.resting || []).includes(id)) ? " (休止中 / resting)" : ""));
+      pickPanel.appendChild(lab);
+    });
+    const reset = document.createElement("button");
+    reset.type = "button";
+    reset.textContent = "おまかせに戻す / Reset to automatic";
+    reset.addEventListener("click", () => {
+      try { localStorage.removeItem(SELECTED_AIS_KEY); } catch (e) { /* ignore */ }
+      refreshAiInUse();
+      renderPicker();
+    });
+    pickPanel.appendChild(reset);
+  };
+  pickBtn.addEventListener("click", () => {
+    if (pickPanel.classList.contains("hidden")) renderPicker();
+    pickPanel.classList.toggle("hidden");
+  });
 
   // --- 最新の回答を、ドックの回答枠へ映す ---
   let refreshTimer = null;
