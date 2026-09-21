@@ -5464,7 +5464,7 @@ formEl.addEventListener("submit", async (e) => {
     pending.classList.remove("pending");
     pending.className = `msg ${role}`;
     pending.dataset.role = role;
-    pending.textContent = msg;
+    renderMessageBody(pending, msg);
     scrollToMessageTop(pending);
   };
 
@@ -16542,7 +16542,7 @@ refreshAdminState();
       answerBox.classList.add("hidden");
       return;
     }
-    answerBox.textContent = (last.textContent || "").slice(0, 4000);
+    renderMessageBody(answerBox, (last.textContent || "").slice(0, 4000));
     answerBox.classList.remove("hidden");
     answerBox.scrollTop = 0;
     if (!log.querySelector(".msg.pending")) {
