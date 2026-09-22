@@ -16871,7 +16871,12 @@ refreshAdminState();
       renderPicker();
     });
     mkToggle("☁ クラウドAIを使わない(0個) / Use no cloud AIs (0)", isCloudOff(), (on) => {
-      try { localStorage.setItem(CLOUD_OFF_KEY, on ? "1" : "0"); } catch (e) { /* ignore */ }
+      try {
+        localStorage.setItem(CLOUD_OFF_KEY, on ? "1" : "0");
+        // 2026-09-22追加(ユーザー指示): 「クラウドAIを使わない」にチェックすると、
+        // 個別に選んでいたクラウドAIのチェックも全部外す(選択が残ったまま矛盾しないように)。
+        if (on) localStorage.setItem(SELECTED_AIS_KEY, "[]");
+      } catch (e) { /* ignore */ }
       if (on && !isLocalLlmEnabled()) { try { localStorage.setItem(USE_LOCAL_KEY, "1"); } catch (e) { /* ignore */ } }
       refreshAiInUse();
       renderPicker();
