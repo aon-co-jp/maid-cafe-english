@@ -5355,6 +5355,180 @@ function quizAnswerText() {
   return `✅ ${blocks.join("\n\n---\n\n")}`;
 }
 
+// ---------------------------------------------------------------------------
+// 作者オリジナル問題(9◯9◯9◯9=10)の解答の自動採点(2026-09-22新設、ユーザー指示)。
+//
+// 演算子・括弧の表記ゆれを同一視する:
+//  - 掛け算: × x X * ＊ かける 掛ける
+//  - 割り算: ÷ / ／ わる 割る
+//  - 引き算: - － ‐ ― ひく 引く
+//  - 足し算: + ＋ 足す たす
+//  - 括弧: ( （ ) ）(全角・半角とも)
+// 「9×9+9=10」のように、括弧内は合っているが最後の÷9を忘れた誤答は
+// 「半分正解」として扱う(ユーザー指示「9X9+9＝10は、半分正解！として」)。
+// 正しいかどうかは実際に式を評価して判定する(固定文字列との単純比較ではない)。
+// **正直な開示**: 別解(四則演算+括弧で10になる他の式)にも対応するため、
+// 使われている9の個数と実際の計算結果で判定する。トンチ・小数点操作等は対象外。
+const FOUR_NINES_OP_MAP = [
+  [/×|x|X|\*|＊|かける|掛ける/g, "*"],
+  [/÷|\/|／|わる|割る/g, "/"],
+  [/－|‐|―|ひく|引く|-/g, "-"],
+  [/＋|足す|たす|\+/g, "+"],
+  [/（/g, "("],
+  [/）/g, ")"],
+  [/＝/g, "="],
+];
+
+function normalizeFourNinesEquation(text) {
+  let s = text;
+  for (const [pat, rep] of FOUR_NINES_OP_MAP) s = s.replace(pat, rep);
+  return s;
+}
+
+/** 四則演算+括弧だけの式を安全に評価する(evalは使わない、簡易再帰下降パーサ)。 */
+function evalArithmetic(expr) {
+  const s = expr.replace(/\s+/g, "");
+  let i = 0;
+  function parseExpr() {
+    let v = parseTerm();
+    while (s[i] === "+" || s[i] === "-") {
+      const op = s[i++];
+      const rhs = parseTerm();
+      v = op === "+" ? v + rhs : v - rhs;
+    }
+    return v;
+  }
+  function parseTerm() {
+    let v = parseFactor();
+    while (s[i] === "*" || s[i] === "/") {
+      const op = s[i++];
+      const rhs = parseFactor();
+      v = op === "*" ? v * rhs : v / rhs;
+    }
+    return v;
+  }
+  function parseFactor() {
+    if (s[i] === "(") {
+      i++;
+      const v = parseExpr();
+      if (s[i] !== ")") throw new Error("unmatched parenthesis");
+      i++;
+      return v;
+    }
+    const start = i;
+    while (i < s.length && /[0-9.]/.test(s[i])) i++;
+    if (start === i) throw new Error("expected a number");
+    return parseFloat(s.slice(start, i));
+  }
+  const v = parseExpr();
+  if (i !== s.length) throw new Error("unexpected trailing characters");
+  return v;
+}
+
+/**
+ * 演算子の優先順位を無視して、左から順番に計算する(2026-09-22追加)。
+ * 正解の解説文自体が「9×9=81、81+9=90、90÷9=10」と**左から順に**計算する形で
+ * 書かれているため、利用者が括弧を付け忘れて「9×9+9÷9=10」と書いた場合、
+ * 通常の演算子優先順位では82になり不正解に見えるが、意図(左から順に計算)は
+ * 合っているとみなし「半分正解」とする(ユーザー指示「9X9+9/9＝10 は半分正解」)。
+ */
+function sequentialEval(expr) {
+  const tokens = expr.replace(/[()]/g, "").match(/[0-9.]+|[+\-*/]/g);
+  if (!tokens || tokens.length === 0) throw new Error("empty expression");
+  let acc = parseFloat(tokens[0]);
+  for (let i = 1; i < tokens.length; i += 2) {
+    const op = tokens[i];
+    const rhs = parseFloat(tokens[i + 1]);
+    if (rhs === undefined || Number.isNaN(rhs)) throw new Error("malformed expression");
+    if (op === "+") acc += rhs;
+    else if (op === "-") acc -= rhs;
+    else if (op === "*") acc *= rhs;
+    else if (op === "/") acc /= rhs;
+    else throw new Error("unknown operator");
+  }
+  return acc;
+}
+
+/**
+ * 「9◯9◯9◯9=10」形式の解答を採点する。戻り値: {verdict:"correct"|"half"|"wrong"|"unrecognized", detail}。
+ * `text`全体ではなく、9・演算子・括弧・イコールだけからなる部分文字列を式として抜き出す
+ * (「答えは9×9+9÷9=10です」のような自然文にも対応)。
+ */
+function gradeFourNinesAnswer(text) {
+  const normalized = normalizeFourNinesEquation(text);
+  const m = normalized.match(/[0-9()+\-*/.\s]*9[0-9()+\-*/.\s]*=\s*[0-9.]+/);
+  if (!m) return { verdict: "unrecognized" };
+  const [lhsRaw, rhsRaw] = m[0].split("=");
+  const nineCount = (lhsRaw.match(/9/g) || []).length;
+  let lhsValue;
+  try {
+    lhsValue = evalArithmetic(lhsRaw);
+  } catch (e) {
+    return { verdict: "unrecognized" };
+  }
+  const rhsValue = parseFloat(rhsRaw);
+  const equationHolds = Math.abs(lhsValue - rhsValue) < 1e-9;
+  if (nineCount === 4 && equationHolds && Math.abs(rhsValue - 10) < 1e-9) {
+    return { verdict: "correct", detail: `${lhsRaw.trim()} = ${lhsValue}` };
+  }
+  // 「半分正解」: 9が3個で、括弧内(9×9+9=90)の計算そのものは合っている
+  // (÷9を付け忘れて先に答えの10を書いてしまった、等)。
+  if (nineCount === 3) {
+    try {
+      const bare = lhsRaw.replace(/[()]/g, "");
+      const v = evalArithmetic(bare);
+      if (Math.abs(v - 90) < 1e-9) {
+        return { verdict: "half", reason: "missing-divide", detail: `${lhsRaw.trim()} = ${v}` };
+      }
+    } catch (e) {
+      /* fallthrough */
+    }
+  }
+  // 「半分正解」その2: 9が4個・通常の演算子優先順位では10にならないが、
+  // 括弧を付け忘れただけで「左から順に計算」すれば10になる場合
+  // (例: 9×9+9÷9=10 は通常評価だと82だが、順に9×9=81→81+9=90→90÷9=10)。
+  if (nineCount === 4 && !equationHolds) {
+    try {
+      const seq = sequentialEval(lhsRaw);
+      if (Math.abs(seq - rhsValue) < 1e-9 && Math.abs(rhsValue - 10) < 1e-9) {
+        return { verdict: "half", reason: "missing-parens", detail: `${lhsRaw.trim()} = ${lhsValue}(通常の計算順) / ${seq}(左から順に計算)` };
+      }
+    } catch (e) {
+      /* fallthrough */
+    }
+  }
+  return { verdict: "wrong", detail: equationHolds ? `${lhsRaw.trim()} = ${lhsValue}` : null };
+}
+
+function fourNinesGradeMessage(grade) {
+  switch (grade.verdict) {
+    case "correct":
+      return (
+        `🎉 正解です! ${grade.detail} — 見事です! / Correct! ${grade.detail} — well done!\n\n` +
+        quizAnswerText()
+      );
+    case "half": {
+      if (grade.reason === "missing-parens") {
+        return (
+          `🤏 半分正解! ${grade.detail} — 使った9の数・演算子は合っていますが、順番どおりに先に計算させる括弧が必要です。「(9×9+9)÷9」のように括弧を付けて、もう一度書いてみますか? / ` +
+          `Half correct! ${grade.detail} — you used the right four 9s and operators, but it needs parentheses so the addition happens before the division. Try writing it as "(9×9+9)÷9" — want to try again?`
+        );
+      }
+      return (
+        `🤏 半分正解! ${grade.detail} まではぴったり合っています。あと1個の9で÷9をすれば10になります。もう一度挑戦してみますか? / ` +
+        `Half correct! ${grade.detail} is exactly right so far. Divide that by the remaining 9 to reach 10 — want to try again?`
+      );
+    }
+    case "wrong":
+      return (
+        "❌ 惜しい、その式では10になりません。もう一度挑戦してみますか? わからなければ「答えを教えて」と聞いてください。 / " +
+        "Not quite — that equation doesn't equal 10. Want to try again? Ask \"what's the answer\" if you'd like to see it."
+      );
+    default:
+      return "";
+  }
+}
+
 formEl.addEventListener("submit", async (e) => {
   e.preventDefault();
   const text = inputEl.value.trim();
@@ -5458,6 +5632,17 @@ formEl.addEventListener("submit", async (e) => {
     quizAwaitingAnswer = false;
     appendMessage("trainer", quizAnswerText());
     return;
+  }
+
+  // 四つの9の問題(QUIZ_SETS[0])は、解答待ち中に式を書き込まれたら自動採点する
+  // (2026-09-22新設)。他の2問(かたつむり・にわとり)は自由記述式のため対象外。
+  if (quizAwaitingAnswer && currentQuizTexts === QUIZ_SETS[0] && !isQuizRequest(text)) {
+    const grade = gradeFourNinesAnswer(text);
+    if (grade.verdict !== "unrecognized") {
+      if (grade.verdict === "correct") quizAwaitingAnswer = false;
+      appendMessage("trainer", fourNinesGradeMessage(grade));
+      return;
+    }
   }
 
   // 「何か問題を出して」「クイズ出して」への対応(作者のオリジナル問題)。
