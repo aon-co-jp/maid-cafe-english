@@ -7915,3 +7915,23 @@ Editツール**で行い、`grep -P '\x08'`等で制御文字が混入してい�
 6. **VPS**: open-english (web) is deployed (pull `/root/easy-web.tokyo/open-english`, restart `open-english{,-demo}`). aruaru-llm path-depends on `../open-cpu`: **pull open-cpu, then aruaru-llm**, `cargo build --release`, restart `aruaru-llm.service`.
 7. **Caution**: when driving the user's phone UI, check a screenshot after every step (a mis-tap once sent it to the home screen). Screenshots may contain IMEI etc.; never transcribe such values.
 8. **Known TODO**: int8 diagnosis is bottlenecked by host-side quantization and is slower than fp16 / the installed app still shows "admin login" / real Model Folding, MLA and int4 work (`open-cuda/DEVELOPMENT-NEXT.md`) / DirectML NPU for open-directx / update the GitHub multilingual READMEs (only ja/en were updated).
+
+## HANDOFF追記(2026-09-22) / HANDOFF addendum (2026-09-22)
+
+**日本語**
+- **AIの優先順位番号付け(管理者専用)**: 下部ドック「⚙ 選ぶ」で、管理者ログイン中はチェックしたAIに#1〜#3の番号を振って明示的に優先順を指定できる(`ai-pick-order`セレクト)。未選択(おまかせ)のときは、従来どおりサーバー側の既定優先順(現状Gemini+Groq)が自動で使われる——番号付けは選んだ場合の追加機能であり、指定しなくても常に「おすすめ設定」で動く。
+- **保存ボタンの追加**: チェック・番号の変更は選んだ時点で即時保存される仕様のままだが、それが伝わらず不安になるとの指摘を受け、「💾 保存して閉じる」ボタンと保存済み確認メッセージを追加した(見た目の明示のみで、保存の仕組み自体は変えていない)。
+- **四つの9の問題(9◯9◯9◯9=10)の自動採点を新設**: 演算子(×/x/X/*/＊/かける/掛ける、÷/ /／/わる/割る、-/－/‐/―/ひく/引く、+/＋/足す/たす)と括弧(全角/半角)・イコール(=/＝)の表記ゆれを同一視し、簡易パーサ(`evalArithmetic`)で式を評価して採点する。
+  - 正解: 9を4個使い実際に10になる式(別解の `((9×9)+9)÷9=10` のような括弧の付け方の違いも正解として扱う)。
+  - 半分正解: 9も演算子も4つ揃っているが、括弧を付け忘れたために通常の計算順序では10にならない場合(左から順に計算〈`sequentialEval`〉すれば10になることを確認して判定)。
+  - 不正解: ÷9を丸ごと書き忘れた場合(9が3個しかない)を含め、上記に当てはまらない式。
+  - 公式解答の表示にも、同じ式の別表記(`((9×9)+9)÷9=10`)を7言語全てに追記した。
+
+**English**
+- **Admin-only priority numbering**: while logged in as admin, checked AIs in the dock's "⚙ Choose" panel get a #1-#3 dropdown to explicitly set priority order. With nothing selected, the server's default priority order (currently Gemini+Groq) is used automatically — numbering is an optional extra, never required.
+- **Added a Save button**: settings were already saved instantly on each change, but that wasn't visible to users, so a "💾 Save & close" button plus a saved confirmation message were added (UI-only; the save mechanism itself is unchanged).
+- **New automatic grading for the four-nines puzzle (9◯9◯9◯9=10)**: normalizes operator variants (×/x/X/*/＊/かける/掛ける, ÷/ /／/わる/割る, -/－/‐/―/ひく/引く, +/＋/足す/たす), full/half-width parentheses and equals signs, then evaluates the expression with a small hand-written parser (`evalArithmetic`).
+  - Correct: four 9s that truly evaluate to 10 (equivalent parenthesizations like `((9x9)+9)/9=10` also count).
+  - Half-correct: all four 9s and operators present but missing the grouping parentheses, so standard operator precedence doesn't give 10 — checked by evaluating left-to-right instead (`sequentialEval`).
+  - Wrong: everything else, including forgetting the final /9 entirely (only three 9s).
+  - The official answer text now also shows the equivalent `((9x9)+9)/9=10` form, in all seven languages.

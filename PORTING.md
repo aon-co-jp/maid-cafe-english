@@ -1123,3 +1123,13 @@ only lists the reusable takeaways.
 - Pin an accelerator with `NnApiDelegate.Options.setAcceleratorName` (an unknown name throws — no silent CPU fallback).
 - The JS bridge `OpenEnglishNative.hardwareReport()` runs on the JS thread; read `WebView.url` on the main thread; answer only 127.0.0.1 pages.
 - Device tests: `./gradlew connectedPhoneDebugAndroidTest` (pick a device with `ANDROID_SERIAL`).
+
+## 追記(2026-09-22): 四つの9問題の採点ロジックの移植ポイント / Porting notes for the four-nines grader
+
+**日本語**: `normalizeFourNinesEquation`(表記ゆれの正規化)→`evalArithmetic`(通常の演算子優先順位、再帰下降パーサ、`eval`不使用)→`sequentialEval`(左から順に計算、括弧を無視)の3段構成。
+`gradeFourNinesAnswer`が判定を返し、`fourNinesGradeMessage`が日英併記のメッセージに変換する。呼び出し元は`formEl`のsubmitハンドラ内(`askTrainer`ではない)——`quizAwaitingAnswer && currentQuizTexts === QUIZ_SETS[0]`のときだけ発火する。
+他言語へ移植する場合も、この3段構成(正規化→厳密評価→左から順評価)を踏襲すれば、同様の「括弧忘れは半分正解、÷9を丸ごと忘れは不正解」という判定を再現できる。
+
+**English**: Three stages: `normalizeFourNinesEquation` (normalize operator/parenthesis/equals variants) → `evalArithmetic` (standard operator precedence, hand-written recursive-descent parser, no `eval`) → `sequentialEval` (left-to-right, ignoring precedence, parentheses stripped).
+`gradeFourNinesAnswer` returns the verdict; `fourNinesGradeMessage` turns it into a ja/en message. It's called from the `formEl` submit handler (not `askTrainer`), only when `quizAwaitingAnswer && currentQuizTexts === QUIZ_SETS[0]`.
+When porting to another language, keep this three-stage shape (normalize → strict eval → left-to-right eval) to reproduce the same "missing parentheses = half credit, missing /9 entirely = wrong" grading.

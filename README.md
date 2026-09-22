@@ -1329,3 +1329,9 @@ HANDOFFを参照。
 - **AIの選び方**: ローカルLLMのON/OFFと、クラウドAI(Gemini・Groq・Mistral・OpenRouter・Cloudflare AI)0〜3個を独立して選択(下部ドック「⚙ 選ぶ」)。 / Independent choice of the local LLM (on/off) and 0-3 cloud AIs (dock "⚙ Choose").
 - **スマホのNPU計算と診断(v0.8.13候補)**: NNAPIの加速器を列挙し、CPUより速く品質を満たす場合だけ採用。「おすすめLLM」画面の「📱 この端末のCPU・GPU・NPU診断」で確認可能(実機OPPO Reno11 Aで一括計算が6〜7倍)。 / Phone NPU compute and diagnosis (v0.8.13 candidate): enumerates NNAPI accelerators and uses them only when faster than CPU and quality gates pass (6-7x on batched compute on a real OPPO Reno11 A).
 - **読み上げ改善・話題ガイド・多言語Q&A** / TTS improvements, topic guides, multilingual Q&A.
+
+## 2026-09-22の更新 / Update 2026-09-22
+
+- **AIの優先順位番号付け(管理者専用)** / Admin-only priority numbering for the AI picker (#1-#3).
+- **AI選択パネルに保存ボタンを追加**(自動保存は従来どおり、見た目での明示) / Added a visible Save button to the AI picker (auto-save was already there; now it's visible).
+- **四つの9の問題(9◯9◯9◯9=10)の自動採点**: 演算子・括弧の全角半角/日本語表記ゆれを同一視、正解・半分正解・不正解を判定 / Automatic grading for the four-nines puzzle: normalizes fullwidth/halfwidth and Japanese-word operator variants, grades correct/half-correct/wrong.
