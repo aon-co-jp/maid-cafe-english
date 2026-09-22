@@ -152,8 +152,18 @@ const langInstructions = {
   ar: "Reply only in Arabic (العربية).",
   fa: "Reply only in Persian/Farsi (فارسی).",
   he: "Reply only in Hebrew (עברית).",
-  // 2026-09-22追加(ユーザー指示「選択可能言語にタイ語を追加して」)。
+  // 2026-09-22追加(ユーザー指示「選択可能言語にタイ語を追加して」「ベトナム語も
+  // フィリピン語もクルド語もミャンマー語も対応して」)。
   th: "Reply only in Thai (ภาษาไทย).",
+  vi: "Reply only in Vietnamese (Tiếng Việt).",
+  tl: "Reply only in Filipino/Tagalog (Filipino).",
+  my: "Reply only in Burmese (မြန်မာဘာသာ).",
+  ku: "Reply only in Kurdish (Kurdî).",
+  // 2026-09-22追加(ユーザー指示「トルコ、イスタンブールの言語もスイスの言語も対応して」)。
+  // スイスの4公用語のうちドイツ語・フランス語・イタリア語は既に対応済みのため、
+  // 残るロマンシュ語(スイス東部の少数言語)を追加する。
+  tr: "Reply only in Turkish (Türkçe).",
+  rm: "Reply only in Romansh (Rumantsch).",
 };
 
 // RTL(右書き)言語のコード一覧(ユーザー指示「Arabic・Persian・Hebrewは
@@ -198,8 +208,15 @@ const trainerRoleByTarget = {
   arabic: "You are a friendly Arabic (العربية) conversation trainer at a maid cafe, helping the student practice speaking Arabic.",
   persian: "You are a friendly Persian/Farsi (فارسی) conversation trainer at a maid cafe, helping the student practice speaking Persian.",
   hebrew: "You are a friendly Hebrew (עברית) conversation trainer at a maid cafe, helping the student practice speaking Hebrew.",
-  // 2026-09-22追加(ユーザー指示「選択可能言語にタイ語を追加して」)。
+  // 2026-09-22追加(ユーザー指示「選択可能言語にタイ語を追加して」「ベトナム語も
+  // フィリピン語もクルド語もミャンマー語も対応して」)。
   thai: "You are a friendly Thai (ภาษาไทย) conversation trainer at a maid cafe, helping the student practice speaking Thai.",
+  vietnamese: "You are a friendly Vietnamese (Tiếng Việt) conversation trainer at a maid cafe, helping the student practice speaking Vietnamese.",
+  filipino: "You are a friendly Filipino/Tagalog conversation trainer at a maid cafe, helping the student practice speaking Filipino.",
+  burmese: "You are a friendly Burmese (မြန်မာဘာသာ) conversation trainer at a maid cafe, helping the student practice speaking Burmese.",
+  kurdish: "You are a friendly Kurdish (Kurdî) conversation trainer at a maid cafe, helping the student practice speaking Kurdish.",
+  turkish: "You are a friendly Turkish (Türkçe) conversation trainer at a maid cafe, helping the student practice speaking Turkish.",
+  romansh: "You are a friendly Romansh (Rumantsch) conversation trainer at a maid cafe, helping the student practice speaking Romansh, one of Switzerland's four national languages.",
 };
 const learnTargetEl = document.getElementById("learn-target");
 
@@ -258,6 +275,30 @@ const CULTURAL_NOTES_BY_TARGET = {
   english: {
     ja: "🇬🇧 英語の豆知識: 日本語ほどはっきりした敬語はありませんが、「please」や「Could you...?」のような言い方を使うと、より丁寧で礼儀正しく聞こえます。",
     en: "🇬🇧 English tip: it doesn't have grammatical honorifics like Japanese, but native speakers still sound more polite by adding words like \"please\" or phrasing requests as \"Could you...?\"",
+  },
+  vietnamese: {
+    ja: "🇻🇳 ベトナム語の豆知識: 「あなた」にあたる単語は1つではなく、相手の年齢や関係性によって anh(年上の男性)・chị(年上の女性)・em(年下)などを使い分けます。ネイティブはこの呼び方自体で相手への敬意を示しています。",
+    en: "🇻🇳 Vietnamese tip: there isn't a single word for \"you\" — native speakers choose from anh (older man), chị (older woman), em (younger person), and others, based on the listener's age and relationship. The choice of pronoun itself is how respect is shown.",
+  },
+  filipino: {
+    ja: "🇵🇭 フィリピン語の豆知識: 目上の方や初対面の方には、文に「po」「opo」をつけると丁寧になります。子どもの頃から自然に身につく、とても大切な習慣です。",
+    en: "🇵🇭 Filipino tip: adding \"po\" or \"opo\" when speaking to elders or people you've just met makes your speech polite. It's a habit Filipinos learn from childhood and consider very important.",
+  },
+  burmese: {
+    ja: "🇲🇲 ミャンマー語の豆知識: 「私」にあたる言葉も話し手の性別で変わります(男性は「ကျွန်တော်(チュンドー)」、女性は「ကျွန်မ(チュンマ)」)。また名前の前に「ဦး(ウー、男性への敬称)」「ဒေါ်(ドー、女性への敬称)」をつけて呼ぶのが一般的です。",
+    en: "🇲🇲 Burmese tip: even the word for \"I\" depends on the speaker's own gender (ကျွန်တော် kyundaw for men, ကျွန်မ kyunma for women). It's also common to address people with the honorific title U (ဦး) for men or Daw (ဒေါ်) before their name.",
+  },
+  kurdish: {
+    ja: "🇮🇶 クルド語の豆知識: 地域によってクルマンジー語・ソラニー語などの方言が異なり、文法(名詞の性)も違います。「Kek(兄さん)」「Xwişk(姉さん)」のように、血縁でなくても親しみと敬意を込めて呼びかける習慣があります。",
+    en: "🇮🇶 Kurdish tip: dialects like Kurmanji and Sorani differ by region, including grammatical gender. It's also common to address people warmly and respectfully with terms like Kek (\"brother\") or Xwişk (\"sister\"), even when there's no blood relation.",
+  },
+  turkish: {
+    ja: "🇹🇷 トルコ語の豆知識: 親しい相手には「sen」、目上の方や初対面には「siz」を使います。また「abi(兄さん)」「abla(姉さん)」のように、血縁でなくても親しみを込めて年上の方を呼ぶ習慣があります。",
+    en: "🇹🇷 Turkish tip: use the informal \"sen\" with close friends, and the more respectful \"siz\" with elders or people you've just met. It's also common to warmly address older people as \"abi\" (older brother) or \"abla\" (older sister), even without a blood relation.",
+  },
+  romansh: {
+    ja: "🇨🇭 ロマンシュ語の豆知識: スイスの4番目の公用語で、話者は主にスイス東部のグラウビュンデン州に住む少数言語です。地域ごとに複数の書き言葉(方言)があり、話者はそれぞれの地域の言葉を大切にしています。",
+    en: "🇨🇭 Romansh tip: it's Switzerland's fourth national language, spoken mainly by a small community in the canton of Graubünden. It has several regional written varieties, and speakers take pride in their own local form of the language.",
   },
 };
 // 同じ言語について、1つのブラウザ・セッション内で何度も表示しないための記録。
@@ -9332,6 +9373,15 @@ const ENABLED_LANGUAGES_KEY = "open-english.enabledLanguages";
 const LANGUAGE_PROMPT_SHOWN_KEY = "open-english.languagePromptShown";
 // 母国語(ネイティブ)と、連続表示・読み上げの順番(2026-08-22の追加要望)。
 const NATIVE_LANGUAGE_KEY = "open-english.nativeLanguage";
+// 2026-09-22追加(ユーザー指示「スマホ、タブレット、PC版は、母国語や学びたい言語などは
+// 設定を保存出来る用にして」): 母国語(NATIVE_LANGUAGE_KEY)は既に保存・復元されていたが、
+// 「学びたい言語」(learn-target)・応答言語(reply-lang)・レベルは、ページを開き直すたびに
+// 毎回既定値(English/自動判定/中級者)へ戻っていた。他の設定と同じ
+// localStorage+サーバーDBの二重保存(`persistSetting`/`restoreSettingsFromServer`と同じ
+// 仕組み)で保存・復元する。
+const LEARN_TARGET_KEY = "open-english.learnTarget";
+const REPLY_LANG_KEY = "open-english.replyLang";
+const LEVEL_KEY = "open-english.level";
 const LANGUAGE_ORDER_KEY = "open-english.languageOrder";
 
 // ---------------------------------------------------------------------------
@@ -9385,7 +9435,7 @@ async function restoreSettingsFromServer() {
     return; // サーバー未起動・file://等では何もしない(localStorageのみで動作)
   }
   if (!settings || typeof settings !== "object") return;
-  [ENABLED_LANGUAGES_KEY, NATIVE_LANGUAGE_KEY, LANGUAGE_ORDER_KEY, CUSTOM_QA_KEY].forEach((key) => {
+  [ENABLED_LANGUAGES_KEY, NATIVE_LANGUAGE_KEY, LANGUAGE_ORDER_KEY, CUSTOM_QA_KEY, LEARN_TARGET_KEY, REPLY_LANG_KEY, LEVEL_KEY].forEach((key) => {
     try {
       if (localStorage.getItem(key) === null && typeof settings[key] === "string") {
         localStorage.setItem(key, settings[key]);
@@ -9982,7 +10032,40 @@ function refreshLanguageDependentUi() {
   renderNativeLanguageSelect();
   renderLanguageOrderList();
   renderMultiSpeakOutput();
+  restoreLearnerPreferences();
 }
+
+// 2026-09-22追加(ユーザー指示「スマホ、タブレット、PC版は、母国語や学びたい言語などは
+// 設定を保存出来る用にして」): 保存済みの「学びたい言語」(world:コードも含む)・応答言語・
+// レベルを、選択肢が揃った後(`world:`系オプションは`applyEnabledLanguagesToMenus()`が
+// 描画済みである必要がある)に復元する。保存が無ければ何もしない(既定値のまま)。
+// 2回目以降の呼び出しでも安全なよう、直接値を書き込むだけでイベントは発火しない。
+let learnerPreferencesRestored = false;
+function restoreLearnerPreferences() {
+  if (learnerPreferencesRestored) return;
+  try {
+    const savedTarget = localStorage.getItem(LEARN_TARGET_KEY);
+    if (savedTarget && learnTargetEl && learnTargetEl.querySelector(`option[value="${CSS.escape(savedTarget)}"]`)) {
+      learnTargetEl.value = savedTarget;
+      if (typeof updateMicLangQuickLabel === "function") updateMicLangQuickLabel();
+      if (!savedTarget.startsWith("world:")) showCulturalNoteIfAny(savedTarget);
+    }
+    const savedReply = localStorage.getItem(REPLY_LANG_KEY);
+    if (savedReply && replyLangEl && replyLangEl.querySelector(`option[value="${CSS.escape(savedReply)}"]`)) {
+      replyLangEl.value = savedReply;
+    }
+    const savedLevel = localStorage.getItem(LEVEL_KEY);
+    if (savedLevel && levelEl && levelEl.querySelector(`option[value="${CSS.escape(savedLevel)}"]`)) {
+      levelEl.value = savedLevel;
+    }
+  } catch (e) {
+    /* 復元できなくても既定値のまま動作を続ける(既存の可用性優先方針) */
+  }
+  learnerPreferencesRestored = true;
+}
+if (learnTargetEl) learnTargetEl.addEventListener("change", () => persistSetting(LEARN_TARGET_KEY, learnTargetEl.value));
+if (replyLangEl) replyLangEl.addEventListener("change", () => persistSetting(REPLY_LANG_KEY, replyLangEl.value));
+if (levelEl) levelEl.addEventListener("change", () => persistSetting(LEVEL_KEY, levelEl.value));
 
 function moveLanguageInOrder(code, delta) {
   const codes = multiSpeakTargetCodes();
