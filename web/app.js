@@ -2726,6 +2726,11 @@ function switchCharacter() {
 characterSwitchBtn.addEventListener("click", switchCharacter);
 
 async function askTrainer(userText) {
+  // 2026-09-22追加(ユーザー指示「最新の情報が欲しい様なニュアンスを含んだ質問がある時は、
+  // GeminiなどのAIからGoogle検索や必要ならGithub調査も自動で行なう」): この回のユーザー
+  // 発話を、`shouldBoostWithGoogleSearch`/`shouldUseGithubSearch`からも参照できるよう
+  // モジュールスコープへ記録しておく(`voiceInputLowConfidence`等と同じ「今回限りの状態」)。
+  currentTurnUserText = userText;
   // カスタムQ&Aデータベース(2026-09-13新設)を最優先でチェックする。
   // 一致すれば、AI推論(GPT-2/外部プロバイダとも)を一切呼ばず、利用者が
   // 事前に登録した回答をそのまま返す——「この様な質問にはこの様な回答が
@@ -3665,16 +3670,38 @@ function looksUncertain(text) {
   const lower = String(text || "").toLowerCase();
   return AI_UNCERTAINTY_MARKERS.some((m) => lower.includes(m.toLowerCase()));
 }
+let currentTurnUserText = "";
+// 2026-09-22追加(ユーザー指示「最新の情報が欲しい様なニュアンスを含んだ質問がある時は、
+// GeminiなどのAIからGoogle検索や必要ならGithub調査も自動で行なう」): 「最新」「今の」
+// 「現在の」「アップデート」等のニュアンスを検出する。
+const LATEST_INFO_MARKERS_JA = ["最新", "今の", "現在の", "いま現在", "アップデート", "更新された", "最近の", "今日の", "今どうなって"];
+const LATEST_INFO_MARKERS_EN = ["latest", "up to date", "up-to-date", "most recent", "currently", "these days", "right now", "what's new", "recent update"];
+function wantsLatestInfo(userText) {
+  const lower = String(userText || "").toLowerCase();
+  return LATEST_INFO_MARKERS_JA.some((m) => (userText || "").includes(m)) || LATEST_INFO_MARKERS_EN.some((m) => lower.includes(m));
+}
+// GitHub・ソースコード・リポジトリに関する話題かどうか(GitHub調査が必要かの判定)。
+const GITHUB_TOPIC_MARKERS_JA = ["github", "ギットハブ", "リポジトリ", "ソースコード", "オープンソース", "コミット", "プルリク"];
+const GITHUB_TOPIC_MARKERS_EN = ["github", "repository", "repo", "source code", "open source", "open-source", "commit", "pull request"];
+function mentionsGithubTopic(userText) {
+  const lower = String(userText || "").toLowerCase();
+  return GITHUB_TOPIC_MARKERS_JA.some((m) => (userText || "").includes(m)) || GITHUB_TOPIC_MARKERS_EN.some((m) => lower.includes(m));
+}
 function shouldBoostWithGoogleSearch() {
   if (forceSearchBoostOnce) {
     forceSearchBoostOnce = false;
     return true;
   }
   if (voiceInputLowConfidence) return true;
+  if (wantsLatestInfo(currentTurnUserText)) return true;
   const target = typeof learnTargetEl !== "undefined" && learnTargetEl ? learnTargetEl.value : "";
   if (UNVERIFIED_OR_LOW_QUALITY_TARGETS.has(target)) return true;
   const reply = typeof replyLangEl !== "undefined" && replyLangEl ? replyLangEl.value : "";
   return ["de", "fr", "es", "it", "ru", "ar", "fa", "he", "th", "vi", "tl", "my", "ku", "tr", "rm"].includes(reply);
+}
+/** 「最新の情報が欲しい」ニュアンス＋GitHub関連の話題のときだけ、GitHub検索も自動で有効にする。 */
+function shouldBoostWithGithubSearch() {
+  return wantsLatestInfo(currentTurnUserText) && mentionsGithubTopic(currentTurnUserText);
 }
 
 const yt = (q) => "https://www.youtube.com/results?search_query=" + encodeURIComponent(q);
@@ -3738,8 +3765,19 @@ async function newsSuffix(userText) {
       return `\n\n📰 No news collected yet${reason} / まだニュースが収集されていません${reason ? "(" + data.last_error + ")" : ""}。`;
     }
     const countryLabel = data.country ? data.country.country : country;
-    const headlines = data.items.slice(0, 3).map((i) => `・${i.title}`).join("\n");
-    return `\n\n📰 Recent news from ${countryLabel} / ${countryLabel}の最近のニュース:\n${headlines}`;
+    // 2026-09-22追加(ユーザー指示「Google検索した日付と...情報にも日付を付けてDATABASEで
+    // 管理して」): 検索日時(=取得日時、記事自体の公開日ではない、正直な開示)を併記する。
+    const fmtDate = (unixSec) => {
+      if (!unixSec) return "";
+      try {
+        return new Date(unixSec * 1000).toLocaleString(undefined, { year: "numeric", month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit" });
+      } catch (e) {
+        return "";
+      }
+    };
+    const searchedAt = fmtDate(data.fetched_at_unix);
+    const headlines = data.items.slice(0, 3).map((i) => `・${i.title}${i.retrieved_at_unix ? ` (${fmtDate(i.retrieved_at_unix)}取得)` : ""}`).join("\n");
+    return `\n\n📰 Recent news from ${countryLabel} / ${countryLabel}の最近のニュース${searchedAt ? ` (検索日時 / searched at: ${searchedAt})` : ""}:\n${headlines}`;
   } catch (err) {
     return "";
   }
@@ -8808,7 +8846,7 @@ if (googleSearchBtn && googleSearchModal) {
           body.google_search_cx = creds.cx;
         }
       }
-      if (localStorage.getItem(PROVIDER_PRIORITY_USE_GITHUB_KEY) === "1") {
+      if (localStorage.getItem(PROVIDER_PRIORITY_USE_GITHUB_KEY) === "1" || shouldBoostWithGithubSearch()) {
         body.use_github_search = true;
         const token = localStorage.getItem(GITHUB_TOKEN_LOCAL_KEY);
         if (token) body.github_token = token;
@@ -9382,6 +9420,7 @@ async function trySharedPriorityProviderReply(prompt) {
     // 共有無料枠(1日100件上限、`web_search.rs`)を使うため、常時ONにはしていない。
     const sharedBody = { prompt, providers: getSelectedAis() };
     if (shouldBoostWithGoogleSearch()) sharedBody.use_google_search = true;
+    if (shouldBoostWithGithubSearch()) sharedBody.use_github_search = true;
     const res = await fetchWithTimeout(url, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(sharedBody) }, 45000);
     if (!res.ok) {
       if (res.status === 429) return null; // レート制限中は静かに自端末側へフォールバック
