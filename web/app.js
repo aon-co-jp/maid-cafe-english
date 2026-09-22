@@ -719,6 +719,59 @@ function ensureHybridReply(completion, userText) {
   return `${completion}\n\n${note}`;
 }
 
+// ---------------------------------------------------------------------------
+// 3〜4ヶ国語同時ハイブリッド表示(2026-09-22新設、ユーザー指示「基本は、二か国語の他に
+// 3か国語や4ヶ国語まで同時に表示可能にして」)。
+//
+// **正直な開示**: 内蔵のローカルGPT-2(aruaru-llm)は英語中心の事前学習のため、
+// 指示だけで複数言語を確実に書き分けることは実機検証で確認できていない
+// (既存の`ensureHybridReply`/`ensureScriptGuaranteedReply`と同じ制約)。3〜4ヶ国語
+// ハイブリッドは、指示に従える外部LLM(Gemini等、WEB版共有枠または自分の鍵)が
+// 使われた場合に実際に機能する。ローカルGPT-2しか使えない場合は、既存の2言語版と
+// 同じく「英語のみになった場合は短い注記を添える」程度の保証にとどめる。
+function hybridLanguageCodes(n) {
+  const codes = ["en"];
+  try {
+    const native = typeof loadNativeLanguage === "function" ? loadNativeLanguage() : "ja";
+    if (native && !codes.includes(native)) codes.push(native);
+  } catch (e) {
+    codes.push("ja");
+  }
+  if (!codes.includes("ja") && codes.length < n) codes.push("ja");
+  try {
+    const ordered = typeof multiSpeakTargetCodes === "function" ? multiSpeakTargetCodes() : [];
+    for (const c of ordered) {
+      if (codes.length >= n) break;
+      if (!codes.includes(c)) codes.push(c);
+    }
+  } catch (e) {
+    /* 追加言語が取得できなくても、英語+母国語(+日本語)だけで続行する */
+  }
+  return codes.slice(0, n);
+}
+
+function hybridLanguageInstruction(n) {
+  const codes = hybridLanguageCodes(n);
+  const names = codes.map((c) => (typeof languageDisplayName === "function" ? languageDisplayName(c).split(" / ")[0] : c));
+  return `Reply with the same short message in ${names.length} languages, one after another in this order: ${names.join(", ")}. ` +
+    `Clearly separate each language's version (e.g. on its own line), so the student can compare all ${names.length} at once.`;
+}
+
+/** 3〜4ヶ国語ハイブリッドで、ローカルGPT-2しか使えず実際には英語だけになった場合の注記。 */
+function ensureMultiHybridReply(completion) {
+  const mode = replyLangEl.value;
+  if (mode !== "hybrid3" && mode !== "hybrid4") return completion;
+  const n = mode === "hybrid3" ? 3 : 4;
+  const codes = hybridLanguageCodes(n);
+  const names = codes.map((c) => (typeof languageDisplayName === "function" ? languageDisplayName(c) : c));
+  if (containsJapanese(completion) || codes.some((c) => NON_LATIN_SCRIPT_GUARANTEE[c] && NON_LATIN_SCRIPT_GUARANTEE[c].test(completion))) {
+    return completion;
+  }
+  const note = `(Honest disclosure: this reply only came out in English. ${names.length}-language hybrid mode (${names.join(", ")}) works reliably with an external AI (Gemini etc.) — the built-in local model can't guarantee it. / ` +
+    `正直な開示: この返信は英語のみになりました。${names.length}ヶ国語ハイブリッド(${names.join("、")})は外部AI〈Gemini等〉を使った場合に確実に機能します——内蔵のローカルモデルでは保証できません。)`;
+  return `${completion}\n\n${note}`;
+}
+
 // 2026-08-25追加(ユーザー指示「German/Russian/Arabic/Persian/Hebrewの
 // 実生成品質を実機テストし、ガベージなら正直に開示せよ」への対応)。
 // 実機検証結果(CLAUDE.md HANDOFF参照): reply-langをde/fr/es/it/ru/ar/
@@ -2682,6 +2735,11 @@ async function askTrainer(userText) {
   // 選んでいる場合はそちらを優先する(自動判定は英日の二択のみ対応)。
   const effectiveReplyLang = replyLangEl.value === "auto" ? (containsJapanese(userText) ? "ja" : "en") : replyLangEl.value;
   let langInstruction = langInstructions[effectiveReplyLang] || "";
+  // 2026-09-22追加(ユーザー指示「基本は、二か国語の他に3か国語や4ヶ国語まで同時に表示
+  // 可能にして」): hybrid3/hybrid4は静的な`langInstructions`ではなく、母国語・有効化した
+  // 言語から動的に組み立てる。
+  if (effectiveReplyLang === "hybrid3") langInstruction = hybridLanguageInstruction(3);
+  if (effectiveReplyLang === "hybrid4") langInstruction = hybridLanguageInstruction(4);
   // ユーザーの発話が日本語の場合、その事実をプロンプトへ明示する
   // (ユーザー報告「日本語でしゃべっても英語と日本語で返事して」への
   // 対応、第一段階)。GPT-2は英語中心の語彙のため、これだけでは
@@ -2719,6 +2777,14 @@ async function askTrainer(userText) {
   //   2) どちらも不可なら、この端末自身のaruaru-llm(手元のハードウェア)による
   //      ローカルGPT-2推論(既存の可用性優先の設計を踏襲)
   const usesOwnKeyExclusively = hasOwnConfiguredProviderKey();
+  // 2026-09-22追加(ユーザー指示「確認した後の対応を機能化して」): 低信頼度・未検証言語を
+  // 理由にGoogle検索の裏取りを行ったかどうかを、この返信1回ぶんだけ覚えておき、
+  // 実際に返信へ反映する(以前は判定していても利用者からは見えない状態だった)。
+  const searchBoostReason = shouldBoostWithGoogleSearch()
+    ? voiceInputLowConfidence
+      ? "voice"
+      : "language"
+    : null;
   let quotaExceededPrefix = "";
   let priorityResult =
     !usesOwnKeyExclusively && typeof trySharedPriorityProviderReply === "function" ? await trySharedPriorityProviderReply(prompt) : null;
@@ -2732,9 +2798,17 @@ async function askTrainer(userText) {
     }
   }
   if (priorityResult && typeof priorityResult.text === "string") {
-    let reply = ensureScriptGuaranteedReply(ensureHybridReply(trimDegenerateRepetition(priorityResult.text), userText));
+    let reply = ensureMultiHybridReply(ensureScriptGuaranteedReply(ensureHybridReply(trimDegenerateRepetition(priorityResult.text), userText)));
     if (priorityResult.provider) {
       reply += `\n\n🤖 via ${priorityResult.provider} (external LLM) / 外部LLM(${priorityResult.provider})経由`;
+    }
+    // 2026-09-22追加: Google検索の裏取りを実際に行った回では、その旨を正直に一言添える
+    // (`searchBoostReason`で判定理由〈音声入力の信頼度が低い/翻訳の品質が未検証〉も分ける)。
+    if (searchBoostReason && priorityResult.searchNotes && priorityResult.searchNotes.length) {
+      const reasonJa = searchBoostReason === "voice" ? "音声入力の聞き取りに自信が持てなかった" : "この言語への翻訳がまだ品質検証できていない";
+      const reasonEn = searchBoostReason === "voice" ? "wasn't fully confident in the voice recognition" : "this language's translation quality hasn't been verified yet";
+      reply += `\n\n🔎 ${reasonJa}ため、Google検索で確認してから回答しました(${priorityResult.searchNotes.join(", ")})。 / ` +
+        `Since I ${reasonEn}, I checked with a Google search before answering (${priorityResult.searchNotes.join(", ")}).`;
     }
     reply += await referralsSuffix(userText);
     reply += consumptionTaxSuffix(userText);
@@ -2924,7 +2998,7 @@ async function askTrainer(userText) {
     renderRuntimeBadge(lastRuntimeInfo);
   }
   const completion = data.completion ?? "(no completion field in response)";
-  let reply = ensureScriptGuaranteedReply(ensureHybridReply(trimDegenerateRepetition(completion), userText));
+  let reply = ensureMultiHybridReply(ensureScriptGuaranteedReply(ensureHybridReply(trimDegenerateRepetition(completion), userText)));
   // 2026-09-13追加(ユーザー報告「返事が中国語みたいです」への対応):
   // 返信言語が日本語(自動判定含む)なのに、生成結果が漢字を含みつつも
   // 助詞等が無く日本語として意味を成していない(GPT-2の英語中心BPEが
