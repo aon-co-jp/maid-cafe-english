@@ -132,6 +132,33 @@ const ageGroupInstructions = {
 // ビジネス英会話の追加選択(ユーザー指示「もう一つ複数選択でビジネス
 // 英会話も追加選択可能」への対応、他の年齢層/レベル選択とは独立した
 // チェックボックスとして併用できる)。
+// 2026-09-22追加(ユーザー指示「途中でもっと簡単にとか、初心者ですとかもっと分かりやすく
+// などのご要望に対応」): 「もっと簡単に」「難しい」等の意思表示を検出する。
+const LEVEL_STEP_DOWN_PHRASES_JA = [
+  "もっと簡単に", "もっとやさしく", "もっと分かりやすく", "もっとわかりやすく", "簡単な言葉で",
+  "やさしい言葉で", "初心者です", "初心者なので", "難しい", "むずかしい", "分かりにくい", "わかりにくい",
+  "理解できません", "理解できない", "ついていけません", "ついていけない",
+];
+const LEVEL_STEP_DOWN_PHRASES_EN = [
+  "simpler please", "make it simpler", "easier please", "make it easier", "i'm a beginner", "i am a beginner",
+  "too difficult", "too hard", "hard to understand", "difficult to understand", "in simpler words",
+  "can you simplify", "i don't understand", "i dont understand", "that's too advanced", "that is too advanced",
+];
+function detectLevelStepDownRequest(userText) {
+  const lower = userText.toLowerCase();
+  return LEVEL_STEP_DOWN_PHRASES_JA.some((p) => userText.includes(p)) || LEVEL_STEP_DOWN_PHRASES_EN.some((p) => lower.includes(p));
+}
+const LEVEL_LABEL_JA = { "super-beginner": "超初心者", "beginner": "初心者", "intermediate": "中級者", "native": "ネイティブ" };
+function levelAdjustmentNote(levelJustAdjusted, level) {
+  if (!levelJustAdjusted) return "";
+  const label = LEVEL_LABEL_JA[level] || level;
+  if (level === "super-beginner") {
+    return `\n\n📚 レベルはすでに一番易しい「超初心者」です。これ以上は下げられません。 / The level is already at the easiest, "Super Beginner" — it can't go any lower.`;
+  }
+  return `\n\n📚 レベルを「${label}」に調整しました。またいつでも「もっと簡単に」「もっと上級に」と伝えてください。 / ` +
+    `Level adjusted to "${label}". Feel free to ask for simpler or more advanced any time.`;
+}
+
 const BUSINESS_ENGLISH_INSTRUCTION =
   "Also weave in some polite business English phrases (greetings, meetings, email requests) suitable for a workplace context.";
 
@@ -2721,8 +2748,33 @@ async function askTrainer(userText) {
     return `${blocks.join("\n\n────────────\n\n")}\n\n📚 (Custom Q&A match / カスタムQ&Aに一致: ${allKeywords})`;
   }
   const base = apiBaseEl.value.trim();
+  // 2026-09-22追加(ユーザー指示「途中でもっと簡単にとか、初心者ですとかもっと分かりやすく
+  // などのご要望に対応」「回答の英語や日本が難しいと会話のやり取りからAIが自動判断」):
+  // 「もっと簡単に」「難しい」等の意思表示を検出したら、レベルを1段下げて保存する
+  // (super-beginner未満へは下げない)。AI自身による厳密な習熟度判定ではなく、
+  // 分かりやすい言い回しのキーワード検出にとどめている(正直な開示)。
+  const levelStepDown = detectLevelStepDownRequest(userText);
+  let levelJustAdjusted = false;
+  if (levelStepDown && levelEl) {
+    const order = ["super-beginner", "beginner", "intermediate", "native"];
+    const idx = order.indexOf(levelEl.value);
+    if (idx > 0) {
+      levelEl.value = order[idx - 1];
+      persistSetting(LEVEL_KEY, levelEl.value);
+      levelJustAdjusted = true;
+    } else if (idx === 0) {
+      levelJustAdjusted = true; // 既に最も易しい段階(その旨は下でreplyへ添える)
+    }
+  }
   const level = levelEl.value;
   let levelInstruction = levelInstructions[level] || "";
+  // 2026-09-22追加(ユーザー指示「日本語でも英語でも、AIがその文章なら、もっとこうすると
+  // もっと自然だとかネイティブだとこんな感じです、みたいなアドバイスも必要に応じで自動で
+  // 行なう機能」): 外部LLM(Gemini等)へ、価値がある時だけ自然な言い回しのヒントを
+  // 添えるよう指示する。内蔵ローカルGPT-2はこの指示に従える保証が無い(既存の制約と同じ)。
+  levelInstruction +=
+    " If the student's Japanese or English sentence could sound more natural, briefly add how a native speaker " +
+    "would phrase it (in both English and Japanese) — but only when it genuinely helps, not for every message.";
   const ageInstruction = ageGroupEl ? ageGroupInstructions[ageGroupEl.value] || "" : "";
   if (ageInstruction) levelInstruction = `${ageInstruction} ${levelInstruction}`;
   if (businessEnglishEl && businessEnglishEl.checked) {
@@ -2813,6 +2865,7 @@ async function askTrainer(userText) {
   }
   if (priorityResult && typeof priorityResult.text === "string") {
     let reply = ensureMultiHybridReply(ensureScriptGuaranteedReply(ensureHybridReply(trimDegenerateRepetition(priorityResult.text), userText)));
+    reply += levelAdjustmentNote(levelJustAdjusted, level);
     if (priorityResult.provider) {
       reply += `\n\n🤖 via ${priorityResult.provider} (external LLM) / 外部LLM(${priorityResult.provider})経由`;
     }
@@ -3018,6 +3071,7 @@ async function askTrainer(userText) {
   }
   const completion = data.completion ?? "(no completion field in response)";
   let reply = ensureMultiHybridReply(ensureScriptGuaranteedReply(ensureHybridReply(trimDegenerateRepetition(completion), userText)));
+  reply += levelAdjustmentNote(levelJustAdjusted, level);
   // 2026-09-13追加(ユーザー報告「返事が中国語みたいです」への対応):
   // 返信言語が日本語(自動判定含む)なのに、生成結果が漢字を含みつつも
   // 助詞等が無く日本語として意味を成していない(GPT-2の英語中心BPEが
@@ -3646,19 +3700,46 @@ function topicGuideSuffix(userText) {
   return intro + body;
 }
 
+// 2026-09-22修正(ユーザー報告「今日のニュースは？に今は回答出来ていません」): 以前は
+// `apiBaseEl.value`(既定`http://localhost:4600`)経由で自分の端末のaruaru-llmへ直接
+// 取りに行っていたが、公開WEB版の閲覧者にはローカルaruaru-llmが無いため常に失敗し、
+// 無言で空文字を返していた(実質的に一切回答できていなかった)。他の公開機能
+// (custom-qa・chat-providers等)と同じ「同一オリジンの公開プロキシ経由でVPS自身の
+// aruaru-llmへ中継する」設計へ揃える。
+// あわせて(ユーザー指示「日本語の場合は日本の今日のニュースを、英語の場合はアメリカの
+// ニュースを検索」): サーバー接続先国に固定された`/v1/news/latest`ではなく、質問の言語
+// から判定した国を指定できる`/v1/news/for?country=...`を使う。
+const SHARED_NEWS_FOR_ABSOLUTE_URL = "https://easy-web.tokyo/open-english/v1/public/news/for";
+function newsCountryForUserText(userText) {
+  // 対応中の非英語言語(学びたい言語/応答言語)は、それぞれの国名を返す。
+  // 未対応の組み合わせ・自動判定不能な場合は、日本語を含むかどうかで日本/アメリカを選ぶ
+  // (既存の自動判定〈containsJapanese〉と同じ考え方)。
+  const target = typeof learnTargetEl !== "undefined" && learnTargetEl ? learnTargetEl.value : "";
+  const targetCountry = {
+    japanese: "Japan", german: "Germany", french: "France", spanish: "Spain", italian: "Italy",
+    russian: "Russia", arabic: "Saudi Arabia", persian: "Iran", hebrew: "Israel", thai: "Thailand",
+    vietnamese: "Vietnam", filipino: "Philippines", burmese: "Myanmar", kurdish: "Iraq",
+    turkish: "Turkey", romansh: "Switzerland",
+  }[target];
+  if (targetCountry) return targetCountry;
+  return containsJapanese(userText) ? "Japan" : "United States";
+}
 async function newsSuffix(userText) {
   if (!mentionsNewsTopic(userText)) return "";
   try {
-    const base = apiBaseEl.value.trim();
-    const res = await fetchWithTimeout(`${base}/v1/news/latest`, {}, AUX_TIMEOUT_MS);
+    const country = newsCountryForUserText(userText);
+    const url = location.hostname.endsWith("easy-web.tokyo")
+      ? `/v1/public/news/for?country=${encodeURIComponent(country)}`
+      : `${SHARED_NEWS_FOR_ABSOLUTE_URL}?country=${encodeURIComponent(country)}`;
+    const res = await fetchWithTimeout(url, { cache: "no-store" }, AUX_TIMEOUT_MS);
     const data = await res.json();
     if (!data.items || data.items.length === 0) {
       const reason = data.last_error ? ` (${data.last_error})` : "";
       return `\n\n📰 No news collected yet${reason} / まだニュースが収集されていません${reason ? "(" + data.last_error + ")" : ""}。`;
     }
-    const country = data.country ? data.country.country : "your area / お住まいの地域";
+    const countryLabel = data.country ? data.country.country : country;
     const headlines = data.items.slice(0, 3).map((i) => `・${i.title}`).join("\n");
-    return `\n\n📰 Recent news from ${country} / ${country}の最近のニュース:\n${headlines}`;
+    return `\n\n📰 Recent news from ${countryLabel} / ${countryLabel}の最近のニュース:\n${headlines}`;
   } catch (err) {
     return "";
   }

@@ -673,6 +673,29 @@ fn passthrough_response(status: reqwest::StatusCode, content_type: Option<String
         .unwrap_or_else(|_| rs_json_response(StatusCode::BAD_GATEWAY, &serde_json::json!({"error": "failed to build proxied response"})))
 }
 
+/// `proxy_aruaru_llm_get`と同じだが、元リクエストのクエリ文字列(`?country=...`等)を
+/// そのままaruaru-llm側へ転送する(2026-09-22新設、`/v1/public/news/for`用)。
+async fn proxy_aruaru_llm_get_with_query(req: Request, path: &str) -> Response {
+    let query = req.uri().query().map(|q| format!("?{q}")).unwrap_or_default();
+    let url = format!("{}{}{}", aruaru_llm_base_url(), path, query);
+    let client = match reqwest::Client::builder().timeout(std::time::Duration::from_secs(15)).build() {
+        Ok(c) => c,
+        Err(e) => return rs_json_response_cors(StatusCode::INTERNAL_SERVER_ERROR, &serde_json::json!({"error": format!("failed to build HTTP client: {e}")})),
+    };
+    match client.get(&url).send().await {
+        Ok(resp) => {
+            let status = resp.status();
+            match resp.bytes().await {
+                Ok(bytes) => rs_json_response_cors(StatusCode::from_u16(status.as_u16()).unwrap_or(StatusCode::BAD_GATEWAY), &{
+                    serde_json::from_slice::<serde_json::Value>(&bytes).unwrap_or(serde_json::json!({"error": "failed to parse aruaru-llm response"}))
+                }),
+                Err(e) => rs_json_response_cors(StatusCode::BAD_GATEWAY, &serde_json::json!({"error": format!("failed to read aruaru-llm response: {e}")})),
+            }
+        }
+        Err(e) => rs_json_response_cors(StatusCode::SERVICE_UNAVAILABLE, &serde_json::json!({"error": format!("aruaru-llm unreachable: {e}")})),
+    }
+}
+
 async fn proxy_aruaru_llm_get(path: &str) -> Response {
     let url = format!("{}{}", aruaru_llm_base_url(), path);
     let client = match reqwest::Client::builder().timeout(std::time::Duration::from_secs(15)).build() {
@@ -3173,6 +3196,16 @@ async fn main() {
     app = app.at("/v1/public/aruaru-llm/generate-with-search", post(handler_fn(|req, _p| Box::pin(public_aruaru_llm_generate("/v1/generate-with-search", req)))));
     app = app.at("/v1/public/chat-providers/complete-priority", post(handler_fn(|req, _p| Box::pin(public_chat_provider_complete_priority(req)))));
     app = app.at("/v1/public/chat-providers/active", get(handler_fn(|_req, _p| Box::pin(public_chat_provider_active()))));
+    // 2026-09-22新設(ユーザー報告「今日のニュースは？に今は回答出来ていません」): WEB版
+    // (閲覧者のブラウザ)は自分自身のaruaru-llmを持たず、`apiBaseEl`が既定の
+    // `http://localhost:4600`(閲覧者自身の端末)のままだとニュース取得が毎回失敗し
+    // 無言で空文字になっていた(`newsSuffix()`のcatch節)。既存の`/v1/public/chat-providers/*`
+    // と同じ「同一オリジンの公開プロキシ経由でVPS自身のaruaru-llmへ中継する」パターンで解決する。
+    app = app.at("/v1/public/news/latest", get(handler_fn(|_req, _p| Box::pin(proxy_aruaru_llm_get("/v1/news/latest")))));
+    // 2026-09-22追加: 「日本語なら日本のニュース、英語ならアメリカのニュース」のように
+    // 呼び出し側が国を指定できる`/v1/news/for?country=...`のクエリ文字列を、そのまま
+    // aruaru-llmへ中継する(`proxy_aruaru_llm_get`は固定パスのみでクエリを転送できないため専用実装)。
+    app = app.at("/v1/public/news/for", get(handler_fn(|req, _p| Box::pin(proxy_aruaru_llm_get_with_query(req, "/v1/news/for")))));
     app = app.at("/v1/config", get(handler_fn(move |_req, _p| async move { app_config().await })));
     app = app.at("/v1/platform-info", get(handler_fn(move |_req, _p| async move { platform_info().await })));
     // `/health`はopen-web-server/open-easy-web側の「分身の術」テナント
