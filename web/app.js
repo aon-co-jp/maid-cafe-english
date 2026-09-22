@@ -5016,6 +5016,7 @@ const QUIZ_TEXTS_FOUR_NINES = {
     answerTitle: "Here is the answer.",
     answer:
       "    (9 × 9 + 9) ÷ 9 = 10\n" +
+      "    ((9 × 9) + 9) ÷ 9 = 10  (the same equation, written with an extra pair of parentheses)\n" +
       "Step by step: 9 × 9 = 81, then 81 + 9 = 90, and finally 90 ÷ 9 = 10.",
     closing: "Nicely done for sticking with it. Want to try it on someone else?",
   },
@@ -5039,6 +5040,7 @@ const QUIZ_TEXTS_FOUR_NINES = {
     answerTitle: "答えはこちらです。",
     answer:
       "    (9 × 9 + 9) ÷ 9 = 10\n" +
+      "    ((9 × 9) + 9) ÷ 9 = 10  (括弧をもう1組足しただけの、同じ式です)\n" +
       "順番に計算すると、9 × 9 = 81、81 + 9 = 90、そして 90 ÷ 9 = 10 です。",
     closing: "最後までお付き合いいただきありがとうございました。ぜひ誰かに出題してみてください。",
   },
@@ -5059,6 +5061,7 @@ const QUIZ_TEXTS_FOUR_NINES = {
     answerTitle: "Esta es la respuesta.",
     answer:
       "    (9 × 9 + 9) ÷ 9 = 10\n" +
+      "    ((9 × 9) + 9) ÷ 9 = 10  (la misma ecuación, con un paréntesis adicional)\n" +
       "Paso a paso: 9 × 9 = 81, luego 81 + 9 = 90, y por último 90 ÷ 9 = 10.",
     closing: "Gracias por su paciencia. ¿Se lo propone a alguien más?",
   },
@@ -5079,6 +5082,7 @@ const QUIZ_TEXTS_FOUR_NINES = {
     answerTitle: "Voici la réponse.",
     answer:
       "    (9 × 9 + 9) ÷ 9 = 10\n" +
+      "    ((9 × 9) + 9) ÷ 9 = 10  (la même équation, avec une parenthèse supplémentaire)\n" +
       "Étape par étape : 9 × 9 = 81, puis 81 + 9 = 90, et enfin 90 ÷ 9 = 10.",
     closing: "Merci d'avoir persévéré. À votre tour de la poser à quelqu'un !",
   },
@@ -5099,6 +5103,7 @@ const QUIZ_TEXTS_FOUR_NINES = {
     answerTitle: "Hier ist die Lösung.",
     answer:
       "    (9 × 9 + 9) ÷ 9 = 10\n" +
+      "    ((9 × 9) + 9) ÷ 9 = 10  (dieselbe Gleichung, mit einer zusätzlichen Klammer)\n" +
       "Schritt für Schritt: 9 × 9 = 81, dann 81 + 9 = 90 und schließlich 90 ÷ 9 = 10.",
     closing: "Danke fürs Durchhalten. Geben Sie es gern weiter!",
   },
@@ -5116,6 +5121,7 @@ const QUIZ_TEXTS_FOUR_NINES = {
     answerTitle: "答案如下。",
     answer:
       "    (9 × 9 + 9) ÷ 9 = 10\n" +
+      "    ((9 × 9) + 9) ÷ 9 = 10 (同一个式子,只是多加了一层括号)\n" +
       "逐步计算:9 × 9 = 81,81 + 9 = 90,最后 90 ÷ 9 = 10。",
     closing: "感谢您耐心思考,也欢迎拿这道题去考考别人。",
   },
@@ -5133,6 +5139,7 @@ const QUIZ_TEXTS_FOUR_NINES = {
     answerTitle: "정답입니다.",
     answer:
       "    (9 × 9 + 9) ÷ 9 = 10\n" +
+      "    ((9 × 9) + 9) ÷ 9 = 10  (같은 식에 괄호를 하나 더 넣은 것뿐입니다)\n" +
       "차례대로 계산하면 9 × 9 = 81, 81 + 9 = 90, 마지막으로 90 ÷ 9 = 10입니다.",
     closing: "끝까지 고민해 주셔서 감사합니다. 다른 분에게도 내 보세요!",
   },
