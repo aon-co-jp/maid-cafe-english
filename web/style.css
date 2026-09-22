@@ -1397,3 +1397,6 @@ label.setup-note {
 .is-web-only #autorw-status-banner, .is-web-only #autorw-status-banner-toggle { display: none !important; }
 .author-github { margin: 6px 20px; font-size: 13px; }
 .is-web-only #setup-btn, .is-web-only #aruaru-db-setup-btn, .is-web-only #world-lab-goto-aruaru-llm-btn { display: none !important; }
+.ai-pick-row { display: flex; align-items: center; justify-content: space-between; width: 100%; gap: 8px; }
+.ai-pick-order { font-size: 12px; padding: 2px 4px; border-radius: 6px; }
+.ai-pick-order-note { width: 100%; font-size: 12px; opacity: .85; margin: 2px 0 4px; }

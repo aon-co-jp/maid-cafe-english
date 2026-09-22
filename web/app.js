@@ -16557,9 +16557,11 @@ async function refreshAdminState() {
     /* 到達できない配信形態(file://等)では管理機能なしのまま */
   }
   const canAdmin = !!(session.admin || session.local);
+  window.__isAdmin = canAdmin;
   if (customQaBtn) customQaBtn.classList.toggle("hidden", !canAdmin);
   if (linkEl) linkEl.classList.toggle("hidden", canAdmin);
   if (canAdmin && session.admin) syncCustomQaFromServerForAdmin();
+  if (typeof renderPicker === "function" && typeof pickPanel !== "undefined" && pickPanel && !pickPanel.classList.contains("hidden")) renderPicker();
 }
 (function setupAdminLoginLink() {
   const linkEl = document.getElementById("admin-login-link");
@@ -16703,7 +16705,16 @@ refreshAdminState();
       n.textContent = "選べるAIを取得できません / No AIs available to choose";
       pickPanel.appendChild(n);
     }
+    // 管理者モード(2026-09-22): 選んだAIに1〜3の番号を振って、優先順位を明示的に指定できる。
+    // サーバー側(`providers[]`)は配列の並び順をそのまま優先順として使うため、番号の並べ替え=優先順の変更になる。
+    const isAdmin = !!window.__isAdmin;
+    const saveOrder = (cur) => {
+      try { localStorage.setItem(SELECTED_AIS_KEY, JSON.stringify(cur)); localStorage.setItem(CLOUD_OFF_KEY, "0"); } catch (e) { /* ignore */ }
+      refreshAiInUse();
+    };
     avail.forEach((id) => {
+      const row = document.createElement("div");
+      row.className = "ai-pick-row";
       const lab = document.createElement("label");
       const cb = document.createElement("input");
       cb.type = "checkbox";
@@ -16719,12 +16730,40 @@ refreshAdminState();
         } else {
           cur = cur.filter((x) => x !== id);
         }
-        try { localStorage.setItem(SELECTED_AIS_KEY, JSON.stringify(cur)); localStorage.setItem(CLOUD_OFF_KEY, "0"); } catch (e) { /* ignore */ }
-        refreshAiInUse();
+        saveOrder(cur);
+        renderPicker();
       });
       lab.append(cb, " " + nameOf(id) + ((lastStatus && (lastStatus.resting || []).includes(id)) ? " (休止中 / resting)" : ""));
-      pickPanel.appendChild(lab);
+      row.appendChild(lab);
+      // 管理者モードのみ: チェック済みのAIに、優先順の番号(1〜3)を選べるプルダウンを出す。
+      if (isAdmin && chosen.includes(id)) {
+        const sel = document.createElement("select");
+        sel.className = "ai-pick-order";
+        sel.title = "優先順位(1が最優先) / Priority (1 = highest)";
+        chosen.forEach((_, i) => {
+          const opt = document.createElement("option");
+          opt.value = String(i + 1);
+          opt.textContent = `#${i + 1}`;
+          sel.appendChild(opt);
+        });
+        sel.value = String(chosen.indexOf(id) + 1);
+        sel.addEventListener("change", () => {
+          const newIndex = Math.max(0, Math.min(chosen.length - 1, parseInt(sel.value, 10) - 1));
+          const cur = chosen.filter((x) => x !== id);
+          cur.splice(newIndex, 0, id);
+          saveOrder(cur);
+          renderPicker();
+        });
+        row.appendChild(sel);
+      }
+      pickPanel.appendChild(row);
     });
+    if (isAdmin && chosen.length > 1) {
+      const orderNote = document.createElement("div");
+      orderNote.className = "ai-pick-order-note";
+      orderNote.textContent = "🔢 管理者モード: 番号で優先順位を指定できます(#1が最優先で最初に使われます) / Admin mode: assign a priority number (#1 is used first).";
+      pickPanel.insertBefore(orderNote, pickPanel.firstChild.nextSibling);
+    }
     const reset = document.createElement("button");
     reset.type = "button";
     reset.textContent = "おまかせに戻す / Reset to automatic";
