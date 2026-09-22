@@ -152,6 +152,8 @@ const langInstructions = {
   ar: "Reply only in Arabic (العربية).",
   fa: "Reply only in Persian/Farsi (فارسی).",
   he: "Reply only in Hebrew (עברית).",
+  // 2026-09-22追加(ユーザー指示「選択可能言語にタイ語を追加して」)。
+  th: "Reply only in Thai (ภาษาไทย).",
 };
 
 // RTL(右書き)言語のコード一覧(ユーザー指示「Arabic・Persian・Hebrewは
@@ -196,8 +198,83 @@ const trainerRoleByTarget = {
   arabic: "You are a friendly Arabic (العربية) conversation trainer at a maid cafe, helping the student practice speaking Arabic.",
   persian: "You are a friendly Persian/Farsi (فارسی) conversation trainer at a maid cafe, helping the student practice speaking Persian.",
   hebrew: "You are a friendly Hebrew (עברית) conversation trainer at a maid cafe, helping the student practice speaking Hebrew.",
+  // 2026-09-22追加(ユーザー指示「選択可能言語にタイ語を追加して」)。
+  thai: "You are a friendly Thai (ภาษาไทย) conversation trainer at a maid cafe, helping the student practice speaking Thai.",
 };
 const learnTargetEl = document.getElementById("learn-target");
+
+// ---------------------------------------------------------------------------
+// 言語ごとの「文化・習慣の違い」を、親切で分かりやすく尊重をもって伝える機能
+// (2026-09-22新設、ユーザー指示「タイ語では男女で敬語の使い方が違うなど、他の言語でも
+// 文化の違いや国ごとの違う風習や文化も尊敬したりリスペクトしたりネイティブだとこの様な
+// 言葉になります、の様な分かりやすくて親切な説明も付ける」)。
+//
+// **正直な開示**: ここに書く内容は、言語学的に広く知られている一般的な事実
+// (タイ語の性別による文末詞、ヨーロッパ言語のtu/vous的な使い分け等)であり、
+// 個々のネイティブスピーカー全員の実際の話し方を保証するものではない。地域差・
+// 世代差・個人差があることも踏まえ、「ネイティブは自然にこう使い分けることが多い」
+// という紹介にとどめ、断定的な決めつけにはしない。
+const CULTURAL_NOTES_BY_TARGET = {
+  thai: {
+    ja: "🇹🇭 タイ語の豆知識: 文末に「ครับ(クラップ)」(男性)・「ค่ะ/คะ(カー)」(女性)をつけると丁寧になります。ネイティブは自分の性別で自然に使い分けており、特別な場面だけでなく普段の会話でも欠かせません。相手の文化を尊重する第一歩として、ぜひ意識してみてください。",
+    en: "🇹🇭 Thai tip: adding ครับ (khrap) at the end of a sentence if you're male, or ค่ะ/คะ (kha) if you're female, makes it sound polite. Native speakers do this naturally in everyday conversation, not just on formal occasions — it's a small but meaningful way to show respect for the culture.",
+  },
+  japanese: {
+    ja: "🇯🇵 日本語の豆知識: 「です・ます」の丁寧語に加え、目上の方やお客様には謙譲語・尊敬語も使われます。ネイティブは相手との関係や場面に応じて、自然に言い方を選んでいます。",
+    en: "🇯🇵 Japanese tip: beyond the polite です/ます form, there are also humble and respectful honorifics used with superiors or customers. Native speakers naturally choose the right level depending on who they're talking to.",
+  },
+  german: {
+    ja: "🇩🇪 ドイツ語の豆知識: 親しい相手には「du」、初対面やビジネスの場では「Sie」を使います。ネイティブは相手との距離感で自然に切り替えています。",
+    en: "🇩🇪 German tip: use the informal \"du\" with close friends, and the formal \"Sie\" with strangers or in business settings. Native speakers switch naturally based on the relationship.",
+  },
+  french: {
+    ja: "🇫🇷 フランス語の豆知識: 親しい相手には「tu」、目上の方や初対面には「vous」を使います。いきなり「tu」で話しかけると失礼にあたることがあります。",
+    en: "🇫🇷 French tip: use \"tu\" with close friends, and \"vous\" with elders or people you've just met. Jumping straight to \"tu\" can come across as disrespectful.",
+  },
+  spanish: {
+    ja: "🇪🇸 スペイン語の豆知識: 親しい相手には「tú」、丁寧に話したい相手には「usted」を使います。国・地域によって使い分けの度合いが異なります。",
+    en: "🇪🇸 Spanish tip: use \"tú\" with people you know well, and the more formal \"usted\" to be polite — how strictly this is used varies by country and region.",
+  },
+  italian: {
+    ja: "🇮🇹 イタリア語の豆知識: 親しい相手には「tu」、丁寧に話す相手には「Lei」を使います。年上の方やお店の方には「Lei」が自然です。",
+    en: "🇮🇹 Italian tip: use \"tu\" informally, and the polite \"Lei\" with elders or shopkeepers — \"Lei\" is the natural choice in those situations.",
+  },
+  russian: {
+    ja: "🇷🇺 ロシア語の豆知識: 丁寧に話すときは「ты」ではなく「вы」を使い、さらにフルネーム(名前+父称)で呼びかけると、より敬意を込めた言い方になります。",
+    en: "🇷🇺 Russian tip: use \"вы\" (formal \"you\") instead of \"ты\" to be polite, and addressing someone by their first name plus patronymic shows extra respect.",
+  },
+  arabic: {
+    ja: "🇸🇦 アラビア語の豆知識: 話す相手が男性か女性かで動詞や言い回しの形が変わります。ネイティブは相手に合わせて自然に言葉を選んでいます。挨拶の「アッサラーム・アライクム」もよく使われます。",
+    en: "🇸🇦 Arabic tip: verbs and phrasing change depending on whether you're speaking to a man or a woman — native speakers do this automatically. The greeting \"As-salamu alaykum\" is also widely used and appreciated.",
+  },
+  persian: {
+    ja: "🇮🇷 ペルシャ語の豆知識: 1人に対しても、丁寧に話すときは「شما(あなた、複数形と同じ形)」を使います。フランス語の「vous」に近い感覚です。",
+    en: "🇮🇷 Persian tip: even when speaking to just one person, the polite form \"شما\" (which is also the plural \"you\") is used — similar in feel to the French \"vous\".",
+  },
+  hebrew: {
+    ja: "🇮🇱 ヘブライ語の豆知識: 話す相手が男性(אתה)か女性(את)かで、動詞や形容詞の形が変わります。ネイティブは相手に合わせて自然に切り替えています。",
+    en: "🇮🇱 Hebrew tip: verbs and adjectives change form depending on whether you're speaking to a man (אתה) or a woman (את) — native speakers switch naturally based on the listener.",
+  },
+  english: {
+    ja: "🇬🇧 英語の豆知識: 日本語ほどはっきりした敬語はありませんが、「please」や「Could you...?」のような言い方を使うと、より丁寧で礼儀正しく聞こえます。",
+    en: "🇬🇧 English tip: it doesn't have grammatical honorifics like Japanese, but native speakers still sound more polite by adding words like \"please\" or phrasing requests as \"Could you...?\"",
+  },
+};
+// 同じ言語について、1つのブラウザ・セッション内で何度も表示しないための記録。
+const culturalNoteShownFor = new Set();
+function showCulturalNoteIfAny(targetValue) {
+  const note = CULTURAL_NOTES_BY_TARGET[targetValue];
+  if (!note || culturalNoteShownFor.has(targetValue)) return;
+  culturalNoteShownFor.add(targetValue);
+  if (typeof appendMessage === "function") {
+    appendMessage("system", `${note.ja}\n${note.en}`);
+  }
+}
+if (learnTargetEl) {
+  learnTargetEl.addEventListener("change", () => {
+    if (!learnTargetEl.value.startsWith("world:")) showCulturalNoteIfAny(learnTargetEl.value);
+  });
+}
 
 // バージョン表示(ユーザー指示「バージョン管理する機能も搭載して」)。
 // `version.json`の`version`(セマンティックバージョン)をフッターへ表示する。
