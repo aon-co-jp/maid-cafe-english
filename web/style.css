@@ -1412,3 +1412,6 @@ label.setup-note {
 .ai-pick-save-btn { font-weight: 600; padding: 4px 12px; border-radius: 8px; }
 .ai-pick-saved-note { font-size: 12px; opacity: .9; }
 .ai-pick-saved-note.hidden { display: none; }
+.ai-own-key-row { width: 100%; display: flex; flex-direction: column; gap: 4px; padding: 6px 0; border-bottom: 1px solid rgba(201,161,74,.4); margin-bottom: 4px; }
+.ai-own-key-btn { align-self: flex-start; font-size: 12px; padding: 4px 10px; border-radius: 8px; font-weight: 600; }
+.ai-own-key-note { font-size: 11px; opacity: .85; }

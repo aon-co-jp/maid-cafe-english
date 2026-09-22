@@ -331,6 +331,18 @@ const learnTargetEl = document.getElementById("learn-target");
 // `openai`(ストレージキー)と`chatgpt`(JSON側のID)のように名前が
 // 食い違う箇所があるため、対応表で明示的に紐付ける。
 const CHAT_PROVIDER_KEY_LOCAL_PREFIX = "open-english.providerKey.";
+// この端末(PC版・タブレット版・スマホ版とも共通)に、利用者自身のAPIキー/コードが
+// 1つでも設定されているか(2026-09-22新設、ユーザー指示「KEYやCODEを指定したら、
+// WEB版のGeminiなどのAIはスマホ版とは一緒に使用しないように」への対応)。
+// 一覧は「🔀 AI Provider Priority」パネルの入力欄と同じ8種類。
+const OWN_KEY_PROVIDER_IDS = ["openai", "deepseek", "gemini", "claude", "groq", "mistral", "openrouter", "cloudflare"];
+function hasOwnConfiguredProviderKey() {
+  try {
+    return OWN_KEY_PROVIDER_IDS.some((p) => !!localStorage.getItem(CHAT_PROVIDER_KEY_LOCAL_PREFIX + p));
+  } catch (e) {
+    return false;
+  }
+}
 const FREE_TIER_SETUP_MAP = {
   "google-search": { storageKey: null, openBtnId: "google-search-settings-btn" },
   chatgpt: { storageKey: "openai", openBtnId: "provider-priority-settings-btn" },
@@ -2576,17 +2588,22 @@ async function askTrainer(userText) {
   }
   const prompt = `${trainerRole} ${levelInstruction} ${langInstruction}\nStudent: ${userText}\nTrainer:`;
 
-  // マルチLLMプロバイダ優先順位機能。試す順序(2026-09-14変更、ユーザー
-  // 指示「ハードウェアと無料API KEYは別々の話し」「無料のGoogleなどの
-  // API KEYは、WEB版を最優先して利用して」への対応):
-  //   1) WEB版(easy-web.tokyo/open-english)で開発者が登録した無料枠
-  //      (Google検索→ChatGPT→Gemini→DeepSeek→Grok、日毎に自動で次へ)
-  //   2) この端末自身に利用者が設定した鍵(有料版含む——「各利用者が
-  //      有料版を登録したらそちらのAPI KEYを自動で使う」)
-  //   3) どちらも不可なら、この端末自身のaruaru-llm(手元のハードウェア)
-  //      によるローカルGPT-2推論(既存の可用性優先の設計を踏襲)
+  // マルチLLMプロバイダ優先順位機能。試す順序:
+  //   0) この端末(PC版/タブレット版/スマホ版)に、利用者自身のAPIキー/コードが
+  //      1つでも設定されていれば、WEB版の共有無料枠は一切使わず、自分の鍵だけを使う
+  //      (2026-09-22変更、ユーザー指示「KEYやCODEを指定したら、WEB版のGeminiなどのAIは
+  //      スマホ版とは一緒に使用しないように」——共有の無料枠を、自分の鍵を持つ利用者にまで
+  //      消費させない、二重使いを避ける設計)。
+  //   1) 自分の鍵が無ければ、WEB版(easy-web.tokyo/open-english)で開発者が登録した
+  //      無料枠(Google検索→ChatGPT→Gemini→DeepSeek→Grok、日毎に自動で次へ)
+  //      (2026-09-14変更、ユーザー指示「無料のGoogleなどのAPI KEYは、WEB版を最優先して
+  //      利用して」への対応——「自分の鍵を持たない利用者」の既定はこのまま変えない)
+  //   2) どちらも不可なら、この端末自身のaruaru-llm(手元のハードウェア)による
+  //      ローカルGPT-2推論(既存の可用性優先の設計を踏襲)
+  const usesOwnKeyExclusively = hasOwnConfiguredProviderKey();
   let quotaExceededPrefix = "";
-  let priorityResult = typeof trySharedPriorityProviderReply === "function" ? await trySharedPriorityProviderReply(prompt) : null;
+  let priorityResult =
+    !usesOwnKeyExclusively && typeof trySharedPriorityProviderReply === "function" ? await trySharedPriorityProviderReply(prompt) : null;
   let usedShared = !!(priorityResult && typeof priorityResult.text === "string");
   if (!usedShared && typeof window.tryPriorityProviderReply === "function") {
     const ownResult = await window.tryPriorityProviderReply(prompt);
@@ -16866,6 +16883,46 @@ refreshAdminState();
     h.className = "ai-pick-title";
     h.textContent = "追加で使うクラウドAIを0〜3個選択 / Add 0 to 3 cloud AIs (1=単独 single, 2=ハイブリッド hybrid, 3=トライブリッド tri-hybrid)";
     pickPanel.appendChild(h);
+
+    // 2026-09-22追加(ユーザー指示「スマホ版、タブレット版、PC版にGeminiなどのアカウントを
+    // 作ってKEYやCODEを簡単に指定出来るように」): 既存の「🔀 AI Provider Priority」設定
+    // パネル(取得先リンク・SETUP済み表示つき)への近道ボタンを、この選択パネルの目立つ
+    // 位置に置く。自分の鍵を設定した場合の挙動(WEB版の共有AIとは併用しない)も明示する。
+    const ownKeyRow = document.createElement("div");
+    ownKeyRow.className = "ai-own-key-row";
+    const ownKeyBtn = document.createElement("button");
+    ownKeyBtn.type = "button";
+    ownKeyBtn.className = "ai-own-key-btn";
+    ownKeyBtn.textContent = hasOwnConfiguredProviderKey()
+      ? "🔑 自分のAPIキー設定済み(変更する) / Your API key is set (edit)"
+      : "🔑 自分のGemini等のAPIキー/コードを設定 / Set up your own Gemini etc. API key";
+    ownKeyBtn.addEventListener("click", () => {
+      document.getElementById("provider-priority-settings-btn")?.click();
+    });
+    const ownKeyNote = document.createElement("div");
+    ownKeyNote.className = "ai-own-key-note";
+    ownKeyNote.textContent = hasOwnConfiguredProviderKey()
+      ? "✅ 自分の鍵を設定中のため、WEB版の共有無料AIとは併用せず、自分の鍵だけを使います。 / Your own key is set, so the shared web AI is not used together with it — only your key is used."
+      : "自分の鍵を設定すると、以後はWEB版の共有無料AIとは併用せず、自分の鍵だけを使うようになります。 / Once you set your own key, the shared web AI will no longer be used together with it — only your key will be used.";
+    ownKeyRow.append(ownKeyBtn, ownKeyNote);
+    pickPanel.appendChild(ownKeyRow);
+
+    // 2026-09-22追加(ユーザー指示「PCやスマホ版はaruaru-llmへのオススメローカルLLMの
+    // ダウンロードなどのカスタマイズも可能に」): 既存の「🧠 Recommend LLM / おすすめLLM」
+    // 機能(ハードウェア診断→おすすめモデル表示→ワンクリックでダウンロード・切替、
+    // `installAndSwitchModel`)は既にPC版・タブレット版・スマホ版のインストール版すべてで
+    // 使える(共有デモのみ制限あり)。ここからも見つけやすいよう近道ボタンを置く。
+    const llmRow = document.createElement("div");
+    llmRow.className = "ai-own-key-row";
+    const llmBtn = document.createElement("button");
+    llmBtn.type = "button";
+    llmBtn.className = "ai-own-key-btn";
+    llmBtn.textContent = "🧠 ローカルLLM(aruaru-llm)のおすすめ・ダウンロード / Recommended local LLM (download)";
+    llmBtn.addEventListener("click", () => {
+      document.getElementById("llm-recommend-btn")?.click();
+    });
+    llmRow.appendChild(llmBtn);
+    pickPanel.appendChild(llmRow);
     const mkToggle = (label, checked, onChange) => {
       const lab = document.createElement("label");
       lab.style.width = "100%";
