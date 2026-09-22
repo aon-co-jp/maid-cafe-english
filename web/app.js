@@ -5471,20 +5471,9 @@ function gradeFourNinesAnswer(text) {
   if (nineCount === 4 && equationHolds && Math.abs(rhsValue - 10) < 1e-9) {
     return { verdict: "correct", detail: `${lhsRaw.trim()} = ${lhsValue}` };
   }
-  // 「半分正解」: 9が3個で、括弧内(9×9+9=90)の計算そのものは合っている
-  // (÷9を付け忘れて先に答えの10を書いてしまった、等)。
-  if (nineCount === 3) {
-    try {
-      const bare = lhsRaw.replace(/[()]/g, "");
-      const v = evalArithmetic(bare);
-      if (Math.abs(v - 90) < 1e-9) {
-        return { verdict: "half", reason: "missing-divide", detail: `${lhsRaw.trim()} = ${v}` };
-      }
-    } catch (e) {
-      /* fallthrough */
-    }
-  }
-  // 「半分正解」その2: 9が4個・通常の演算子優先順位では10にならないが、
+  // 2026-09-22訂正(ユーザー指示「÷9の割る9を忘れたのは不正解です」): 9が3個しか無く
+  // ÷9を丸ごと書き忘れている場合は「半分正解」ではなく不正解として扱う(末尾のreturnへ落ちる)。
+  // 「半分正解」として残すのは、9も演算子も4つ揃っているのに括弧だけ付け忘れたケースのみ(下記)。
   // 括弧を付け忘れただけで「左から順に計算」すれば10になる場合
   // (例: 9×9+9÷9=10 は通常評価だと82だが、順に9×9=81→81+9=90→90÷9=10)。
   if (nineCount === 4 && !equationHolds) {
@@ -5507,18 +5496,13 @@ function fourNinesGradeMessage(grade) {
         `🎉 正解です! ${grade.detail} — 見事です! / Correct! ${grade.detail} — well done!\n\n` +
         quizAnswerText()
       );
-    case "half": {
-      if (grade.reason === "missing-parens") {
-        return (
-          `🤏 半分正解! ${grade.detail} — 使った9の数・演算子は合っていますが、順番どおりに先に計算させる括弧が必要です。「(9×9+9)÷9」のように括弧を付けて、もう一度書いてみますか? / ` +
-          `Half correct! ${grade.detail} — you used the right four 9s and operators, but it needs parentheses so the addition happens before the division. Try writing it as "(9×9+9)÷9" — want to try again?`
-        );
-      }
+    case "half":
+      // 現状「半分正解」になるのは missing-parens(9も演算子も4つ揃っているが括弧を付け忘れた)のみ。
+      // ÷9を丸ごと忘れたケースは不正解として扱う(2026-09-22訂正)。
       return (
-        `🤏 半分正解! ${grade.detail} まではぴったり合っています。あと1個の9で÷9をすれば10になります。もう一度挑戦してみますか? / ` +
-        `Half correct! ${grade.detail} is exactly right so far. Divide that by the remaining 9 to reach 10 — want to try again?`
+        `🤏 半分正解! ${grade.detail} — 使った9の数・演算子は合っていますが、順番どおりに先に計算させる括弧が必要です。「(9×9+9)÷9」のように括弧を付けて、もう一度書いてみますか? / ` +
+        `Half correct! ${grade.detail} — you used the right four 9s and operators, but it needs parentheses so the addition happens before the division. Try writing it as "(9×9+9)÷9" — want to try again?`
       );
-    }
     case "wrong":
       return (
         "❌ 惜しい、その式では10になりません。もう一度挑戦してみますか? わからなければ「答えを教えて」と聞いてください。 / " +
