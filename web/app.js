@@ -740,38 +740,50 @@ function isMobileOrFeaturePhoneUserAgent() {
     navigator.userAgent || ""
   );
 }
-if (isTabletUserAgent()) {
-  document.getElementById("launch-pc-version-banner")?.classList.add("hidden");
-  const badgeEl = document.getElementById("local-instance-badge");
-  if (badgeEl) {
-    badgeEl.textContent = `${TABLET_RUNNING_BADGE_LABEL.ja} / ${TABLET_RUNNING_BADGE_LABEL.en}`;
-    badgeEl.classList.remove("hidden");
+// 2026-09-22バグ修正(ユーザー指摘「PC版起動中・スマホ版起動中の文字が、機種によっては
+// WEB版で隠れて見えない可能性がある」を受けてテスト・デバッグして発見): 従来はタブレット/
+// スマホのUser-Agent判定(`isTabletUserAgent`/`isMobileOrFeaturePhoneUserAgent`)が
+// `location.hostname`を一切見ずに動いていたため、**公開WEB版(easy-web.tokyo等)を
+// スマホ・タブレットのブラウザで開いただけで**「📱 モバイル版起動中!」の偽のバッジが
+// 出てしまっていた(実際にはインストール版は起動していないのに)。同時に、公開WEB版では
+// 管理者ログインリンク(左上、横幅ほぼ全幅になりうる)がこのバッジ(右上)と重なり、
+// 実機375px幅での検証で実際に完全に隠れることを確認した。
+// 修正: PC版と同じ「この端末自身(localhost)か、自己ホストのドメインか」の判定を
+// 先に行い、**実際にインストール版が起動している場合のみ**デバイス種別のバッジを出す
+// (公開WEB版では、スマホ・タブレットで開いてもバッジは一切出さない)。
+async function isInstalledInstanceHostname() {
+  if (/^(127\.0\.0\.1|localhost|\[::1\])$/.test(location.hostname)) return true;
+  try {
+    const res = await fetch("/v1/config", { cache: "no-store" });
+    if (!res.ok) return false;
+    const data = await res.json();
+    const selfHostedHostnames = (data && data.self_hosted_hostnames) || [];
+    return selfHostedHostnames.includes(location.hostname.toLowerCase());
+  } catch (e) {
+    // `/v1/config`未提供の配信形態(file://直開き等)では黙って既定(共有デモ扱い)のまま。
+    return false;
   }
-} else if (isMobileOrFeaturePhoneUserAgent()) {
-  document.getElementById("launch-pc-version-banner")?.classList.add("hidden");
-  const badgeEl = document.getElementById("local-instance-badge");
-  if (badgeEl) {
-    badgeEl.textContent = `${MOBILE_RUNNING_BADGE_LABEL.ja} / ${MOBILE_RUNNING_BADGE_LABEL.en}`;
-    badgeEl.classList.remove("hidden");
-  }
-} else if (/^(127\.0\.0\.1|localhost|\[::1\])$/.test(location.hostname)) {
-  document.getElementById("launch-pc-version-banner")?.classList.add("hidden");
-  showLocalInstanceBadgeFromPlatformInfo();
-} else {
-  fetch("/v1/config", { cache: "no-store" })
-    .then((r) => (r.ok ? r.json() : null))
-    .then((data) => {
-      const selfHostedHostnames = (data && data.self_hosted_hostnames) || [];
-      if (selfHostedHostnames.includes(location.hostname.toLowerCase())) {
-        document.getElementById("launch-pc-version-banner")?.classList.add("hidden");
-        showLocalInstanceBadgeFromPlatformInfo();
-      }
-    })
-    .catch(() => {
-      // `/v1/config`未提供の配信形態(file://直開き等)では黙って
-      // 既定(共有デモ扱い)のままにする。
-    });
 }
+(async function updateInstanceRunningBadge() {
+  const isInstalled = await isInstalledInstanceHostname();
+  if (!isInstalled) return; // 公開WEB版: 端末の種類に関わらず「起動中」バッジは一切出さない
+  document.getElementById("launch-pc-version-banner")?.classList.add("hidden");
+  if (isTabletUserAgent()) {
+    const badgeEl = document.getElementById("local-instance-badge");
+    if (badgeEl) {
+      badgeEl.textContent = `${TABLET_RUNNING_BADGE_LABEL.ja} / ${TABLET_RUNNING_BADGE_LABEL.en}`;
+      badgeEl.classList.remove("hidden");
+    }
+  } else if (isMobileOrFeaturePhoneUserAgent()) {
+    const badgeEl = document.getElementById("local-instance-badge");
+    if (badgeEl) {
+      badgeEl.textContent = `${MOBILE_RUNNING_BADGE_LABEL.ja} / ${MOBILE_RUNNING_BADGE_LABEL.en}`;
+      badgeEl.classList.remove("hidden");
+    }
+  } else {
+    showLocalInstanceBadgeFromPlatformInfo();
+  }
+})();
 // 2026-09-01追記(ユーザー指示): 「これはデモです、インストーラー版を
 // ダウンロードしてください」という案内は、本番(/open-english/)ではなく
 // デモ環境(/open-english/demo)でのみ表示する。本番/デモは同じ静的
