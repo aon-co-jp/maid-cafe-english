@@ -2780,7 +2780,7 @@ async function askTrainer(userText) {
   // 2026-09-22追加(ユーザー指示「確認した後の対応を機能化して」): 低信頼度・未検証言語を
   // 理由にGoogle検索の裏取りを行ったかどうかを、この返信1回ぶんだけ覚えておき、
   // 実際に返信へ反映する(以前は判定していても利用者からは見えない状態だった)。
-  const searchBoostReason = shouldBoostWithGoogleSearch()
+  let searchBoostReason = shouldBoostWithGoogleSearch()
     ? voiceInputLowConfidence
       ? "voice"
       : "language"
@@ -2797,16 +2797,35 @@ async function askTrainer(userText) {
       priorityResult = ownResult; // 両方とも枠切れ、というケースの判定に使う
     }
   }
+  // 2026-09-22追加(ユーザー指示「AIの持っている知識では、自信が持てなかったため、
+  // Google検索で確認してから回答しました、と言うのも機能化して」): まだ検索の裏取りを
+  // していない回で、1回目の答えに「わからない」等のヘッジ表現が出た場合、AI自身の知識に
+  // 自信が無かったとみなし、Google検索つきでもう一度だけ生成し直す。
+  if (!searchBoostReason && priorityResult && typeof priorityResult.text === "string" && looksUncertain(priorityResult.text)) {
+    forceSearchBoostOnce = true;
+    const retryUsedShared = !usesOwnKeyExclusively && typeof trySharedPriorityProviderReply === "function";
+    const retryResult = retryUsedShared ? await trySharedPriorityProviderReply(prompt) : typeof window.tryPriorityProviderReply === "function" ? await window.tryPriorityProviderReply(prompt) : null;
+    forceSearchBoostOnce = false; // 消費されなかった場合(関数が未定義等)に備えて確実に戻す
+    if (retryResult && typeof retryResult.text === "string") {
+      priorityResult = retryResult;
+      searchBoostReason = "knowledge";
+    }
+  }
   if (priorityResult && typeof priorityResult.text === "string") {
     let reply = ensureMultiHybridReply(ensureScriptGuaranteedReply(ensureHybridReply(trimDegenerateRepetition(priorityResult.text), userText)));
     if (priorityResult.provider) {
       reply += `\n\n🤖 via ${priorityResult.provider} (external LLM) / 外部LLM(${priorityResult.provider})経由`;
     }
     // 2026-09-22追加: Google検索の裏取りを実際に行った回では、その旨を正直に一言添える
-    // (`searchBoostReason`で判定理由〈音声入力の信頼度が低い/翻訳の品質が未検証〉も分ける)。
+    // (`searchBoostReason`で判定理由〈音声入力の信頼度・翻訳品質未検証・AI自身の知識への
+    // 自信の無さ〉も分ける)。
     if (searchBoostReason && priorityResult.searchNotes && priorityResult.searchNotes.length) {
-      const reasonJa = searchBoostReason === "voice" ? "音声入力の聞き取りに自信が持てなかった" : "この言語への翻訳がまだ品質検証できていない";
-      const reasonEn = searchBoostReason === "voice" ? "wasn't fully confident in the voice recognition" : "this language's translation quality hasn't been verified yet";
+      const reasonMap = {
+        voice: ["音声入力の聞き取りに自信が持てなかった", "wasn't fully confident in the voice recognition"],
+        language: ["この言語への翻訳がまだ品質検証できていない", "this language's translation quality hasn't been verified yet"],
+        knowledge: ["AIの持っている知識では、自信が持てなかった", "wasn't confident based on the AI's own knowledge"],
+      };
+      const [reasonJa, reasonEn] = reasonMap[searchBoostReason] || reasonMap.language;
       reply += `\n\n🔎 ${reasonJa}ため、Google検索で確認してから回答しました(${priorityResult.searchNotes.join(", ")})。 / ` +
         `Since I ${reasonEn}, I checked with a Google search before answering (${priorityResult.searchNotes.join(", ")}).`;
     }
@@ -3574,7 +3593,29 @@ const UNVERIFIED_OR_LOW_QUALITY_TARGETS = new Set([
   "german", "french", "spanish", "italian", "russian", "arabic", "persian", "hebrew",
   "thai", "vietnamese", "filipino", "burmese", "kurdish", "turkish", "romansh",
 ]);
+// 2026-09-22追加(ユーザー指示「AIの持っている知識では、自信が持てなかったため、
+// Google検索で確認してから回答しました、と言うのも機能化して」): 1回目の生成結果に
+// 「わからない・自信が無い」といった言い回し(ヘッジ表現)が含まれていたら、
+// AI自身の知識に自信が無かったとみなし、Google検索つきでもう一度だけ生成し直す。
+// `forceSearchBoostOnce`をtrueにすると、次の1回の呼び出しだけ`shouldBoostWithGoogleSearch()`
+// がtrueを返す(呼ばれたら自動でfalseへ戻る、使い切りのフラグ)。
+let forceSearchBoostOnce = false;
+const AI_UNCERTAINTY_MARKERS = [
+  "わかりません", "分かりません", "存じません", "不明です", "確信が持てません", "自信がありません",
+  "知りません", "断定できません", "はっきりとは分かりません",
+  "i'm not sure", "i am not sure", "i don't know", "i do not know", "i cannot confirm", "i can't confirm",
+  "not certain", "i'm uncertain", "as of my last update", "as of my knowledge cutoff", "i may be wrong",
+  "might not be accurate", "may not be accurate", "i'm not certain",
+];
+function looksUncertain(text) {
+  const lower = String(text || "").toLowerCase();
+  return AI_UNCERTAINTY_MARKERS.some((m) => lower.includes(m.toLowerCase()));
+}
 function shouldBoostWithGoogleSearch() {
+  if (forceSearchBoostOnce) {
+    forceSearchBoostOnce = false;
+    return true;
+  }
   if (voiceInputLowConfidence) return true;
   const target = typeof learnTargetEl !== "undefined" && learnTargetEl ? learnTargetEl.value : "";
   if (UNVERIFIED_OR_LOW_QUALITY_TARGETS.has(target)) return true;
