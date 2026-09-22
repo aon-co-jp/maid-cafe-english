@@ -16940,6 +16940,26 @@ refreshAdminState();
       orderNote.textContent = "🔢 管理者モード: 番号で優先順位を指定できます(#1が最優先で最初に使われます) / Admin mode: assign a priority number (#1 is used first).";
       pickPanel.insertBefore(orderNote, pickPanel.firstChild.nextSibling);
     }
+    // 2026-09-22追加(ユーザー指摘「設定保存のボタンがないか見えない」): チェック・番号の
+    // 変更は選んだ時点でその都度localStorageへ即時保存されており「保存」操作自体は不要だが、
+    // それが伝わらず不安に感じる利用者向けに、目に見える「保存して閉じる」ボタンと、
+    // 保存済みの旨を示す短い確認メッセージを追加する(実際の保存動作は変えない、UI上の明示のみ)。
+    const saveRow = document.createElement("div");
+    saveRow.className = "ai-pick-save-row";
+    const saveBtn = document.createElement("button");
+    saveBtn.type = "button";
+    saveBtn.className = "ai-pick-save-btn";
+    saveBtn.textContent = "💾 保存して閉じる / Save & close";
+    const savedNote = document.createElement("span");
+    savedNote.className = "ai-pick-saved-note hidden";
+    savedNote.textContent = "✅ 保存しました / Saved";
+    saveBtn.addEventListener("click", () => {
+      savedNote.classList.remove("hidden");
+      setTimeout(() => pickPanel.classList.add("hidden"), 600);
+    });
+    saveRow.append(saveBtn, savedNote);
+    pickPanel.appendChild(saveRow);
+
     const reset = document.createElement("button");
     reset.type = "button";
     reset.textContent = "おまかせに戻す / Reset to automatic";

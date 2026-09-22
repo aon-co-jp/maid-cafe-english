@@ -1400,3 +1400,7 @@ label.setup-note {
 .ai-pick-row { display: flex; align-items: center; justify-content: space-between; width: 100%; gap: 8px; }
 .ai-pick-order { font-size: 12px; padding: 2px 4px; border-radius: 6px; }
 .ai-pick-order-note { width: 100%; font-size: 12px; opacity: .85; margin: 2px 0 4px; }
+.ai-pick-save-row { display: flex; align-items: center; gap: 8px; width: 100%; margin-top: 4px; }
+.ai-pick-save-btn { font-weight: 600; padding: 4px 12px; border-radius: 8px; }
+.ai-pick-saved-note { font-size: 12px; opacity: .9; }
+.ai-pick-saved-note.hidden { display: none; }
