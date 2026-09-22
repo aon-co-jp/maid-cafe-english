@@ -1808,7 +1808,7 @@ function playToraSanJingle() {
 // 固定のドメインであり、AI生成テキストが任意に生成しうる文字列
 // ではないため安全と判断した(`creatorWebsiteLinksText`参照)。
 const AUDIOCAFE_LINK_PATTERN =
-  /https:\/\/audiocafe\.tokyo(?:\/[^\s)]*)?|https:\/\/aon\.co\.jp(?:\/[^\s)]*)?|https:\/\/aon\.tokyo(?:\/[^\s)]*)?|https:\/\/nasa\.tokyo(?:\/[^\s)]*)?|https:\/\/aruaru\.tokyo(?:\/[^\s)]*)?|https:\/\/www\.amazon\.co\.jp\/dp\/B0H14VXGCC\/?|https:\/\/ameblo\.jp\/www-aon\/entry-12977122655\.html|https:\/\/www\.youtube\.com\/results\?search_query=[^\s)]*|https:\/\/www\.youtube\.com\/watch\?v=aN39YEtblZ8|https:\/\/www\.youtube\.com\/watch\?v=ziRRloiP83g|https:\/\/www\.google\.com\/search\?q=[^\s)]*|https:\/\/github\.com\/aon-co-jp(?:\/[A-Za-z0-9._-]+)?/g;
+  /https:\/\/audiocafe\.tokyo(?:\/[^\s)]*)?|https:\/\/aon\.co\.jp(?:\/[^\s)]*)?|https:\/\/aon\.tokyo(?:\/[^\s)]*)?|https:\/\/nasa\.tokyo(?:\/[^\s)]*)?|https:\/\/aruaru\.tokyo(?:\/[^\s)]*)?|https:\/\/www\.amazon\.co\.jp\/dp\/B0H14VXGCC\/?|https:\/\/ameblo\.jp\/www-aon\/entry-12977122655\.html|https:\/\/www\.youtube\.com\/results\?search_query=[^\s)]*|https:\/\/www\.youtube\.com\/watch\?v=aN39YEtblZ8|https:\/\/www\.youtube\.com\/watch\?v=ziRRloiP83g|https:\/\/www\.google\.com\/search\?q=[^\s)]*|https:\/\/www\.google\.com\/search\?tbm=isch[^\s)]*|https:\/\/github\.com\/aon-co-jp(?:\/[A-Za-z0-9._-]+)?/g;
 
 /** テキストを、既知ドメインのURLだけ`<a>`化した上で`container`へ描画する。 */
 function renderMessageBody(container, text) {
@@ -3479,18 +3479,56 @@ const TOPIC_GUIDES = [
     desc: "「TOP100の話題で英会話して」とお願いすると、そのテーマで会話練習できます。 / Ask \"practice English with a TOP100 topic\".",
     q: ["TOP100 ランキング 最新"] },
 ];
+// ---------------------------------------------------------------------------
+// 文字入力・音声入力・言語翻訳に「自信がない」ときは、GeminiなどにGoogle検索で
+// 裏取りさせる(2026-09-22新設、ユーザー指示「文字入力や、音声入力や言語翻訳に自信が
+// ない時は、GeminiなどでGoogle検索する様にして」)。
+//
+// **正直な開示**: 「自信がない」の判定は、次の2つの分かりやすい基準にとどめている
+// (LLM自身に「自信度」を毎回申告させる仕組みは無い):
+//  (1) 音声入力の認識候補が1つしか無い、またはブラウザが報告する信頼度が低い場合
+//      (`refineTranscript`が設定する`voiceInputLowConfidence`フラグ)。
+//  (2) 学びたい言語/応答言語が、英語中心のGPT-2ベースaruaru-llmで品質未検証・
+//      低品質と既に分かっている言語(index.htmlの「正直な開示」欄と同じ一覧)の場合
+//      ——「その言語への翻訳には自信が持てない」ことが既に分かっているため。
+// 該当時は、共有WEB版・自分の鍵の両方の呼び出しへ`use_google_search: true`を
+// 付け、Google検索の結果を踏まえて答えさせる。共有WEB版はサーバー側の共有無料枠
+// (1日100件の上限、既存の`web_search.rs`参照)を使うため、常時ONにはせず、
+// 「自信がない」と判定できた時だけに絞っている。
+let voiceInputLowConfidence = false;
+const UNVERIFIED_OR_LOW_QUALITY_TARGETS = new Set([
+  "german", "french", "spanish", "italian", "russian", "arabic", "persian", "hebrew",
+  "thai", "vietnamese", "filipino", "burmese", "kurdish", "turkish", "romansh",
+]);
+function shouldBoostWithGoogleSearch() {
+  if (voiceInputLowConfidence) return true;
+  const target = typeof learnTargetEl !== "undefined" && learnTargetEl ? learnTargetEl.value : "";
+  if (UNVERIFIED_OR_LOW_QUALITY_TARGETS.has(target)) return true;
+  const reply = typeof replyLangEl !== "undefined" && replyLangEl ? replyLangEl.value : "";
+  return ["de", "fr", "es", "it", "ru", "ar", "fa", "he", "th", "vi", "tl", "my", "ku", "tr", "rm"].includes(reply);
+}
+
 const yt = (q) => "https://www.youtube.com/results?search_query=" + encodeURIComponent(q);
 const gg = (q) => "https://www.google.com/search?q=" + encodeURIComponent(q);
+// 2026-09-22追加(ユーザー指示「Google画像検索などから写真やGoogle動画やYoutube動画なども
+// 検索結果のリンクを貼って、必要性がありそうな時は...ご参考までに、Google 画像 動画 Youtube
+// などの検索結果のリンクを貼っておきました。と用意して」): 画像検索(セーフサーチON)も追加する。
+const gi = (q) => "https://www.google.com/search?tbm=isch&safe=active&q=" + encodeURIComponent(q);
 
 function topicGuideSuffix(userText) {
   const lower = userText.toLowerCase();
   const hits = TOPIC_GUIDES.filter((t) => t.ja.some((k) => lower.includes(k.toLowerCase())) || t.en.some((k) => lower.includes(k))).slice(0, 2);
   if (!hits.length) return "";
-  return hits.map((t) => {
+  // 2026-09-22変更: 冒頭に「ご参考までに」の一言をまとめて添え、各トピックの検索リンクに
+  // Google画像検索も加える(以前はYouTube・Google検索のみ)。
+  const intro = "\n\nご参考までに、Google 画像・動画・YouTube などの検索結果のリンクを貼っておきました。 / " +
+    "For reference, here are some Google Image, video and YouTube search links.";
+  const body = hits.map((t) => {
     const direct = (t.links || []).map((u) => `・${u}`).join("\n");
-    const links = direct + t.q.map((q) => `・${q}\n  YouTube: ${yt(q)}\n  Google: ${gg(q)}`).join("\n");
+    const links = direct + t.q.map((q) => `・${q}\n  🖼 Google画像 / Images: ${gi(q)}\n  ▶ YouTube: ${yt(q)}\n  🔎 Google: ${gg(q)}`).join("\n");
     return `\n\n${t.title}\n${t.desc}\n${links}${t.links ? "" : "\n(検索リンクです。最新情報・価格・安全性は出典で確認してください / Search links only; verify latest info, prices and safety at the sources.)"}`;
   }).join("");
+  return intro + body;
 }
 
 async function newsSuffix(userText) {
@@ -6015,6 +6053,11 @@ async function refineTranscript(alts, langTag) {
     .map((a) => (a && a.transcript ? String(a.transcript).trim() : ""))
     .filter(Boolean);
   const first = clean[0] || "";
+  // 2026-09-22追加: 候補が1つしか無い(=他のエンジンと一致確認できない)、または
+  // 全候補の信頼度が低い場合は「音声入力に自信がない」とみなし、次の返信生成で
+  // Google検索の裏取りを行わせる(`shouldBoostWithGoogleSearch`参照)。
+  const bestConfidence = Math.max(0, ...alts.map((a) => (a && typeof a.confidence === "number" ? a.confidence : 0)));
+  voiceInputLowConfidence = clean.length <= 1 || (bestConfidence > 0 && bestConfidence < 0.55);
   if (clean.length <= 1) return first;
 
   // 信頼度が取れるブラウザでは、最有力候補も先頭へ寄せておく
@@ -8561,7 +8604,7 @@ if (googleSearchBtn && googleSearchModal) {
 
     const body = { prompt };
     try {
-      if (localStorage.getItem(PROVIDER_PRIORITY_USE_GOOGLE_KEY) === "1") {
+      if (localStorage.getItem(PROVIDER_PRIORITY_USE_GOOGLE_KEY) === "1" || shouldBoostWithGoogleSearch()) {
         body.use_google_search = true;
         const creds = typeof loadOwnGoogleSearchCredentials === "function" ? loadOwnGoogleSearchCredentials() : null;
         if (creds) {
@@ -9138,7 +9181,12 @@ async function trySharedPriorityProviderReply(prompt) {
   if (isCloudOff()) return null;
   const url = location.hostname === "easy-web.tokyo" ? "/v1/public/chat-providers/complete-priority" : SHARED_PRIORITY_PROVIDER_ABSOLUTE_URL;
   try {
-    const res = await fetchWithTimeout(url, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ prompt, providers: getSelectedAis() }) }, 45000);
+    // 2026-09-22追加: 文字入力・音声入力・言語翻訳に「自信がない」と判定できたときは、
+    // 共有WEB版の呼び出しにもGoogle検索の裏取りを付ける(`shouldBoostWithGoogleSearch`)。
+    // 共有無料枠(1日100件上限、`web_search.rs`)を使うため、常時ONにはしていない。
+    const sharedBody = { prompt, providers: getSelectedAis() };
+    if (shouldBoostWithGoogleSearch()) sharedBody.use_google_search = true;
+    const res = await fetchWithTimeout(url, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(sharedBody) }, 45000);
     if (!res.ok) {
       if (res.status === 429) return null; // レート制限中は静かに自端末側へフォールバック
       return null;
