@@ -1299,6 +1299,37 @@ label.setup-note {
   max-width: calc(100vw - 24px);
 }
 .admin-login-link.hidden { display: none; }
+.installer-quick-link {
+  position: fixed;
+  top: 6px;
+  left: 6px;
+  z-index: 9999;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  background: #142033;
+  color: #8ecbff;
+  border: 1px solid #8ecbff;
+  border-radius: 999px;
+  padding: 5px 6px 5px 12px;
+  font-size: 12px;
+  font-weight: bold;
+  max-width: calc(100vw - 24px);
+}
+.installer-quick-link a {
+  color: inherit;
+  text-decoration: none;
+}
+.installer-quick-link button {
+  background: none;
+  border: none;
+  color: inherit;
+  font-weight: bold;
+  cursor: pointer;
+  padding: 2px 6px;
+  line-height: 1;
+}
+.installer-quick-link.hidden { display: none; }
 .demo-moved-notice {
   position: fixed;
   inset: 0;

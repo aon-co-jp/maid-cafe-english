@@ -37,6 +37,15 @@
        ログインする」「/demoにアクセスしたら/open-englishに引っ越しましたと
        日本語と英語で表示」): app.jsが表示・非表示を制御する。 -->
   <a href="#" id="admin-login-link" class="admin-login-link hidden">🔐 管理者ログインはこちら(クリック/タップ) / Admin login — click or tap here</a>
+  <!-- 2026-09-24新設(ユーザー指示「その下に各インストーラーはこちらとその英語版と
+       それにリンクを貼って、それもCLOSEボタンも用意して」): 管理者ログインバッジの
+       すぐ下に、インストーラー案内(下の#download-recommend-bannerへのジャンプ
+       リンク)を常時表示する。CLOSEで閉じたらlocalStorageに記憶し(一度きり案内の
+       既存の慣習を踏襲)、次回以降は表示しない。 -->
+  <div id="installer-quick-link" class="installer-quick-link">
+    <a href="#download-recommend-banner">📦 各インストーラーダウンロードはこちら / Download the installers here</a>
+    <button type="button" id="installer-quick-link-close" title="閉じる / Close">✕</button>
+  </div>
   <div id="demo-moved-notice" class="demo-moved-notice hidden">
     <div class="demo-moved-box">
       <h2>🚚 引っ越しました / We have moved</h2>

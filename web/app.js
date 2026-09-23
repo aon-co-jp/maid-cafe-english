@@ -17367,17 +17367,60 @@ refreshAdminState();
 // 行っているpadding-bottom確保と同じ考え方を、上部のこのバッジにも
 // 適用する)。表示・非表示(管理者ログイン中は隠れる)に応じて実測した
 // 高さぶんだけbodyの上部余白を都度更新する。
+// 2026-09-24拡張(ユーザー指示「その下に各インストーラーダウンロードは
+// こちらとその英語版とそれにリンクを貼って、それもCLOSEボタンも用意して」):
+// #installer-quick-linkを#admin-login-linkのすぐ下へ自動で積み重ね、
+// 両方ぶんの高さをbodyの上部余白として確保する。CLOSEを押したら
+// localStorageに記憶し(既存の一度きり案内の慣習を踏襲)、以後は
+// このセッション以降も表示しない。
+const INSTALLER_QUICK_LINK_CLOSED_KEY = "open-english.installerQuickLinkClosed";
 (function reserveSpaceForAdminLoginLink() {
   const linkEl = document.getElementById("admin-login-link");
-  if (!linkEl) return;
+  const installerEl = document.getElementById("installer-quick-link");
+  const installerCloseEl = document.getElementById("installer-quick-link-close");
+  if (installerEl) {
+    let closed = false;
+    try {
+      closed = localStorage.getItem(INSTALLER_QUICK_LINK_CLOSED_KEY) === "1";
+    } catch (e) {
+      /* localStorage不可なら毎回表示されるが実害は無い */
+    }
+    if (closed) installerEl.classList.add("hidden");
+  }
+  if (!linkEl && !installerEl) return;
   const apply = () => {
-    const hidden = linkEl.classList.contains("hidden");
-    document.body.style.paddingTop = hidden ? "" : linkEl.offsetHeight + 12 + "px";
+    let top = 6;
+    if (linkEl && !linkEl.classList.contains("hidden")) {
+      if (installerEl) installerEl.style.top = top + linkEl.offsetHeight + 6 + "px";
+      top += linkEl.offsetHeight + 6;
+    } else if (installerEl) {
+      installerEl.style.top = top + "px";
+    }
+    if (installerEl && !installerEl.classList.contains("hidden")) {
+      top += installerEl.offsetHeight + 6;
+    }
+    document.body.style.paddingTop = top > 6 ? top + 6 + "px" : "";
   };
   apply();
-  if (window.ResizeObserver) new ResizeObserver(apply).observe(linkEl);
+  if (installerCloseEl && installerEl) {
+    installerCloseEl.addEventListener("click", () => {
+      installerEl.classList.add("hidden");
+      try {
+        localStorage.setItem(INSTALLER_QUICK_LINK_CLOSED_KEY, "1");
+      } catch (e) {
+        /* 保存できなくても閉じる動作自体は成立させる */
+      }
+      apply();
+    });
+  }
+  if (window.ResizeObserver) {
+    const ro = new ResizeObserver(apply);
+    if (linkEl) ro.observe(linkEl);
+    if (installerEl) ro.observe(installerEl);
+  }
   if (window.MutationObserver) {
-    new MutationObserver(apply).observe(linkEl, { attributes: true, attributeFilter: ["class"] });
+    if (linkEl) new MutationObserver(apply).observe(linkEl, { attributes: true, attributeFilter: ["class"] });
+    if (installerEl) new MutationObserver(apply).observe(installerEl, { attributes: true, attributeFilter: ["class"] });
   }
 })();
 
