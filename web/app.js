@@ -17311,7 +17311,15 @@ async function syncCustomQaFromServerForAdmin() {
   }
 }
 async function refreshAdminState() {
-  const isDemo = location.pathname.includes("/demo");
+  // 実バグ修正(2026-09-24、ユーザー報告「easy-web.tokyo/open-english/demoは
+  // 現行の有効なデモルート(VPS側domains.tomlで127.0.0.1:8107へ実際に
+  // ルーティングされている)なのに『引っ越しました』が出るのはおかしい」):
+  // この通知はもともと廃止済みの単独`/demo`ルート(別バックエンド、
+  // 127.0.0.1:8080)向けの案内だったが、`.includes("/demo")`は部分一致
+  // のため現行ルート`/open-english/demo`にもマッチしてしまい、既に
+  // 正しい場所にいる利用者にまで誤って表示されていた。廃止ルート
+  // (パスが"/demo"そのもの、または"/demo/"で始まる場合)のみに限定する。
+  const isDemo = /^\/demo(\/|$)/.test(location.pathname);
   const linkEl = document.getElementById("admin-login-link");
   const noticeEl = document.getElementById("demo-moved-notice");
   if (isDemo) {
