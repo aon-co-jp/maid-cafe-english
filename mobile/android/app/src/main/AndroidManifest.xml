@@ -68,6 +68,36 @@
                 <action android:name="android.intent.action.MAIN" />
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
+
+            <!--
+              2026-09-23追加(ユーザー報告「既にスマホ版がインストール
+              されているなら、WEB版にアクセスした時に自動で起動するはずが
+              起動していないBUG」への対応)。**正直な開示**: これは既存
+              機能の後退(リグレッション)ではなく、Android App Links
+              (Digital Asset Links)自体がこれまで一度も実装されていな
+              かった——「未実装」を「BUG」と誤認されていたもの。
+
+              autoVerify="true"は、このIntent Filterと`https://easy-web.
+              tokyo/.well-known/assetlinks.json`(サーバー側に別途配置が
+              必要、本アプリのリリース署名証明書のSHA-256フィンガー
+              プリントを記載する)の両方が揃って初めてAndroidが「この
+              アプリがこのドメインの正当な所有者」と検証し、ブラウザでの
+              アクセスをアプリへ自動的に引き継ぐ(App Links)。
+              assetlinks.jsonが未配置または内容不一致の間は、Androidは
+              安全側に倒れて自動起動せず、通常のブラウザ選択ダイアログ
+              (または素通り)のままになる——検証ファイルの配置は
+              リリース署名鍵のフィンガープリントが必要なため、この
+              コミットの範囲外(要ユーザー対応、HANDOFF参照)。
+            -->
+            <intent-filter android:autoVerify="true">
+                <action android:name="android.intent.action.VIEW" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <category android:name="android.intent.category.BROWSABLE" />
+                <data
+                    android:scheme="https"
+                    android:host="easy-web.tokyo"
+                    android:pathPrefix="/open-english" />
+            </intent-filter>
         </activity>
 
         <!--

@@ -212,6 +212,28 @@ jobs:
           mkdir -p ../../android-apks
           cp "$OUT_PHONE" ../../android-apks/open-english-android-phone.apk
           cp "$OUT_TABLET" ../../android-apks/open-english-android-tablet.apk
+      - name: Print release signing SHA-256 fingerprint (for Android App Links assetlinks.json)
+        # 2026-09-23追加(ユーザー報告「WEB版アクセス時にインストール済み
+        # アプリが自動起動しないBUG」→実際にはApp Links自体が未実装だった
+        # ことが判明、その実装に必要)。ここで出力するのは証明書
+        # (公開情報)のSHA-256フィンガープリントのみで、秘密鍵の値は
+        # 一切出力しない——`https://easy-web.tokyo/.well-known/
+        # assetlinks.json`へこの値を転記する。リリース鍵シークレットが
+        # 無い(debug署名)場合はこのフィンガープリントはApp Links検証に
+        # 使えない旨を明示する。
+        env:
+          ANDROID_KEYSTORE_PATH: ${{ secrets.ANDROID_KEYSTORE_BASE64 != '' && format('{0}/open-english-release.jks', runner.temp) || '' }}
+          ANDROID_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+          ANDROID_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+        run: |
+          set -eu
+          if [ -n "${ANDROID_KEYSTORE_PATH:-}" ]; then
+            echo "=== Release signing SHA-256 fingerprint (public, safe to log) ==="
+            keytool -list -v -keystore "$ANDROID_KEYSTORE_PATH" -alias "$ANDROID_KEY_ALIAS" -storepass "$ANDROID_KEYSTORE_PASSWORD" 2>/dev/null | grep "SHA256:"
+            echo "=== Copy the above SHA256 value into assetlinks.json's sha256_cert_fingerprints ==="
+          else
+            echo "no release keystore -> this build is debug-signed; its fingerprint cannot be used for Android App Links verification"
+          fi
       - uses: actions/upload-artifact@v4
         with:
           name: open-english-android-apks
