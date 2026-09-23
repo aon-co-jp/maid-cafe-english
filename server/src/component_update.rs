@@ -75,16 +75,47 @@ use crate::self_update::{
 /// 同梱コンポーネントの定義。`dir_name`は`{exe_dir}/{dir_name}/`配下に
 /// 実行ファイルが配置される前提(既存の`fetch-aruaru-llm.ps1`/
 /// `fetch-aruaru-db.ps1`・`maybe_launch_aruaru_llm`と同じ相対配置)。
+/// コンポーネントの種別ごとに「新版が正常か」の判定方法が異なる
+/// (2026-09-23拡張、ユーザー指示「open-cpu/open-directx/open-cudaも
+/// 個別に自動バージョンアップできるように」への対応)。
+#[derive(PartialEq, Eq)]
+enum ComponentKind {
+    /// 常駐サーバー(aruaru-llm)。HTTP `/healthz`で稼働確認する。
+    Server,
+    /// 常駐サーバーだがHTTPヘルスチェックが無い(aruaru-db)。TCPポート
+    /// 疎通のみで稼働確認する。
+    Database,
+    /// 一度実行して終了する診断CLI(open-cpu-diag等)。常駐しないため
+    /// 「元々起動していたか」の概念が無く、単に新版を1回実行して
+    /// 正常終了(exit code 0)するかだけを確認する。
+    DiagnosticCli,
+}
+
 struct Component {
     dir_name: &'static str,
     repo: &'static str,
     /// 拡張子抜きの実行ファイル名(`.exe`はWindowsで自動付与)。
     binary_stem: &'static str,
+    kind: ComponentKind,
 }
 
 const COMPONENTS: &[Component] = &[
-    Component { dir_name: "aruaru-llm", repo: "aon-co-jp/aruaru-llm", binary_stem: "aruaru-llm" },
-    Component { dir_name: "aruaru-db", repo: "aon-co-jp/aruaru-db", binary_stem: "aruaru-server" },
+    Component { dir_name: "aruaru-llm", repo: "aon-co-jp/aruaru-llm", binary_stem: "aruaru-llm", kind: ComponentKind::Server },
+    Component { dir_name: "aruaru-db", repo: "aon-co-jp/aruaru-db", binary_stem: "aruaru-server", kind: ComponentKind::Database },
+    // 2026-09-23追加: open-cpuのCPU命令セット診断CLI(`open-cpu-inventory`)。
+    // ハードウェア診断ツールとしてopen-englishへ任意同梱し、他コンポーネント
+    // と同じ仕組みで個別に自動バージョンアップする
+    // (`open-cpu/.github/workflows/release.yml`が`open-cpu-diag-{linux,windows}
+    // -x86_64.{tar.gz,zip}`を公開、中身は`open-cpu-inventory`/`open-cpu-bench`
+    // の2バイナリ)。
+    Component { dir_name: "open-cpu-diag", repo: "aon-co-jp/open-cpu", binary_stem: "open-cpu-inventory", kind: ComponentKind::DiagnosticCli },
+    // 2026-09-23追加: open-cudaのGPU/Vulkan診断CLI(`opencuda-vulkan-info`)。
+    // 実行時に`real-vulkan`機能(ashの動的ロード)でVulkanドライバを開こうと
+    // するため、Vulkan非対応機ではヘルスチェック(1回実行してexit 0)が
+    // 失敗しロールバックされる——その場合、この任意コンポーネントは
+    // 単に「未導入のまま」扱いになる(aruaru-dbと同じ「同梱しなければ
+    // 何もしない」設計)。
+    Component { dir_name: "opencuda-diag", repo: "aon-co-jp/open-cuda", binary_stem: "opencuda-vulkan-info", kind: ComponentKind::DiagnosticCli },
 ];
 
 fn binary_file_name(stem: &str) -> String {
@@ -284,7 +315,7 @@ async fn check_and_apply_one(exe_dir: &Path, component: &Component) -> anyhow::R
         }
     };
 
-    if component.dir_name == "aruaru-llm" {
+    if component.kind == ComponentKind::Server {
         // 実HTTPヘルスチェック(既存`maybe_launch_aruaru_llm`と同じ
         // `/healthz`)。新版を起動し、ヘルスチェックが通れば採用、
         // 失敗すれば復元する。
@@ -326,6 +357,28 @@ async fn check_and_apply_one(exe_dir: &Path, component: &Component) -> anyhow::R
             }
             Err(e) => {
                 rollback(format!("failed to launch new version for health check ({e})")).await;
+            }
+        }
+    } else if component.kind == ComponentKind::DiagnosticCli {
+        // 診断CLI(open-cpu-diag等): 常駐プロセスではないため「元々起動
+        // していたか」の概念が無い。新版を引数無しで1回実行し、正常終了
+        // (exit code 0)すれば採用、異常終了またはそもそも起動できなければ
+        // ロールバックする。
+        let candidate = component_dir.join(&bin_name);
+        match tokio::process::Command::new(&candidate).current_dir(&component_dir).status().await {
+            Ok(status) if status.success() => {
+                let _ = crate::self_update::save_history_dir(exe_dir, component.dir_name, &local_version, &backup_dir);
+                write_component_version(&component_dir, &release.tag_name);
+                tracing_log_if_available(&format!(
+                    "open-english component-update ({}): updated to {} and ran successfully (exit 0)",
+                    component.dir_name, release.tag_name
+                ));
+            }
+            Ok(status) => {
+                rollback(format!("new version exited with a non-zero status ({status})")).await;
+            }
+            Err(e) => {
+                rollback(format!("failed to run new version ({e})")).await;
             }
         }
     } else {
@@ -514,6 +567,29 @@ mod tests {
         // (プレフィックス一致にしている理由の検証)。
         let release = release_with(&["aruaru-db-windows-x86_64.zip"]);
         assert!(windows_zip_asset(&release, "aruaru-llm").is_none());
+    }
+
+    #[test]
+    fn finds_open_cpu_diag_assets_by_prefix() {
+        // 2026-09-23追加(診断CLIコンポーネント新設)。"open-cpu"だけで
+        // 前方一致させると将来的な別アセットとの誤爆余地があるため、
+        // dir_nameを"open-cpu-diag"にしたことをここで固定する回帰テスト。
+        let release = release_with(&["open-cpu-diag-windows-x86_64.zip", "open-cpu-diag-linux-x86_64.tar.gz"]);
+        assert!(windows_zip_asset(&release, "open-cpu-diag").is_some());
+        assert!(linux_tarball_asset(&release, "open-cpu-diag").is_some());
+    }
+
+    #[test]
+    fn component_kind_for_open_cpu_diag_is_diagnostic_cli() {
+        let c = COMPONENTS.iter().find(|c| c.dir_name == "open-cpu-diag").expect("open-cpu-diag must be registered");
+        assert!(c.kind == ComponentKind::DiagnosticCli);
+    }
+
+    #[test]
+    fn finds_opencuda_diag_assets_by_prefix() {
+        let release = release_with(&["opencuda-diag-windows-x86_64.zip", "opencuda-diag-linux-x86_64.tar.gz"]);
+        assert!(windows_zip_asset(&release, "opencuda-diag").is_some());
+        assert!(linux_tarball_asset(&release, "opencuda-diag").is_some());
     }
 
     #[test]

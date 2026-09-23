@@ -132,6 +132,33 @@ const ageGroupInstructions = {
 // ビジネス英会話の追加選択(ユーザー指示「もう一つ複数選択でビジネス
 // 英会話も追加選択可能」への対応、他の年齢層/レベル選択とは独立した
 // チェックボックスとして併用できる)。
+// 2026-09-22追加(ユーザー指示「途中でもっと簡単にとか、初心者ですとかもっと分かりやすく
+// などのご要望に対応」): 「もっと簡単に」「難しい」等の意思表示を検出する。
+const LEVEL_STEP_DOWN_PHRASES_JA = [
+  "もっと簡単に", "もっとやさしく", "もっと分かりやすく", "もっとわかりやすく", "簡単な言葉で",
+  "やさしい言葉で", "初心者です", "初心者なので", "難しい", "むずかしい", "分かりにくい", "わかりにくい",
+  "理解できません", "理解できない", "ついていけません", "ついていけない",
+];
+const LEVEL_STEP_DOWN_PHRASES_EN = [
+  "simpler please", "make it simpler", "easier please", "make it easier", "i'm a beginner", "i am a beginner",
+  "too difficult", "too hard", "hard to understand", "difficult to understand", "in simpler words",
+  "can you simplify", "i don't understand", "i dont understand", "that's too advanced", "that is too advanced",
+];
+function detectLevelStepDownRequest(userText) {
+  const lower = userText.toLowerCase();
+  return LEVEL_STEP_DOWN_PHRASES_JA.some((p) => userText.includes(p)) || LEVEL_STEP_DOWN_PHRASES_EN.some((p) => lower.includes(p));
+}
+const LEVEL_LABEL_JA = { "super-beginner": "超初心者", "beginner": "初心者", "intermediate": "中級者", "native": "ネイティブ" };
+function levelAdjustmentNote(levelJustAdjusted, level) {
+  if (!levelJustAdjusted) return "";
+  const label = LEVEL_LABEL_JA[level] || level;
+  if (level === "super-beginner") {
+    return `\n\n📚 レベルはすでに一番易しい「超初心者」です。これ以上は下げられません。 / The level is already at the easiest, "Super Beginner" — it can't go any lower.`;
+  }
+  return `\n\n📚 レベルを「${label}」に調整しました。またいつでも「もっと簡単に」「もっと上級に」と伝えてください。 / ` +
+    `Level adjusted to "${label}". Feel free to ask for simpler or more advanced any time.`;
+}
+
 const BUSINESS_ENGLISH_INSTRUCTION =
   "Also weave in some polite business English phrases (greetings, meetings, email requests) suitable for a workplace context.";
 
@@ -152,6 +179,18 @@ const langInstructions = {
   ar: "Reply only in Arabic (العربية).",
   fa: "Reply only in Persian/Farsi (فارسی).",
   he: "Reply only in Hebrew (עברית).",
+  // 2026-09-22追加(ユーザー指示「選択可能言語にタイ語を追加して」「ベトナム語も
+  // フィリピン語もクルド語もミャンマー語も対応して」)。
+  th: "Reply only in Thai (ภาษาไทย).",
+  vi: "Reply only in Vietnamese (Tiếng Việt).",
+  tl: "Reply only in Filipino/Tagalog (Filipino).",
+  my: "Reply only in Burmese (မြန်မာဘာသာ).",
+  ku: "Reply only in Kurdish (Kurdî).",
+  // 2026-09-22追加(ユーザー指示「トルコ、イスタンブールの言語もスイスの言語も対応して」)。
+  // スイスの4公用語のうちドイツ語・フランス語・イタリア語は既に対応済みのため、
+  // 残るロマンシュ語(スイス東部の少数言語)を追加する。
+  tr: "Reply only in Turkish (Türkçe).",
+  rm: "Reply only in Romansh (Rumantsch).",
 };
 
 // RTL(右書き)言語のコード一覧(ユーザー指示「Arabic・Persian・Hebrewは
@@ -196,8 +235,114 @@ const trainerRoleByTarget = {
   arabic: "You are a friendly Arabic (العربية) conversation trainer at a maid cafe, helping the student practice speaking Arabic.",
   persian: "You are a friendly Persian/Farsi (فارسی) conversation trainer at a maid cafe, helping the student practice speaking Persian.",
   hebrew: "You are a friendly Hebrew (עברית) conversation trainer at a maid cafe, helping the student practice speaking Hebrew.",
+  // 2026-09-22追加(ユーザー指示「選択可能言語にタイ語を追加して」「ベトナム語も
+  // フィリピン語もクルド語もミャンマー語も対応して」)。
+  thai: "You are a friendly Thai (ภาษาไทย) conversation trainer at a maid cafe, helping the student practice speaking Thai.",
+  vietnamese: "You are a friendly Vietnamese (Tiếng Việt) conversation trainer at a maid cafe, helping the student practice speaking Vietnamese.",
+  filipino: "You are a friendly Filipino/Tagalog conversation trainer at a maid cafe, helping the student practice speaking Filipino.",
+  burmese: "You are a friendly Burmese (မြန်မာဘာသာ) conversation trainer at a maid cafe, helping the student practice speaking Burmese.",
+  kurdish: "You are a friendly Kurdish (Kurdî) conversation trainer at a maid cafe, helping the student practice speaking Kurdish.",
+  turkish: "You are a friendly Turkish (Türkçe) conversation trainer at a maid cafe, helping the student practice speaking Turkish.",
+  romansh: "You are a friendly Romansh (Rumantsch) conversation trainer at a maid cafe, helping the student practice speaking Romansh, one of Switzerland's four national languages.",
 };
 const learnTargetEl = document.getElementById("learn-target");
+
+// ---------------------------------------------------------------------------
+// 言語ごとの「文化・習慣の違い」を、親切で分かりやすく尊重をもって伝える機能
+// (2026-09-22新設、ユーザー指示「タイ語では男女で敬語の使い方が違うなど、他の言語でも
+// 文化の違いや国ごとの違う風習や文化も尊敬したりリスペクトしたりネイティブだとこの様な
+// 言葉になります、の様な分かりやすくて親切な説明も付ける」)。
+//
+// **正直な開示**: ここに書く内容は、言語学的に広く知られている一般的な事実
+// (タイ語の性別による文末詞、ヨーロッパ言語のtu/vous的な使い分け等)であり、
+// 個々のネイティブスピーカー全員の実際の話し方を保証するものではない。地域差・
+// 世代差・個人差があることも踏まえ、「ネイティブは自然にこう使い分けることが多い」
+// という紹介にとどめ、断定的な決めつけにはしない。
+const CULTURAL_NOTES_BY_TARGET = {
+  thai: {
+    ja: "🇹🇭 タイ語の豆知識: 文末に「ครับ(クラップ)」(男性)・「ค่ะ/คะ(カー)」(女性)をつけると丁寧になります。ネイティブは自分の性別で自然に使い分けており、特別な場面だけでなく普段の会話でも欠かせません。相手の文化を尊重する第一歩として、ぜひ意識してみてください。",
+    en: "🇹🇭 Thai tip: adding ครับ (khrap) at the end of a sentence if you're male, or ค่ะ/คะ (kha) if you're female, makes it sound polite. Native speakers do this naturally in everyday conversation, not just on formal occasions — it's a small but meaningful way to show respect for the culture.",
+  },
+  japanese: {
+    ja: "🇯🇵 日本語の豆知識: 「です・ます」の丁寧語に加え、目上の方やお客様には謙譲語・尊敬語も使われます。ネイティブは相手との関係や場面に応じて、自然に言い方を選んでいます。",
+    en: "🇯🇵 Japanese tip: beyond the polite です/ます form, there are also humble and respectful honorifics used with superiors or customers. Native speakers naturally choose the right level depending on who they're talking to.",
+  },
+  german: {
+    ja: "🇩🇪 ドイツ語の豆知識: 親しい相手には「du」、初対面やビジネスの場では「Sie」を使います。ネイティブは相手との距離感で自然に切り替えています。",
+    en: "🇩🇪 German tip: use the informal \"du\" with close friends, and the formal \"Sie\" with strangers or in business settings. Native speakers switch naturally based on the relationship.",
+  },
+  french: {
+    ja: "🇫🇷 フランス語の豆知識: 親しい相手には「tu」、目上の方や初対面には「vous」を使います。いきなり「tu」で話しかけると失礼にあたることがあります。",
+    en: "🇫🇷 French tip: use \"tu\" with close friends, and \"vous\" with elders or people you've just met. Jumping straight to \"tu\" can come across as disrespectful.",
+  },
+  spanish: {
+    ja: "🇪🇸 スペイン語の豆知識: 親しい相手には「tú」、丁寧に話したい相手には「usted」を使います。国・地域によって使い分けの度合いが異なります。",
+    en: "🇪🇸 Spanish tip: use \"tú\" with people you know well, and the more formal \"usted\" to be polite — how strictly this is used varies by country and region.",
+  },
+  italian: {
+    ja: "🇮🇹 イタリア語の豆知識: 親しい相手には「tu」、丁寧に話す相手には「Lei」を使います。年上の方やお店の方には「Lei」が自然です。",
+    en: "🇮🇹 Italian tip: use \"tu\" informally, and the polite \"Lei\" with elders or shopkeepers — \"Lei\" is the natural choice in those situations.",
+  },
+  russian: {
+    ja: "🇷🇺 ロシア語の豆知識: 丁寧に話すときは「ты」ではなく「вы」を使い、さらにフルネーム(名前+父称)で呼びかけると、より敬意を込めた言い方になります。",
+    en: "🇷🇺 Russian tip: use \"вы\" (formal \"you\") instead of \"ты\" to be polite, and addressing someone by their first name plus patronymic shows extra respect.",
+  },
+  arabic: {
+    ja: "🇸🇦 アラビア語の豆知識: 話す相手が男性か女性かで動詞や言い回しの形が変わります。ネイティブは相手に合わせて自然に言葉を選んでいます。挨拶の「アッサラーム・アライクム」もよく使われます。",
+    en: "🇸🇦 Arabic tip: verbs and phrasing change depending on whether you're speaking to a man or a woman — native speakers do this automatically. The greeting \"As-salamu alaykum\" is also widely used and appreciated.",
+  },
+  persian: {
+    ja: "🇮🇷 ペルシャ語の豆知識: 1人に対しても、丁寧に話すときは「شما(あなた、複数形と同じ形)」を使います。フランス語の「vous」に近い感覚です。",
+    en: "🇮🇷 Persian tip: even when speaking to just one person, the polite form \"شما\" (which is also the plural \"you\") is used — similar in feel to the French \"vous\".",
+  },
+  hebrew: {
+    ja: "🇮🇱 ヘブライ語の豆知識: 話す相手が男性(אתה)か女性(את)かで、動詞や形容詞の形が変わります。ネイティブは相手に合わせて自然に切り替えています。",
+    en: "🇮🇱 Hebrew tip: verbs and adjectives change form depending on whether you're speaking to a man (אתה) or a woman (את) — native speakers switch naturally based on the listener.",
+  },
+  english: {
+    ja: "🇬🇧 英語の豆知識: 日本語ほどはっきりした敬語はありませんが、「please」や「Could you...?」のような言い方を使うと、より丁寧で礼儀正しく聞こえます。",
+    en: "🇬🇧 English tip: it doesn't have grammatical honorifics like Japanese, but native speakers still sound more polite by adding words like \"please\" or phrasing requests as \"Could you...?\"",
+  },
+  vietnamese: {
+    ja: "🇻🇳 ベトナム語の豆知識: 「あなた」にあたる単語は1つではなく、相手の年齢や関係性によって anh(年上の男性)・chị(年上の女性)・em(年下)などを使い分けます。ネイティブはこの呼び方自体で相手への敬意を示しています。",
+    en: "🇻🇳 Vietnamese tip: there isn't a single word for \"you\" — native speakers choose from anh (older man), chị (older woman), em (younger person), and others, based on the listener's age and relationship. The choice of pronoun itself is how respect is shown.",
+  },
+  filipino: {
+    ja: "🇵🇭 フィリピン語の豆知識: 目上の方や初対面の方には、文に「po」「opo」をつけると丁寧になります。子どもの頃から自然に身につく、とても大切な習慣です。",
+    en: "🇵🇭 Filipino tip: adding \"po\" or \"opo\" when speaking to elders or people you've just met makes your speech polite. It's a habit Filipinos learn from childhood and consider very important.",
+  },
+  burmese: {
+    ja: "🇲🇲 ミャンマー語の豆知識: 「私」にあたる言葉も話し手の性別で変わります(男性は「ကျွန်တော်(チュンドー)」、女性は「ကျွန်မ(チュンマ)」)。また名前の前に「ဦး(ウー、男性への敬称)」「ဒေါ်(ドー、女性への敬称)」をつけて呼ぶのが一般的です。",
+    en: "🇲🇲 Burmese tip: even the word for \"I\" depends on the speaker's own gender (ကျွန်တော် kyundaw for men, ကျွန်မ kyunma for women). It's also common to address people with the honorific title U (ဦး) for men or Daw (ဒေါ်) before their name.",
+  },
+  kurdish: {
+    ja: "🇮🇶 クルド語の豆知識: 地域によってクルマンジー語・ソラニー語などの方言が異なり、文法(名詞の性)も違います。「Kek(兄さん)」「Xwişk(姉さん)」のように、血縁でなくても親しみと敬意を込めて呼びかける習慣があります。",
+    en: "🇮🇶 Kurdish tip: dialects like Kurmanji and Sorani differ by region, including grammatical gender. It's also common to address people warmly and respectfully with terms like Kek (\"brother\") or Xwişk (\"sister\"), even when there's no blood relation.",
+  },
+  turkish: {
+    ja: "🇹🇷 トルコ語の豆知識: 親しい相手には「sen」、目上の方や初対面には「siz」を使います。また「abi(兄さん)」「abla(姉さん)」のように、血縁でなくても親しみを込めて年上の方を呼ぶ習慣があります。",
+    en: "🇹🇷 Turkish tip: use the informal \"sen\" with close friends, and the more respectful \"siz\" with elders or people you've just met. It's also common to warmly address older people as \"abi\" (older brother) or \"abla\" (older sister), even without a blood relation.",
+  },
+  romansh: {
+    ja: "🇨🇭 ロマンシュ語の豆知識: スイスの4番目の公用語で、話者は主にスイス東部のグラウビュンデン州に住む少数言語です。地域ごとに複数の書き言葉(方言)があり、話者はそれぞれの地域の言葉を大切にしています。",
+    en: "🇨🇭 Romansh tip: it's Switzerland's fourth national language, spoken mainly by a small community in the canton of Graubünden. It has several regional written varieties, and speakers take pride in their own local form of the language.",
+  },
+};
+// 同じ言語について、1つのブラウザ・セッション内で何度も表示しないための記録。
+const culturalNoteShownFor = new Set();
+function showCulturalNoteIfAny(targetValue) {
+  const note = CULTURAL_NOTES_BY_TARGET[targetValue];
+  if (!note || culturalNoteShownFor.has(targetValue)) return;
+  culturalNoteShownFor.add(targetValue);
+  if (typeof appendMessage === "function") {
+    appendMessage("system", `${note.ja}\n${note.en}`);
+  }
+}
+if (learnTargetEl) {
+  learnTargetEl.addEventListener("change", () => {
+    if (!learnTargetEl.value.startsWith("world:")) showCulturalNoteIfAny(learnTargetEl.value);
+  });
+}
 
 // バージョン表示(ユーザー指示「バージョン管理する機能も搭載して」)。
 // `version.json`の`version`(セマンティックバージョン)をフッターへ表示する。
@@ -331,6 +476,18 @@ const learnTargetEl = document.getElementById("learn-target");
 // `openai`(ストレージキー)と`chatgpt`(JSON側のID)のように名前が
 // 食い違う箇所があるため、対応表で明示的に紐付ける。
 const CHAT_PROVIDER_KEY_LOCAL_PREFIX = "open-english.providerKey.";
+// この端末(PC版・タブレット版・スマホ版とも共通)に、利用者自身のAPIキー/コードが
+// 1つでも設定されているか(2026-09-22新設、ユーザー指示「KEYやCODEを指定したら、
+// WEB版のGeminiなどのAIはスマホ版とは一緒に使用しないように」への対応)。
+// 一覧は「🔀 AI Provider Priority」パネルの入力欄と同じ8種類。
+const OWN_KEY_PROVIDER_IDS = ["openai", "deepseek", "gemini", "claude", "groq", "mistral", "openrouter", "cloudflare"];
+function hasOwnConfiguredProviderKey() {
+  try {
+    return OWN_KEY_PROVIDER_IDS.some((p) => !!localStorage.getItem(CHAT_PROVIDER_KEY_LOCAL_PREFIX + p));
+  } catch (e) {
+    return false;
+  }
+}
 const FREE_TIER_SETUP_MAP = {
   "google-search": { storageKey: null, openBtnId: "google-search-settings-btn" },
   chatgpt: { storageKey: "openai", openBtnId: "provider-priority-settings-btn" },
@@ -589,6 +746,59 @@ function ensureHybridReply(completion, userText) {
   return `${completion}\n\n${note}`;
 }
 
+// ---------------------------------------------------------------------------
+// 3〜4ヶ国語同時ハイブリッド表示(2026-09-22新設、ユーザー指示「基本は、二か国語の他に
+// 3か国語や4ヶ国語まで同時に表示可能にして」)。
+//
+// **正直な開示**: 内蔵のローカルGPT-2(aruaru-llm)は英語中心の事前学習のため、
+// 指示だけで複数言語を確実に書き分けることは実機検証で確認できていない
+// (既存の`ensureHybridReply`/`ensureScriptGuaranteedReply`と同じ制約)。3〜4ヶ国語
+// ハイブリッドは、指示に従える外部LLM(Gemini等、WEB版共有枠または自分の鍵)が
+// 使われた場合に実際に機能する。ローカルGPT-2しか使えない場合は、既存の2言語版と
+// 同じく「英語のみになった場合は短い注記を添える」程度の保証にとどめる。
+function hybridLanguageCodes(n) {
+  const codes = ["en"];
+  try {
+    const native = typeof loadNativeLanguage === "function" ? loadNativeLanguage() : "ja";
+    if (native && !codes.includes(native)) codes.push(native);
+  } catch (e) {
+    codes.push("ja");
+  }
+  if (!codes.includes("ja") && codes.length < n) codes.push("ja");
+  try {
+    const ordered = typeof multiSpeakTargetCodes === "function" ? multiSpeakTargetCodes() : [];
+    for (const c of ordered) {
+      if (codes.length >= n) break;
+      if (!codes.includes(c)) codes.push(c);
+    }
+  } catch (e) {
+    /* 追加言語が取得できなくても、英語+母国語(+日本語)だけで続行する */
+  }
+  return codes.slice(0, n);
+}
+
+function hybridLanguageInstruction(n) {
+  const codes = hybridLanguageCodes(n);
+  const names = codes.map((c) => (typeof languageDisplayName === "function" ? languageDisplayName(c).split(" / ")[0] : c));
+  return `Reply with the same short message in ${names.length} languages, one after another in this order: ${names.join(", ")}. ` +
+    `Clearly separate each language's version (e.g. on its own line), so the student can compare all ${names.length} at once.`;
+}
+
+/** 3〜4ヶ国語ハイブリッドで、ローカルGPT-2しか使えず実際には英語だけになった場合の注記。 */
+function ensureMultiHybridReply(completion) {
+  const mode = replyLangEl.value;
+  if (mode !== "hybrid3" && mode !== "hybrid4") return completion;
+  const n = mode === "hybrid3" ? 3 : 4;
+  const codes = hybridLanguageCodes(n);
+  const names = codes.map((c) => (typeof languageDisplayName === "function" ? languageDisplayName(c) : c));
+  if (containsJapanese(completion) || codes.some((c) => NON_LATIN_SCRIPT_GUARANTEE[c] && NON_LATIN_SCRIPT_GUARANTEE[c].test(completion))) {
+    return completion;
+  }
+  const note = `(Honest disclosure: this reply only came out in English. ${names.length}-language hybrid mode (${names.join(", ")}) works reliably with an external AI (Gemini etc.) — the built-in local model can't guarantee it. / ` +
+    `正直な開示: この返信は英語のみになりました。${names.length}ヶ国語ハイブリッド(${names.join("、")})は外部AI〈Gemini等〉を使った場合に確実に機能します——内蔵のローカルモデルでは保証できません。)`;
+  return `${completion}\n\n${note}`;
+}
+
 // 2026-08-25追加(ユーザー指示「German/Russian/Arabic/Persian/Hebrewの
 // 実生成品質を実機テストし、ガベージなら正直に開示せよ」への対応)。
 // 実機検証結果(CLAUDE.md HANDOFF参照): reply-langをde/fr/es/it/ru/ar/
@@ -740,38 +950,50 @@ function isMobileOrFeaturePhoneUserAgent() {
     navigator.userAgent || ""
   );
 }
-if (isTabletUserAgent()) {
-  document.getElementById("launch-pc-version-banner")?.classList.add("hidden");
-  const badgeEl = document.getElementById("local-instance-badge");
-  if (badgeEl) {
-    badgeEl.textContent = `${TABLET_RUNNING_BADGE_LABEL.ja} / ${TABLET_RUNNING_BADGE_LABEL.en}`;
-    badgeEl.classList.remove("hidden");
+// 2026-09-22バグ修正(ユーザー指摘「PC版起動中・スマホ版起動中の文字が、機種によっては
+// WEB版で隠れて見えない可能性がある」を受けてテスト・デバッグして発見): 従来はタブレット/
+// スマホのUser-Agent判定(`isTabletUserAgent`/`isMobileOrFeaturePhoneUserAgent`)が
+// `location.hostname`を一切見ずに動いていたため、**公開WEB版(easy-web.tokyo等)を
+// スマホ・タブレットのブラウザで開いただけで**「📱 モバイル版起動中!」の偽のバッジが
+// 出てしまっていた(実際にはインストール版は起動していないのに)。同時に、公開WEB版では
+// 管理者ログインリンク(左上、横幅ほぼ全幅になりうる)がこのバッジ(右上)と重なり、
+// 実機375px幅での検証で実際に完全に隠れることを確認した。
+// 修正: PC版と同じ「この端末自身(localhost)か、自己ホストのドメインか」の判定を
+// 先に行い、**実際にインストール版が起動している場合のみ**デバイス種別のバッジを出す
+// (公開WEB版では、スマホ・タブレットで開いてもバッジは一切出さない)。
+async function isInstalledInstanceHostname() {
+  if (/^(127\.0\.0\.1|localhost|\[::1\])$/.test(location.hostname)) return true;
+  try {
+    const res = await fetch("/v1/config", { cache: "no-store" });
+    if (!res.ok) return false;
+    const data = await res.json();
+    const selfHostedHostnames = (data && data.self_hosted_hostnames) || [];
+    return selfHostedHostnames.includes(location.hostname.toLowerCase());
+  } catch (e) {
+    // `/v1/config`未提供の配信形態(file://直開き等)では黙って既定(共有デモ扱い)のまま。
+    return false;
   }
-} else if (isMobileOrFeaturePhoneUserAgent()) {
-  document.getElementById("launch-pc-version-banner")?.classList.add("hidden");
-  const badgeEl = document.getElementById("local-instance-badge");
-  if (badgeEl) {
-    badgeEl.textContent = `${MOBILE_RUNNING_BADGE_LABEL.ja} / ${MOBILE_RUNNING_BADGE_LABEL.en}`;
-    badgeEl.classList.remove("hidden");
-  }
-} else if (/^(127\.0\.0\.1|localhost|\[::1\])$/.test(location.hostname)) {
-  document.getElementById("launch-pc-version-banner")?.classList.add("hidden");
-  showLocalInstanceBadgeFromPlatformInfo();
-} else {
-  fetch("/v1/config", { cache: "no-store" })
-    .then((r) => (r.ok ? r.json() : null))
-    .then((data) => {
-      const selfHostedHostnames = (data && data.self_hosted_hostnames) || [];
-      if (selfHostedHostnames.includes(location.hostname.toLowerCase())) {
-        document.getElementById("launch-pc-version-banner")?.classList.add("hidden");
-        showLocalInstanceBadgeFromPlatformInfo();
-      }
-    })
-    .catch(() => {
-      // `/v1/config`未提供の配信形態(file://直開き等)では黙って
-      // 既定(共有デモ扱い)のままにする。
-    });
 }
+(async function updateInstanceRunningBadge() {
+  const isInstalled = await isInstalledInstanceHostname();
+  if (!isInstalled) return; // 公開WEB版: 端末の種類に関わらず「起動中」バッジは一切出さない
+  document.getElementById("launch-pc-version-banner")?.classList.add("hidden");
+  if (isTabletUserAgent()) {
+    const badgeEl = document.getElementById("local-instance-badge");
+    if (badgeEl) {
+      badgeEl.textContent = `${TABLET_RUNNING_BADGE_LABEL.ja} / ${TABLET_RUNNING_BADGE_LABEL.en}`;
+      badgeEl.classList.remove("hidden");
+    }
+  } else if (isMobileOrFeaturePhoneUserAgent()) {
+    const badgeEl = document.getElementById("local-instance-badge");
+    if (badgeEl) {
+      badgeEl.textContent = `${MOBILE_RUNNING_BADGE_LABEL.ja} / ${MOBILE_RUNNING_BADGE_LABEL.en}`;
+      badgeEl.classList.remove("hidden");
+    }
+  } else {
+    showLocalInstanceBadgeFromPlatformInfo();
+  }
+})();
 // 2026-09-01追記(ユーザー指示): 「これはデモです、インストーラー版を
 // ダウンロードしてください」という案内は、本番(/open-english/)ではなく
 // デモ環境(/open-english/demo)でのみ表示する。本番/デモは同じ静的
@@ -1666,7 +1888,7 @@ function playToraSanJingle() {
 // 固定のドメインであり、AI生成テキストが任意に生成しうる文字列
 // ではないため安全と判断した(`creatorWebsiteLinksText`参照)。
 const AUDIOCAFE_LINK_PATTERN =
-  /https:\/\/audiocafe\.tokyo(?:\/[^\s)]*)?|https:\/\/aon\.co\.jp(?:\/[^\s)]*)?|https:\/\/aon\.tokyo(?:\/[^\s)]*)?|https:\/\/nasa\.tokyo(?:\/[^\s)]*)?|https:\/\/aruaru\.tokyo(?:\/[^\s)]*)?|https:\/\/www\.amazon\.co\.jp\/dp\/B0H14VXGCC\/?|https:\/\/ameblo\.jp\/www-aon\/entry-12977122655\.html|https:\/\/www\.youtube\.com\/results\?search_query=[^\s)]*|https:\/\/www\.youtube\.com\/watch\?v=aN39YEtblZ8|https:\/\/www\.youtube\.com\/watch\?v=ziRRloiP83g|https:\/\/www\.google\.com\/search\?q=[^\s)]*|https:\/\/github\.com\/aon-co-jp(?:\/[A-Za-z0-9._-]+)?/g;
+  /https:\/\/audiocafe\.tokyo(?:\/[^\s)]*)?|https:\/\/aon\.co\.jp(?:\/[^\s)]*)?|https:\/\/aon\.tokyo(?:\/[^\s)]*)?|https:\/\/nasa\.tokyo(?:\/[^\s)]*)?|https:\/\/aruaru\.tokyo(?:\/[^\s)]*)?|https:\/\/www\.amazon\.co\.jp\/dp\/B0H14VXGCC\/?|https:\/\/ameblo\.jp\/www-aon\/entry-12977122655\.html|https:\/\/www\.youtube\.com\/results\?search_query=[^\s)]*|https:\/\/www\.youtube\.com\/watch\?v=aN39YEtblZ8|https:\/\/www\.youtube\.com\/watch\?v=ziRRloiP83g|https:\/\/www\.google\.com\/search\?q=[^\s)]*|https:\/\/www\.google\.com\/search\?tbm=isch[^\s)]*|https:\/\/github\.com\/aon-co-jp(?:\/[A-Za-z0-9._-]+)?/g;
 
 /** テキストを、既知ドメインのURLだけ`<a>`化した上で`container`へ描画する。 */
 function renderMessageBody(container, text) {
@@ -2504,6 +2726,11 @@ function switchCharacter() {
 characterSwitchBtn.addEventListener("click", switchCharacter);
 
 async function askTrainer(userText) {
+  // 2026-09-22追加(ユーザー指示「最新の情報が欲しい様なニュアンスを含んだ質問がある時は、
+  // GeminiなどのAIからGoogle検索や必要ならGithub調査も自動で行なう」): この回のユーザー
+  // 発話を、`shouldBoostWithGoogleSearch`/`shouldUseGithubSearch`からも参照できるよう
+  // モジュールスコープへ記録しておく(`voiceInputLowConfidence`等と同じ「今回限りの状態」)。
+  currentTurnUserText = userText;
   // カスタムQ&Aデータベース(2026-09-13新設)を最優先でチェックする。
   // 一致すれば、AI推論(GPT-2/外部プロバイダとも)を一切呼ばず、利用者が
   // 事前に登録した回答をそのまま返す——「この様な質問にはこの様な回答が
@@ -2526,8 +2753,33 @@ async function askTrainer(userText) {
     return `${blocks.join("\n\n────────────\n\n")}\n\n📚 (Custom Q&A match / カスタムQ&Aに一致: ${allKeywords})`;
   }
   const base = apiBaseEl.value.trim();
+  // 2026-09-22追加(ユーザー指示「途中でもっと簡単にとか、初心者ですとかもっと分かりやすく
+  // などのご要望に対応」「回答の英語や日本が難しいと会話のやり取りからAIが自動判断」):
+  // 「もっと簡単に」「難しい」等の意思表示を検出したら、レベルを1段下げて保存する
+  // (super-beginner未満へは下げない)。AI自身による厳密な習熟度判定ではなく、
+  // 分かりやすい言い回しのキーワード検出にとどめている(正直な開示)。
+  const levelStepDown = detectLevelStepDownRequest(userText);
+  let levelJustAdjusted = false;
+  if (levelStepDown && levelEl) {
+    const order = ["super-beginner", "beginner", "intermediate", "native"];
+    const idx = order.indexOf(levelEl.value);
+    if (idx > 0) {
+      levelEl.value = order[idx - 1];
+      persistSetting(LEVEL_KEY, levelEl.value);
+      levelJustAdjusted = true;
+    } else if (idx === 0) {
+      levelJustAdjusted = true; // 既に最も易しい段階(その旨は下でreplyへ添える)
+    }
+  }
   const level = levelEl.value;
   let levelInstruction = levelInstructions[level] || "";
+  // 2026-09-22追加(ユーザー指示「日本語でも英語でも、AIがその文章なら、もっとこうすると
+  // もっと自然だとかネイティブだとこんな感じです、みたいなアドバイスも必要に応じで自動で
+  // 行なう機能」): 外部LLM(Gemini等)へ、価値がある時だけ自然な言い回しのヒントを
+  // 添えるよう指示する。内蔵ローカルGPT-2はこの指示に従える保証が無い(既存の制約と同じ)。
+  levelInstruction +=
+    " If the student's Japanese or English sentence could sound more natural, briefly add how a native speaker " +
+    "would phrase it (in both English and Japanese) — but only when it genuinely helps, not for every message.";
   const ageInstruction = ageGroupEl ? ageGroupInstructions[ageGroupEl.value] || "" : "";
   if (ageInstruction) levelInstruction = `${ageInstruction} ${levelInstruction}`;
   if (businessEnglishEl && businessEnglishEl.checked) {
@@ -2540,6 +2792,11 @@ async function askTrainer(userText) {
   // 選んでいる場合はそちらを優先する(自動判定は英日の二択のみ対応)。
   const effectiveReplyLang = replyLangEl.value === "auto" ? (containsJapanese(userText) ? "ja" : "en") : replyLangEl.value;
   let langInstruction = langInstructions[effectiveReplyLang] || "";
+  // 2026-09-22追加(ユーザー指示「基本は、二か国語の他に3か国語や4ヶ国語まで同時に表示
+  // 可能にして」): hybrid3/hybrid4は静的な`langInstructions`ではなく、母国語・有効化した
+  // 言語から動的に組み立てる。
+  if (effectiveReplyLang === "hybrid3") langInstruction = hybridLanguageInstruction(3);
+  if (effectiveReplyLang === "hybrid4") langInstruction = hybridLanguageInstruction(4);
   // ユーザーの発話が日本語の場合、その事実をプロンプトへ明示する
   // (ユーザー報告「日本語でしゃべっても英語と日本語で返事して」への
   // 対応、第一段階)。GPT-2は英語中心の語彙のため、これだけでは
@@ -2564,17 +2821,30 @@ async function askTrainer(userText) {
   }
   const prompt = `${trainerRole} ${levelInstruction} ${langInstruction}\nStudent: ${userText}\nTrainer:`;
 
-  // マルチLLMプロバイダ優先順位機能。試す順序(2026-09-14変更、ユーザー
-  // 指示「ハードウェアと無料API KEYは別々の話し」「無料のGoogleなどの
-  // API KEYは、WEB版を最優先して利用して」への対応):
-  //   1) WEB版(easy-web.tokyo/open-english)で開発者が登録した無料枠
-  //      (Google検索→ChatGPT→Gemini→DeepSeek→Grok、日毎に自動で次へ)
-  //   2) この端末自身に利用者が設定した鍵(有料版含む——「各利用者が
-  //      有料版を登録したらそちらのAPI KEYを自動で使う」)
-  //   3) どちらも不可なら、この端末自身のaruaru-llm(手元のハードウェア)
-  //      によるローカルGPT-2推論(既存の可用性優先の設計を踏襲)
+  // マルチLLMプロバイダ優先順位機能。試す順序:
+  //   0) この端末(PC版/タブレット版/スマホ版)に、利用者自身のAPIキー/コードが
+  //      1つでも設定されていれば、WEB版の共有無料枠は一切使わず、自分の鍵だけを使う
+  //      (2026-09-22変更、ユーザー指示「KEYやCODEを指定したら、WEB版のGeminiなどのAIは
+  //      スマホ版とは一緒に使用しないように」——共有の無料枠を、自分の鍵を持つ利用者にまで
+  //      消費させない、二重使いを避ける設計)。
+  //   1) 自分の鍵が無ければ、WEB版(easy-web.tokyo/open-english)で開発者が登録した
+  //      無料枠(Google検索→ChatGPT→Gemini→DeepSeek→Grok、日毎に自動で次へ)
+  //      (2026-09-14変更、ユーザー指示「無料のGoogleなどのAPI KEYは、WEB版を最優先して
+  //      利用して」への対応——「自分の鍵を持たない利用者」の既定はこのまま変えない)
+  //   2) どちらも不可なら、この端末自身のaruaru-llm(手元のハードウェア)による
+  //      ローカルGPT-2推論(既存の可用性優先の設計を踏襲)
+  const usesOwnKeyExclusively = hasOwnConfiguredProviderKey();
+  // 2026-09-22追加(ユーザー指示「確認した後の対応を機能化して」): 低信頼度・未検証言語を
+  // 理由にGoogle検索の裏取りを行ったかどうかを、この返信1回ぶんだけ覚えておき、
+  // 実際に返信へ反映する(以前は判定していても利用者からは見えない状態だった)。
+  let searchBoostReason = shouldBoostWithGoogleSearch()
+    ? voiceInputLowConfidence
+      ? "voice"
+      : "language"
+    : null;
   let quotaExceededPrefix = "";
-  let priorityResult = typeof trySharedPriorityProviderReply === "function" ? await trySharedPriorityProviderReply(prompt) : null;
+  let priorityResult =
+    !usesOwnKeyExclusively && typeof trySharedPriorityProviderReply === "function" ? await trySharedPriorityProviderReply(prompt) : null;
   let usedShared = !!(priorityResult && typeof priorityResult.text === "string");
   if (!usedShared && typeof window.tryPriorityProviderReply === "function") {
     const ownResult = await window.tryPriorityProviderReply(prompt);
@@ -2584,10 +2854,38 @@ async function askTrainer(userText) {
       priorityResult = ownResult; // 両方とも枠切れ、というケースの判定に使う
     }
   }
+  // 2026-09-22追加(ユーザー指示「AIの持っている知識では、自信が持てなかったため、
+  // Google検索で確認してから回答しました、と言うのも機能化して」): まだ検索の裏取りを
+  // していない回で、1回目の答えに「わからない」等のヘッジ表現が出た場合、AI自身の知識に
+  // 自信が無かったとみなし、Google検索つきでもう一度だけ生成し直す。
+  if (!searchBoostReason && priorityResult && typeof priorityResult.text === "string" && looksUncertain(priorityResult.text)) {
+    forceSearchBoostOnce = true;
+    const retryUsedShared = !usesOwnKeyExclusively && typeof trySharedPriorityProviderReply === "function";
+    const retryResult = retryUsedShared ? await trySharedPriorityProviderReply(prompt) : typeof window.tryPriorityProviderReply === "function" ? await window.tryPriorityProviderReply(prompt) : null;
+    forceSearchBoostOnce = false; // 消費されなかった場合(関数が未定義等)に備えて確実に戻す
+    if (retryResult && typeof retryResult.text === "string") {
+      priorityResult = retryResult;
+      searchBoostReason = "knowledge";
+    }
+  }
   if (priorityResult && typeof priorityResult.text === "string") {
-    let reply = ensureScriptGuaranteedReply(ensureHybridReply(trimDegenerateRepetition(priorityResult.text), userText));
+    let reply = ensureMultiHybridReply(ensureScriptGuaranteedReply(ensureHybridReply(trimDegenerateRepetition(priorityResult.text), userText)));
+    reply += levelAdjustmentNote(levelJustAdjusted, level);
     if (priorityResult.provider) {
       reply += `\n\n🤖 via ${priorityResult.provider} (external LLM) / 外部LLM(${priorityResult.provider})経由`;
+    }
+    // 2026-09-22追加: Google検索の裏取りを実際に行った回では、その旨を正直に一言添える
+    // (`searchBoostReason`で判定理由〈音声入力の信頼度・翻訳品質未検証・AI自身の知識への
+    // 自信の無さ〉も分ける)。
+    if (searchBoostReason && priorityResult.searchNotes && priorityResult.searchNotes.length) {
+      const reasonMap = {
+        voice: ["音声入力の聞き取りに自信が持てなかった", "wasn't fully confident in the voice recognition"],
+        language: ["この言語への翻訳がまだ品質検証できていない", "this language's translation quality hasn't been verified yet"],
+        knowledge: ["AIの持っている知識では、自信が持てなかった", "wasn't confident based on the AI's own knowledge"],
+      };
+      const [reasonJa, reasonEn] = reasonMap[searchBoostReason] || reasonMap.language;
+      reply += `\n\n🔎 ${reasonJa}ため、Google検索で確認してから回答しました(${priorityResult.searchNotes.join(", ")})。 / ` +
+        `Since I ${reasonEn}, I checked with a Google search before answering (${priorityResult.searchNotes.join(", ")}).`;
     }
     reply += await referralsSuffix(userText);
     reply += consumptionTaxSuffix(userText);
@@ -2777,7 +3075,8 @@ async function askTrainer(userText) {
     renderRuntimeBadge(lastRuntimeInfo);
   }
   const completion = data.completion ?? "(no completion field in response)";
-  let reply = ensureScriptGuaranteedReply(ensureHybridReply(trimDegenerateRepetition(completion), userText));
+  let reply = ensureMultiHybridReply(ensureScriptGuaranteedReply(ensureHybridReply(trimDegenerateRepetition(completion), userText)));
+  reply += levelAdjustmentNote(levelJustAdjusted, level);
   // 2026-09-13追加(ユーザー報告「返事が中国語みたいです」への対応):
   // 返信言語が日本語(自動判定含む)なのに、生成結果が漢字を含みつつも
   // 助詞等が無く日本語として意味を成していない(GPT-2の英語中心BPEが
@@ -3332,33 +3631,187 @@ const TOPIC_GUIDES = [
     desc: "「TOP100の話題で英会話して」とお願いすると、そのテーマで会話練習できます。 / Ask \"practice English with a TOP100 topic\".",
     q: ["TOP100 ランキング 最新"] },
 ];
+// ---------------------------------------------------------------------------
+// 文字入力・音声入力・言語翻訳に「自信がない」ときは、GeminiなどにGoogle検索で
+// 裏取りさせる(2026-09-22新設、ユーザー指示「文字入力や、音声入力や言語翻訳に自信が
+// ない時は、GeminiなどでGoogle検索する様にして」)。
+//
+// **正直な開示**: 「自信がない」の判定は、次の2つの分かりやすい基準にとどめている
+// (LLM自身に「自信度」を毎回申告させる仕組みは無い):
+//  (1) 音声入力の認識候補が1つしか無い、またはブラウザが報告する信頼度が低い場合
+//      (`refineTranscript`が設定する`voiceInputLowConfidence`フラグ)。
+//  (2) 学びたい言語/応答言語が、英語中心のGPT-2ベースaruaru-llmで品質未検証・
+//      低品質と既に分かっている言語(index.htmlの「正直な開示」欄と同じ一覧)の場合
+//      ——「その言語への翻訳には自信が持てない」ことが既に分かっているため。
+// 該当時は、共有WEB版・自分の鍵の両方の呼び出しへ`use_google_search: true`を
+// 付け、Google検索の結果を踏まえて答えさせる。共有WEB版はサーバー側の共有無料枠
+// (1日100件の上限、既存の`web_search.rs`参照)を使うため、常時ONにはせず、
+// 「自信がない」と判定できた時だけに絞っている。
+let voiceInputLowConfidence = false;
+const UNVERIFIED_OR_LOW_QUALITY_TARGETS = new Set([
+  "german", "french", "spanish", "italian", "russian", "arabic", "persian", "hebrew",
+  "thai", "vietnamese", "filipino", "burmese", "kurdish", "turkish", "romansh",
+]);
+// 2026-09-22追加(ユーザー指示「AIの持っている知識では、自信が持てなかったため、
+// Google検索で確認してから回答しました、と言うのも機能化して」): 1回目の生成結果に
+// 「わからない・自信が無い」といった言い回し(ヘッジ表現)が含まれていたら、
+// AI自身の知識に自信が無かったとみなし、Google検索つきでもう一度だけ生成し直す。
+// `forceSearchBoostOnce`をtrueにすると、次の1回の呼び出しだけ`shouldBoostWithGoogleSearch()`
+// がtrueを返す(呼ばれたら自動でfalseへ戻る、使い切りのフラグ)。
+let forceSearchBoostOnce = false;
+const AI_UNCERTAINTY_MARKERS = [
+  "わかりません", "分かりません", "存じません", "不明です", "確信が持てません", "自信がありません",
+  "知りません", "断定できません", "はっきりとは分かりません",
+  "i'm not sure", "i am not sure", "i don't know", "i do not know", "i cannot confirm", "i can't confirm",
+  "not certain", "i'm uncertain", "as of my last update", "as of my knowledge cutoff", "i may be wrong",
+  "might not be accurate", "may not be accurate", "i'm not certain",
+];
+function looksUncertain(text) {
+  const lower = String(text || "").toLowerCase();
+  return AI_UNCERTAINTY_MARKERS.some((m) => lower.includes(m.toLowerCase()));
+}
+let currentTurnUserText = "";
+// 2026-09-22追加(ユーザー指示「最新の情報が欲しい様なニュアンスを含んだ質問がある時は、
+// GeminiなどのAIからGoogle検索や必要ならGithub調査も自動で行なう」): 「最新」「今の」
+// 「現在の」「アップデート」等のニュアンスを検出する。
+const LATEST_INFO_MARKERS_JA = ["最新", "今の", "現在の", "いま現在", "アップデート", "更新された", "最近の", "今日の", "今どうなって"];
+const LATEST_INFO_MARKERS_EN = ["latest", "up to date", "up-to-date", "most recent", "currently", "these days", "right now", "what's new", "recent update"];
+function wantsLatestInfo(userText) {
+  const lower = String(userText || "").toLowerCase();
+  return LATEST_INFO_MARKERS_JA.some((m) => (userText || "").includes(m)) || LATEST_INFO_MARKERS_EN.some((m) => lower.includes(m));
+}
+// GitHub・ソースコード・リポジトリに関する話題かどうか(GitHub調査が必要かの判定)。
+const GITHUB_TOPIC_MARKERS_JA = ["github", "ギットハブ", "リポジトリ", "ソースコード", "オープンソース", "コミット", "プルリク"];
+const GITHUB_TOPIC_MARKERS_EN = ["github", "repository", "repo", "source code", "open source", "open-source", "commit", "pull request"];
+function mentionsGithubTopic(userText) {
+  const lower = String(userText || "").toLowerCase();
+  return GITHUB_TOPIC_MARKERS_JA.some((m) => (userText || "").includes(m)) || GITHUB_TOPIC_MARKERS_EN.some((m) => lower.includes(m));
+}
+function shouldBoostWithGoogleSearch() {
+  if (forceSearchBoostOnce) {
+    forceSearchBoostOnce = false;
+    return true;
+  }
+  if (voiceInputLowConfidence) return true;
+  if (wantsLatestInfo(currentTurnUserText)) return true;
+  const target = typeof learnTargetEl !== "undefined" && learnTargetEl ? learnTargetEl.value : "";
+  if (UNVERIFIED_OR_LOW_QUALITY_TARGETS.has(target)) return true;
+  const reply = typeof replyLangEl !== "undefined" && replyLangEl ? replyLangEl.value : "";
+  return ["de", "fr", "es", "it", "ru", "ar", "fa", "he", "th", "vi", "tl", "my", "ku", "tr", "rm"].includes(reply);
+}
+/** 「最新の情報が欲しい」ニュアンス＋GitHub関連の話題のときだけ、GitHub検索も自動で有効にする。 */
+function shouldBoostWithGithubSearch() {
+  return wantsLatestInfo(currentTurnUserText) && mentionsGithubTopic(currentTurnUserText);
+}
+
 const yt = (q) => "https://www.youtube.com/results?search_query=" + encodeURIComponent(q);
 const gg = (q) => "https://www.google.com/search?q=" + encodeURIComponent(q);
+// 2026-09-22追加(ユーザー指示「Google画像検索などから写真やGoogle動画やYoutube動画なども
+// 検索結果のリンクを貼って、必要性がありそうな時は...ご参考までに、Google 画像 動画 Youtube
+// などの検索結果のリンクを貼っておきました。と用意して」): 画像検索(セーフサーチON)も追加する。
+const gi = (q) => "https://www.google.com/search?tbm=isch&safe=active&q=" + encodeURIComponent(q);
 
 function topicGuideSuffix(userText) {
   const lower = userText.toLowerCase();
   const hits = TOPIC_GUIDES.filter((t) => t.ja.some((k) => lower.includes(k.toLowerCase())) || t.en.some((k) => lower.includes(k))).slice(0, 2);
   if (!hits.length) return "";
-  return hits.map((t) => {
+  // 2026-09-22変更: 冒頭に「ご参考までに」の一言をまとめて添え、各トピックの検索リンクに
+  // Google画像検索も加える(以前はYouTube・Google検索のみ)。
+  const intro = "\n\nご参考までに、Google 画像・動画・YouTube などの検索結果のリンクを貼っておきました。 / " +
+    "For reference, here are some Google Image, video and YouTube search links.";
+  const body = hits.map((t) => {
     const direct = (t.links || []).map((u) => `・${u}`).join("\n");
-    const links = direct + t.q.map((q) => `・${q}\n  YouTube: ${yt(q)}\n  Google: ${gg(q)}`).join("\n");
+    const links = direct + t.q.map((q) => `・${q}\n  🖼 Google画像 / Images: ${gi(q)}\n  ▶ YouTube: ${yt(q)}\n  🔎 Google: ${gg(q)}`).join("\n");
     return `\n\n${t.title}\n${t.desc}\n${links}${t.links ? "" : "\n(検索リンクです。最新情報・価格・安全性は出典で確認してください / Search links only; verify latest info, prices and safety at the sources.)"}`;
   }).join("");
+  return intro + body;
 }
 
+// 2026-09-22修正(ユーザー報告「今日のニュースは？に今は回答出来ていません」): 以前は
+// `apiBaseEl.value`(既定`http://localhost:4600`)経由で自分の端末のaruaru-llmへ直接
+// 取りに行っていたが、公開WEB版の閲覧者にはローカルaruaru-llmが無いため常に失敗し、
+// 無言で空文字を返していた(実質的に一切回答できていなかった)。他の公開機能
+// (custom-qa・chat-providers等)と同じ「同一オリジンの公開プロキシ経由でVPS自身の
+// aruaru-llmへ中継する」設計へ揃える。
+// あわせて(ユーザー指示「日本語の場合は日本の今日のニュースを、英語の場合はアメリカの
+// ニュースを検索」): サーバー接続先国に固定された`/v1/news/latest`ではなく、質問の言語
+// から判定した国を指定できる`/v1/news/for?country=...`を使う。
+const SHARED_NEWS_FOR_ABSOLUTE_URL = "https://easy-web.tokyo/open-english/v1/public/news/for";
+function newsCountryForUserText(userText) {
+  // 対応中の非英語言語(学びたい言語/応答言語)は、それぞれの国名を返す。
+  // 未対応の組み合わせ・自動判定不能な場合は、日本語を含むかどうかで日本/アメリカを選ぶ
+  // (既存の自動判定〈containsJapanese〉と同じ考え方)。
+  const target = typeof learnTargetEl !== "undefined" && learnTargetEl ? learnTargetEl.value : "";
+  const targetCountry = {
+    japanese: "Japan", german: "Germany", french: "France", spanish: "Spain", italian: "Italy",
+    russian: "Russia", arabic: "Saudi Arabia", persian: "Iran", hebrew: "Israel", thai: "Thailand",
+    vietnamese: "Vietnam", filipino: "Philippines", burmese: "Myanmar", kurdish: "Iraq",
+    turkish: "Turkey", romansh: "Switzerland",
+  }[target];
+  if (targetCountry) return targetCountry;
+  return containsJapanese(userText) ? "Japan" : "United States";
+}
+// 2026-09-23新設(ユーザー指示「インターネットニュースを自動収集してGithubの
+// 無料のDATABASEを使って自動保存する...実際に、open-englishの質問フォームからの
+// 内容から、今回作成するDATABASEを参照するシステムを開発」への対応): 8日以上
+// 前になったニュースはaruaru-llmのローカルDBから追い出され、`NEWS-TITLE-README.md`
+// (このリポジトリ直下)へVPS上のcronスクリプト(`aruaru-llm/scripts/
+// archive-news-to-github.sh`)経由でGitHubへアーカイブされる。以下はその
+// アーカイブを`/v1/public/news/archive-search`でその場検索して参照する機能。
+const PAST_NEWS_KEYWORDS_JA = ["先週", "先月", "過去の", "以前の", "前のニュース", "昔の", "少し前の"];
+const PAST_NEWS_KEYWORDS_EN = ["last week", "last month", "past news", "earlier news", "previous news", "old news", "a while ago"];
+function mentionsPastNews(userText) {
+  const lower = userText.toLowerCase();
+  return PAST_NEWS_KEYWORDS_JA.some((k) => userText.includes(k)) || PAST_NEWS_KEYWORDS_EN.some((k) => lower.includes(k));
+}
+async function archiveNewsSuffix(country) {
+  try {
+    const url = location.hostname.endsWith("easy-web.tokyo")
+      ? `/v1/public/news/archive-search?q=${encodeURIComponent(country)}&limit=3`
+      : `https://easy-web.tokyo/open-english/v1/public/news/archive-search?q=${encodeURIComponent(country)}&limit=3`;
+    const res = await fetchWithTimeout(url, { cache: "no-store" }, AUX_TIMEOUT_MS);
+    const data = await res.json();
+    if (!data.items || data.items.length === 0) return "";
+    const lines = data.items.map((i) => `・[${i.date || "?"}] ${i.title}`).join("\n");
+    return `\n\n🗄️ Archived news from earlier (8+ days ago) that may be related / ご参考までに、8日以上前のアーカイブ済みニュースです:\n${lines}`;
+  } catch (err) {
+    return "";
+  }
+}
 async function newsSuffix(userText) {
   if (!mentionsNewsTopic(userText)) return "";
+  const country = newsCountryForUserText(userText);
   try {
-    const base = apiBaseEl.value.trim();
-    const res = await fetchWithTimeout(`${base}/v1/news/latest`, {}, AUX_TIMEOUT_MS);
+    const url = location.hostname.endsWith("easy-web.tokyo")
+      ? `/v1/public/news/for?country=${encodeURIComponent(country)}`
+      : `${SHARED_NEWS_FOR_ABSOLUTE_URL}?country=${encodeURIComponent(country)}`;
+    const res = await fetchWithTimeout(url, { cache: "no-store" }, AUX_TIMEOUT_MS);
     const data = await res.json();
     if (!data.items || data.items.length === 0) {
       const reason = data.last_error ? ` (${data.last_error})` : "";
-      return `\n\n📰 No news collected yet${reason} / まだニュースが収集されていません${reason ? "(" + data.last_error + ")" : ""}。`;
+      const base = `\n\n📰 No news collected yet${reason} / まだニュースが収集されていません${reason ? "(" + data.last_error + ")" : ""}。`;
+      // 最新ニュースが取れなかった時こそ、アーカイブ(過去分)を参照する価値がある。
+      return base + (await archiveNewsSuffix(country));
     }
-    const country = data.country ? data.country.country : "your area / お住まいの地域";
-    const headlines = data.items.slice(0, 3).map((i) => `・${i.title}`).join("\n");
-    return `\n\n📰 Recent news from ${country} / ${country}の最近のニュース:\n${headlines}`;
+    const countryLabel = data.country ? data.country.country : country;
+    // 2026-09-22追加(ユーザー指示「Google検索した日付と...情報にも日付を付けてDATABASEで
+    // 管理して」): 検索日時(=取得日時、記事自体の公開日ではない、正直な開示)を併記する。
+    const fmtDate = (unixSec) => {
+      if (!unixSec) return "";
+      try {
+        return new Date(unixSec * 1000).toLocaleString(undefined, { year: "numeric", month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit" });
+      } catch (e) {
+        return "";
+      }
+    };
+    const searchedAt = fmtDate(data.fetched_at_unix);
+    const headlines = data.items.slice(0, 3).map((i) => `・${i.title}${i.retrieved_at_unix ? ` (${fmtDate(i.retrieved_at_unix)}取得)` : ""}`).join("\n");
+    let out = `\n\n📰 Recent news from ${countryLabel} / ${countryLabel}の最近のニュース${searchedAt ? ` (検索日時 / searched at: ${searchedAt})` : ""}:\n${headlines}`;
+    // ユーザーが明示的に「過去の」「先週の」ニュースを求めている場合は、最新分に加えてアーカイブも参照する。
+    if (mentionsPastNews(userText)) {
+      out += await archiveNewsSuffix(country);
+    }
+    return out;
   } catch (err) {
     return "";
   }
@@ -5016,6 +5469,7 @@ const QUIZ_TEXTS_FOUR_NINES = {
     answerTitle: "Here is the answer.",
     answer:
       "    (9 × 9 + 9) ÷ 9 = 10\n" +
+      "    ((9 × 9) + 9) ÷ 9 = 10  (the same equation, written with an extra pair of parentheses)\n" +
       "Step by step: 9 × 9 = 81, then 81 + 9 = 90, and finally 90 ÷ 9 = 10.",
     closing: "Nicely done for sticking with it. Want to try it on someone else?",
   },
@@ -5039,6 +5493,7 @@ const QUIZ_TEXTS_FOUR_NINES = {
     answerTitle: "答えはこちらです。",
     answer:
       "    (9 × 9 + 9) ÷ 9 = 10\n" +
+      "    ((9 × 9) + 9) ÷ 9 = 10  (括弧をもう1組足しただけの、同じ式です)\n" +
       "順番に計算すると、9 × 9 = 81、81 + 9 = 90、そして 90 ÷ 9 = 10 です。",
     closing: "最後までお付き合いいただきありがとうございました。ぜひ誰かに出題してみてください。",
   },
@@ -5059,6 +5514,7 @@ const QUIZ_TEXTS_FOUR_NINES = {
     answerTitle: "Esta es la respuesta.",
     answer:
       "    (9 × 9 + 9) ÷ 9 = 10\n" +
+      "    ((9 × 9) + 9) ÷ 9 = 10  (la misma ecuación, con un paréntesis adicional)\n" +
       "Paso a paso: 9 × 9 = 81, luego 81 + 9 = 90, y por último 90 ÷ 9 = 10.",
     closing: "Gracias por su paciencia. ¿Se lo propone a alguien más?",
   },
@@ -5079,6 +5535,7 @@ const QUIZ_TEXTS_FOUR_NINES = {
     answerTitle: "Voici la réponse.",
     answer:
       "    (9 × 9 + 9) ÷ 9 = 10\n" +
+      "    ((9 × 9) + 9) ÷ 9 = 10  (la même équation, avec une parenthèse supplémentaire)\n" +
       "Étape par étape : 9 × 9 = 81, puis 81 + 9 = 90, et enfin 90 ÷ 9 = 10.",
     closing: "Merci d'avoir persévéré. À votre tour de la poser à quelqu'un !",
   },
@@ -5099,6 +5556,7 @@ const QUIZ_TEXTS_FOUR_NINES = {
     answerTitle: "Hier ist die Lösung.",
     answer:
       "    (9 × 9 + 9) ÷ 9 = 10\n" +
+      "    ((9 × 9) + 9) ÷ 9 = 10  (dieselbe Gleichung, mit einer zusätzlichen Klammer)\n" +
       "Schritt für Schritt: 9 × 9 = 81, dann 81 + 9 = 90 und schließlich 90 ÷ 9 = 10.",
     closing: "Danke fürs Durchhalten. Geben Sie es gern weiter!",
   },
@@ -5116,6 +5574,7 @@ const QUIZ_TEXTS_FOUR_NINES = {
     answerTitle: "答案如下。",
     answer:
       "    (9 × 9 + 9) ÷ 9 = 10\n" +
+      "    ((9 × 9) + 9) ÷ 9 = 10 (同一个式子,只是多加了一层括号)\n" +
       "逐步计算:9 × 9 = 81,81 + 9 = 90,最后 90 ÷ 9 = 10。",
     closing: "感谢您耐心思考,也欢迎拿这道题去考考别人。",
   },
@@ -5133,6 +5592,7 @@ const QUIZ_TEXTS_FOUR_NINES = {
     answerTitle: "정답입니다.",
     answer:
       "    (9 × 9 + 9) ÷ 9 = 10\n" +
+      "    ((9 × 9) + 9) ÷ 9 = 10  (같은 식에 괄호를 하나 더 넣은 것뿐입니다)\n" +
       "차례대로 계산하면 9 × 9 = 81, 81 + 9 = 90, 마지막으로 90 ÷ 9 = 10입니다.",
     closing: "끝까지 고민해 주셔서 감사합니다. 다른 분에게도 내 보세요!",
   },
@@ -5355,6 +5815,164 @@ function quizAnswerText() {
   return `✅ ${blocks.join("\n\n---\n\n")}`;
 }
 
+// ---------------------------------------------------------------------------
+// 作者オリジナル問題(9◯9◯9◯9=10)の解答の自動採点(2026-09-22新設、ユーザー指示)。
+//
+// 演算子・括弧の表記ゆれを同一視する:
+//  - 掛け算: × x X * ＊ かける 掛ける
+//  - 割り算: ÷ / ／ わる 割る
+//  - 引き算: - － ‐ ― ひく 引く
+//  - 足し算: + ＋ 足す たす
+//  - 括弧: ( （ ) ）(全角・半角とも)
+// 「9×9+9=10」のように、括弧内は合っているが最後の÷9を忘れた誤答は
+// 「半分正解」として扱う(ユーザー指示「9X9+9＝10は、半分正解！として」)。
+// 正しいかどうかは実際に式を評価して判定する(固定文字列との単純比較ではない)。
+// **正直な開示**: 別解(四則演算+括弧で10になる他の式)にも対応するため、
+// 使われている9の個数と実際の計算結果で判定する。トンチ・小数点操作等は対象外。
+const FOUR_NINES_OP_MAP = [
+  [/×|x|X|\*|＊|かける|掛ける/g, "*"],
+  [/÷|\/|／|わる|割る/g, "/"],
+  [/－|‐|―|ひく|引く|-/g, "-"],
+  [/＋|足す|たす|\+/g, "+"],
+  [/（/g, "("],
+  [/）/g, ")"],
+  [/＝/g, "="],
+];
+
+function normalizeFourNinesEquation(text) {
+  let s = text;
+  for (const [pat, rep] of FOUR_NINES_OP_MAP) s = s.replace(pat, rep);
+  return s;
+}
+
+/** 四則演算+括弧だけの式を安全に評価する(evalは使わない、簡易再帰下降パーサ)。 */
+function evalArithmetic(expr) {
+  const s = expr.replace(/\s+/g, "");
+  let i = 0;
+  function parseExpr() {
+    let v = parseTerm();
+    while (s[i] === "+" || s[i] === "-") {
+      const op = s[i++];
+      const rhs = parseTerm();
+      v = op === "+" ? v + rhs : v - rhs;
+    }
+    return v;
+  }
+  function parseTerm() {
+    let v = parseFactor();
+    while (s[i] === "*" || s[i] === "/") {
+      const op = s[i++];
+      const rhs = parseFactor();
+      v = op === "*" ? v * rhs : v / rhs;
+    }
+    return v;
+  }
+  function parseFactor() {
+    if (s[i] === "(") {
+      i++;
+      const v = parseExpr();
+      if (s[i] !== ")") throw new Error("unmatched parenthesis");
+      i++;
+      return v;
+    }
+    const start = i;
+    while (i < s.length && /[0-9.]/.test(s[i])) i++;
+    if (start === i) throw new Error("expected a number");
+    return parseFloat(s.slice(start, i));
+  }
+  const v = parseExpr();
+  if (i !== s.length) throw new Error("unexpected trailing characters");
+  return v;
+}
+
+/**
+ * 演算子の優先順位を無視して、左から順番に計算する(2026-09-22追加)。
+ * 正解の解説文自体が「9×9=81、81+9=90、90÷9=10」と**左から順に**計算する形で
+ * 書かれているため、利用者が括弧を付け忘れて「9×9+9÷9=10」と書いた場合、
+ * 通常の演算子優先順位では82になり不正解に見えるが、意図(左から順に計算)は
+ * 合っているとみなし「半分正解」とする(ユーザー指示「9X9+9/9＝10 は半分正解」)。
+ */
+function sequentialEval(expr) {
+  const tokens = expr.replace(/[()]/g, "").match(/[0-9.]+|[+\-*/]/g);
+  if (!tokens || tokens.length === 0) throw new Error("empty expression");
+  let acc = parseFloat(tokens[0]);
+  for (let i = 1; i < tokens.length; i += 2) {
+    const op = tokens[i];
+    const rhs = parseFloat(tokens[i + 1]);
+    if (rhs === undefined || Number.isNaN(rhs)) throw new Error("malformed expression");
+    if (op === "+") acc += rhs;
+    else if (op === "-") acc -= rhs;
+    else if (op === "*") acc *= rhs;
+    else if (op === "/") acc /= rhs;
+    else throw new Error("unknown operator");
+  }
+  return acc;
+}
+
+/**
+ * 「9◯9◯9◯9=10」形式の解答を採点する。戻り値: {verdict:"correct"|"half"|"wrong"|"unrecognized", detail}。
+ * `text`全体ではなく、9・演算子・括弧・イコールだけからなる部分文字列を式として抜き出す
+ * (「答えは9×9+9÷9=10です」のような自然文にも対応)。
+ */
+function gradeFourNinesAnswer(text) {
+  const normalized = normalizeFourNinesEquation(text);
+  const m = normalized.match(/[0-9()+\-*/.\s]*9[0-9()+\-*/.\s]*=\s*[0-9.]+/);
+  if (!m) return { verdict: "unrecognized" };
+  const [lhsRaw, rhsRaw] = m[0].split("=");
+  const nineCount = (lhsRaw.match(/9/g) || []).length;
+  let lhsValue;
+  try {
+    lhsValue = evalArithmetic(lhsRaw);
+  } catch (e) {
+    return { verdict: "unrecognized" };
+  }
+  const rhsValue = parseFloat(rhsRaw);
+  const equationHolds = Math.abs(lhsValue - rhsValue) < 1e-9;
+  if (nineCount === 4 && equationHolds && Math.abs(rhsValue - 10) < 1e-9) {
+    return { verdict: "correct", detail: `${lhsRaw.trim()} = ${lhsValue}` };
+  }
+  // 2026-09-22訂正(ユーザー指示「÷9の割る9を忘れたのは不正解です」): 9が3個しか無く
+  // ÷9を丸ごと書き忘れている場合は「半分正解」ではなく不正解として扱う(末尾のreturnへ落ちる)。
+  // 「半分正解」として残すのは、9も演算子も4つ揃っているのに括弧だけ付け忘れたケースのみ(下記)。
+  // 括弧を付け忘れただけで「左から順に計算」すれば10になる場合
+  // (例: 9×9+9÷9=10 は通常評価だと82だが、順に9×9=81→81+9=90→90÷9=10)。
+  if (nineCount === 4 && !equationHolds) {
+    try {
+      const seq = sequentialEval(lhsRaw);
+      if (Math.abs(seq - rhsValue) < 1e-9 && Math.abs(rhsValue - 10) < 1e-9) {
+        return { verdict: "half", reason: "missing-parens", detail: `${lhsRaw.trim()} = ${lhsValue}(通常の計算順) / ${seq}(左から順に計算)` };
+      }
+    } catch (e) {
+      /* fallthrough */
+    }
+  }
+  return { verdict: "wrong", detail: equationHolds ? `${lhsRaw.trim()} = ${lhsValue}` : null };
+}
+
+function fourNinesGradeMessage(grade) {
+  switch (grade.verdict) {
+    case "correct":
+      return (
+        `🎉 正解です! ${grade.detail} — 見事です! / Correct! ${grade.detail} — well done!\n\n` +
+        quizAnswerText()
+      );
+    case "half":
+      // 現状「半分正解」になるのは missing-parens(9も演算子も4つ揃っているが括弧を付け忘れた)のみ。
+      // ÷9を丸ごと忘れたケースは不正解として扱う(2026-09-22訂正)。
+      return (
+        `🤏 半分正解! ${grade.detail} — 使った9の数・演算子は合っていますが、順番どおりに先に計算させる括弧が必要です。「(9×9+9)÷9」のように括弧を付けて、もう一度書いてみますか? / ` +
+        `Half correct! ${grade.detail} — you used the right four 9s and operators, but it needs parentheses so the addition happens before the division. Try writing it as "(9×9+9)÷9" — want to try again?`
+      );
+    case "wrong":
+      return (
+        "❌ 惜しい、その式では10になりません。もう一度挑戦してみますか? わからなければ「答えを教えて」と聞いてください。 / " +
+        "Not quite — that equation doesn't equal 10. Want to try again? Ask \"what's the answer\" if you'd like to see it."
+      );
+    default:
+      return "";
+  }
+}
+
 formEl.addEventListener("submit", async (e) => {
   e.preventDefault();
   const text = inputEl.value.trim();
@@ -5458,6 +6076,17 @@ formEl.addEventListener("submit", async (e) => {
     quizAwaitingAnswer = false;
     appendMessage("trainer", quizAnswerText());
     return;
+  }
+
+  // 四つの9の問題(QUIZ_SETS[0])は、解答待ち中に式を書き込まれたら自動採点する
+  // (2026-09-22新設)。他の2問(かたつむり・にわとり)は自由記述式のため対象外。
+  if (quizAwaitingAnswer && currentQuizTexts === QUIZ_SETS[0] && !isQuizRequest(text)) {
+    const grade = gradeFourNinesAnswer(text);
+    if (grade.verdict !== "unrecognized") {
+      if (grade.verdict === "correct") quizAwaitingAnswer = false;
+      appendMessage("trainer", fourNinesGradeMessage(grade));
+      return;
+    }
   }
 
   // 「何か問題を出して」「クイズ出して」への対応(作者のオリジナル問題)。
@@ -5692,6 +6321,11 @@ async function refineTranscript(alts, langTag) {
     .map((a) => (a && a.transcript ? String(a.transcript).trim() : ""))
     .filter(Boolean);
   const first = clean[0] || "";
+  // 2026-09-22追加: 候補が1つしか無い(=他のエンジンと一致確認できない)、または
+  // 全候補の信頼度が低い場合は「音声入力に自信がない」とみなし、次の返信生成で
+  // Google検索の裏取りを行わせる(`shouldBoostWithGoogleSearch`参照)。
+  const bestConfidence = Math.max(0, ...alts.map((a) => (a && typeof a.confidence === "number" ? a.confidence : 0)));
+  voiceInputLowConfidence = clean.length <= 1 || (bestConfidence > 0 && bestConfidence < 0.55);
   if (clean.length <= 1) return first;
 
   // 信頼度が取れるブラウザでは、最有力候補も先頭へ寄せておく
@@ -8238,7 +8872,7 @@ if (googleSearchBtn && googleSearchModal) {
 
     const body = { prompt };
     try {
-      if (localStorage.getItem(PROVIDER_PRIORITY_USE_GOOGLE_KEY) === "1") {
+      if (localStorage.getItem(PROVIDER_PRIORITY_USE_GOOGLE_KEY) === "1" || shouldBoostWithGoogleSearch()) {
         body.use_google_search = true;
         const creds = typeof loadOwnGoogleSearchCredentials === "function" ? loadOwnGoogleSearchCredentials() : null;
         if (creds) {
@@ -8246,7 +8880,7 @@ if (googleSearchBtn && googleSearchModal) {
           body.google_search_cx = creds.cx;
         }
       }
-      if (localStorage.getItem(PROVIDER_PRIORITY_USE_GITHUB_KEY) === "1") {
+      if (localStorage.getItem(PROVIDER_PRIORITY_USE_GITHUB_KEY) === "1" || shouldBoostWithGithubSearch()) {
         body.use_github_search = true;
         const token = localStorage.getItem(GITHUB_TOKEN_LOCAL_KEY);
         if (token) body.github_token = token;
@@ -8815,7 +9449,13 @@ async function trySharedPriorityProviderReply(prompt) {
   if (isCloudOff()) return null;
   const url = location.hostname === "easy-web.tokyo" ? "/v1/public/chat-providers/complete-priority" : SHARED_PRIORITY_PROVIDER_ABSOLUTE_URL;
   try {
-    const res = await fetchWithTimeout(url, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ prompt, providers: getSelectedAis() }) }, 45000);
+    // 2026-09-22追加: 文字入力・音声入力・言語翻訳に「自信がない」と判定できたときは、
+    // 共有WEB版の呼び出しにもGoogle検索の裏取りを付ける(`shouldBoostWithGoogleSearch`)。
+    // 共有無料枠(1日100件上限、`web_search.rs`)を使うため、常時ONにはしていない。
+    const sharedBody = { prompt, providers: getSelectedAis() };
+    if (shouldBoostWithGoogleSearch()) sharedBody.use_google_search = true;
+    if (shouldBoostWithGithubSearch()) sharedBody.use_github_search = true;
+    const res = await fetchWithTimeout(url, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(sharedBody) }, 45000);
     if (!res.ok) {
       if (res.status === 429) return null; // レート制限中は静かに自端末側へフォールバック
       return null;
@@ -9050,6 +9690,15 @@ const ENABLED_LANGUAGES_KEY = "open-english.enabledLanguages";
 const LANGUAGE_PROMPT_SHOWN_KEY = "open-english.languagePromptShown";
 // 母国語(ネイティブ)と、連続表示・読み上げの順番(2026-08-22の追加要望)。
 const NATIVE_LANGUAGE_KEY = "open-english.nativeLanguage";
+// 2026-09-22追加(ユーザー指示「スマホ、タブレット、PC版は、母国語や学びたい言語などは
+// 設定を保存出来る用にして」): 母国語(NATIVE_LANGUAGE_KEY)は既に保存・復元されていたが、
+// 「学びたい言語」(learn-target)・応答言語(reply-lang)・レベルは、ページを開き直すたびに
+// 毎回既定値(English/自動判定/中級者)へ戻っていた。他の設定と同じ
+// localStorage+サーバーDBの二重保存(`persistSetting`/`restoreSettingsFromServer`と同じ
+// 仕組み)で保存・復元する。
+const LEARN_TARGET_KEY = "open-english.learnTarget";
+const REPLY_LANG_KEY = "open-english.replyLang";
+const LEVEL_KEY = "open-english.level";
 const LANGUAGE_ORDER_KEY = "open-english.languageOrder";
 
 // ---------------------------------------------------------------------------
@@ -9103,7 +9752,7 @@ async function restoreSettingsFromServer() {
     return; // サーバー未起動・file://等では何もしない(localStorageのみで動作)
   }
   if (!settings || typeof settings !== "object") return;
-  [ENABLED_LANGUAGES_KEY, NATIVE_LANGUAGE_KEY, LANGUAGE_ORDER_KEY, CUSTOM_QA_KEY].forEach((key) => {
+  [ENABLED_LANGUAGES_KEY, NATIVE_LANGUAGE_KEY, LANGUAGE_ORDER_KEY, CUSTOM_QA_KEY, LEARN_TARGET_KEY, REPLY_LANG_KEY, LEVEL_KEY].forEach((key) => {
     try {
       if (localStorage.getItem(key) === null && typeof settings[key] === "string") {
         localStorage.setItem(key, settings[key]);
@@ -9700,7 +10349,40 @@ function refreshLanguageDependentUi() {
   renderNativeLanguageSelect();
   renderLanguageOrderList();
   renderMultiSpeakOutput();
+  restoreLearnerPreferences();
 }
+
+// 2026-09-22追加(ユーザー指示「スマホ、タブレット、PC版は、母国語や学びたい言語などは
+// 設定を保存出来る用にして」): 保存済みの「学びたい言語」(world:コードも含む)・応答言語・
+// レベルを、選択肢が揃った後(`world:`系オプションは`applyEnabledLanguagesToMenus()`が
+// 描画済みである必要がある)に復元する。保存が無ければ何もしない(既定値のまま)。
+// 2回目以降の呼び出しでも安全なよう、直接値を書き込むだけでイベントは発火しない。
+let learnerPreferencesRestored = false;
+function restoreLearnerPreferences() {
+  if (learnerPreferencesRestored) return;
+  try {
+    const savedTarget = localStorage.getItem(LEARN_TARGET_KEY);
+    if (savedTarget && learnTargetEl && learnTargetEl.querySelector(`option[value="${CSS.escape(savedTarget)}"]`)) {
+      learnTargetEl.value = savedTarget;
+      if (typeof updateMicLangQuickLabel === "function") updateMicLangQuickLabel();
+      if (!savedTarget.startsWith("world:")) showCulturalNoteIfAny(savedTarget);
+    }
+    const savedReply = localStorage.getItem(REPLY_LANG_KEY);
+    if (savedReply && replyLangEl && replyLangEl.querySelector(`option[value="${CSS.escape(savedReply)}"]`)) {
+      replyLangEl.value = savedReply;
+    }
+    const savedLevel = localStorage.getItem(LEVEL_KEY);
+    if (savedLevel && levelEl && levelEl.querySelector(`option[value="${CSS.escape(savedLevel)}"]`)) {
+      levelEl.value = savedLevel;
+    }
+  } catch (e) {
+    /* 復元できなくても既定値のまま動作を続ける(既存の可用性優先方針) */
+  }
+  learnerPreferencesRestored = true;
+}
+if (learnTargetEl) learnTargetEl.addEventListener("change", () => persistSetting(LEARN_TARGET_KEY, learnTargetEl.value));
+if (replyLangEl) replyLangEl.addEventListener("change", () => persistSetting(REPLY_LANG_KEY, replyLangEl.value));
+if (levelEl) levelEl.addEventListener("change", () => persistSetting(LEVEL_KEY, levelEl.value));
 
 function moveLanguageInOrder(code, delta) {
   const codes = multiSpeakTargetCodes();
@@ -16557,9 +17239,11 @@ async function refreshAdminState() {
     /* 到達できない配信形態(file://等)では管理機能なしのまま */
   }
   const canAdmin = !!(session.admin || session.local);
+  window.__isAdmin = canAdmin;
   if (customQaBtn) customQaBtn.classList.toggle("hidden", !canAdmin);
   if (linkEl) linkEl.classList.toggle("hidden", canAdmin);
   if (canAdmin && session.admin) syncCustomQaFromServerForAdmin();
+  if (typeof renderPicker === "function" && typeof pickPanel !== "undefined" && pickPanel && !pickPanel.classList.contains("hidden")) renderPicker();
 }
 (function setupAdminLoginLink() {
   const linkEl = document.getElementById("admin-login-link");
@@ -16676,6 +17360,46 @@ refreshAdminState();
     h.className = "ai-pick-title";
     h.textContent = "追加で使うクラウドAIを0〜3個選択 / Add 0 to 3 cloud AIs (1=単独 single, 2=ハイブリッド hybrid, 3=トライブリッド tri-hybrid)";
     pickPanel.appendChild(h);
+
+    // 2026-09-22追加(ユーザー指示「スマホ版、タブレット版、PC版にGeminiなどのアカウントを
+    // 作ってKEYやCODEを簡単に指定出来るように」): 既存の「🔀 AI Provider Priority」設定
+    // パネル(取得先リンク・SETUP済み表示つき)への近道ボタンを、この選択パネルの目立つ
+    // 位置に置く。自分の鍵を設定した場合の挙動(WEB版の共有AIとは併用しない)も明示する。
+    const ownKeyRow = document.createElement("div");
+    ownKeyRow.className = "ai-own-key-row";
+    const ownKeyBtn = document.createElement("button");
+    ownKeyBtn.type = "button";
+    ownKeyBtn.className = "ai-own-key-btn";
+    ownKeyBtn.textContent = hasOwnConfiguredProviderKey()
+      ? "🔑 自分のAPIキー設定済み(変更する) / Your API key is set (edit)"
+      : "🔑 自分のGemini等のAPIキー/コードを設定 / Set up your own Gemini etc. API key";
+    ownKeyBtn.addEventListener("click", () => {
+      document.getElementById("provider-priority-settings-btn")?.click();
+    });
+    const ownKeyNote = document.createElement("div");
+    ownKeyNote.className = "ai-own-key-note";
+    ownKeyNote.textContent = hasOwnConfiguredProviderKey()
+      ? "✅ 自分の鍵を設定中のため、WEB版の共有無料AIとは併用せず、自分の鍵だけを使います。 / Your own key is set, so the shared web AI is not used together with it — only your key is used."
+      : "自分の鍵を設定すると、以後はWEB版の共有無料AIとは併用せず、自分の鍵だけを使うようになります。 / Once you set your own key, the shared web AI will no longer be used together with it — only your key will be used.";
+    ownKeyRow.append(ownKeyBtn, ownKeyNote);
+    pickPanel.appendChild(ownKeyRow);
+
+    // 2026-09-22追加(ユーザー指示「PCやスマホ版はaruaru-llmへのオススメローカルLLMの
+    // ダウンロードなどのカスタマイズも可能に」): 既存の「🧠 Recommend LLM / おすすめLLM」
+    // 機能(ハードウェア診断→おすすめモデル表示→ワンクリックでダウンロード・切替、
+    // `installAndSwitchModel`)は既にPC版・タブレット版・スマホ版のインストール版すべてで
+    // 使える(共有デモのみ制限あり)。ここからも見つけやすいよう近道ボタンを置く。
+    const llmRow = document.createElement("div");
+    llmRow.className = "ai-own-key-row";
+    const llmBtn = document.createElement("button");
+    llmBtn.type = "button";
+    llmBtn.className = "ai-own-key-btn";
+    llmBtn.textContent = "🧠 ローカルLLM(aruaru-llm)のおすすめ・ダウンロード / Recommended local LLM (download)";
+    llmBtn.addEventListener("click", () => {
+      document.getElementById("llm-recommend-btn")?.click();
+    });
+    llmRow.appendChild(llmBtn);
+    pickPanel.appendChild(llmRow);
     const mkToggle = (label, checked, onChange) => {
       const lab = document.createElement("label");
       lab.style.width = "100%";
@@ -16693,7 +17417,12 @@ refreshAdminState();
       renderPicker();
     });
     mkToggle("☁ クラウドAIを使わない(0個) / Use no cloud AIs (0)", isCloudOff(), (on) => {
-      try { localStorage.setItem(CLOUD_OFF_KEY, on ? "1" : "0"); } catch (e) { /* ignore */ }
+      try {
+        localStorage.setItem(CLOUD_OFF_KEY, on ? "1" : "0");
+        // 2026-09-22追加(ユーザー指示): 「クラウドAIを使わない」にチェックすると、
+        // 個別に選んでいたクラウドAIのチェックも全部外す(選択が残ったまま矛盾しないように)。
+        if (on) localStorage.setItem(SELECTED_AIS_KEY, "[]");
+      } catch (e) { /* ignore */ }
       if (on && !isLocalLlmEnabled()) { try { localStorage.setItem(USE_LOCAL_KEY, "1"); } catch (e) { /* ignore */ } }
       refreshAiInUse();
       renderPicker();
@@ -16703,7 +17432,16 @@ refreshAdminState();
       n.textContent = "選べるAIを取得できません / No AIs available to choose";
       pickPanel.appendChild(n);
     }
+    // 管理者モード(2026-09-22): 選んだAIに1〜3の番号を振って、優先順位を明示的に指定できる。
+    // サーバー側(`providers[]`)は配列の並び順をそのまま優先順として使うため、番号の並べ替え=優先順の変更になる。
+    const isAdmin = !!window.__isAdmin;
+    const saveOrder = (cur) => {
+      try { localStorage.setItem(SELECTED_AIS_KEY, JSON.stringify(cur)); localStorage.setItem(CLOUD_OFF_KEY, "0"); } catch (e) { /* ignore */ }
+      refreshAiInUse();
+    };
     avail.forEach((id) => {
+      const row = document.createElement("div");
+      row.className = "ai-pick-row";
       const lab = document.createElement("label");
       const cb = document.createElement("input");
       cb.type = "checkbox";
@@ -16719,12 +17457,60 @@ refreshAdminState();
         } else {
           cur = cur.filter((x) => x !== id);
         }
-        try { localStorage.setItem(SELECTED_AIS_KEY, JSON.stringify(cur)); localStorage.setItem(CLOUD_OFF_KEY, "0"); } catch (e) { /* ignore */ }
-        refreshAiInUse();
+        saveOrder(cur);
+        renderPicker();
       });
       lab.append(cb, " " + nameOf(id) + ((lastStatus && (lastStatus.resting || []).includes(id)) ? " (休止中 / resting)" : ""));
-      pickPanel.appendChild(lab);
+      row.appendChild(lab);
+      // 管理者モードのみ: チェック済みのAIに、優先順の番号(1〜3)を選べるプルダウンを出す。
+      if (isAdmin && chosen.includes(id)) {
+        const sel = document.createElement("select");
+        sel.className = "ai-pick-order";
+        sel.title = "優先順位(1が最優先) / Priority (1 = highest)";
+        chosen.forEach((_, i) => {
+          const opt = document.createElement("option");
+          opt.value = String(i + 1);
+          opt.textContent = `#${i + 1}`;
+          sel.appendChild(opt);
+        });
+        sel.value = String(chosen.indexOf(id) + 1);
+        sel.addEventListener("change", () => {
+          const newIndex = Math.max(0, Math.min(chosen.length - 1, parseInt(sel.value, 10) - 1));
+          const cur = chosen.filter((x) => x !== id);
+          cur.splice(newIndex, 0, id);
+          saveOrder(cur);
+          renderPicker();
+        });
+        row.appendChild(sel);
+      }
+      pickPanel.appendChild(row);
     });
+    if (isAdmin && chosen.length > 1) {
+      const orderNote = document.createElement("div");
+      orderNote.className = "ai-pick-order-note";
+      orderNote.textContent = "🔢 管理者モード: 番号で優先順位を指定できます(#1が最優先で最初に使われます) / Admin mode: assign a priority number (#1 is used first).";
+      pickPanel.insertBefore(orderNote, pickPanel.firstChild.nextSibling);
+    }
+    // 2026-09-22追加(ユーザー指摘「設定保存のボタンがないか見えない」): チェック・番号の
+    // 変更は選んだ時点でその都度localStorageへ即時保存されており「保存」操作自体は不要だが、
+    // それが伝わらず不安に感じる利用者向けに、目に見える「保存して閉じる」ボタンと、
+    // 保存済みの旨を示す短い確認メッセージを追加する(実際の保存動作は変えない、UI上の明示のみ)。
+    const saveRow = document.createElement("div");
+    saveRow.className = "ai-pick-save-row";
+    const saveBtn = document.createElement("button");
+    saveBtn.type = "button";
+    saveBtn.className = "ai-pick-save-btn";
+    saveBtn.textContent = "💾 保存して閉じる / Save & close";
+    const savedNote = document.createElement("span");
+    savedNote.className = "ai-pick-saved-note hidden";
+    savedNote.textContent = "✅ 保存しました / Saved";
+    saveBtn.addEventListener("click", () => {
+      savedNote.classList.remove("hidden");
+      setTimeout(() => pickPanel.classList.add("hidden"), 600);
+    });
+    saveRow.append(saveBtn, savedNote);
+    pickPanel.appendChild(saveRow);
+
     const reset = document.createElement("button");
     reset.type = "button";
     reset.textContent = "おまかせに戻す / Reset to automatic";

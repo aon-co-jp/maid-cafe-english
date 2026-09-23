@@ -490,18 +490,26 @@ body {
   display: none;
 }
 
+/* 2026-09-22変更(ユーザー指摘「PC版/スマホ版起動中の文字が機種によっては隠れて見えない」
+   →実機375px幅で検証し、左上の管理者ログインリンク(横幅がほぼ全幅になりうる)と右上の
+   このバッジが重なり、実際に隠れることを確認)。右上の小さな浮遊バッジから、独立した
+   1行(自分の段)を占める上部バナーへ変更し、他の要素と横方向で場所を取り合わないようにする。
+   ユーザー指示「改行して一段下の段に表示したほうが良い」に対応。 */
 .local-instance-badge {
   position: fixed;
-  top: 8px;
-  right: 8px;
+  top: 0;
+  left: 0;
+  right: 0;
   background: #2e7d32;
   color: #ffffff;
-  padding: 4px 10px;
-  border-radius: 12px;
+  padding: 6px 12px;
+  text-align: center;
   font-size: 0.85rem;
   font-weight: bold;
-  z-index: 21;
+  z-index: 10001;
   box-shadow: 0 1px 4px rgba(0, 0, 0, 0.3);
+  white-space: normal;
+  word-break: break-word;
 }
 
 .local-instance-badge.hidden {
@@ -1397,3 +1405,13 @@ label.setup-note {
 .is-web-only #autorw-status-banner, .is-web-only #autorw-status-banner-toggle { display: none !important; }
 .author-github { margin: 6px 20px; font-size: 13px; }
 .is-web-only #setup-btn, .is-web-only #aruaru-db-setup-btn, .is-web-only #world-lab-goto-aruaru-llm-btn { display: none !important; }
+.ai-pick-row { display: flex; align-items: center; justify-content: space-between; width: 100%; gap: 8px; }
+.ai-pick-order { font-size: 12px; padding: 2px 4px; border-radius: 6px; }
+.ai-pick-order-note { width: 100%; font-size: 12px; opacity: .85; margin: 2px 0 4px; }
+.ai-pick-save-row { display: flex; align-items: center; gap: 8px; width: 100%; margin-top: 4px; }
+.ai-pick-save-btn { font-weight: 600; padding: 4px 12px; border-radius: 8px; }
+.ai-pick-saved-note { font-size: 12px; opacity: .9; }
+.ai-pick-saved-note.hidden { display: none; }
+.ai-own-key-row { width: 100%; display: flex; flex-direction: column; gap: 4px; padding: 6px 0; border-bottom: 1px solid rgba(201,161,74,.4); margin-bottom: 4px; }
+.ai-own-key-btn { align-self: flex-start; font-size: 12px; padding: 4px 10px; border-radius: 8px; font-weight: 600; }
+.ai-own-key-note { font-size: 11px; opacity: .85; }
