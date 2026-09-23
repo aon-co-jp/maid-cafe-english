@@ -17359,6 +17359,28 @@ async function refreshAdminState() {
 })();
 refreshAdminState();
 
+// 実バグ修正(2026-09-24、ユーザー報告「スマホでWEB版を見てますと、管理者
+// ログインはこちらの文字の下が隠れて見えません」): #admin-login-linkは
+// position:fixedでページ最上部に常時重なる形で表示されるが、bodyに
+// それを避ける上部余白が一切無く、スクロールしても本文がこのバッジの
+// 真下に潜り込んで隠れていた(#chat-dockの下部固定ドックに対して既に
+// 行っているpadding-bottom確保と同じ考え方を、上部のこのバッジにも
+// 適用する)。表示・非表示(管理者ログイン中は隠れる)に応じて実測した
+// 高さぶんだけbodyの上部余白を都度更新する。
+(function reserveSpaceForAdminLoginLink() {
+  const linkEl = document.getElementById("admin-login-link");
+  if (!linkEl) return;
+  const apply = () => {
+    const hidden = linkEl.classList.contains("hidden");
+    document.body.style.paddingTop = hidden ? "" : linkEl.offsetHeight + 12 + "px";
+  };
+  apply();
+  if (window.ResizeObserver) new ResizeObserver(apply).observe(linkEl);
+  if (window.MutationObserver) {
+    new MutationObserver(apply).observe(linkEl, { attributes: true, attributeFilter: ["class"] });
+  }
+})();
+
 
 // ---- 下部固定ドック(2026-09-21): 使用中AI表示・回答枠・キャラ・音声入力 --------------------
 // ユーザー指示: 「今Gemini+Grokの無料AIを使用中です、の様に、文字入力と音声入力とメイドちゃんの絵か
