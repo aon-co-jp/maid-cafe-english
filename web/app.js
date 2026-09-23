@@ -6001,6 +6001,19 @@ function fourNinesGradeMessage(grade) {
   }
 }
 
+// 2026-09-24新設(ユーザー指示「文字入力後に、エンターキーでも、画面の
+// エンターキーでも良い様にしましょう」): 物理キーボードのEnterキーは
+// <input type="text">がフォーム内にあれば通常はネイティブ送信されるが、
+// モバイルの仮想キーボードの「Enter/Go/送信」キーは機種・IME実装により
+// ネイティブsubmitが発火しない場合があるため、明示的にrequestSubmit()を
+// 呼ぶフォールバックを追加する。日本語IME変換中のEnter(確定操作)で
+// 誤送信しないよう、isComposing中は無視する。
+inputEl.addEventListener("keydown", (e) => {
+  if (e.key !== "Enter" || e.isComposing) return;
+  e.preventDefault();
+  formEl.requestSubmit();
+});
+
 formEl.addEventListener("submit", async (e) => {
   e.preventDefault();
   const text = inputEl.value.trim();
@@ -7035,7 +7048,17 @@ if (SpeechRecognitionImpl) {
     resetMicButton();
   }
 
-  micBtn.addEventListener("click", () => {
+  // 2026-09-24新設(ユーザー指示「open-englishを起動したら、音声入力は
+  // 常時ONにしましょう」): タップの都度マイクを押す従来方式に加え、
+  // 起動時から自動でマイクを待ち受け、確定→送信→(必要なら)結果を
+  // 話し終えたら自動で次の待ち受けを再開する「常時ON」モードを既定とする。
+  // キャラクターの読み上げ中にマイクが自分の声を拾って誤認識するのを
+  // 防ぐため、speechSynthesis.speaking中は待ち受けを開始しない。
+  let voiceAlwaysOn = true;
+  let micIsListening = false;
+
+  function startListening() {
+    if (micIsListening) return;
     const tag = speechLangTag();
     activeSpeechLang = tag;
     recognition.lang = tag;
@@ -7048,6 +7071,36 @@ if (SpeechRecognitionImpl) {
     } catch (err) {
       // 既に開始中の場合など。
     }
+  }
+
+  function scheduleAutoListen(delayMs) {
+    if (!voiceAlwaysOn) return;
+    setTimeout(() => {
+      if (!voiceAlwaysOn || micIsListening) return;
+      if ("speechSynthesis" in window && window.speechSynthesis.speaking) {
+        scheduleAutoListen(300); // 読み上げ中はキャラクターの声を拾わないよう再チェック
+        return;
+      }
+      if (document.hidden) return; // バックグラウンドタブでは待ち受けない
+      startListening();
+    }, delayMs || 0);
+  }
+
+  micBtn.addEventListener("click", () => {
+    if (micIsListening) {
+      // 常時ON中でも、利用者が手動で今すぐ止めたい場合に対応。
+      voiceAlwaysOn = false;
+      try {
+        recognition.stop();
+      } catch (err) {}
+      return;
+    }
+    voiceAlwaysOn = true;
+    startListening();
+  });
+
+  recognition.addEventListener("start", () => {
+    micIsListening = true;
   });
 
   recognition.addEventListener("result", (event) => {
@@ -7062,6 +7115,11 @@ if (SpeechRecognitionImpl) {
   const resetMicButton = () => {
     micBtn.classList.remove("listening");
     micBtn.textContent = "🎙 Speak";
+    micIsListening = false;
+    // 常時ONモードなら、今回のやり取り(送信→AIの読み上げ)が落ち着いてから
+    // 自動的に次の待ち受けを再開する(scheduleAutoListen内でspeechSynthesis
+    // 再生中かどうかを見て、読み終わるまで待つ)。
+    scheduleAutoListen(600);
   };
 
   recognition.addEventListener("end", () => {
@@ -7090,6 +7148,8 @@ if (SpeechRecognitionImpl) {
     // エラーでも録音があれば Whisper だけで拾える可能性がある。
     finalizeVoiceInput();
   });
+  // 起動時から常時ONで待ち受け開始(挨拶の読み上げが終わってから)。
+  scheduleAutoListen(300);
 } else {
   micBtn.disabled = true;
   micBtn.title = "Voice input not supported in this browser / このブラウザは音声入力に対応していません";
