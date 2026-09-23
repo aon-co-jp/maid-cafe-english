@@ -61,6 +61,13 @@ const STATIC_FILES: &[(&str, &str, &str)] = &[
     // (`server/target/release/open-english-server.exe`は旧バイナリの
     // ままで、再ビルドされるまで`/sw.js`は配信されない)。
     ("/sw.js", "sw.js", "application/javascript; charset=utf-8"),
+    // 2026-09-23新設: Android App Links検証ファイル。VPS側のリバースプロキシ
+    // (open-web-server、domains.toml)に`path_prefix = "/.well-known/
+    // assetlinks.json"`かつ`strip_prefix = false`のドメインエントリを追加
+    // 済みのため、このアプリはフルパスのままリクエストを受け取る
+    // (`/open-english`配下ではなく、この1ファイルだけドメイン直下相当の
+    // パスで届く特別扱い)。
+    ("/.well-known/assetlinks.json", "assetlinks.json", "application/json; charset=utf-8"),
     ("/exam-prep-questions.json", "exam-prep-questions.json", "application/json; charset=utf-8"),
     ("/provider-free-tiers.json", "provider-free-tiers.json", "application/json; charset=utf-8"),
     ("/world-language-exams.json", "world-language-exams.json", "application/json; charset=utf-8"),
