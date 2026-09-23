@@ -3751,10 +3751,37 @@ function newsCountryForUserText(userText) {
   if (targetCountry) return targetCountry;
   return containsJapanese(userText) ? "Japan" : "United States";
 }
+// 2026-09-23新設(ユーザー指示「インターネットニュースを自動収集してGithubの
+// 無料のDATABASEを使って自動保存する...実際に、open-englishの質問フォームからの
+// 内容から、今回作成するDATABASEを参照するシステムを開発」への対応): 8日以上
+// 前になったニュースはaruaru-llmのローカルDBから追い出され、`NEWS-TITLE-README.md`
+// (このリポジトリ直下)へVPS上のcronスクリプト(`aruaru-llm/scripts/
+// archive-news-to-github.sh`)経由でGitHubへアーカイブされる。以下はその
+// アーカイブを`/v1/public/news/archive-search`でその場検索して参照する機能。
+const PAST_NEWS_KEYWORDS_JA = ["先週", "先月", "過去の", "以前の", "前のニュース", "昔の", "少し前の"];
+const PAST_NEWS_KEYWORDS_EN = ["last week", "last month", "past news", "earlier news", "previous news", "old news", "a while ago"];
+function mentionsPastNews(userText) {
+  const lower = userText.toLowerCase();
+  return PAST_NEWS_KEYWORDS_JA.some((k) => userText.includes(k)) || PAST_NEWS_KEYWORDS_EN.some((k) => lower.includes(k));
+}
+async function archiveNewsSuffix(country) {
+  try {
+    const url = location.hostname.endsWith("easy-web.tokyo")
+      ? `/v1/public/news/archive-search?q=${encodeURIComponent(country)}&limit=3`
+      : `https://easy-web.tokyo/open-english/v1/public/news/archive-search?q=${encodeURIComponent(country)}&limit=3`;
+    const res = await fetchWithTimeout(url, { cache: "no-store" }, AUX_TIMEOUT_MS);
+    const data = await res.json();
+    if (!data.items || data.items.length === 0) return "";
+    const lines = data.items.map((i) => `・[${i.date || "?"}] ${i.title}`).join("\n");
+    return `\n\n🗄️ Archived news from earlier (8+ days ago) that may be related / ご参考までに、8日以上前のアーカイブ済みニュースです:\n${lines}`;
+  } catch (err) {
+    return "";
+  }
+}
 async function newsSuffix(userText) {
   if (!mentionsNewsTopic(userText)) return "";
+  const country = newsCountryForUserText(userText);
   try {
-    const country = newsCountryForUserText(userText);
     const url = location.hostname.endsWith("easy-web.tokyo")
       ? `/v1/public/news/for?country=${encodeURIComponent(country)}`
       : `${SHARED_NEWS_FOR_ABSOLUTE_URL}?country=${encodeURIComponent(country)}`;
@@ -3762,7 +3789,9 @@ async function newsSuffix(userText) {
     const data = await res.json();
     if (!data.items || data.items.length === 0) {
       const reason = data.last_error ? ` (${data.last_error})` : "";
-      return `\n\n📰 No news collected yet${reason} / まだニュースが収集されていません${reason ? "(" + data.last_error + ")" : ""}。`;
+      const base = `\n\n📰 No news collected yet${reason} / まだニュースが収集されていません${reason ? "(" + data.last_error + ")" : ""}。`;
+      // 最新ニュースが取れなかった時こそ、アーカイブ(過去分)を参照する価値がある。
+      return base + (await archiveNewsSuffix(country));
     }
     const countryLabel = data.country ? data.country.country : country;
     // 2026-09-22追加(ユーザー指示「Google検索した日付と...情報にも日付を付けてDATABASEで
@@ -3777,7 +3806,12 @@ async function newsSuffix(userText) {
     };
     const searchedAt = fmtDate(data.fetched_at_unix);
     const headlines = data.items.slice(0, 3).map((i) => `・${i.title}${i.retrieved_at_unix ? ` (${fmtDate(i.retrieved_at_unix)}取得)` : ""}`).join("\n");
-    return `\n\n📰 Recent news from ${countryLabel} / ${countryLabel}の最近のニュース${searchedAt ? ` (検索日時 / searched at: ${searchedAt})` : ""}:\n${headlines}`;
+    let out = `\n\n📰 Recent news from ${countryLabel} / ${countryLabel}の最近のニュース${searchedAt ? ` (検索日時 / searched at: ${searchedAt})` : ""}:\n${headlines}`;
+    // ユーザーが明示的に「過去の」「先週の」ニュースを求めている場合は、最新分に加えてアーカイブも参照する。
+    if (mentionsPastNews(userText)) {
+      out += await archiveNewsSuffix(country);
+    }
+    return out;
   } catch (err) {
     return "";
   }

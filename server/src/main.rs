@@ -2925,6 +2925,81 @@ async fn region_info(req: Request) -> Response {
     }
 }
 
+/// `GET /v1/public/news/archive-search?q=<keyword>`(2026-09-23新設、ユーザー指示
+/// 「open-englishの質問フォームからの内容から、今回作成するDATABASE
+/// (GitHubへアーカイブしたニュース)を参照するシステムを開発」への対応)。
+///
+/// aruaru-llm側で8日以上前になったニュースは、VPSのローカルDBから追い出され
+/// `NEWS-TITLE-README.md`(このリポジトリ直下)へタグ付きMarkdownとして
+/// 追記・GitHubへpushされる(`scripts/archive-news-to-github.sh`、VPS上の
+/// systemdタイマーで日次実行)。このエンドポイントはそのMarkdownファイルを
+/// **その場で読み込み**、簡易的な部分一致検索(タグ・国名・記事タイトル・
+/// 抜粋)で該当エントリを返す——全文検索インデックスやDB接続は使わない、
+/// ユーザー指示「Githubを全文検索しないで良い用に、簡単なタグ分けや
+/// カテゴリー分けを基本に行なっておいて」に沿った素朴な実装。
+///
+/// **正直な開示**: `NEWS-TITLE-README.md`がまだ存在しない(=アーカイブ対象の
+/// 古いニュースがまだ一件も無い)場合は、エラーではなく`count:0`の空配列を
+/// 返す。
+async fn news_archive_search(req: Request) -> Response {
+    let q = query_param(&req, "q").unwrap_or_default().trim().to_lowercase();
+    let limit: usize = query_param(&req, "limit").and_then(|s| s.parse().ok()).unwrap_or(10);
+    let path = repo_root().join("NEWS-TITLE-README.md");
+    let raw = match std::fs::read_to_string(&path) {
+        Ok(v) => v,
+        Err(_) => {
+            return rs_json_response_cors(
+                StatusCode::OK,
+                &serde_json::json!({"count": 0, "items": [], "note_en": "No archived news yet.", "note_ja": "アーカイブ済みのニュースはまだありません。"}),
+            )
+        }
+    };
+    let items = parse_news_archive_markdown(&raw, &q, limit);
+    rs_json_response_cors(StatusCode::OK, &serde_json::json!({"count": items.len(), "items": items}))
+}
+
+/// [`news_archive_search`]の中身の純粋関数版(テストしやすいよう分離)。
+/// `NEWS-TITLE-README.md`は`### {country}(検索日時 / searched at: {date})`の
+/// 見出しごとに`Tags: ...`行と`- [title](link) — snippet`行の並びが続く
+/// 構造(`aruaru-llm/src/news_geo.rs`の`format_archive_markdown`が生成する形式)
+/// なので、それに合わせた素朴な行ベースパーサーで十分(正規表現クレートを
+/// 増やさない)。
+fn parse_news_archive_markdown(raw: &str, q: &str, limit: usize) -> Vec<serde_json::Value> {
+    let mut out = Vec::new();
+    let mut country = String::new();
+    let mut date = String::new();
+    let mut tags_line = String::new();
+    for line in raw.lines() {
+        if let Some(rest) = line.strip_prefix("### ") {
+            country = rest.split('(').next().unwrap_or(rest).trim().to_string();
+            date = rest.split("searched at: ").nth(1).map(|s| s.trim_end_matches(')').to_string()).unwrap_or_default();
+            tags_line.clear();
+        } else if let Some(rest) = line.strip_prefix("Tags: ") {
+            tags_line = rest.to_lowercase();
+        } else if let Some(rest) = line.strip_prefix("- [") {
+            let Some(close) = rest.find(']') else { continue };
+            let title = &rest[..close];
+            let after = &rest[close + 1..];
+            let link = after.strip_prefix('(').and_then(|s| s.split(')').next()).unwrap_or("");
+            let snippet = after.split("— ").nth(1).unwrap_or("").trim();
+            let haystack = format!("{} {} {} {}", country.to_lowercase(), tags_line, title.to_lowercase(), snippet.to_lowercase());
+            if q.is_empty() || haystack.contains(q) {
+                out.push(serde_json::json!({
+                    "country": country,
+                    "date": date,
+                    "title": title,
+                    "link": link,
+                    "snippet": snippet,
+                }));
+                if out.len() >= limit {
+                    break;
+                }
+            }
+        }
+    }
+    out
+}
+
 /// `GET /v1/region-news?lang=<code>`(2026-08-22新設)。**実際にインターネットへ
 /// 接続して**、その言語向けのGoogleニュースRSS(公開フィード)から最新の見出しを
 /// 取得して返す。
@@ -3206,6 +3281,7 @@ async fn main() {
     // 呼び出し側が国を指定できる`/v1/news/for?country=...`のクエリ文字列を、そのまま
     // aruaru-llmへ中継する(`proxy_aruaru_llm_get`は固定パスのみでクエリを転送できないため専用実装)。
     app = app.at("/v1/public/news/for", get(handler_fn(|req, _p| Box::pin(proxy_aruaru_llm_get_with_query(req, "/v1/news/for")))));
+    app = app.at("/v1/public/news/archive-search", get(handler_fn(|req, _p| Box::pin(news_archive_search(req)))));
     app = app.at("/v1/config", get(handler_fn(move |_req, _p| async move { app_config().await })));
     app = app.at("/v1/platform-info", get(handler_fn(move |_req, _p| async move { platform_info().await })));
     // `/health`はopen-web-server/open-easy-web側の「分身の術」テナント
@@ -3726,4 +3802,60 @@ fn load_or_generate_tls_config() -> Result<tokio_rustls::rustls::ServerConfig, S
         .with_no_client_auth()
         .with_single_cert(vec![cert_der], tokio_rustls::rustls::pki_types::PrivateKeyDer::Pkcs8(key_der))
         .map_err(|e| format!("failed to build rustls ServerConfig from generated dev certificate: {e}"))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    const SAMPLE_ARCHIVE: &str = "\
+# ニュースアーカイブ
+
+## アーカイブ日 / Archived on 2026-09-15
+
+### Japan(検索日時 / searched at: 2026-09-10)
+
+Tags: `Japan` `2026-09`
+
+- [Rust adoption grows in Japan](https://example.com/a) — More companies adopt Rust for backend services.
+- [Tokyo tech expo opens](https://example.com/b) — Annual tech expo kicks off in Tokyo.
+
+### United States(検索日時 / searched at: 2026-09-11)
+
+Tags: `United States` `2026-09`
+
+- [AI regulation debate continues](https://example.com/c) — Congress debates new AI rules.
+";
+
+    #[test]
+    fn archive_search_empty_query_returns_all_up_to_limit() {
+        let items = parse_news_archive_markdown(SAMPLE_ARCHIVE, "", 10);
+        assert_eq!(items.len(), 3);
+    }
+
+    #[test]
+    fn archive_search_matches_country_tag() {
+        let items = parse_news_archive_markdown(SAMPLE_ARCHIVE, "japan", 10);
+        assert_eq!(items.len(), 2);
+        assert!(items.iter().all(|i| i["country"] == "Japan"));
+    }
+
+    #[test]
+    fn archive_search_matches_title_keyword() {
+        let items = parse_news_archive_markdown(SAMPLE_ARCHIVE, "rust", 10);
+        assert_eq!(items.len(), 1);
+        assert_eq!(items[0]["link"], "https://example.com/a");
+    }
+
+    #[test]
+    fn archive_search_respects_limit() {
+        let items = parse_news_archive_markdown(SAMPLE_ARCHIVE, "", 1);
+        assert_eq!(items.len(), 1);
+    }
+
+    #[test]
+    fn archive_search_no_match_returns_empty() {
+        let items = parse_news_archive_markdown(SAMPLE_ARCHIVE, "nonexistent-topic-xyz", 10);
+        assert!(items.is_empty());
+    }
 }
