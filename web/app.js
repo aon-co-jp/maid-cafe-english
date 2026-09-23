@@ -75,6 +75,34 @@
   }
 })();
 
+// 実バグ修正(2026-09-24、ユーザー報告「スマホで文字を入力後に画面の右側の
+// 実行ボタンが効かないBUG」): 上の`rescroll`はフォーカス中の**入力欄**を
+// キーボードより上へスクロールして見せるためのものだが、送信ボタン自体は
+// `#chat-dock`(`position: fixed; bottom: 0`)という別要素の中にあり、
+// ページスクロールの対象外(fixed要素はスクロールに追従しない)。
+// AndroidのWebView/Chromeではキーボード表示中もレイアウトビューポート
+// (`bottom: 0`の基準)自体は縮まない構成のため、`#chat-dock`はキーボードの
+// 真裏(=画面上は隠れて見えているように錯覚するが、実際のタップ座標では
+// キーボード側が受け取ってしまう)に取り残されていた。`visualViewport`が
+// 報告する「実際に見えている範囲」の下端に合わせて`#chat-dock`自体を
+// `translateY`で押し上げることで、送信ボタンが常にキーボードの上・
+// タップ可能な位置に来るようにする。
+(function keepChatDockAboveKeyboard() {
+  if (!window.visualViewport) return;
+  const reposition = () => {
+    const dock = document.getElementById("chat-dock");
+    if (!dock) return;
+    const vv = window.visualViewport;
+    // レイアウトビューポートの下端から、実際に見えている範囲(visualViewport)の
+    // 下端までの距離=キーボード等に隠れている高さ。
+    const hiddenBottom = window.innerHeight - (vv.height + vv.offsetTop);
+    dock.style.transform = hiddenBottom > 1 ? `translateY(-${hiddenBottom}px)` : "";
+  };
+  window.visualViewport.addEventListener("resize", reposition);
+  window.visualViewport.addEventListener("scroll", reposition);
+  reposition();
+})();
+
 // 実バグ修正(2026-09-07): このファイル全体で`fetch("/v1/...")`のように
 // **絶対パス**でサーバー自身のAPIを呼んでいる箇所が多数あるため、
 // `https://easy-web.tokyo/open-english/`のようなパスプレフィックス配下に
