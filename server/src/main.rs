@@ -11,7 +11,7 @@
 //! `http://127.0.0.1:4601/`を配信する(`OPEN_ENGLISH_SERVER_BIND`環境変数で
 //! 上書き可)。`aruaru-llm`(既定`http://localhost:4600`)とは別ポート。
 
-use open_runo_poem_compat::hyper_compat::static_file_handler;
+use open_runo_poem_compat::hyper_compat::static_file_handler_with_cache_control;
 use open_runo_poem_compat::{get, handler_fn, post, Request, Response, Route, StatusCode};
 use std::net::SocketAddr;
 use std::path::{Path, PathBuf};
@@ -232,17 +232,22 @@ const STATIC_FILES: &[(&str, &str, &str)] = &[
 /// 無かったため、本対応の一環として新設した(`RPoem/crates/
 /// open-runo-poem-compat/src/lib.rs`参照、追加のみで既存APIは
 /// 変更していない)。
-fn static_file_head_handler(path: PathBuf, content_type: &'static str) -> open_runo_poem_compat::Handler {
+/// Cache-Control指定版のHEADハンドラ(2026-09-23新設、
+/// `static_file_handler_with_cache_control`と対になる——理由はそちらの
+/// doc参照)。GETと同じ値を返さないと、ブラウザがGET/HEADで異なる
+/// キャッシュ方針を見て不整合な挙動になりうるため必ず両方揃える。
+fn static_file_head_handler_with_cache_control(path: PathBuf, content_type: &'static str, cache_control: Option<&'static str>) -> open_runo_poem_compat::Handler {
     std::sync::Arc::new(move |_req, _params| {
         let path = path.clone();
         Box::pin(async move {
             match tokio::fs::metadata(&path).await {
-                Ok(meta) => hyper::Response::builder()
-                    .status(StatusCode::OK)
-                    .header("content-type", content_type)
-                    .header("content-length", meta.len().to_string())
-                    .body(open_runo_poem_compat::fixed_body(bytes::Bytes::new()))
-                    .expect("building a HEAD response from a fixed set of valid headers cannot fail"),
+                Ok(meta) => {
+                    let mut builder = hyper::Response::builder().status(StatusCode::OK).header("content-type", content_type).header("content-length", meta.len().to_string());
+                    if let Some(cc) = cache_control {
+                        builder = builder.header("cache-control", cc);
+                    }
+                    builder.body(open_runo_poem_compat::fixed_body(bytes::Bytes::new())).expect("building a HEAD response from a fixed set of valid headers cannot fail")
+                }
                 Err(_) => open_runo_poem_compat::empty_status(StatusCode::NOT_FOUND),
             }
         })
@@ -3252,9 +3257,18 @@ async fn main() {
     let mut app = Route::new();
     for (url_path, rel_file, content_type) in STATIC_FILES {
         let file_path = root.join(rel_file);
+        // 2026-09-23変更(実機バグ修正、`static_file_handler_with_cache_control`の
+        // doc参照): これらのファイルはファイル名にハッシュを含まず、デプロイの
+        // たびに同じURLのまま中身だけ更新される設計のため、`no-cache`
+        // (=「キャッシュには保存してよいが、使う前に毎回サーバーへ確認する」)を
+        // 明示する。ブラウザ標準のヒューリスティックキャッシュに任せていた結果、
+        // モバイルChromeで何十回もの更新後も古い内容が配信され続けるバグが
+        // 実機(arrows We2 PLUS M06)で再現していた。
+        const NO_CACHE: &str = "no-cache";
         app = app.at(
             url_path,
-            get(static_file_handler(file_path.clone(), content_type)).head(static_file_head_handler(file_path, content_type)),
+            get(static_file_handler_with_cache_control(file_path.clone(), content_type, Some(NO_CACHE)))
+                .head(static_file_head_handler_with_cache_control(file_path, content_type, Some(NO_CACHE))),
         );
     }
     app = app.at("/healthz", get(handler_fn(move |_req, _p| async move { healthz().await })));
