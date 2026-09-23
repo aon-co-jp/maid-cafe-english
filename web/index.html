@@ -4,6 +4,26 @@
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
 <title>open-english: Maid Cafe English Trainer (Phase 0)</title>
+<script>
+// 実バグ修正(2026-09-24、ユーザー報告「文字入力後に送信ボタンが反応しない」の
+// 真因): 本番はopen-web-server経由でstrip_prefix=trueの/open-englishマウントの
+// ため、`https://easy-web.tokyo/open-english`(末尾スラッシュ無し)でアクセス
+// すると、下の相対パス(style.css/app.js等)がドメインルート基準
+// (`https://easy-web.tokyo/style.css`)へ解決されて軒並み404になり、
+// CSS未適用・JS未実行(=送信ボタン等すべてのイベントリスナー登録も未実行)
+// のまま「引っ越しました」バナーとログインゲートがCSS無しでそのまま画面に
+// 流れ込んで見えていた(実際にはログイン必須でも引っ越してもいない)。
+// この配信環境では現在のパス自体が常にマウント先ディレクトリなので、
+// 末尾に"/"を補ったものを<base>として明示し、末尾スラッシュの有無に
+// 依らず相対パスが正しいマウント配下へ解決されるようにする。
+(function () {
+  var p = location.pathname;
+  if (p.slice(-1) !== "/") p += "/";
+  var base = document.createElement("base");
+  base.href = location.origin + p;
+  document.currentScript.after(base);
+})();
+</script>
 <link rel="stylesheet" href="style.css" />
 <link rel="manifest" href="manifest.json" />
 <link rel="icon" type="image/png" sizes="192x192" href="icons/icon-192.png" />
