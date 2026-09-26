@@ -2986,39 +2986,26 @@ async function askTrainer(userText) {
   const googleSearchMode = document.getElementById("google-search-key-mode")?.value || "plain";
   const useVaultSearchPath = useWebSearch && googleSearchMode === "vault";
 
+  // 2026-09-26変更(ユーザー指示「aruaru-searchの無制限の検索システムを
+  // open-englishに最優先で使用する様に組み込んで」): 以前はここで
+  // 訪問者自身の鍵(または保管庫)が設定されていれば無条件に
+  // 「ブラウザから直接Google検索」を選び、aruaru-llm側で最優先になった
+  // はずのaruaru-search(APIキー不要・VPSで完全無料・1日上限なし)を
+  // 一度も試さずに素通りしていた。
+  //
+  // 修正後: まず`/v1/generate-with-search`(aruaru-llm経由、内部で
+  // aruaru-search→〈利用不可なら〉共有キーの順に自動フォールバック)を
+  // 必ず試す。訪問者の鍵は依然としてこの一次リクエストには一切含めない
+  // (2026-08-27からの既存方針「aruaru-llmに一切キーを渡さない」を
+  // 継続)。サーバー応答の`used_search`が`false`(=aruaru-search・共有
+  // キーともダメだった)場合に**初めて**、訪問者自身の鍵/保管庫を
+  // 「無料枠のみを使う予備」として使う——これにより実際の優先順位は
+  // aruaru-search(無制限) > 訪問者の無料枠キー(予備) > 何もしない、
+  // という意図した並びになる。
   let directSearchResults = null;
   let directSearchError = null;
-  // 2026-09-13追加(簡易サーキットブレーカー): Google検索補強を「鍵設定後は
-  // 常時ON」にした結果、鍵/cxが実際には無効なままだと**毎メッセージ**で
-  // 8秒待たされた上に失敗通知が付くことになり、体感速度が悪化する
-  // (ユーザー報告)。同一セッション内で連続3回失敗したら、それ以降は
-  // 検索を自動で見送り(通常生成のみ)、その旨を一度だけ伝える——鍵の
-  // 再設定(設定パネルを開き直す)でリセットされる。
-  if (useVaultSearchPath && googleSearchConsecutiveFailures < GOOGLE_SEARCH_CIRCUIT_BREAKER_LIMIT) {
-    try {
-      directSearchResults = await googleSearchRequestVault(userText, 3);
-      googleSearchConsecutiveFailures = 0;
-    } catch (err) {
-      directSearchError = err.message || String(err);
-      googleSearchConsecutiveFailures += 1;
-    }
-  } else if (useWebSearch && ownGoogleSearchCreds && googleSearchConsecutiveFailures < GOOGLE_SEARCH_CIRCUIT_BREAKER_LIMIT) {
-    try {
-      directSearchResults = await googleSearchDirect(userText, ownGoogleSearchCreds.api_key, ownGoogleSearchCreds.cx, 3);
-      googleSearchConsecutiveFailures = 0;
-    } catch (err) {
-      directSearchError = err.message || String(err);
-      googleSearchConsecutiveFailures += 1;
-      if (googleSearchConsecutiveFailures === GOOGLE_SEARCH_CIRCUIT_BREAKER_LIMIT) {
-        directSearchError +=
-          " (Search paused for the rest of this session after repeated failures — check your key/Search Engine ID in 🔎 Setup Google Search, then reopen it to retry. / " +
-          "連続失敗のため、このセッション中は検索を一時停止します——🔎 Setup Google Searchでキー・検索エンジンIDをご確認の上、再度開けば再試行できます。)";
-      }
-    }
-  }
-
-  const useDirectSearchPath = useWebSearch && (ownGoogleSearchCreds || useVaultSearchPath);
-  const endpoint = useWebSearch && !useDirectSearchPath ? "/v1/generate-with-search" : "/v1/generate";
+  let useDirectSearchPath = false;
+  const endpoint = useWebSearch ? "/v1/generate-with-search" : "/v1/generate";
   // 2026-08-27バグ修正: `prompt`(メイドカフェ講師ペルソナ+レベル指示+
   // 「Student: ...\nTrainer:」まで組み込んだ、既にラップ済みのテンプレート)
   // をそのまま`buildSearchAugmentedPromptClient`の「質問」として渡すと、
@@ -3093,7 +3080,48 @@ async function askTrainer(userText) {
     } catch (_) { /* JSONでない場合は無視 */ }
     throw new Error(`aruaru-llm returned HTTP ${res.status}${detail}`);
   }
-  const data = await res.json();
+  let data = await res.json();
+  // 2026-09-26追加: aruaru-search(無制限・最優先)+共有キーがどちらも
+  // ダメだった場合(`used_search === false`)のみ、訪問者自身の鍵/保管庫を
+  // 「無料枠のみの予備」として試す。ここで初めて`googleSearchDirect`/
+  // `googleSearchRequestVault`を呼ぶ(以前はここを毎回・無条件に呼んで
+  // aruaru-searchより先に使ってしまっていた)。
+  if (useWebSearch && data && data.used_search === false && (ownGoogleSearchCreds || useVaultSearchPath) && googleSearchConsecutiveFailures < GOOGLE_SEARCH_CIRCUIT_BREAKER_LIMIT) {
+    try {
+      directSearchResults = useVaultSearchPath
+        ? await googleSearchRequestVault(userText, 3)
+        : await googleSearchDirect(userText, ownGoogleSearchCreds.api_key, ownGoogleSearchCreds.cx, 3);
+      googleSearchConsecutiveFailures = 0;
+    } catch (err) {
+      directSearchError = err.message || String(err);
+      googleSearchConsecutiveFailures += 1;
+      if (googleSearchConsecutiveFailures === GOOGLE_SEARCH_CIRCUIT_BREAKER_LIMIT) {
+        directSearchError +=
+          " (Search paused for the rest of this session after repeated failures — check your key/Search Engine ID in 🔎 Setup Google Search, then reopen it to retry. / " +
+          "連続失敗のため、このセッション中は検索を一時停止します——🔎 Setup Google Searchでキー・検索エンジンIDをご確認の上、再度開けば再試行できます。)";
+      }
+    }
+    if (directSearchResults && directSearchResults.length > 0) {
+      useDirectSearchPath = true;
+      const fallbackPrompt = buildSearchAugmentedPromptClient(formatSearchResultsAsContext(directSearchResults), userText);
+      const fallbackBody = { prompt: fallbackPrompt, max_new_tokens: inputIsJapanese ? 12 : 24 };
+      try {
+        const fallbackRes = await fetchWithTimeout(`${base}/v1/generate`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(fallbackBody),
+        }, timeoutMs);
+        if (fallbackRes.ok) {
+          data = await fallbackRes.json();
+        }
+      } catch (_) {
+        // フォールバック自体が失敗しても、一次応答(検索無し)をそのまま使う
+        // (可用性優先の既存方針)。
+      }
+    } else if (directSearchError) {
+      useDirectSearchPath = true;
+    }
+  }
   lastReplyLatencyMs = Math.round(performance.now() - startedAt);
   // 応答に含まれる`engine`(実行経路サフィックス付き、例
   // `distilgpt2-greedy-decode-v0-open-cuda-llm-cpu`)でバッジを最新化する
