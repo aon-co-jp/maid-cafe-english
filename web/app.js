@@ -8188,7 +8188,7 @@ async function refreshGoogleSearchFallbackHealth() {
   const el = document.getElementById("google-search-fallback-health");
   if (!el) return;
   try {
-    const res = await fetchWithTimeout(`${base}/v1/search/fallback-status`, {}, 5000);
+    const res = await fetchWithTimeout(`${apiBaseEl.value.trim()}/v1/search/fallback-status`, {}, 5000);
     if (!res.ok) {
       el.textContent = "";
       return;
