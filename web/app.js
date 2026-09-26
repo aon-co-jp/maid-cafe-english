@@ -8174,6 +8174,37 @@ async function refreshGoogleSearchStatus() {
       ? "✅ your key set / ご自身のキー設定済み"
       : "⚠ set your own key to use search / 検索にはご自身のキー設定が必要";
   }
+  refreshGoogleSearchFallbackHealth();
+}
+
+// 2026-09-27追加(ユーザー指示「open-english側の予備パス〈訪問者自身の
+// Google無料枠キー〉にこそ、毎朝の自己点検・修復の必要性が高い」への
+// 対応): aruaru-llmが毎朝7時(日本時間)に行うGoogle Custom Search JSON
+// APIの自己点検結果(`GET /v1/search/fallback-status`)を表示する。
+// 個々の訪問者の鍵自体はサーバー側で検証できない(保存しない設計のため)
+// ——あくまで「Google側のAPI契約(エンドポイント・エラー応答形状)が
+// 壊れていないか」の点検結果であることを、表示文言でも正直に伝える。
+async function refreshGoogleSearchFallbackHealth() {
+  const el = document.getElementById("google-search-fallback-health");
+  if (!el) return;
+  try {
+    const res = await fetchWithTimeout(`${base}/v1/search/fallback-status`, {}, 5000);
+    if (!res.ok) {
+      el.textContent = "";
+      return;
+    }
+    const health = await res.json();
+    if (health.schema_ok) {
+      el.textContent = "";
+    } else {
+      el.textContent =
+        `⚠ Backup path daily self-check: ${health.note_en} / ` +
+        `予備パスの毎朝の自己点検: ${health.note_ja}`;
+    }
+  } catch (_) {
+    // 到達不能な場合は静かに非表示のままにする(既存の可用性優先方針)。
+    el.textContent = "";
+  }
 }
 /** `#web-search-boost-status`の文言を、キー設定済みかどうかで出し分ける。 */
 function updateWebSearchBoostStatusLabel() {
