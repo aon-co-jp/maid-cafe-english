@@ -3715,6 +3715,11 @@ const UNVERIFIED_OR_LOW_QUALITY_TARGETS = new Set([
 // `forceSearchBoostOnce`をtrueにすると、次の1回の呼び出しだけ`shouldBoostWithGoogleSearch()`
 // がtrueを返す(呼ばれたら自動でfalseへ戻る、使い切りのフラグ)。
 let forceSearchBoostOnce = false;
+// 2026-09-28追加(ユーザー指示「aruaru-llmのAIと無制限の検索システムと、Github調査を
+// 上手く駆使して活用する事で、フリーランス案件を一緒に開発」): フリーランス開発コーナーの
+// 「AI先生に相談」を押した次の1回だけ、GitHub調査も強制的に有効化する
+// (`forceSearchBoostOnce`と同じ使い切りフラグパターン)。
+let forceGithubSearchBoostOnce = false;
 const AI_UNCERTAINTY_MARKERS = [
   "わかりません", "分かりません", "存じません", "不明です", "確信が持てません", "自信がありません",
   "知りません", "断定できません", "はっきりとは分かりません",
@@ -3757,6 +3762,10 @@ function shouldBoostWithGoogleSearch() {
 }
 /** 「最新の情報が欲しい」ニュアンス＋GitHub関連の話題のときだけ、GitHub検索も自動で有効にする。 */
 function shouldBoostWithGithubSearch() {
+  if (forceGithubSearchBoostOnce) {
+    forceGithubSearchBoostOnce = false;
+    return true;
+  }
   return wantsLatestInfo(currentTurnUserText) && mentionsGithubTopic(currentTurnUserText);
 }
 
@@ -16251,14 +16260,18 @@ function freelancePopulateSaveDestinationFields() {
   const aruaruDbUrlEl = document.getElementById("freelance-savedest-aruaru-db-url");
   const postgresEl = document.getElementById("freelance-savedest-postgres");
   const vpsEl = document.getElementById("freelance-savedest-vps");
+  const vpsPathEl = document.getElementById("freelance-savedest-vps-path");
   const googleDriveEl = document.getElementById("freelance-savedest-google-drive");
   const localDriveEl = document.getElementById("freelance-savedest-local-drive");
+  const localDrivePathEl = document.getElementById("freelance-savedest-local-drive-path");
   if (aruaruDbEl) aruaruDbEl.checked = !!saved.aruaru_db;
   if (aruaruDbUrlEl) aruaruDbUrlEl.value = saved.aruaru_db_url || "";
   if (postgresEl) postgresEl.checked = !!saved.postgres;
   if (vpsEl) vpsEl.checked = !!saved.vps;
+  if (vpsPathEl) vpsPathEl.value = saved.vps_path || "";
   if (googleDriveEl) googleDriveEl.checked = !!saved.google_drive;
   if (localDriveEl) localDriveEl.checked = !!saved.local_drive;
+  if (localDrivePathEl) localDrivePathEl.value = saved.local_drive_path || "";
 }
 
 function freelanceSaveDestinationSettings() {
@@ -16414,6 +16427,22 @@ const freelanceCopyJobsUrlBtn = document.getElementById("freelance-copy-jobs-url
 const freelanceJobNotesEl = document.getElementById("freelance-job-notes");
 const freelanceSampleListEl = document.getElementById("freelance-sample-list");
 const freelanceAskTeacherBtn = document.getElementById("freelance-ask-teacher-btn");
+const freelanceStudyWhileDevelopingEl = document.getElementById("freelance-study-while-developing");
+const FREELANCE_STUDY_WHILE_DEVELOPING_KEY = "open-english.freelanceStudyWhileDeveloping";
+if (freelanceStudyWhileDevelopingEl) {
+  try {
+    freelanceStudyWhileDevelopingEl.checked = localStorage.getItem(FREELANCE_STUDY_WHILE_DEVELOPING_KEY) === "1";
+  } catch (_) {
+    /* ignore */
+  }
+  freelanceStudyWhileDevelopingEl.addEventListener("change", () => {
+    try {
+      localStorage.setItem(FREELANCE_STUDY_WHILE_DEVELOPING_KEY, freelanceStudyWhileDevelopingEl.checked ? "1" : "0");
+    } catch (_) {
+      /* ignore quota errors */
+    }
+  });
+}
 const freelanceUploadInputEl = document.getElementById("freelance-upload-input");
 const freelanceUploadStatusEl = document.getElementById("freelance-upload-status");
 const freelanceStartBtn = document.getElementById("freelance-start-btn");
@@ -17301,9 +17330,20 @@ if (freelanceAskTeacherBtn) {
       ? `プログラムレッスンを受けながら一緒に開発したいです。私のレベルは「${developLevelLabels[developLevel]}」です。このレベルに合わせて、学ぶべき基礎から順に教えながら、この案件の開発を一緒に進めてください。`
       : "レッスンは不要なので、この案件の開発を一緒に進めてください(基礎の説明は省略で構いません)。";
     if (notes) question += `\n\n参考にしている案件メモ:\n${notes}`;
+    if (freelanceStudyWhileDevelopingEl?.checked) {
+      question += "\n\n同時にプログラムの学習も行いたいです。開発を進めながら、関連する基礎知識も適宜教えてください。 / " +
+        "I'd also like to study programming at the same time — please teach me relevant basics along the way as we develop this.";
+    }
+    question += "\n\n(aruaru-search経由の無制限検索とGitHub調査を活用して、最新情報も踏まえて回答してください。 / " +
+      "Please use aruaru-search's unlimited search and a GitHub investigation to ground your answer in current information.)";
     if (inputEl && formEl) {
       inputEl.value = question;
       freelanceCornerModal?.classList.add("hidden");
+      // aruaru-search(無制限検索)+GitHub調査を、この1回の送信だけ強制的に有効化する
+      // (ユーザー指示「aruaru-llmのAIと無制限の検索システムと、Github調査を上手く駆使して
+      // 活用する事で、フリーランス案件を一緒に開発」への対応)。
+      forceSearchBoostOnce = true;
+      forceGithubSearchBoostOnce = true;
       formEl.requestSubmit();
     }
   });

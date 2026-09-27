@@ -4,6 +4,26 @@
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
 <title>open-english: Maid Cafe English Trainer (Phase 0)</title>
+<script>
+// 実バグ修正(2026-09-24、ユーザー報告「文字入力後に送信ボタンが反応しない」の
+// 真因): 本番はopen-web-server経由でstrip_prefix=trueの/open-englishマウントの
+// ため、`https://easy-web.tokyo/open-english`(末尾スラッシュ無し)でアクセス
+// すると、下の相対パス(style.css/app.js等)がドメインルート基準
+// (`https://easy-web.tokyo/style.css`)へ解決されて軒並み404になり、
+// CSS未適用・JS未実行(=送信ボタン等すべてのイベントリスナー登録も未実行)
+// のまま「引っ越しました」バナーとログインゲートがCSS無しでそのまま画面に
+// 流れ込んで見えていた(実際にはログイン必須でも引っ越してもいない)。
+// この配信環境では現在のパス自体が常にマウント先ディレクトリなので、
+// 末尾に"/"を補ったものを<base>として明示し、末尾スラッシュの有無に
+// 依らず相対パスが正しいマウント配下へ解決されるようにする。
+(function () {
+  var p = location.pathname;
+  if (p.slice(-1) !== "/") p += "/";
+  var base = document.createElement("base");
+  base.href = location.origin + p;
+  document.currentScript.after(base);
+})();
+</script>
 <link rel="stylesheet" href="style.css" />
 <link rel="manifest" href="manifest.json" />
 <link rel="icon" type="image/png" sizes="192x192" href="icons/icon-192.png" />
@@ -17,12 +37,21 @@
        ログインする」「/demoにアクセスしたら/open-englishに引っ越しましたと
        日本語と英語で表示」): app.jsが表示・非表示を制御する。 -->
   <a href="#" id="admin-login-link" class="admin-login-link hidden">🔐 管理者ログインはこちら(クリック/タップ) / Admin login — click or tap here</a>
+  <!-- 2026-09-24新設(ユーザー指示「その下に各インストーラーはこちらとその英語版と
+       それにリンクを貼って、それもCLOSEボタンも用意して」): 管理者ログインバッジの
+       すぐ下に、インストーラー案内(下の#download-recommend-bannerへのジャンプ
+       リンク)を常時表示する。CLOSEで閉じたらlocalStorageに記憶し(一度きり案内の
+       既存の慣習を踏襲)、次回以降は表示しない。 -->
+  <div id="installer-quick-link" class="installer-quick-link">
+    <a href="#download-recommend-banner">📦 各インストーラーのダウンロードはこちら / Download the installers here</a>
+    <button type="button" id="installer-quick-link-close" title="閉じる / Close">✕ 閉じる / Close</button>
+  </div>
   <div id="demo-moved-notice" class="demo-moved-notice hidden">
     <div class="demo-moved-box">
       <h2>🚚 引っ越しました / We have moved</h2>
-      <p>デモ版は <strong>easy-web.tokyo/open-english</strong> に引っ越しました。下のボタンから新しいページへお進みください。</p>
-      <p>The demo has moved to <strong>easy-web.tokyo/open-english</strong>. Please continue at the new page using the button below.</p>
-      <a class="demo-moved-btn" href="https://easy-web.tokyo/open-english/">➡ easy-web.tokyo/open-english</a>
+      <p>デモ版は <strong>easy-web.tokyo/open-english/</strong> に引っ越しました。下のボタンから新しいページへお進みください。</p>
+      <p>The demo has moved to <strong>easy-web.tokyo/open-english/</strong>. Please continue at the new page using the button below.</p>
+      <a class="demo-moved-btn" href="https://easy-web.tokyo/open-english/">➡ easy-web.tokyo/open-english/</a>
     </div>
   </div>
   <!-- ログインゲート(2026-08-26新設、ユーザー指示「家族や会社で共有する
@@ -955,6 +984,7 @@ cargo run --release</pre>
         </div>
       </div>
       <p id="google-search-status" class="setup-note"></p>
+      <p id="google-search-fallback-health" class="setup-note"></p>
     </div>
   </div>
 
@@ -1621,13 +1651,22 @@ cd aruaru-db
       <button type="button" id="freelance-search-jobs-btn" class="setup-btn">🔎 案件・求人を検索 / Search jobs</button>
       <button type="button" id="freelance-copy-jobs-url-btn" class="setup-btn">📋 検索URLをコピー / Copy search URL</button>
       <p class="setup-note">
-        以前セットアップ済みのGoogle検索APIキーがあれば、自動的にそれを使って検索結果を
-        ここに表示します(再入力は不要です)。未設定の場合は上のボタンで新しいタブから
-        ご自身で確認してください。<br />
-        If you have already set up a Google Search API key (locally or in the web version), it
-        will be reused automatically to show results below — no need to enter it again. If none
-        is configured, use the button above to check results in a new tab instead.
+        ここに表示される案件は、まず<strong>aruaru-search(自前検索エンジン・無制限・APIキー不要)</strong>
+        による予測検索を使い、それが使えない場合のみ、以前セットアップ済みのご自身のGoogle検索APIキー
+        (無料枠のみ)を予備として使います。あるいは、<strong>有料のClaude(このアプリ自身の開発にも
+        使われているAI開発ツール)へのお申込みをご検討下さいませ</strong>——いずれの場合も、案件を
+        見つけた後は一緒に相談しながら開発を進めます。<br />
+        Listings shown here are first found via <strong>aruaru-search (our self-hosted search engine
+        — unlimited, no API key needed)</strong> as a predictive search; only if that's unavailable do
+        we fall back to your own previously-configured Google Search API key (free tier only). Or,
+        <strong>please consider subscribing to paid Claude (the AI development tool this app itself is
+        built with)</strong> — either way, once you find a listing you like, we'll work through the
+        development together.
       </p>
+      <label class="settings-field">
+        <input type="checkbox" id="freelance-study-while-developing" />
+        同時にプログラムの学習も行なう / Also study programming at the same time
+      </label>
       <div id="freelance-job-results" class="setup-note"></div>
       <p class="setup-note">
         検索結果ページで気になった案件があれば、URLやテキスト・画像を通常のブラウザ操作で
@@ -1725,13 +1764,16 @@ cd aruaru-db
       <p class="setup-note">
         「AI先生に相談」を押すたびに、選んだ産業・言語・フレームワーク・WEBサーバー・DATABASE・
         案件メモをここで有効にした送信先へ記録します(1つ選んでも、複数同時に選んでも構いません。
-        1つが失敗しても他の送信先は続行します)。<strong>今回のパスは設定の保存のみで、実際の
-        書き込み処理はまだ実装していません</strong>(次の実装ステップ)。<br />
+        1つが失敗しても他の送信先は続行します)。<strong>VPS・ローカルドライブへの実際の書き込みは
+        実装済みです</strong>(下のパスを指定してください)。<strong>aruaru-db・PostgreSQL・
+        Googleドライブは、設定の保存のみで実際の書き込み処理はまだ実装していません</strong>
+        (次の実装ステップ)。<br />
         Each time you click "Ask the AI teacher", your chosen industry/language/framework/web
         server/database/job notes are recorded to whichever destinations you enable here (pick
-        one, or several at once — a failure in one doesn't stop the others). <strong>This pass only
-        saves the settings themselves; the actual write logic is not implemented yet</strong> (next
-        step).
+        one, or several at once — a failure in one doesn't stop the others). <strong>Actual writes
+        to VPS and local drive are implemented</strong> (specify a path below).
+        <strong>aruaru-db, PostgreSQL, and Google Drive currently only save the settings
+        themselves; the write logic isn't implemented yet</strong> (next step).
       </p>
       <div id="freelance-savedest-summary" class="setup-note hidden">
         <span id="freelance-savedest-summary-text"></span>
@@ -1754,13 +1796,26 @@ cd aruaru-db
           <input type="checkbox" id="freelance-savedest-vps" />
           VPS(上部の「🔌自動読み書きSETUP状況」パネルのVPS設定をそのまま利用 / reuses the VPS setup from the "🔌 Auto read/write setup status" panel above)
         </label>
+        <label class="setup-label">
+          VPS上の保存先パス(サーバー起動時の<code>OPEN_ENGLISH_VPS_ALLOWED_PATHS</code>で許可した
+          ディレクトリ配下) / Path on the VPS (must be under a directory allowed via
+          <code>OPEN_ENGLISH_VPS_ALLOWED_PATHS</code> at server startup)<br />
+          <input type="text" id="freelance-savedest-vps-path" class="setup-input" placeholder="/home/youruser/freelance-progress/progress.json" />
+        </label>
         <label class="settings-field">
           <input type="checkbox" id="freelance-savedest-google-drive" />
           Googleドライブ(認証情報はサーバー起動時の環境変数で設定 / credentials set via server environment variables)
         </label>
         <label class="settings-field">
           <input type="checkbox" id="freelance-savedest-local-drive" />
-          ローカルドライブ(上部パネルで選択済みのフォルダへ保存 / saves into the folder already chosen in the panel above)
+          ローカルドライブ(サーバー起動時の<code>OPEN_ENGLISH_AGENT_ALLOWED_DIRS</code>で許可した
+          フォルダ配下、下で選択 / a folder allowed via <code>OPEN_ENGLISH_AGENT_ALLOWED_DIRS</code>
+          at server startup, chosen below)
+        </label>
+        <label class="setup-label">
+          ローカルドライブの保存先ファイル / Local drive save file<br />
+          <input type="text" id="freelance-savedest-local-drive-path" class="setup-input" readonly placeholder="(フォルダを選択してください / choose a folder)" />
+          <button type="button" class="browse-btn setup-btn" data-target-input="freelance-savedest-local-drive-path" data-filename="freelance-progress.json">📁 フォルダを選択 / Choose folder</button>
         </label>
         <button type="button" id="freelance-savedest-save-btn" class="setup-btn">💾 保存先の設定を保存 / Save destination settings</button>
         <p id="freelance-savedest-status" class="setup-note"></p>
@@ -2925,7 +2980,7 @@ cd aruaru-db
         <div class="dock-row">
           <div id="dock-avatar" class="dock-avatar" aria-hidden="true"></div>
           <form id="chat-form" class="chat-form">
-            <input id="chat-input" type="text" placeholder="Type in English or Japanese... / 英語または日本語で入力" autocomplete="off" required />
+            <input id="chat-input" type="text" placeholder="Type in English or Japanese... / 英語または日本語で入力" autocomplete="off" enterkeyhint="send" required />
             <button type="button" id="dock-mic" class="dock-mic" title="音声入力 / Voice input">🎙</button>
             <button type="submit">Send</button>
           </form>

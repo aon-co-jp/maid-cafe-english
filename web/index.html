@@ -1651,13 +1651,22 @@ cd aruaru-db
       <button type="button" id="freelance-search-jobs-btn" class="setup-btn">🔎 案件・求人を検索 / Search jobs</button>
       <button type="button" id="freelance-copy-jobs-url-btn" class="setup-btn">📋 検索URLをコピー / Copy search URL</button>
       <p class="setup-note">
-        以前セットアップ済みのGoogle検索APIキーがあれば、自動的にそれを使って検索結果を
-        ここに表示します(再入力は不要です)。未設定の場合は上のボタンで新しいタブから
-        ご自身で確認してください。<br />
-        If you have already set up a Google Search API key (locally or in the web version), it
-        will be reused automatically to show results below — no need to enter it again. If none
-        is configured, use the button above to check results in a new tab instead.
+        ここに表示される案件は、まず<strong>aruaru-search(自前検索エンジン・無制限・APIキー不要)</strong>
+        による予測検索を使い、それが使えない場合のみ、以前セットアップ済みのご自身のGoogle検索APIキー
+        (無料枠のみ)を予備として使います。あるいは、<strong>有料のClaude(このアプリ自身の開発にも
+        使われているAI開発ツール)へのお申込みをご検討下さいませ</strong>——いずれの場合も、案件を
+        見つけた後は一緒に相談しながら開発を進めます。<br />
+        Listings shown here are first found via <strong>aruaru-search (our self-hosted search engine
+        — unlimited, no API key needed)</strong> as a predictive search; only if that's unavailable do
+        we fall back to your own previously-configured Google Search API key (free tier only). Or,
+        <strong>please consider subscribing to paid Claude (the AI development tool this app itself is
+        built with)</strong> — either way, once you find a listing you like, we'll work through the
+        development together.
       </p>
+      <label class="settings-field">
+        <input type="checkbox" id="freelance-study-while-developing" />
+        同時にプログラムの学習も行なう / Also study programming at the same time
+      </label>
       <div id="freelance-job-results" class="setup-note"></div>
       <p class="setup-note">
         検索結果ページで気になった案件があれば、URLやテキスト・画像を通常のブラウザ操作で
@@ -1755,13 +1764,16 @@ cd aruaru-db
       <p class="setup-note">
         「AI先生に相談」を押すたびに、選んだ産業・言語・フレームワーク・WEBサーバー・DATABASE・
         案件メモをここで有効にした送信先へ記録します(1つ選んでも、複数同時に選んでも構いません。
-        1つが失敗しても他の送信先は続行します)。<strong>今回のパスは設定の保存のみで、実際の
-        書き込み処理はまだ実装していません</strong>(次の実装ステップ)。<br />
+        1つが失敗しても他の送信先は続行します)。<strong>VPS・ローカルドライブへの実際の書き込みは
+        実装済みです</strong>(下のパスを指定してください)。<strong>aruaru-db・PostgreSQL・
+        Googleドライブは、設定の保存のみで実際の書き込み処理はまだ実装していません</strong>
+        (次の実装ステップ)。<br />
         Each time you click "Ask the AI teacher", your chosen industry/language/framework/web
         server/database/job notes are recorded to whichever destinations you enable here (pick
-        one, or several at once — a failure in one doesn't stop the others). <strong>This pass only
-        saves the settings themselves; the actual write logic is not implemented yet</strong> (next
-        step).
+        one, or several at once — a failure in one doesn't stop the others). <strong>Actual writes
+        to VPS and local drive are implemented</strong> (specify a path below).
+        <strong>aruaru-db, PostgreSQL, and Google Drive currently only save the settings
+        themselves; the write logic isn't implemented yet</strong> (next step).
       </p>
       <div id="freelance-savedest-summary" class="setup-note hidden">
         <span id="freelance-savedest-summary-text"></span>
@@ -1784,13 +1796,26 @@ cd aruaru-db
           <input type="checkbox" id="freelance-savedest-vps" />
           VPS(上部の「🔌自動読み書きSETUP状況」パネルのVPS設定をそのまま利用 / reuses the VPS setup from the "🔌 Auto read/write setup status" panel above)
         </label>
+        <label class="setup-label">
+          VPS上の保存先パス(サーバー起動時の<code>OPEN_ENGLISH_VPS_ALLOWED_PATHS</code>で許可した
+          ディレクトリ配下) / Path on the VPS (must be under a directory allowed via
+          <code>OPEN_ENGLISH_VPS_ALLOWED_PATHS</code> at server startup)<br />
+          <input type="text" id="freelance-savedest-vps-path" class="setup-input" placeholder="/home/youruser/freelance-progress/progress.json" />
+        </label>
         <label class="settings-field">
           <input type="checkbox" id="freelance-savedest-google-drive" />
           Googleドライブ(認証情報はサーバー起動時の環境変数で設定 / credentials set via server environment variables)
         </label>
         <label class="settings-field">
           <input type="checkbox" id="freelance-savedest-local-drive" />
-          ローカルドライブ(上部パネルで選択済みのフォルダへ保存 / saves into the folder already chosen in the panel above)
+          ローカルドライブ(サーバー起動時の<code>OPEN_ENGLISH_AGENT_ALLOWED_DIRS</code>で許可した
+          フォルダ配下、下で選択 / a folder allowed via <code>OPEN_ENGLISH_AGENT_ALLOWED_DIRS</code>
+          at server startup, chosen below)
+        </label>
+        <label class="setup-label">
+          ローカルドライブの保存先ファイル / Local drive save file<br />
+          <input type="text" id="freelance-savedest-local-drive-path" class="setup-input" readonly placeholder="(フォルダを選択してください / choose a folder)" />
+          <button type="button" class="browse-btn setup-btn" data-target-input="freelance-savedest-local-drive-path" data-filename="freelance-progress.json">📁 フォルダを選択 / Choose folder</button>
         </label>
         <button type="button" id="freelance-savedest-save-btn" class="setup-btn">💾 保存先の設定を保存 / Save destination settings</button>
         <p id="freelance-savedest-status" class="setup-note"></p>

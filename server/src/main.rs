@@ -2347,6 +2347,9 @@ fn percent_decode(s: &str) -> String {
 // ============================================================
 
 async fn agent_local_read(req: Request) -> Response {
+    if let Err(resp) = require_local_or_admin(&req) {
+        return resp;
+    }
     let Some(path) = query_param(&req, "path") else {
         return rs_json_response(StatusCode::BAD_REQUEST, &serde_json::json!({"error": "missing 'path' query parameter"}));
     };
@@ -2364,6 +2367,9 @@ struct LocalWriteRequest {
 }
 
 async fn agent_local_write(req: Request) -> Response {
+    if let Err(resp) = require_local_or_admin(&req) {
+        return resp;
+    }
     let body: LocalWriteRequest = match read_rs_json_body(req).await {
         Ok(v) => v,
         Err(resp) => return resp,
@@ -2375,15 +2381,24 @@ async fn agent_local_write(req: Request) -> Response {
     }
 }
 
-async fn agent_local_status(_req: Request) -> Response {
+async fn agent_local_status(req: Request) -> Response {
+    if let Err(resp) = require_local_or_admin(&req) {
+        return resp;
+    }
     rs_json_response(StatusCode::OK, &local_agent::status())
 }
 
-async fn agent_vps_status(_req: Request) -> Response {
+async fn agent_vps_status(req: Request) -> Response {
+    if let Err(resp) = require_local_or_admin(&req) {
+        return resp;
+    }
     rs_json_response(StatusCode::OK, &vps_agent::status())
 }
 
 async fn agent_vps_read(req: Request) -> Response {
+    if let Err(resp) = require_local_or_admin(&req) {
+        return resp;
+    }
     let Some(path) = query_param(&req, "path") else {
         return rs_json_response(StatusCode::BAD_REQUEST, &serde_json::json!({"error": "missing 'path' query parameter"}));
     };
@@ -2400,6 +2415,9 @@ struct VpsWriteRequest {
 }
 
 async fn agent_vps_write(req: Request) -> Response {
+    if let Err(resp) = require_local_or_admin(&req) {
+        return resp;
+    }
     let body: VpsWriteRequest = match read_rs_json_body(req).await {
         Ok(v) => v,
         Err(resp) => return resp,
@@ -2413,6 +2431,9 @@ async fn agent_vps_write(req: Request) -> Response {
 /// GitHubトークンはヘッダ(`x-github-token`)経由で都度受け取る(クエリ
 /// 文字列やURLへは載せない——アクセスログ等への平文残留を避けるため)。
 async fn agent_github_read(req: Request) -> Response {
+    if let Err(resp) = require_local_or_admin(&req) {
+        return resp;
+    }
     let token = req.headers().get("x-github-token").and_then(|v| v.to_str().ok()).map(str::to_string);
     let Some(owner) = query_param(&req, "owner") else {
         return rs_json_response(StatusCode::BAD_REQUEST, &serde_json::json!({"error": "missing 'owner' query parameter"}));
@@ -2445,6 +2466,9 @@ struct GithubCommitRequest {
 }
 
 async fn agent_github_commit(req: Request) -> Response {
+    if let Err(resp) = require_local_or_admin(&req) {
+        return resp;
+    }
     let body: GithubCommitRequest = match read_rs_json_body(req).await {
         Ok(v) => v,
         Err(resp) => return resp,
@@ -2457,7 +2481,10 @@ async fn agent_github_commit(req: Request) -> Response {
 
 /// サーバー側管理モードのGitHubトークン設定状況を返す(2026-09-01新設)。
 /// トークン自体は絶対に返さない(configured真偽値のみ)。
-async fn agent_github_status(_req: Request) -> Response {
+async fn agent_github_status(req: Request) -> Response {
+    if let Err(resp) = require_local_or_admin(&req) {
+        return resp;
+    }
     rs_json_response(StatusCode::OK, &github_agent::status())
 }
 
@@ -2481,6 +2508,9 @@ struct GithubCreateAndPushRequest {
 /// 汎用エンドポイントとして引き続きトークンを受け取る設計のまま残す
 /// ——このエンドポイントはそれとは別の、より安全な選択肢)。
 async fn agent_github_create_and_push(req: Request) -> Response {
+    if let Err(resp) = require_local_or_admin(&req) {
+        return resp;
+    }
     let body: GithubCreateAndPushRequest = match read_rs_json_body(req).await {
         Ok(v) => v,
         Err(resp) => return resp,
