@@ -2952,11 +2952,16 @@ async function askTrainer(userText) {
     return "⚠ クラウドAIから回答を得られず、ローカルLLMもOFFです。下部の「⚙ 選ぶ」でローカルLLMをONにするか、クラウドAIを選び直してください。 / No cloud AI could answer and the local LLM is turned OFF. Turn the local LLM on, or pick cloud AIs, under \"⚙ Choose\" at the bottom.";
   }
 
-  // Google検索補強(ユーザー指示「発話・入力の都度Google検索する」への
-  // 対応、ブリッジ式)。2026-09-12以降、キーが設定済みなら手動トグル無しで
-  // 毎回自動的にON(強制適用)——`googleSearchKeyConfigured`は
-  // `refreshGoogleSearchStatus()`が更新する。
-  const useWebSearch = googleSearchKeyConfigured;
+  // 検索補強(ユーザー指示「発話・入力の都度Google検索する」+2026-09-28
+  // 「aruaru-searchは、会話中は常にONとして下さい」への対応)。
+  // 従来は訪問者自身のGoogle検索APIキーが設定済みの場合のみ`/v1/
+  // generate-with-search`を呼んでいたが、この経路はサーバー側で
+  // aruaru-search(無制限・APIキー不要)を必ず先に試す設計(2026-09-27の
+  // 優先順位修正)のため、**訪問者がGoogle検索キーを持っているかどうかに
+  // 関わらず常にこの経路を使う**よう変更した。訪問者自身のキーは、
+  // aruaru-search・共有設定のいずれもダメだった場合(`used_search ===
+  // false`)にのみ、下の予備フォールバックとして参照される。
+  const useWebSearch = true;
 
   // 2026-08-25追加: Google検索補強がONの場合、このブラウザに保存された
   // 訪問者自身のAPIキー/cx(あれば)を使う。
@@ -3081,12 +3086,25 @@ async function askTrainer(userText) {
     throw new Error(`aruaru-llm returned HTTP ${res.status}${detail}`);
   }
   let data = await res.json();
-  // 2026-09-26追加: aruaru-search(無制限・最優先)+共有キーがどちらも
-  // ダメだった場合(`used_search === false`)のみ、訪問者自身の鍵/保管庫を
-  // 「無料枠のみの予備」として試す。ここで初めて`googleSearchDirect`/
-  // `googleSearchRequestVault`を呼ぶ(以前はここを毎回・無条件に呼んで
-  // aruaru-searchより先に使ってしまっていた)。
-  if (useWebSearch && data && data.used_search === false && (ownGoogleSearchCreds || useVaultSearchPath) && googleSearchConsecutiveFailures < GOOGLE_SEARCH_CIRCUIT_BREAKER_LIMIT) {
+  // 2026-09-26追加、2026-09-28追記(ユーザー指示「無制限の検索システムが
+  // 使えないトラブルが発生してGoogle検索の1日100回までの制限に移っている
+  // 時は、無駄な検索を毎回はしない、回答に自信が無い時に、Google検索して
+  // 節約して」): aruaru-search(無制限・最優先)+共有キーがどちらもダメ
+  // だった場合(`used_search === false`)でも、無条件に訪問者自身の鍵/
+  // 保管庫(1日100回までのGoogle無料枠)を消費しない——AI自身が検索
+  // 無しで生成した回答(`data.completion`)が`looksUncertain()`の
+  // ヘッジ表現を含む(=自信が無い)場合に**限って**、無料枠のみの予備
+  // フォールバックとして試す。ここで初めて`googleSearchDirect`/
+  // `googleSearchRequestVault`を呼ぶ(以前はaruaru-search失敗時に毎回・
+  // 無条件で呼んでいた)。
+  if (
+    useWebSearch &&
+    data &&
+    data.used_search === false &&
+    looksUncertain(data.completion) &&
+    (ownGoogleSearchCreds || useVaultSearchPath) &&
+    googleSearchConsecutiveFailures < GOOGLE_SEARCH_CIRCUIT_BREAKER_LIMIT
+  ) {
     try {
       directSearchResults = useVaultSearchPath
         ? await googleSearchRequestVault(userText, 3)
@@ -3761,7 +3779,12 @@ function shouldBoostWithGoogleSearch() {
     forceSearchBoostOnce = false;
     return true;
   }
-  if (freelanceDevelopmentModeActive) return true;
+  // 2026-09-28変更: aruaru-search(無制限)は`useWebSearch`が常時trueに
+  // なったことで既に毎回自動的に試されるため、ここ(クラウドプロバイダ
+  // 経由の実際のGoogle検索APIを叩く経路)を`freelanceDevelopmentModeActive`
+  // で強制ONにする必要は無くなった——強制すると1日100回制限の実クォータを
+  // 毎ターン消費してしまうため、意図的に外した(GitHub調査は事情が
+  // 異なるため下の`shouldBoostWithGithubSearch`側でのみ引き続き維持)。
   if (voiceInputLowConfidence) return true;
   if (wantsLatestInfo(currentTurnUserText)) return true;
   const target = typeof learnTargetEl !== "undefined" && learnTargetEl ? learnTargetEl.value : "";
