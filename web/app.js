@@ -3086,21 +3086,22 @@ async function askTrainer(userText) {
     throw new Error(`aruaru-llm returned HTTP ${res.status}${detail}`);
   }
   let data = await res.json();
-  // 2026-09-26追加、2026-09-28追記(ユーザー指示「無制限の検索システムが
+  // 2026-09-26追加、2026-09-28追記×2(ユーザー指示「無制限の検索システムが
   // 使えないトラブルが発生してGoogle検索の1日100回までの制限に移っている
   // 時は、無駄な検索を毎回はしない、回答に自信が無い時に、Google検索して
-  // 節約して」): aruaru-search(無制限・最優先)+共有キーがどちらもダメ
-  // だった場合(`used_search === false`)でも、無条件に訪問者自身の鍵/
-  // 保管庫(1日100回までのGoogle無料枠)を消費しない——AI自身が検索
-  // 無しで生成した回答(`data.completion`)が`looksUncertain()`の
-  // ヘッジ表現を含む(=自信が無い)場合に**限って**、無料枠のみの予備
-  // フォールバックとして試す。ここで初めて`googleSearchDirect`/
-  // `googleSearchRequestVault`を呼ぶ(以前はaruaru-search失敗時に毎回・
-  // 無条件で呼んでいた)。
+  // 節約して」→さらに「無制限の検索＋aruaru-llmを両方使っても自信が無い
+  // 時も、Google検索して下さい」): 判定基準は**`used_search`の成否では
+  // なく、常に回答自体(`data.completion`)が`looksUncertain()`のヘッジ
+  // 表現を含むかどうか**に一本化した。つまり(a) aruaru-search・共有
+  // 設定がダメで検索無しの回答になった場合も、(b) aruaru-searchが実際に
+  // 使われた(`used_search === true`)のにそれでも回答が自信なさげだった
+  // 場合も、いずれも同じ条件で無料枠のみの予備フォールバックを試す
+  // (`used_search`は判定に使わない)。自信のある回答の場合は
+  // `used_search`の成否に関わらずGoogle検索を消費しない、という節約
+  // 方針は維持している。
   if (
     useWebSearch &&
     data &&
-    data.used_search === false &&
     looksUncertain(data.completion) &&
     (ownGoogleSearchCreds || useVaultSearchPath) &&
     googleSearchConsecutiveFailures < GOOGLE_SEARCH_CIRCUIT_BREAKER_LIMIT
