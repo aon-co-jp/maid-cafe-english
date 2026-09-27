@@ -1102,6 +1102,13 @@ cargo run --release</pre>
         <input type="password" id="provider-key-claude" autocomplete="off" placeholder="sk-ant-..." />
       </label>
       <label class="settings-field">
+        <input type="checkbox" id="claude-combo-enable" />
+        有料版のClaudeを契約済みの方はこちらにチェック——Claudeをこのアプリの回答(最優先)・検索の両方に
+        組み込みます / If you have a paid Claude subscription, check this to incorporate Claude into both
+        this app's AI replies (top priority) and search
+      </label>
+      <p id="claude-combo-status" class="setup-note"></p>
+      <label class="settings-field">
         Groq API Key(無料枠 / free tier) <span id="provider-key-status-groq" class="setup-note" style="display:inline; padding:2px 6px;"></span>
         <input type="password" id="provider-key-groq" autocomplete="off" placeholder="gsk_..." />
       </label>

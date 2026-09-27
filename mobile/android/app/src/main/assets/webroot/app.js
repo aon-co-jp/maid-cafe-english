@@ -8623,6 +8623,114 @@ if (googleSearchBtn && googleSearchModal) {
     /* ignore */
   }
 
+  // 2026-09-28追加(ユーザー指示「有料版のClaudeを申し込んで契約されている方で、
+  // open-englishと同時にClaudeをAIと検索に組み込む、と言うチェックボックスを
+  // 付けられる様にして」): チェック1つで、Claudeを最優先プロバイダに設定し、
+  // 検索連携(Google/GitHub)も一緒に有効化する近道。Claudeキー自体はご自身で
+  // 入力する必要がある(チェックだけでは認証できないため)。
+  const CLAUDE_COMBO_ENABLED_KEY = "open-english.claudeComboEnabled";
+  // 2026-09-28追記(ユーザー指示「その時のClaudeは、新規プロジェクトにしますか？と
+  // 尋ねて来る機能も付けて」): チェックを入れた際に、新規プロジェクトとして始めるか、
+  // 既存プロジェクトの続きとして扱うかを尋ね、その回答を以後の依頼文へ添える。
+  const CLAUDE_COMBO_NEW_PROJECT_KEY = "open-english.claudeComboNewProject";
+  // 2026-09-28追記(ユーザー指示「それと、どこのプロジェクト内の会話にしますか？とも
+  // 尋ねて来る機能もつけて」): 新規/既存のいずれを選んでも、その会話をどのプロジェクト
+  // 名で扱うかを追加で尋ね、以後の依頼文へ添える(新規なら新しいプロジェクト名、
+  // 既存の続きなら対象の既存プロジェクト名)。
+  const CLAUDE_COMBO_PROJECT_NAME_KEY = "open-english.claudeComboProjectName";
+  const claudeComboEl = document.getElementById("claude-combo-enable");
+  const claudeComboStatusEl = document.getElementById("claude-combo-status");
+  function refreshClaudeComboStatus() {
+    if (!claudeComboStatusEl) return;
+    if (!claudeComboEl || !claudeComboEl.checked) {
+      claudeComboStatusEl.textContent = "";
+      return;
+    }
+    let isNewProject = null;
+    let projectName = "";
+    try {
+      isNewProject = localStorage.getItem(CLAUDE_COMBO_NEW_PROJECT_KEY);
+      projectName = localStorage.getItem(CLAUDE_COMBO_PROJECT_NAME_KEY) || "";
+    } catch (e) {
+      /* ignore */
+    }
+    let projectNote = isNewProject === "1"
+      ? "新規プロジェクトとして開始 / started as a new project"
+      : isNewProject === "0"
+        ? "既存プロジェクトの続きとして開始 / continuing as an existing project"
+        : "";
+    if (projectNote && projectName) projectNote += `: "${projectName}"`;
+    claudeComboStatusEl.textContent = `✅ Claudeを最優先AI+検索連携に組み込み中${projectNote ? "(" + projectNote + ")" : ""} / Claude is incorporated as the top-priority AI + search`;
+  }
+  if (claudeComboEl) {
+    try {
+      claudeComboEl.checked = localStorage.getItem(CLAUDE_COMBO_ENABLED_KEY) === "1";
+    } catch (e) {
+      /* ignore */
+    }
+    refreshClaudeComboStatus();
+    claudeComboEl.addEventListener("change", async () => {
+      if (!claudeComboEl.checked) {
+        try {
+          localStorage.setItem(CLAUDE_COMBO_ENABLED_KEY, "0");
+        } catch (e) {
+          /* ignore */
+        }
+        refreshClaudeComboStatus();
+        return;
+      }
+      const hasKeyField = document.getElementById("provider-key-claude")?.value.trim();
+      const hasSavedKey = (() => {
+        try {
+          return !!localStorage.getItem(PROVIDER_KEY_LOCAL_PREFIX + "claude");
+        } catch (e) {
+          return false;
+        }
+      })();
+      if (!hasKeyField && !hasSavedKey) {
+        alert(
+          "先に上の「Claude (Anthropic) API Key」欄へご自身のAPIキーを入力してください。 / " +
+          "Please enter your own Claude (Anthropic) API key above first."
+        );
+        claudeComboEl.checked = false;
+        return;
+      }
+      // 「新規プロジェクトにしますか？」— OKで新規、キャンセルで既存の続きとして扱う。
+      const startNewProject = confirm(
+        "その時のClaudeは、新規プロジェクトにしますか？\n" +
+        "(OK = 新規プロジェクトとして開始 / Cancel = 既存プロジェクトの続きとして開始)\n\n" +
+        "Start this as a new Claude project?\n(OK = new project / Cancel = continue an existing project)"
+      );
+      // 「どこのプロジェクト内の会話にしますか？」— 新規ならこれから作る
+      // プロジェクト名、既存の続きなら対象の既存プロジェクト名を尋ねる。
+      let existingProjectName = "";
+      try {
+        existingProjectName = localStorage.getItem(CLAUDE_COMBO_PROJECT_NAME_KEY) || "";
+      } catch (e) {
+        /* ignore */
+      }
+      const projectPromptText = startNewProject
+        ? "どこのプロジェクト内の会話にしますか？(新しいプロジェクト名を入力してください) / " +
+          "Which project should this conversation belong to? (enter a name for the new project)"
+        : "どこのプロジェクト内の会話にしますか？(既存のプロジェクト名を入力してください) / " +
+          "Which project should this conversation belong to? (enter the name of the existing project)";
+      const projectName = (prompt(projectPromptText, existingProjectName) || "").trim();
+      try {
+        localStorage.setItem(CLAUDE_COMBO_ENABLED_KEY, "1");
+        localStorage.setItem(CLAUDE_COMBO_NEW_PROJECT_KEY, startNewProject ? "1" : "0");
+        localStorage.setItem(CLAUDE_COMBO_PROJECT_NAME_KEY, projectName);
+      } catch (e) {
+        /* ignore */
+      }
+      enabledEl.checked = true;
+      if (useGoogleEl) useGoogleEl.checked = true;
+      if (useGithubEl) useGithubEl.checked = true;
+      setPosition("claude", 1);
+      await saveToAruaruLlm();
+      refreshClaudeComboStatus();
+    });
+  }
+
   // 番号入力欄・ラジオボタンいずれで指定しても同じ`setPosition`を通す
   // (既存の言語表示順3系統連動指定〈`setLanguageOrderPosition`〉と同じ
   // 「重複は入れ替えで解決する」設計)。
@@ -17370,6 +17478,18 @@ if (freelanceAskTeacherBtn) {
     }
     question += "\n\n(aruaru-search経由の無制限検索とGitHub調査を活用して、最新情報も踏まえて回答してください。 / " +
       "Please use aruaru-search's unlimited search and a GitHub investigation to ground your answer in current information.)";
+    try {
+      if (localStorage.getItem("open-english.claudeComboEnabled") === "1") {
+        const isNewProject = localStorage.getItem("open-english.claudeComboNewProject");
+        const projectName = localStorage.getItem("open-english.claudeComboProjectName") || "";
+        const projectPhrase = projectName ? `「${projectName}」` : "";
+        question += isNewProject === "1"
+          ? `\n\n(これは新規プロジェクト${projectPhrase}として開始してください。 / Please start this as a new project${projectName ? ` named "${projectName}"` : ""}.)`
+          : `\n\n(これは既存プロジェクト${projectPhrase}の続きとして扱ってください。 / Please treat this as a continuation of the existing project${projectName ? ` named "${projectName}"` : ""}.)`;
+      }
+    } catch (_) {
+      /* ignore */
+    }
     if (inputEl && formEl) {
       inputEl.value = question;
       freelanceCornerModal?.classList.add("hidden");
