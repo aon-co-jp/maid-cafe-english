@@ -3720,6 +3720,14 @@ let forceSearchBoostOnce = false;
 // 「AI先生に相談」を押した次の1回だけ、GitHub調査も強制的に有効化する
 // (`forceSearchBoostOnce`と同じ使い切りフラグパターン)。
 let forceGithubSearchBoostOnce = false;
+// 2026-09-28追記(ユーザー指摘「なぜ一回のリクエストに限りなのか」への対応): 上記2つの
+// 使い切りフラグは「最初の1通だけ検索が効いて、2通目以降は素のAI回答に戻ってしまう」という
+// 問題があった。フリーランス案件の共同開発は複数往復の会話になるため、「AI先生に相談」を
+// 押した後は、会話が続く限り(ページを閉じる/リロードするまで)常にaruaru-search+GitHub調査を
+// 強制ONにし続ける設計へ変更した。aruaru-searchは無制限のため常時ONでも問題無いが、
+// GitHub検索(未認証時1時間60回まで)は毎回発火するため、頻繁に使う場合はご自身のGitHub
+// トークンを設定しておくことを推奨する(既存の`GITHUB_TOKEN_LOCAL_KEY`をそのまま利用)。
+let freelanceDevelopmentModeActive = false;
 const AI_UNCERTAINTY_MARKERS = [
   "わかりません", "分かりません", "存じません", "不明です", "確信が持てません", "自信がありません",
   "知りません", "断定できません", "はっきりとは分かりません",
@@ -3753,6 +3761,7 @@ function shouldBoostWithGoogleSearch() {
     forceSearchBoostOnce = false;
     return true;
   }
+  if (freelanceDevelopmentModeActive) return true;
   if (voiceInputLowConfidence) return true;
   if (wantsLatestInfo(currentTurnUserText)) return true;
   const target = typeof learnTargetEl !== "undefined" && learnTargetEl ? learnTargetEl.value : "";
@@ -3766,6 +3775,7 @@ function shouldBoostWithGithubSearch() {
     forceGithubSearchBoostOnce = false;
     return true;
   }
+  if (freelanceDevelopmentModeActive) return true;
   return wantsLatestInfo(currentTurnUserText) && mentionsGithubTopic(currentTurnUserText);
 }
 
@@ -17339,11 +17349,12 @@ if (freelanceAskTeacherBtn) {
     if (inputEl && formEl) {
       inputEl.value = question;
       freelanceCornerModal?.classList.add("hidden");
-      // aruaru-search(無制限検索)+GitHub調査を、この1回の送信だけ強制的に有効化する
-      // (ユーザー指示「aruaru-llmのAIと無制限の検索システムと、Github調査を上手く駆使して
-      // 活用する事で、フリーランス案件を一緒に開発」への対応)。
-      forceSearchBoostOnce = true;
-      forceGithubSearchBoostOnce = true;
+      // aruaru-search(無制限検索)+GitHub調査を、以後この会話が続く限り常に強制的に
+      // 有効化する(ユーザー指示「aruaru-llmのAIと無制限の検索システムと、Github調査を
+      // 上手く駆使して活用する事で、フリーランス案件を一緒に開発」+「なぜ一回のリクエストに
+      // 限りなのか」というご指摘への対応——1通目だけでなく、以降の全ての返信でも
+      // 検索・GitHub調査を効かせ続ける)。
+      freelanceDevelopmentModeActive = true;
       formEl.requestSubmit();
     }
   });
