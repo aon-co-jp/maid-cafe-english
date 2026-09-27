@@ -75,6 +75,34 @@
   }
 })();
 
+// 実バグ修正(2026-09-24、ユーザー報告「スマホで文字を入力後に画面の右側の
+// 実行ボタンが効かないBUG」): 上の`rescroll`はフォーカス中の**入力欄**を
+// キーボードより上へスクロールして見せるためのものだが、送信ボタン自体は
+// `#chat-dock`(`position: fixed; bottom: 0`)という別要素の中にあり、
+// ページスクロールの対象外(fixed要素はスクロールに追従しない)。
+// AndroidのWebView/Chromeではキーボード表示中もレイアウトビューポート
+// (`bottom: 0`の基準)自体は縮まない構成のため、`#chat-dock`はキーボードの
+// 真裏(=画面上は隠れて見えているように錯覚するが、実際のタップ座標では
+// キーボード側が受け取ってしまう)に取り残されていた。`visualViewport`が
+// 報告する「実際に見えている範囲」の下端に合わせて`#chat-dock`自体を
+// `translateY`で押し上げることで、送信ボタンが常にキーボードの上・
+// タップ可能な位置に来るようにする。
+(function keepChatDockAboveKeyboard() {
+  if (!window.visualViewport) return;
+  const reposition = () => {
+    const dock = document.getElementById("chat-dock");
+    if (!dock) return;
+    const vv = window.visualViewport;
+    // レイアウトビューポートの下端から、実際に見えている範囲(visualViewport)の
+    // 下端までの距離=キーボード等に隠れている高さ。
+    const hiddenBottom = window.innerHeight - (vv.height + vv.offsetTop);
+    dock.style.transform = hiddenBottom > 1 ? `translateY(-${hiddenBottom}px)` : "";
+  };
+  window.visualViewport.addEventListener("resize", reposition);
+  window.visualViewport.addEventListener("scroll", reposition);
+  reposition();
+})();
+
 // 実バグ修正(2026-09-07): このファイル全体で`fetch("/v1/...")`のように
 // **絶対パス**でサーバー自身のAPIを呼んでいる箇所が多数あるため、
 // `https://easy-web.tokyo/open-english/`のようなパスプレフィックス配下に
@@ -2958,39 +2986,26 @@ async function askTrainer(userText) {
   const googleSearchMode = document.getElementById("google-search-key-mode")?.value || "plain";
   const useVaultSearchPath = useWebSearch && googleSearchMode === "vault";
 
+  // 2026-09-26変更(ユーザー指示「aruaru-searchの無制限の検索システムを
+  // open-englishに最優先で使用する様に組み込んで」): 以前はここで
+  // 訪問者自身の鍵(または保管庫)が設定されていれば無条件に
+  // 「ブラウザから直接Google検索」を選び、aruaru-llm側で最優先になった
+  // はずのaruaru-search(APIキー不要・VPSで完全無料・1日上限なし)を
+  // 一度も試さずに素通りしていた。
+  //
+  // 修正後: まず`/v1/generate-with-search`(aruaru-llm経由、内部で
+  // aruaru-search→〈利用不可なら〉共有キーの順に自動フォールバック)を
+  // 必ず試す。訪問者の鍵は依然としてこの一次リクエストには一切含めない
+  // (2026-08-27からの既存方針「aruaru-llmに一切キーを渡さない」を
+  // 継続)。サーバー応答の`used_search`が`false`(=aruaru-search・共有
+  // キーともダメだった)場合に**初めて**、訪問者自身の鍵/保管庫を
+  // 「無料枠のみを使う予備」として使う——これにより実際の優先順位は
+  // aruaru-search(無制限) > 訪問者の無料枠キー(予備) > 何もしない、
+  // という意図した並びになる。
   let directSearchResults = null;
   let directSearchError = null;
-  // 2026-09-13追加(簡易サーキットブレーカー): Google検索補強を「鍵設定後は
-  // 常時ON」にした結果、鍵/cxが実際には無効なままだと**毎メッセージ**で
-  // 8秒待たされた上に失敗通知が付くことになり、体感速度が悪化する
-  // (ユーザー報告)。同一セッション内で連続3回失敗したら、それ以降は
-  // 検索を自動で見送り(通常生成のみ)、その旨を一度だけ伝える——鍵の
-  // 再設定(設定パネルを開き直す)でリセットされる。
-  if (useVaultSearchPath && googleSearchConsecutiveFailures < GOOGLE_SEARCH_CIRCUIT_BREAKER_LIMIT) {
-    try {
-      directSearchResults = await googleSearchRequestVault(userText, 3);
-      googleSearchConsecutiveFailures = 0;
-    } catch (err) {
-      directSearchError = err.message || String(err);
-      googleSearchConsecutiveFailures += 1;
-    }
-  } else if (useWebSearch && ownGoogleSearchCreds && googleSearchConsecutiveFailures < GOOGLE_SEARCH_CIRCUIT_BREAKER_LIMIT) {
-    try {
-      directSearchResults = await googleSearchDirect(userText, ownGoogleSearchCreds.api_key, ownGoogleSearchCreds.cx, 3);
-      googleSearchConsecutiveFailures = 0;
-    } catch (err) {
-      directSearchError = err.message || String(err);
-      googleSearchConsecutiveFailures += 1;
-      if (googleSearchConsecutiveFailures === GOOGLE_SEARCH_CIRCUIT_BREAKER_LIMIT) {
-        directSearchError +=
-          " (Search paused for the rest of this session after repeated failures — check your key/Search Engine ID in 🔎 Setup Google Search, then reopen it to retry. / " +
-          "連続失敗のため、このセッション中は検索を一時停止します——🔎 Setup Google Searchでキー・検索エンジンIDをご確認の上、再度開けば再試行できます。)";
-      }
-    }
-  }
-
-  const useDirectSearchPath = useWebSearch && (ownGoogleSearchCreds || useVaultSearchPath);
-  const endpoint = useWebSearch && !useDirectSearchPath ? "/v1/generate-with-search" : "/v1/generate";
+  let useDirectSearchPath = false;
+  const endpoint = useWebSearch ? "/v1/generate-with-search" : "/v1/generate";
   // 2026-08-27バグ修正: `prompt`(メイドカフェ講師ペルソナ+レベル指示+
   // 「Student: ...\nTrainer:」まで組み込んだ、既にラップ済みのテンプレート)
   // をそのまま`buildSearchAugmentedPromptClient`の「質問」として渡すと、
@@ -3065,7 +3080,48 @@ async function askTrainer(userText) {
     } catch (_) { /* JSONでない場合は無視 */ }
     throw new Error(`aruaru-llm returned HTTP ${res.status}${detail}`);
   }
-  const data = await res.json();
+  let data = await res.json();
+  // 2026-09-26追加: aruaru-search(無制限・最優先)+共有キーがどちらも
+  // ダメだった場合(`used_search === false`)のみ、訪問者自身の鍵/保管庫を
+  // 「無料枠のみの予備」として試す。ここで初めて`googleSearchDirect`/
+  // `googleSearchRequestVault`を呼ぶ(以前はここを毎回・無条件に呼んで
+  // aruaru-searchより先に使ってしまっていた)。
+  if (useWebSearch && data && data.used_search === false && (ownGoogleSearchCreds || useVaultSearchPath) && googleSearchConsecutiveFailures < GOOGLE_SEARCH_CIRCUIT_BREAKER_LIMIT) {
+    try {
+      directSearchResults = useVaultSearchPath
+        ? await googleSearchRequestVault(userText, 3)
+        : await googleSearchDirect(userText, ownGoogleSearchCreds.api_key, ownGoogleSearchCreds.cx, 3);
+      googleSearchConsecutiveFailures = 0;
+    } catch (err) {
+      directSearchError = err.message || String(err);
+      googleSearchConsecutiveFailures += 1;
+      if (googleSearchConsecutiveFailures === GOOGLE_SEARCH_CIRCUIT_BREAKER_LIMIT) {
+        directSearchError +=
+          " (Search paused for the rest of this session after repeated failures — check your key/Search Engine ID in 🔎 Setup Google Search, then reopen it to retry. / " +
+          "連続失敗のため、このセッション中は検索を一時停止します——🔎 Setup Google Searchでキー・検索エンジンIDをご確認の上、再度開けば再試行できます。)";
+      }
+    }
+    if (directSearchResults && directSearchResults.length > 0) {
+      useDirectSearchPath = true;
+      const fallbackPrompt = buildSearchAugmentedPromptClient(formatSearchResultsAsContext(directSearchResults), userText);
+      const fallbackBody = { prompt: fallbackPrompt, max_new_tokens: inputIsJapanese ? 12 : 24 };
+      try {
+        const fallbackRes = await fetchWithTimeout(`${base}/v1/generate`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(fallbackBody),
+        }, timeoutMs);
+        if (fallbackRes.ok) {
+          data = await fallbackRes.json();
+        }
+      } catch (_) {
+        // フォールバック自体が失敗しても、一次応答(検索無し)をそのまま使う
+        // (可用性優先の既存方針)。
+      }
+    } else if (directSearchError) {
+      useDirectSearchPath = true;
+    }
+  }
   lastReplyLatencyMs = Math.round(performance.now() - startedAt);
   // 応答に含まれる`engine`(実行経路サフィックス付き、例
   // `distilgpt2-greedy-decode-v0-open-cuda-llm-cpu`)でバッジを最新化する
@@ -5973,6 +6029,19 @@ function fourNinesGradeMessage(grade) {
   }
 }
 
+// 2026-09-24新設(ユーザー指示「文字入力後に、エンターキーでも、画面の
+// エンターキーでも良い様にしましょう」): 物理キーボードのEnterキーは
+// <input type="text">がフォーム内にあれば通常はネイティブ送信されるが、
+// モバイルの仮想キーボードの「Enter/Go/送信」キーは機種・IME実装により
+// ネイティブsubmitが発火しない場合があるため、明示的にrequestSubmit()を
+// 呼ぶフォールバックを追加する。日本語IME変換中のEnter(確定操作)で
+// 誤送信しないよう、isComposing中は無視する。
+inputEl.addEventListener("keydown", (e) => {
+  if (e.key !== "Enter" || e.isComposing) return;
+  e.preventDefault();
+  formEl.requestSubmit();
+});
+
 formEl.addEventListener("submit", async (e) => {
   e.preventDefault();
   const text = inputEl.value.trim();
@@ -7007,7 +7076,17 @@ if (SpeechRecognitionImpl) {
     resetMicButton();
   }
 
-  micBtn.addEventListener("click", () => {
+  // 2026-09-24新設(ユーザー指示「open-englishを起動したら、音声入力は
+  // 常時ONにしましょう」): タップの都度マイクを押す従来方式に加え、
+  // 起動時から自動でマイクを待ち受け、確定→送信→(必要なら)結果を
+  // 話し終えたら自動で次の待ち受けを再開する「常時ON」モードを既定とする。
+  // キャラクターの読み上げ中にマイクが自分の声を拾って誤認識するのを
+  // 防ぐため、speechSynthesis.speaking中は待ち受けを開始しない。
+  let voiceAlwaysOn = true;
+  let micIsListening = false;
+
+  function startListening() {
+    if (micIsListening) return;
     const tag = speechLangTag();
     activeSpeechLang = tag;
     recognition.lang = tag;
@@ -7020,6 +7099,36 @@ if (SpeechRecognitionImpl) {
     } catch (err) {
       // 既に開始中の場合など。
     }
+  }
+
+  function scheduleAutoListen(delayMs) {
+    if (!voiceAlwaysOn) return;
+    setTimeout(() => {
+      if (!voiceAlwaysOn || micIsListening) return;
+      if ("speechSynthesis" in window && window.speechSynthesis.speaking) {
+        scheduleAutoListen(300); // 読み上げ中はキャラクターの声を拾わないよう再チェック
+        return;
+      }
+      if (document.hidden) return; // バックグラウンドタブでは待ち受けない
+      startListening();
+    }, delayMs || 0);
+  }
+
+  micBtn.addEventListener("click", () => {
+    if (micIsListening) {
+      // 常時ON中でも、利用者が手動で今すぐ止めたい場合に対応。
+      voiceAlwaysOn = false;
+      try {
+        recognition.stop();
+      } catch (err) {}
+      return;
+    }
+    voiceAlwaysOn = true;
+    startListening();
+  });
+
+  recognition.addEventListener("start", () => {
+    micIsListening = true;
   });
 
   recognition.addEventListener("result", (event) => {
@@ -7034,6 +7143,11 @@ if (SpeechRecognitionImpl) {
   const resetMicButton = () => {
     micBtn.classList.remove("listening");
     micBtn.textContent = "🎙 Speak";
+    micIsListening = false;
+    // 常時ONモードなら、今回のやり取り(送信→AIの読み上げ)が落ち着いてから
+    // 自動的に次の待ち受けを再開する(scheduleAutoListen内でspeechSynthesis
+    // 再生中かどうかを見て、読み終わるまで待つ)。
+    scheduleAutoListen(600);
   };
 
   recognition.addEventListener("end", () => {
@@ -7062,6 +7176,8 @@ if (SpeechRecognitionImpl) {
     // エラーでも録音があれば Whisper だけで拾える可能性がある。
     finalizeVoiceInput();
   });
+  // 起動時から常時ONで待ち受け開始(挨拶の読み上げが終わってから)。
+  scheduleAutoListen(300);
 } else {
   micBtn.disabled = true;
   micBtn.title = "Voice input not supported in this browser / このブラウザは音声入力に対応していません";
@@ -8057,6 +8173,37 @@ async function refreshGoogleSearchStatus() {
     inlineEl.textContent = creds || configuredOnDevice
       ? "✅ your key set / ご自身のキー設定済み"
       : "⚠ set your own key to use search / 検索にはご自身のキー設定が必要";
+  }
+  refreshGoogleSearchFallbackHealth();
+}
+
+// 2026-09-27追加(ユーザー指示「open-english側の予備パス〈訪問者自身の
+// Google無料枠キー〉にこそ、毎朝の自己点検・修復の必要性が高い」への
+// 対応): aruaru-llmが毎朝7時(日本時間)に行うGoogle Custom Search JSON
+// APIの自己点検結果(`GET /v1/search/fallback-status`)を表示する。
+// 個々の訪問者の鍵自体はサーバー側で検証できない(保存しない設計のため)
+// ——あくまで「Google側のAPI契約(エンドポイント・エラー応答形状)が
+// 壊れていないか」の点検結果であることを、表示文言でも正直に伝える。
+async function refreshGoogleSearchFallbackHealth() {
+  const el = document.getElementById("google-search-fallback-health");
+  if (!el) return;
+  try {
+    const res = await fetchWithTimeout(`${apiBaseEl.value.trim()}/v1/search/fallback-status`, {}, 5000);
+    if (!res.ok) {
+      el.textContent = "";
+      return;
+    }
+    const health = await res.json();
+    if (health.schema_ok) {
+      el.textContent = "";
+    } else {
+      el.textContent =
+        `⚠ Backup path daily self-check: ${health.note_en} / ` +
+        `予備パスの毎朝の自己点検: ${health.note_ja}`;
+    }
+  } catch (_) {
+    // 到達不能な場合は静かに非表示のままにする(既存の可用性優先方針)。
+    el.textContent = "";
   }
 }
 /** `#web-search-boost-status`の文言を、キー設定済みかどうかで出し分ける。 */
@@ -16467,59 +16614,147 @@ async function freelanceCopyText(text, statusEl) {
   }
 }
 
-// 既にセットアップ済みのGoogle検索APIキー(平文localStorage、または
-// 復号済みメモリ上の暗号化/ファイル資格情報)を自動的に再利用して検索し、
-// 結果を指定コンテナへ描画する。キー未設定の場合は正直にその旨を表示し
-// (新規に入力させることはしない、既存の「新しいタブで開く」ボタンで
-// 代替できる旨を案内する)、既存の`loadOwnGoogleSearchCredentials`/
-// `googleSearchDirect`(2026-08-26/27新設、Google検索設定パネルと共用)を
-// そのまま呼ぶだけで、この機能専用の資格情報入力欄は追加しない。
+// 2026-09-27改修(ユーザー指示「aruaru-searchの無制限の検索システムを
+// open-englishに最優先で使用する様に組み込んで」): 従来はここが訪問者
+// 自身のGoogle検索APIキー(無料枠のみ)を最初に(かつ唯一)使っていた。
+// これを、まずサーバー経由でaruaru-search(自前メタ検索・無制限・API
+// キー不要)を試し、それが使えない/0件だった場合にのみ、訪問者自身の
+// キー(無料枠のみ・あくまで予備)へフォールバックする優先順位へ変更した。
+async function freelanceRunSearchViaAruaruSearch(query) {
+  const res = await fetchWithTimeout(
+    "/v1/public/freelance/job-search",
+    { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ query }) },
+    15000,
+  );
+  if (!res.ok) throw new Error(`aruaru-search HTTP ${res.status}`);
+  const data = await res.json();
+  const results = Array.isArray(data.results) ? data.results : [];
+  return results.map((r) => ({ title: r.title, link: r.link, snippet: r.snippet }));
+}
+
+const FREELANCE_JOB_CHECKS_KEY = "open-english.freelanceJobChecks";
+function freelanceLoadJobChecks() {
+  try {
+    return JSON.parse(localStorage.getItem(FREELANCE_JOB_CHECKS_KEY) || "{}");
+  } catch (_) {
+    return {};
+  }
+}
+function freelanceSaveJobCheck(link, field, value) {
+  const all = freelanceLoadJobChecks();
+  const entry = all[link] || {};
+  entry[field] = value;
+  all[link] = entry;
+  try {
+    localStorage.setItem(FREELANCE_JOB_CHECKS_KEY, JSON.stringify(all));
+  } catch (_) {
+    /* ignore quota errors */
+  }
+}
+
+function freelanceRenderJobResults(container, results, sourceLabelHtml) {
+  container.innerHTML = "";
+  const status = document.createElement("p");
+  status.innerHTML = sourceLabelHtml;
+  container.appendChild(status);
+  if (results.length === 0) {
+    const none = document.createElement("p");
+    none.textContent = "該当する検索結果が見つかりませんでした。 / No results found.";
+    container.appendChild(none);
+    return;
+  }
+  const checks = freelanceLoadJobChecks();
+  for (const r of results) {
+    const item = document.createElement("div");
+    item.className = "setup-note";
+    const link = document.createElement("a");
+    link.href = r.link;
+    link.target = "_blank";
+    link.rel = "noopener noreferrer";
+    link.textContent = r.title || r.link;
+    item.appendChild(link);
+    if (r.snippet) {
+      const snippet = document.createElement("div");
+      snippet.textContent = r.snippet;
+      item.appendChild(snippet);
+    }
+    const saved = checks[r.link] || {};
+    const checksRow = document.createElement("label");
+    checksRow.style.display = "block";
+    const interestedCb = document.createElement("input");
+    interestedCb.type = "checkbox";
+    interestedCb.checked = !!saved.interested;
+    interestedCb.addEventListener("change", () => freelanceSaveJobCheck(r.link, "interested", interestedCb.checked));
+    checksRow.appendChild(interestedCb);
+    checksRow.appendChild(document.createTextNode(" 興味あり / Interested "));
+    const applyingCb = document.createElement("input");
+    applyingCb.type = "checkbox";
+    applyingCb.checked = !!saved.applying;
+    applyingCb.addEventListener("change", () => freelanceSaveJobCheck(r.link, "applying", applyingCb.checked));
+    checksRow.appendChild(applyingCb);
+    checksRow.appendChild(document.createTextNode(" 応募検討中 / Considering applying"));
+    item.appendChild(checksRow);
+    container.appendChild(item);
+  }
+  const consultNote = document.createElement("p");
+  consultNote.innerHTML =
+    "💡 気になる案件をチェックしたら、無料の「AI先生に相談」で一緒に学習しながら開発を進めるか、" +
+    "有料のClaude(このアプリ自身の開発にも使われているAI開発ツール)をご自身で契約し、一緒に使って" +
+    "頂きながら開発を進めることもできます。相談だけでも構いません。 / " +
+    "Check any listings you like, then either ask the free AI teacher below to study and build together, " +
+    "or subscribe to Claude yourself (the AI coding tool this app itself is built with) and work through it " +
+    "together — just talking it over is fine too.";
+  container.appendChild(consultNote);
+}
+
 async function freelanceAutoSearch(query, containerId) {
   const container = document.getElementById(containerId);
   if (!container) return;
   container.innerHTML = "";
-  const creds = typeof loadOwnGoogleSearchCredentials === "function" ? loadOwnGoogleSearchCredentials() : null;
-  if (!creds || !creds.api_key || !creds.cx) {
-    container.textContent =
-      "(Google検索APIキー未設定のため、自動検索結果はここに表示されません。上のボタンで新しいタブからご確認ください。 / " +
-      "No Google Search API key configured, so results can't be shown here automatically — use the button above to check in a new tab.)";
-    return;
-  }
-  const statusLine = document.createElement("p");
-  statusLine.innerHTML = "<strong>✅ SETUP済み(以前設定したGoogle検索APIキーを自動使用中) / Already set up (auto-using your previously configured Google Search API key)</strong>";
-  container.appendChild(statusLine);
   const searching = document.createElement("p");
-  searching.textContent = "検索中... / Searching...";
+  searching.textContent = "検索中(aruaru-search、無制限・APIキー不要)... / Searching (aruaru-search, unlimited, no API key needed)...";
   container.appendChild(searching);
   try {
-    const results = await googleSearchDirect(query, creds.api_key, creds.cx, 5);
-    searching.remove();
-    if (results.length === 0) {
-      const none = document.createElement("p");
-      none.textContent = "該当する検索結果が見つかりませんでした。 / No results found.";
-      container.appendChild(none);
+    const results = await freelanceRunSearchViaAruaruSearch(query);
+    if (results.length > 0) {
+      freelanceRenderJobResults(
+        container,
+        results,
+        "<strong>✅ aruaru-search(自前検索・無制限・APIキー不要)で検索しました / Searched via aruaru-search (self-hosted, unlimited, no API key needed)</strong>",
+      );
       return;
     }
-    for (const r of results) {
-      const item = document.createElement("p");
-      const link = document.createElement("a");
-      link.href = r.link;
-      link.target = "_blank";
-      link.rel = "noopener noreferrer";
-      link.textContent = r.title || r.link;
-      item.appendChild(link);
-      if (r.snippet) {
-        const snippet = document.createElement("div");
-        snippet.textContent = r.snippet;
-        item.appendChild(snippet);
-      }
-      container.appendChild(item);
+    // aruaru-searchが0件だった場合のみ、予備として訪問者自身のGoogle検索
+    // キー(無料枠のみ)を試す。
+    throw new Error("aruaru-search returned no results");
+  } catch (_) {
+    // フォールバック: 訪問者自身のGoogle検索APIキー(既存の
+    // loadOwnGoogleSearchCredentials/googleSearchDirect、無料枠のみ・
+    // あくまで予備としての利用)。
+    const creds = typeof loadOwnGoogleSearchCredentials === "function" ? loadOwnGoogleSearchCredentials() : null;
+    if (!creds || !creds.api_key || !creds.cx) {
+      container.innerHTML = "";
+      container.textContent =
+        "(aruaru-searchが利用できず、予備のGoogle検索APIキーも未設定のため、自動検索結果はここに表示されません。" +
+        "上のボタンで新しいタブからご確認ください。 / " +
+        "aruaru-search is unavailable and no backup Google Search API key is configured, so results can't be shown " +
+        "here automatically — use the button above to check in a new tab.)";
+      return;
     }
-  } catch (err) {
-    searching.remove();
-    const failed = document.createElement("p");
-    failed.textContent = `検索に失敗しました / Search failed: ${err.message || err}`;
-    container.appendChild(failed);
+    try {
+      const results = await googleSearchDirect(query, creds.api_key, creds.cx, 5);
+      freelanceRenderJobResults(
+        container,
+        results,
+        "<strong>⚠ aruaru-searchが利用できなかったため、予備の無料枠キー(以前設定したもの)で検索しました / " +
+          "aruaru-search was unavailable, so this used your backup free-tier key instead</strong>",
+      );
+    } catch (err) {
+      container.innerHTML = "";
+      const failed = document.createElement("p");
+      failed.textContent = `検索に失敗しました / Search failed: ${err.message || err}`;
+      container.appendChild(failed);
+    }
   }
 }
 
@@ -17223,7 +17458,13 @@ async function syncCustomQaFromServerForAdmin() {
   }
 }
 async function refreshAdminState() {
-  const isDemo = location.pathname.includes("/demo");
+  // 2026-09-24(ユーザー指示): easy-web.tokyo/open-english/demo と
+  // 廃止済みの単独/demo(別バックエンド)のどちらでアクセスされても、
+  // フル版 easy-web.tokyo/open-english/ への案内を表示する(デモ版から
+  // フル版への誘導という位置付け——「/open-english/demo」自体は今も
+  // 有効なルートだが、この通知はそのページ自体を無効扱いにするのではなく
+  // フル版への案内バナーとして出す)。
+  const isDemo = /\/demo(\/|$)/.test(location.pathname);
   const linkEl = document.getElementById("admin-login-link");
   const noticeEl = document.getElementById("demo-moved-notice");
   if (isDemo) {
@@ -17264,6 +17505,71 @@ async function refreshAdminState() {
   if (closeEl && gateEl) closeEl.addEventListener("click", () => gateEl.classList.add("hidden"));
 })();
 refreshAdminState();
+
+// 実バグ修正(2026-09-24、ユーザー報告「スマホでWEB版を見てますと、管理者
+// ログインはこちらの文字の下が隠れて見えません」): #admin-login-linkは
+// position:fixedでページ最上部に常時重なる形で表示されるが、bodyに
+// それを避ける上部余白が一切無く、スクロールしても本文がこのバッジの
+// 真下に潜り込んで隠れていた(#chat-dockの下部固定ドックに対して既に
+// 行っているpadding-bottom確保と同じ考え方を、上部のこのバッジにも
+// 適用する)。表示・非表示(管理者ログイン中は隠れる)に応じて実測した
+// 高さぶんだけbodyの上部余白を都度更新する。
+// 2026-09-24拡張(ユーザー指示「その下に各インストーラーダウンロードは
+// こちらとその英語版とそれにリンクを貼って、それもCLOSEボタンも用意して」):
+// #installer-quick-linkを#admin-login-linkのすぐ下へ自動で積み重ね、
+// 両方ぶんの高さをbodyの上部余白として確保する。CLOSEを押したら
+// localStorageに記憶し(既存の一度きり案内の慣習を踏襲)、以後は
+// このセッション以降も表示しない。
+const INSTALLER_QUICK_LINK_CLOSED_KEY = "open-english.installerQuickLinkClosed";
+(function reserveSpaceForAdminLoginLink() {
+  const linkEl = document.getElementById("admin-login-link");
+  const installerEl = document.getElementById("installer-quick-link");
+  const installerCloseEl = document.getElementById("installer-quick-link-close");
+  if (installerEl) {
+    let closed = false;
+    try {
+      closed = localStorage.getItem(INSTALLER_QUICK_LINK_CLOSED_KEY) === "1";
+    } catch (e) {
+      /* localStorage不可なら毎回表示されるが実害は無い */
+    }
+    if (closed) installerEl.classList.add("hidden");
+  }
+  if (!linkEl && !installerEl) return;
+  const apply = () => {
+    let top = 6;
+    if (linkEl && !linkEl.classList.contains("hidden")) {
+      if (installerEl) installerEl.style.top = top + linkEl.offsetHeight + 6 + "px";
+      top += linkEl.offsetHeight + 6;
+    } else if (installerEl) {
+      installerEl.style.top = top + "px";
+    }
+    if (installerEl && !installerEl.classList.contains("hidden")) {
+      top += installerEl.offsetHeight + 6;
+    }
+    document.body.style.paddingTop = top > 6 ? top + 6 + "px" : "";
+  };
+  apply();
+  if (installerCloseEl && installerEl) {
+    installerCloseEl.addEventListener("click", () => {
+      installerEl.classList.add("hidden");
+      try {
+        localStorage.setItem(INSTALLER_QUICK_LINK_CLOSED_KEY, "1");
+      } catch (e) {
+        /* 保存できなくても閉じる動作自体は成立させる */
+      }
+      apply();
+    });
+  }
+  if (window.ResizeObserver) {
+    const ro = new ResizeObserver(apply);
+    if (linkEl) ro.observe(linkEl);
+    if (installerEl) ro.observe(installerEl);
+  }
+  if (window.MutationObserver) {
+    if (linkEl) new MutationObserver(apply).observe(linkEl, { attributes: true, attributeFilter: ["class"] });
+    if (installerEl) new MutationObserver(apply).observe(installerEl, { attributes: true, attributeFilter: ["class"] });
+  }
+})();
 
 
 // ---- 下部固定ドック(2026-09-21): 使用中AI表示・回答枠・キャラ・音声入力 --------------------

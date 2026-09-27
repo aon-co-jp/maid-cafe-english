@@ -773,6 +773,53 @@ async fn proxy_aruaru_llm_post(path: &str, req: Request) -> Response {
     }
 }
 
+/// `POST /v1/public/freelance/job-search`(2026-09-27新設)。
+///
+/// ユーザー指示「aruaru-searchの無制限の検索システムをopen-englishに
+/// 最優先で使用する様に組み込んで」への対応。フリーランス開発コーナーの
+/// 案件検索を、訪問者自身のGoogle検索APIキー(無料枠のみ・予備)より
+/// **先に**、aruaru-llm経由のaruaru-search(自前メタ検索・無制限・API
+/// キー不要)へ回す。呼び出し元(`app.js`)は`query`のみを送り、`source`/
+/// `free_only`はここで固定するため、任意のsourceを呼べてしまう心配は
+/// 無い(`aruaru-llm`の`/v1/search/raw`をそのまま公開はしない)。
+#[derive(Debug, serde::Deserialize)]
+struct PublicFreelanceJobSearchRequest {
+    query: String,
+}
+
+async fn public_freelance_job_search(req: Request) -> Response {
+    let body: PublicFreelanceJobSearchRequest = match read_rs_json_body(req).await {
+        Ok(v) => v,
+        Err(resp) => return resp,
+    };
+    let query = body.query.trim();
+    if query.is_empty() || query.chars().count() > 256 {
+        return rs_json_response(StatusCode::BAD_REQUEST, &serde_json::json!({"error": "query must be 1-256 characters"}));
+    }
+    let url = format!("{}/v1/search/raw", aruaru_llm_base_url());
+    let payload = serde_json::json!({
+        "source": "google",
+        "query": query,
+        "max_results": 5,
+        "free_only": true,
+    });
+    let client = match reqwest::Client::builder().timeout(std::time::Duration::from_secs(30)).build() {
+        Ok(c) => c,
+        Err(e) => return rs_json_response(StatusCode::INTERNAL_SERVER_ERROR, &serde_json::json!({"error": format!("failed to build HTTP client: {e}")})),
+    };
+    match client.post(&url).json(&payload).send().await {
+        Ok(resp) => {
+            let status = resp.status();
+            let content_type = resp.headers().get("content-type").and_then(|v| v.to_str().ok()).map(|s| s.to_string());
+            match resp.bytes().await {
+                Ok(bytes) => passthrough_response(status, content_type, bytes),
+                Err(e) => rs_json_response(StatusCode::BAD_GATEWAY, &serde_json::json!({"error": format!("failed to read aruaru-llm response: {e}")})),
+            }
+        }
+        Err(e) => aruaru_llm_unreachable_response(&url, e),
+    }
+}
+
 // デモ利用者向け「おすすめLLM」公開エンドポイント(2026-09-12新設)。
 //
 // 背景: `/v1/admin/aruaru-llm/*` は管理者用(メンテナンス画面)で、
@@ -3303,6 +3350,7 @@ async fn main() {
     // aruaru-llmへ中継する(`proxy_aruaru_llm_get`は固定パスのみでクエリを転送できないため専用実装)。
     app = app.at("/v1/public/news/for", get(handler_fn(|req, _p| Box::pin(proxy_aruaru_llm_get_with_query(req, "/v1/news/for")))));
     app = app.at("/v1/public/news/archive-search", get(handler_fn(|req, _p| Box::pin(news_archive_search(req)))));
+    app = app.at("/v1/public/freelance/job-search", post(handler_fn(|req, _p| Box::pin(public_freelance_job_search(req)))));
     app = app.at("/v1/config", get(handler_fn(move |_req, _p| async move { app_config().await })));
     app = app.at("/v1/platform-info", get(handler_fn(move |_req, _p| async move { platform_info().await })));
     // `/health`はopen-web-server/open-easy-web側の「分身の術」テナント

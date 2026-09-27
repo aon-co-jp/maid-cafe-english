@@ -16614,59 +16614,147 @@ async function freelanceCopyText(text, statusEl) {
   }
 }
 
-// 既にセットアップ済みのGoogle検索APIキー(平文localStorage、または
-// 復号済みメモリ上の暗号化/ファイル資格情報)を自動的に再利用して検索し、
-// 結果を指定コンテナへ描画する。キー未設定の場合は正直にその旨を表示し
-// (新規に入力させることはしない、既存の「新しいタブで開く」ボタンで
-// 代替できる旨を案内する)、既存の`loadOwnGoogleSearchCredentials`/
-// `googleSearchDirect`(2026-08-26/27新設、Google検索設定パネルと共用)を
-// そのまま呼ぶだけで、この機能専用の資格情報入力欄は追加しない。
+// 2026-09-27改修(ユーザー指示「aruaru-searchの無制限の検索システムを
+// open-englishに最優先で使用する様に組み込んで」): 従来はここが訪問者
+// 自身のGoogle検索APIキー(無料枠のみ)を最初に(かつ唯一)使っていた。
+// これを、まずサーバー経由でaruaru-search(自前メタ検索・無制限・API
+// キー不要)を試し、それが使えない/0件だった場合にのみ、訪問者自身の
+// キー(無料枠のみ・あくまで予備)へフォールバックする優先順位へ変更した。
+async function freelanceRunSearchViaAruaruSearch(query) {
+  const res = await fetchWithTimeout(
+    "/v1/public/freelance/job-search",
+    { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ query }) },
+    15000,
+  );
+  if (!res.ok) throw new Error(`aruaru-search HTTP ${res.status}`);
+  const data = await res.json();
+  const results = Array.isArray(data.results) ? data.results : [];
+  return results.map((r) => ({ title: r.title, link: r.link, snippet: r.snippet }));
+}
+
+const FREELANCE_JOB_CHECKS_KEY = "open-english.freelanceJobChecks";
+function freelanceLoadJobChecks() {
+  try {
+    return JSON.parse(localStorage.getItem(FREELANCE_JOB_CHECKS_KEY) || "{}");
+  } catch (_) {
+    return {};
+  }
+}
+function freelanceSaveJobCheck(link, field, value) {
+  const all = freelanceLoadJobChecks();
+  const entry = all[link] || {};
+  entry[field] = value;
+  all[link] = entry;
+  try {
+    localStorage.setItem(FREELANCE_JOB_CHECKS_KEY, JSON.stringify(all));
+  } catch (_) {
+    /* ignore quota errors */
+  }
+}
+
+function freelanceRenderJobResults(container, results, sourceLabelHtml) {
+  container.innerHTML = "";
+  const status = document.createElement("p");
+  status.innerHTML = sourceLabelHtml;
+  container.appendChild(status);
+  if (results.length === 0) {
+    const none = document.createElement("p");
+    none.textContent = "該当する検索結果が見つかりませんでした。 / No results found.";
+    container.appendChild(none);
+    return;
+  }
+  const checks = freelanceLoadJobChecks();
+  for (const r of results) {
+    const item = document.createElement("div");
+    item.className = "setup-note";
+    const link = document.createElement("a");
+    link.href = r.link;
+    link.target = "_blank";
+    link.rel = "noopener noreferrer";
+    link.textContent = r.title || r.link;
+    item.appendChild(link);
+    if (r.snippet) {
+      const snippet = document.createElement("div");
+      snippet.textContent = r.snippet;
+      item.appendChild(snippet);
+    }
+    const saved = checks[r.link] || {};
+    const checksRow = document.createElement("label");
+    checksRow.style.display = "block";
+    const interestedCb = document.createElement("input");
+    interestedCb.type = "checkbox";
+    interestedCb.checked = !!saved.interested;
+    interestedCb.addEventListener("change", () => freelanceSaveJobCheck(r.link, "interested", interestedCb.checked));
+    checksRow.appendChild(interestedCb);
+    checksRow.appendChild(document.createTextNode(" 興味あり / Interested "));
+    const applyingCb = document.createElement("input");
+    applyingCb.type = "checkbox";
+    applyingCb.checked = !!saved.applying;
+    applyingCb.addEventListener("change", () => freelanceSaveJobCheck(r.link, "applying", applyingCb.checked));
+    checksRow.appendChild(applyingCb);
+    checksRow.appendChild(document.createTextNode(" 応募検討中 / Considering applying"));
+    item.appendChild(checksRow);
+    container.appendChild(item);
+  }
+  const consultNote = document.createElement("p");
+  consultNote.innerHTML =
+    "💡 気になる案件をチェックしたら、無料の「AI先生に相談」で一緒に学習しながら開発を進めるか、" +
+    "有料のClaude(このアプリ自身の開発にも使われているAI開発ツール)をご自身で契約し、一緒に使って" +
+    "頂きながら開発を進めることもできます。相談だけでも構いません。 / " +
+    "Check any listings you like, then either ask the free AI teacher below to study and build together, " +
+    "or subscribe to Claude yourself (the AI coding tool this app itself is built with) and work through it " +
+    "together — just talking it over is fine too.";
+  container.appendChild(consultNote);
+}
+
 async function freelanceAutoSearch(query, containerId) {
   const container = document.getElementById(containerId);
   if (!container) return;
   container.innerHTML = "";
-  const creds = typeof loadOwnGoogleSearchCredentials === "function" ? loadOwnGoogleSearchCredentials() : null;
-  if (!creds || !creds.api_key || !creds.cx) {
-    container.textContent =
-      "(Google検索APIキー未設定のため、自動検索結果はここに表示されません。上のボタンで新しいタブからご確認ください。 / " +
-      "No Google Search API key configured, so results can't be shown here automatically — use the button above to check in a new tab.)";
-    return;
-  }
-  const statusLine = document.createElement("p");
-  statusLine.innerHTML = "<strong>✅ SETUP済み(以前設定したGoogle検索APIキーを自動使用中) / Already set up (auto-using your previously configured Google Search API key)</strong>";
-  container.appendChild(statusLine);
   const searching = document.createElement("p");
-  searching.textContent = "検索中... / Searching...";
+  searching.textContent = "検索中(aruaru-search、無制限・APIキー不要)... / Searching (aruaru-search, unlimited, no API key needed)...";
   container.appendChild(searching);
   try {
-    const results = await googleSearchDirect(query, creds.api_key, creds.cx, 5);
-    searching.remove();
-    if (results.length === 0) {
-      const none = document.createElement("p");
-      none.textContent = "該当する検索結果が見つかりませんでした。 / No results found.";
-      container.appendChild(none);
+    const results = await freelanceRunSearchViaAruaruSearch(query);
+    if (results.length > 0) {
+      freelanceRenderJobResults(
+        container,
+        results,
+        "<strong>✅ aruaru-search(自前検索・無制限・APIキー不要)で検索しました / Searched via aruaru-search (self-hosted, unlimited, no API key needed)</strong>",
+      );
       return;
     }
-    for (const r of results) {
-      const item = document.createElement("p");
-      const link = document.createElement("a");
-      link.href = r.link;
-      link.target = "_blank";
-      link.rel = "noopener noreferrer";
-      link.textContent = r.title || r.link;
-      item.appendChild(link);
-      if (r.snippet) {
-        const snippet = document.createElement("div");
-        snippet.textContent = r.snippet;
-        item.appendChild(snippet);
-      }
-      container.appendChild(item);
+    // aruaru-searchが0件だった場合のみ、予備として訪問者自身のGoogle検索
+    // キー(無料枠のみ)を試す。
+    throw new Error("aruaru-search returned no results");
+  } catch (_) {
+    // フォールバック: 訪問者自身のGoogle検索APIキー(既存の
+    // loadOwnGoogleSearchCredentials/googleSearchDirect、無料枠のみ・
+    // あくまで予備としての利用)。
+    const creds = typeof loadOwnGoogleSearchCredentials === "function" ? loadOwnGoogleSearchCredentials() : null;
+    if (!creds || !creds.api_key || !creds.cx) {
+      container.innerHTML = "";
+      container.textContent =
+        "(aruaru-searchが利用できず、予備のGoogle検索APIキーも未設定のため、自動検索結果はここに表示されません。" +
+        "上のボタンで新しいタブからご確認ください。 / " +
+        "aruaru-search is unavailable and no backup Google Search API key is configured, so results can't be shown " +
+        "here automatically — use the button above to check in a new tab.)";
+      return;
     }
-  } catch (err) {
-    searching.remove();
-    const failed = document.createElement("p");
-    failed.textContent = `検索に失敗しました / Search failed: ${err.message || err}`;
-    container.appendChild(failed);
+    try {
+      const results = await googleSearchDirect(query, creds.api_key, creds.cx, 5);
+      freelanceRenderJobResults(
+        container,
+        results,
+        "<strong>⚠ aruaru-searchが利用できなかったため、予備の無料枠キー(以前設定したもの)で検索しました / " +
+          "aruaru-search was unavailable, so this used your backup free-tier key instead</strong>",
+      );
+    } catch (err) {
+      container.innerHTML = "";
+      const failed = document.createElement("p");
+      failed.textContent = `検索に失敗しました / Search failed: ${err.message || err}`;
+      container.appendChild(failed);
+    }
   }
 }
 
