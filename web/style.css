@@ -340,9 +340,11 @@ body {
 .chat-form {
   display: flex;
   gap: 8px;
+  align-items: flex-end;
 }
 
-.chat-form input {
+.chat-form input,
+.chat-form textarea {
   flex: 1;
   padding: 10px;
   border-radius: 8px;
@@ -354,6 +356,16 @@ body {
      白背景+濃い文字色を指定する。 */
   background: #fff;
   color: #221a26;
+}
+
+.chat-form textarea {
+  /* 2026-09-28変更(ユーザー指示「1行だと使いにくいので3行くらいに」):
+     <input>から<textarea rows="3">へ変更した分のスタイル調整。フォント・
+     行間をinputと揃え、縦方向のみリサイズ可にする。 */
+  font-family: inherit;
+  font-size: inherit;
+  line-height: 1.4;
+  resize: vertical;
 }
 
 .chat-form button {
@@ -960,6 +972,22 @@ label.setup-note {
   height: auto;
 }
 
+/* AI先生のプログラミング学習(teachProgrammingTopic)が添える参考リンク一覧。 */
+.tutor-links-header {
+  margin-top: 10px;
+  font-weight: bold;
+}
+.tutor-links-list {
+  margin-top: 4px;
+  font-size: 0.9em;
+}
+.tutor-link-row {
+  margin: 4px 0;
+}
+.tutor-link-row a {
+  color: #8ecdf7;
+}
+
 /* 汎用の非表示クラス(exam-prep-submit等、モーダル本体以外の要素にも使う)。 */
 .hidden {
   display: none !important;
@@ -1434,7 +1462,16 @@ label.setup-note {
 .ai-pick-panel button { font-size: 12px; padding: 2px 10px; border-radius: 12px; cursor: pointer; }
 
 .is-web-only #autorw-status-banner, .is-web-only #autorw-status-banner-toggle { display: none !important; }
-.author-github { margin: 6px 20px; font-size: 13px; }
+.author-github { margin: 6px 20px; font-size: 15px; }
+/* 2026-09-29修正(ユーザー報告「黒背景に青色は読みにくい」): 既定のブラウザ
+   リンク色(青)のままだったため、白・少し大きめの文字色に変更。 */
+.author-github a {
+  color: #fff;
+  font-weight: bold;
+}
+.author-github a:visited {
+  color: #fff;
+}
 .is-web-only #setup-btn, .is-web-only #aruaru-db-setup-btn, .is-web-only #world-lab-goto-aruaru-llm-btn { display: none !important; }
 .ai-pick-row { display: flex; align-items: center; justify-content: space-between; width: 100%; gap: 8px; }
 .ai-pick-order { font-size: 12px; padding: 2px 4px; border-radius: 6px; }

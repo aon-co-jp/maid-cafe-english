@@ -6072,6 +6072,238 @@ function fourNinesGradeMessage(grade) {
   }
 }
 
+// 2026-09-28新設(ユーザー指示「open-englishのChat＋VSCプラグインのLiveShare＋
+// maidcafe-programming-schoolでAI先生として、生徒が希望したプログラミング言語と
+// フレームワークをGoogle検索して…プログラミングの基本の変数やクラスやfor文や
+// 代表的なアルゴリズム10種…グローバル変数を使わないプログラミング方法…
+// メリットもデメリットも」への対応)。
+//
+// 正直な開示: 変数・クラス・for文・10種のアルゴリズム・グローバル変数を
+// 避ける理由については、aruaru-llm(GPT-2級の小型モデル)による生成に
+// 任せると事実でない内容を生成しうるため、このアプリの他の固定回答
+// (isCreatorQuestion等)と同じ方針で、人手で書いた正確な内容を使う。
+// 言語/フレームワーク固有のメリット・デメリットも同様に、判明している
+// もののみ簡潔な一次情報として記載する。その上で、Google検索(設定済みの
+// 場合のみ)で公式サイト・ブログ・GitHubなど「もっと詳しい一次情報」への
+// リンクを添える——検索結果の文面そのものは表示せず、リンクの提示に留める
+// (検索結果テキストをそのまま生成文へ混ぜると事実性の保証ができないため)。
+const PROGRAMMING_TOPICS = [
+  {
+    key: "python", labelJa: "Python", labelEn: "Python", aliases: ["python", "パイソン"],
+    snippet: "def greet(name):\n    return f\"Hello, {name}!\"\n\nfor i in range(3):\n    print(greet(\"world\"))",
+    prosJa: ["文法がシンプルで初心者が読みやすい", "AI/機械学習・データ分析のライブラリが豊富(NumPy, PyTorch等)", "Web(Django/Flask)からスクリプトまで用途が広い"],
+    consJa: ["実行速度が遅め(C/C++/Rust等と比べて)", "スマホアプリ・組み込み開発にはあまり向かない", "インデント(字下げ)がそのまま文法の一部なので慣れが要る"],
+    prosEn: ["simple, readable syntax — great for beginners", "huge ecosystem for AI/ML and data analysis (NumPy, PyTorch, etc.)", "works for everything from quick scripts to web apps (Django/Flask)"],
+    consEn: ["slower execution than C/C++/Rust", "not a common choice for mobile or embedded development", "indentation is part of the syntax, which takes some getting used to"],
+  },
+  {
+    key: "javascript", labelJa: "JavaScript", labelEn: "JavaScript", aliases: ["javascript", "js", "ジャバスクリプト"],
+    snippet: "function greet(name) {\n  return `Hello, ${name}!`;\n}\n\nfor (let i = 0; i < 3; i++) {\n  console.log(greet(\"world\"));\n}",
+    prosJa: ["ブラウザで動く唯一の言語(追加ソフト不要)", "Node.jsでサーバー側も同じ言語で書ける", "学習リソース・求人が非常に多い"],
+    consJa: ["型が緩く、大規模開発ではバグを生みやすい(→TypeScriptで補う人が多い)", "非同期処理(Promise/async)の理解に少し慣れが要る", "ブラウザ間の細かな挙動差が残ることがある"],
+    prosEn: ["the only language that runs natively in every browser", "Node.js lets you use the same language on the server", "enormous amount of learning resources and job demand"],
+    consEn: ["loose typing can lead to bugs in larger projects (many teams add TypeScript to help)", "asynchronous code (Promise/async) takes a bit to get used to", "some behavior still differs subtly between browsers"],
+  },
+  {
+    key: "typescript", labelJa: "TypeScript", labelEn: "TypeScript", aliases: ["typescript", "ts"],
+    snippet: "function greet(name: string): string {\n  return `Hello, ${name}!`;\n}\n\nfor (let i = 0; i < 3; i++) {\n  console.log(greet(\"world\"));\n}",
+    prosJa: ["JavaScriptに型を追加でき、バグを早期発見できる", "大規模開発・チーム開発で特に効果を発揮", "JavaScriptの資産・ライブラリをそのまま使える"],
+    consJa: ["コンパイル(型チェック)の手順が一つ増える", "型の書き方自体を学ぶ必要がある", "小さなスクリプト1本には少しオーバースペックな場合も"],
+    prosEn: ["adds types to JavaScript, catching bugs earlier", "especially effective for large or team projects", "can use the entire JavaScript ecosystem as-is"],
+    consEn: ["adds a compile/type-check step to your workflow", "you need to learn how to write the types themselves", "can feel like overkill for a single small script"],
+  },
+  {
+    key: "rust", labelJa: "Rust", labelEn: "Rust", aliases: ["rust", "ラスト"],
+    snippet: "fn greet(name: &str) -> String {\n    format!(\"Hello, {name}!\")\n}\n\nfor i in 0..3 {\n    println!(\"{}\", greet(\"world\"));\n}",
+    prosJa: ["C/C++並みの実行速度なのに、メモリ安全性をコンパイラが保証", "並行処理(マルチスレッド)のバグをコンパイル時に防ぎやすい", "近年人気・信頼性が高く、システム開発で採用が増えている"],
+    consJa: ["所有権(ownership)・借用(borrowing)という独自概念の学習コストが高い", "初心者には最初のエラーメッセージ量が多く感じられがち", "コンパイル時間が他言語より長めになりやすい"],
+    prosEn: ["C/C++-level speed while the compiler guarantees memory safety", "prevents many concurrency bugs at compile time", "increasingly trusted and adopted for systems programming"],
+    consEn: ["ownership/borrowing is a genuinely new concept with a real learning curve", "beginners often find the compiler's error messages overwhelming at first", "compile times tend to be longer than in many other languages"],
+  },
+  {
+    key: "go", labelJa: "Go(Golang)", labelEn: "Go (Golang)", aliases: ["golang", "go"],
+    snippet: "func greet(name string) string {\n    return \"Hello, \" + name + \"!\"\n}\n\nfor i := 0; i < 3; i++ {\n    fmt.Println(greet(\"world\"))\n}",
+    prosJa: ["文法がシンプルで学習コストが低い", "並行処理(goroutine)が言語標準で扱いやすい", "サーバー・インフラ系ツールでの採用が多い"],
+    consJa: ["ジェネリクス等、一部の機能追加は他言語より遅れて導入された", "エラー処理を毎回明示的に書く必要があり冗長に感じることがある", "GUIアプリ・フロントエンドにはあまり向かない"],
+    prosEn: ["simple syntax with a low learning curve", "concurrency (goroutines) is a first-class, easy-to-use language feature", "widely adopted for servers and infrastructure tooling"],
+    consEn: ["some features like generics arrived later than in other languages", "explicit error handling everywhere can feel repetitive", "not a common choice for GUI apps or frontend work"],
+  },
+  {
+    key: "java", labelJa: "Java", labelEn: "Java", aliases: ["java", "ジャバ"],
+    snippet: "class Greeter {\n    static String greet(String name) {\n        return \"Hello, \" + name + \"!\";\n    }\n    public static void main(String[] args) {\n        for (int i = 0; i < 3; i++) {\n            System.out.println(greet(\"world\"));\n        }\n    }\n}",
+    prosJa: ["「一度書けばどこでも動く」(JVM上で幅広い環境に対応)", "大規模・業務システムでの実績が非常に長い", "Android開発の主要言語の一つ"],
+    consJa: ["記述量が多く、簡単な処理にもやや冗長なコードが必要", "起動・メモリ消費が軽量言語より重め", "新しめの言語機能の取り込みは比較的保守的"],
+    prosEn: ["\"write once, run anywhere\" via the JVM", "a very long track record in large-scale, enterprise systems", "one of the main languages for Android development"],
+    consEn: ["verbose — even simple tasks need more boilerplate code", "startup time and memory use tend to be heavier than lighter languages", "adopts newer language features relatively conservatively"],
+  },
+];
+
+/** テキスト中に含まれるプログラミング言語/フレームワーク名を見つける(最初の1件)。 */
+function programmingAliasMatches(lowerText, alias) {
+  // 英数字のみのエイリアス(go/js/java等)は単語境界(\b)で厳密に照合する
+  // (2026-09-29修正: 「Goを勉強したい」が" go "のような前後スペース必須の
+  // 素朴なsubstring一致では検出できなかったバグへの対応。日本語の助詞
+  // 「を」等は\wに含まれないため、\bはASCII単語とその直後でも正しく働く)。
+  // 日本語混じりのエイリアス(パイソン等)はそのまま部分一致でよい。
+  if (/^[a-z0-9]+$/.test(alias)) {
+    return new RegExp(`\\b${alias}\\b`, "i").test(lowerText);
+  }
+  return lowerText.includes(alias);
+}
+
+function detectProgrammingTopic(userText) {
+  const lower = userText.toLowerCase();
+  return PROGRAMMING_TOPICS.find((t) => t.aliases.some((a) => programmingAliasMatches(lower, a))) || null;
+}
+
+const PROGRAMMING_LEARN_INTENT_JA = ["学びたい", "勉強したい", "教えて", "習いたい", "始めたい", "入門"];
+const PROGRAMMING_LEARN_INTENT_EN = ["want to learn", "teach me", "learn how", "get started with", "how do i start"];
+
+function isProgrammingLearnRequest(userText) {
+  const topic = detectProgrammingTopic(userText);
+  if (!topic) return null;
+  const lower = userText.toLowerCase();
+  const intentJa = PROGRAMMING_LEARN_INTENT_JA.some((k) => userText.includes(k));
+  const intentEn = PROGRAMMING_LEARN_INTENT_EN.some((k) => lower.includes(k));
+  return (intentJa || intentEn) ? topic : null;
+}
+
+// 変数・クラス・for文の説明(言語非依存の概念)。サンプルコード自体は
+// `.tutor-code`(白空白をpreのまま保つ既存クラス)を使って別要素として
+// 添える(地の文はwhite-space:pre-lineでインデントが潰れるため)。
+function programmingBasicsText(topic) {
+  return (
+    `📘 ${topic.labelJa} / ${topic.labelEn} — programming basics from your AI teacher / AI先生からの基礎講座\n\n` +
+    `━━ 1. 変数 (Variables) ━━\n` +
+    `値に名前を付けて、後から読み書きできるようにする箱です。 / A variable is a named box that holds a value you can read and change later.\n\n` +
+    `━━ 2. クラス (Classes) ━━\n` +
+    `関連するデータ(属性)と処理(メソッド)を1つにまとめる設計図です。同じ設計図から何個でも「インスタンス」(実体)を作れます。 / ` +
+    `A class bundles related data (fields) and behavior (methods) into one blueprint. You can create as many "instances" from it as you like.\n\n` +
+    `━━ 3. for文 (For loops) ━━\n` +
+    `同じ処理を指定回数(または条件を満たす間)繰り返します。 / A for loop repeats the same block of code a set number of times (or while a condition holds).\n\n` +
+    `━━ ${topic.labelJa}でのサンプルコード / Sample code in ${topic.labelEn} ━━`
+  );
+}
+
+// 代表的なアルゴリズム10種(定番かつ言語非依存)。
+const CLASSIC_ALGORITHMS = [
+  ["線形探索 / Linear Search", "先頭から順番に1つずつ調べて目的の値を探す。 / Check each item from the start until you find the target."],
+  ["二分探索 / Binary Search", "ソート済みの配列を半分ずつに絞り込んで高速に探す。 / Repeatedly halve a sorted array to find the target quickly."],
+  ["バブルソート / Bubble Sort", "隣同士を比較して入れ替えることを繰り返す、単純だが遅い並べ替え。 / Repeatedly swap adjacent out-of-order items — simple but slow."],
+  ["クイックソート / Quick Sort", "基準値(pivot)より小さい/大きいで分割しながら並べ替える高速な手法。 / Partition around a pivot and recurse — fast in practice."],
+  ["マージソート / Merge Sort", "配列を半分に分け続け、それぞれをマージ(統合)しながら並べ替える。 / Split the array in half recursively, then merge sorted halves."],
+  ["再帰(階乗) / Recursion (factorial)", "関数が自分自身を呼び出して問題を小さく分解して解く。 / A function calls itself to break a problem into smaller pieces."],
+  ["フィボナッチ数列 / Fibonacci sequence", "直前の2つの数を足して次の数を作る数列(再帰・ループどちらでも書ける代表例)。 / Each number is the sum of the two before it — a classic recursion/loop example."],
+  ["幅優先探索 BFS / Breadth-First Search", "近い場所から順番に、層(レベル)ごとにグラフ・木を探索する。 / Explore a graph/tree level by level, nearest nodes first."],
+  ["深さ優先探索 DFS / Depth-First Search", "行き止まりまで一direction突き進み、戻りながら探索するグラフ・木の探索法。 / Explore a graph/tree by going as deep as possible before backtracking."],
+  ["FizzBuzz", "1から順に数え、3の倍数はFizz、5の倍数はBuzz、両方ならFizzBuzzと出す定番の入門課題。 / Print numbers 1..N, but \"Fizz\" for multiples of 3, \"Buzz\" for 5, \"FizzBuzz\" for both — the classic beginner exercise."],
+];
+
+function classicAlgorithmsText() {
+  const lines = CLASSIC_ALGORITHMS.map((a, i) => `${i + 1}. ${a[0]} — ${a[1]}`);
+  return `━━ 代表的なアルゴリズム10種 / 10 classic algorithms ━━\n` + lines.join("\n") + "\n";
+}
+
+// グローバル変数を避ける理由(メリット・デメリット双方)。
+function globalVariablesAdviceText() {
+  return (
+    `━━ 次のステップ: グローバル変数を使わないプログラミング / Growing up: avoiding global variables ━━\n` +
+    `グローバル変数(どこからでも読み書きできる変数)は最初は便利ですが、プログラムが大きくなるほど「誰がいつ値を変えたか分からない」バグの温床になります。` +
+    `代わりに、関数の引数・戻り値でデータをやり取りしたり(関数の外の変数に触らない)、クラスの中に閉じ込めたりする(カプセル化)と、影響範囲が狭くなり安全です。\n` +
+    `Global variables (readable/writable from anywhere) feel convenient at first, but as a program grows they become a common source of "who changed this, and when?" bugs. ` +
+    `Prefer passing data through function parameters/return values, or keeping it inside a class (encapsulation) — this keeps the blast radius small and code easier to reason about.\n\n` +
+    `メリット(グローバル変数) / Pros of globals: 書くのが手軽・小さなスクリプトでは分かりやすい / quick to write, easy to follow in tiny scripts.\n` +
+    `デメリット(グローバル変数) / Cons of globals: どこからでも書き換えられるためバグの原因を追いにくい・テストしづらい・並行処理で競合しやすい / ` +
+    `can be modified from anywhere (hard to debug), harder to unit-test, prone to race conditions in concurrent code.\n`
+  );
+}
+
+function programmingTopicProsConsText(topic) {
+  const prosJa = topic.prosJa.map((p) => `・${p}`).join("\n");
+  const consJa = topic.consJa.map((c) => `・${c}`).join("\n");
+  const prosEn = topic.prosEn.map((p) => `- ${p}`).join("\n");
+  const consEn = topic.consEn.map((c) => `- ${c}`).join("\n");
+  return (
+    `━━ ${topic.labelJa}自体のメリット・デメリット / Pros & cons of ${topic.labelEn} itself ━━\n` +
+    `👍 メリット / Pros:\n${prosJa}\n${prosEn}\n\n` +
+    `👎 デメリット / Cons:\n${consJa}\n${consEn}\n`
+  );
+}
+
+/**
+ * AI先生としてのプログラミング学習応答一式を組み立てて表示する。
+ * 変数・クラス・for文・10種のアルゴリズム・グローバル変数回避・言語自体の
+ * メリデメは、すべて人手で確認済みの固定テキスト(aruaru-llm生成には
+ * 頼らない)。最後に、Google検索(設定済みの場合のみ)で見つけた公式サイト・
+ * 入門ブログ・GitHubのリンクを、既存の`buildSafeResultLink`と同じ許可
+ * リスト方式で安全に添える。
+ */
+async function teachProgrammingTopic(topic) {
+  const bodyText = programmingBasicsText(topic);
+  const node = appendMessage("trainer", bodyText);
+
+  const codeEl = document.createElement("pre");
+  codeEl.className = "tutor-code";
+  codeEl.textContent = topic.snippet;
+  node.appendChild(codeEl);
+
+  const restText =
+    classicAlgorithmsText() + "\n" +
+    globalVariablesAdviceText() + "\n" +
+    programmingTopicProsConsText(topic);
+  const restEl = document.createElement("div");
+  renderMessageBody(restEl, restText);
+  node.appendChild(restEl);
+
+  const linksHeader = document.createElement("div");
+  linksHeader.className = "tutor-links-header";
+  linksHeader.textContent = "🔎 もっと詳しく学べる参考リンク / Learn more (reference links):";
+  node.appendChild(linksHeader);
+
+  const linksList = document.createElement("div");
+  linksList.className = "tutor-links-list";
+  node.appendChild(linksList);
+
+  const creds = typeof loadOwnGoogleSearchCredentials === "function" ? loadOwnGoogleSearchCredentials() : null;
+  if (!creds || !creds.api_key || !creds.cx) {
+    linksList.textContent =
+      "Google検索APIキーが未設定のため参考リンクは表示できません。「🔎 Setup Google Search.」から設定してください。 / " +
+      "Google Search API key isn't set up, so reference links can't be shown — set it up via \"🔎 Setup Google Search.\"";
+    return;
+  }
+
+  linksList.textContent = "検索中... / Searching...";
+  try {
+    const queries = [
+      `${topic.labelEn} official documentation`,
+      `${topic.labelEn} tutorial for beginners`,
+      `${topic.labelEn} beginner site:github.com`,
+    ];
+    const resultSets = await Promise.all(
+      queries.map((q) => googleSearchDirect(q, creds.api_key, creds.cx, 2).catch(() => [])),
+    );
+    const seen = new Set();
+    const results = resultSets.flat().filter((r) => {
+      if (!r.link || seen.has(r.link)) return false;
+      seen.add(r.link);
+      return true;
+    });
+    linksList.textContent = "";
+    if (results.length === 0) {
+      linksList.textContent = "参考リンクが見つかりませんでした。 / No reference links found.";
+      return;
+    }
+    for (const r of results) {
+      const row = document.createElement("div");
+      row.className = "tutor-link-row";
+      row.appendChild(buildSafeResultLink(r.link, r.title || r.link));
+      linksList.appendChild(row);
+    }
+  } catch (err) {
+    linksList.textContent = `検索に失敗しました / Search failed: ${err.message}`;
+  }
+}
+
 // 2026-09-24新設(ユーザー指示「文字入力後に、エンターキーでも、画面の
 // エンターキーでも良い様にしましょう」): 物理キーボードのEnterキーは
 // <input type="text">がフォーム内にあれば通常はネイティブ送信されるが、
@@ -6079,8 +6311,11 @@ function fourNinesGradeMessage(grade) {
 // ネイティブsubmitが発火しない場合があるため、明示的にrequestSubmit()を
 // 呼ぶフォールバックを追加する。日本語IME変換中のEnter(確定操作)で
 // 誤送信しないよう、isComposing中は無視する。
+// 2026-09-28改訂(ユーザー指示「Chatの入力欄がCLAUDEの用に1行だと使いにくいので3行くらいに」):
+// <input type="text">から<textarea rows="3">へ変更したため、Shift+Enterでの
+// 改行も明示的にサポートする(Claude等のチャット入力と同じ操作感)。
 inputEl.addEventListener("keydown", (e) => {
-  if (e.key !== "Enter" || e.isComposing) return;
+  if (e.key !== "Enter" || e.isComposing || e.shiftKey) return;
   e.preventDefault();
   formEl.requestSubmit();
 });
@@ -6260,6 +6495,15 @@ formEl.addEventListener("submit", async (e) => {
   // 日次利用回数は消費しない。
   if (isReligionHistoryQuestion(text)) {
     appendMessage("trainer", religionHistoryText());
+    return;
+  }
+
+  // AI先生としてのプログラミング学習(2026-09-28新設)。「Pythonを学びたい」
+  // 「teach me Rust」のように、既知の言語/フレームワーク名+学習意図の語が
+  // 揃ったときだけ発火する(誤検知を避けるため両方が必要)。
+  const programmingTopic = isProgrammingLearnRequest(text);
+  if (programmingTopic) {
+    await teachProgrammingTopic(programmingTopic);
     return;
   }
 

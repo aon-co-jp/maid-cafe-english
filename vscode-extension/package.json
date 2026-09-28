@@ -1,0 +1,79 @@
+{
+  "name": "open-english-companion",
+  "displayName": "open-english Companion",
+  "description": "Companion extension for open-english — play lesson audio in a webview and optionally send it to your own local open-audio-sr AI service for quality enhancement. / open-englishの相棒拡張機能。レッスン音声をWebviewで再生し、任意でローカルのopen-audio-sr AIサービスへ送って高音質化できます。",
+  "version": "0.1.0",
+  "publisher": "aon-co-jp",
+  "license": "SEE LICENSE IN https://github.com/aon-co-jp/open-english",
+  "icon": "media/icon.png",
+  "engines": {
+    "vscode": "^1.85.0"
+  },
+  "categories": [
+    "Education",
+    "Other"
+  ],
+  "keywords": [
+    "open-english",
+    "language learning",
+    "英語学習",
+    "audio",
+    "audio enhancement",
+    "AudioSR",
+    "companion"
+  ],
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/aon-co-jp/open-english.git",
+    "directory": "vscode-extension"
+  },
+  "homepage": "https://github.com/aon-co-jp/open-english",
+  "bugs": {
+    "url": "https://github.com/aon-co-jp/open-english/issues"
+  },
+  "activationEvents": [
+    "onCommand:openEnglishCompanion.openPlayer",
+    "onCommand:openEnglishCompanion.enhanceAudio",
+    "onCommand:openEnglishCompanion.toggleAiTeacherView",
+    "onCommand:openEnglishCompanion.announceAiTeacherEdit",
+    "onCommand:openEnglishCompanion.writeAsAiTeacher"
+  ],
+  "extensionPack": [
+    "ms-vsliveshare.vsliveshare"
+  ],
+  "main": "./out/extension.js",
+  "contributes": {
+    "commands": [
+      {
+        "command": "openEnglishCompanion.openPlayer",
+        "title": "open-english: Open Audio Player / 音声プレーヤーを開く"
+      },
+      {
+        "command": "openEnglishCompanion.enhanceAudio",
+        "title": "open-english: Enhance Audio Quality (via local open-audio-sr) / 音声を高音質化する(ローカルのopen-audio-sr経由)"
+      },
+      {
+        "command": "openEnglishCompanion.toggleAiTeacherView",
+        "title": "open-english: Toggle AI Teacher / Student Color View / AI先生・生徒の色分け表示を切り替え"
+      },
+      {
+        "command": "openEnglishCompanion.announceAiTeacherEdit",
+        "title": "open-english: Announce AI Teacher's Next Edit Area (current selection/line) / AI先生の次の編集予定エリアを予告(選択範囲または現在行)"
+      },
+      {
+        "command": "openEnglishCompanion.writeAsAiTeacher",
+        "title": "open-english: Write Here as AI Teacher / ここにAI先生として書き込む"
+      }
+    ]
+  },
+  "scripts": {
+    "compile": "tsc -p ./",
+    "watch": "tsc -w -p ./",
+    "vscode:prepublish": "npm run compile"
+  },
+  "devDependencies": {
+    "@types/node": "^20.0.0",
+    "@types/vscode": "^1.85.0",
+    "typescript": "^5.4.0"
+  }
+}
