@@ -1414,3 +1414,10 @@ HANDOFFを参照。
 - **[aon-co-jp/maidcafe-programming-school](https://github.com/aon-co-jp/maidcafe-programming-school)を新規作成**: open-englishと連携するプログラミング×語学学習スクールの構想と、コーセラを参考にしたデータサイエンティスト育成カリキュラムの資料をまとめています。
 
 詳細はCLAUDE.mdのHANDOFF(2026-09-29続き)を参照してください。
+
+## 2026-09-29続き2の更新: maidcafe-programming-schoolカリキュラムの自動接続
+
+- **データサイエンティスト育成カリキュラムの自動案内**: チャットで「データサイエンティストになりたい」のように書くと、[aon-co-jp/maidcafe-programming-school](https://github.com/aon-co-jp/maidcafe-programming-school)のカリキュラムデータ(Coursera参考の主要プログラム+実務3領域)を自動で案内し、Python基礎講座も続けて提示します(以前は資料のみで未接続でしたが、実際に接続しました)。
+- VS Code拡張機能(open-english Companion)に、日本語言語パック・Prettier(整形ショートカット`Ctrl+Shift+I`付き)をおすすめ同梱として追加しました。
+
+詳細はCLAUDE.mdのHANDOFF(2026-09-29続き2)を参照してください。

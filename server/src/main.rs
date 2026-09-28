@@ -73,6 +73,10 @@ const STATIC_FILES: &[(&str, &str, &str)] = &[
     ("/world-language-exams.json", "world-language-exams.json", "application/json; charset=utf-8"),
     ("/world-language-phrases.json", "world-language-phrases.json", "application/json; charset=utf-8"),
     ("/world-language-regions.json", "world-language-regions.json", "application/json; charset=utf-8"),
+    // 2026-09-29新設: maidcafe-programming-school由来のデータサイエンティスト育成
+    // カリキュラム(正本はaon-co-jp/maidcafe-programming-schoolリポジトリ、このファイルは
+    // web/内の複製)。AI先生機能(teachDataSciencePath、web/app.js)が参照する。
+    ("/data-science-path.json", "data-science-path.json", "application/json; charset=utf-8"),
     ("/icons/icon-32.png", "icons/icon-32.png", "image/png"),
     ("/icons/icon-180.png", "icons/icon-180.png", "image/png"),
     ("/icons/icon-192.png", "icons/icon-192.png", "image/png"),

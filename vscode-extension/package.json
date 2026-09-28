@@ -39,7 +39,9 @@
     "onCommand:openEnglishCompanion.writeAsAiTeacher"
   ],
   "extensionPack": [
-    "ms-vsliveshare.vsliveshare"
+    "ms-vsliveshare.vsliveshare",
+    "ms-ceintl.vscode-language-pack-ja",
+    "esbenp.prettier-vscode"
   ],
   "main": "./out/extension.js",
   "contributes": {
@@ -63,6 +65,13 @@
       {
         "command": "openEnglishCompanion.writeAsAiTeacher",
         "title": "open-english: Write Here as AI Teacher / ここにAI先生として書き込む"
+      }
+    ],
+    "keybindings": [
+      {
+        "command": "editor.action.formatDocument",
+        "key": "ctrl+shift+i",
+        "when": "editorHasDocumentFormattingProvider && editorTextFocus && !editorReadonly"
       }
     ]
   },

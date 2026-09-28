@@ -1194,6 +1194,40 @@ AIコーディング支援パネル)にとどめている。
 
 ## HANDOFF
 
+- **2026-09-29続き2 maidcafe-programming-schoolカリキュラムの自動接続+VS Code拡張機能の
+  おすすめ同梱化+実機Extension Development Host確認**:
+  1. **カリキュラムの自動接続**(ユーザー指示「madecafe-programming-schoolでもAI先生も
+     自動で使って」): `aon-co-jp/maidcafe-programming-school`の
+     `curriculum/data-science-path.json`を`web/data-science-path.json`として複製・
+     `server/src/main.rs`の`STATIC_FILES`へ登録し、`isDataScienceLearnRequest`/
+     `teachDataSciencePath`(`web/app.js`)から実際に`fetch`して使うよう接続した
+     (以前は「資料のみ、未接続」だった状態を解消)。「データサイエンティストに
+     なりたい」等で自動発火し、Coursera参考の3プログラム+実務3領域+Python基礎講座+
+     `coursera.org`への参考リンク(許可リストへ追加)を表示する。**実機テストで
+     発覚したバグ**: 「〜になりたい」が学習意図語リスト(`PROGRAMMING_LEARN_INTENT_JA`)
+     に無く検出漏れしていた——最も自然な言い回し("データサイエンティストに
+     **なりたい**")が拾えていなかったため追加修正。誤検知しないことも確認済み。
+  2. **VS Code拡張機能の「おすすめ」同梱の意味を訂正**: 当初、日本語言語パック
+     (`ms-ceintl.vscode-language-pack-ja`)とPrettier(`esbenp.prettier-vscode`)を
+     `extensionDependencies`(これが無いと拡張機能自体が有効化されない、真の必須)
+     として追加したが、ユーザーの意図は「Claude(AI)がどれを選ぶか判断した上で、
+     必ず何かは同梱されている状態」であり、起動をブロックする必須依存ではなかった
+     ため、Live Shareと同じ`extensionPack`(常に一緒にインストールされるが、
+     無くても起動はブロックしない)へ変更した。Prettierについては、VS Code標準の
+     「ドキュメントのフォーマット」コマンドに`Ctrl+Shift+I`のキーバインドも
+     `contributes.keybindings`で追加(整形ショートカットの保証)。
+  3. **実機Extension Development Host確認**(ユーザー指摘「VSCはインストール
+     済みですよ」への対応、前回「この環境では不可」としたのは誤り): computer-use
+     (Windows操作)でVS Codeを実際に起動し、`.vscode/launch.json`(`extensionHost`
+     デバッグ設定を新規追加)経由でF5相当の「Run Extension」を実行、
+     [Extension Development Host]ウィンドウが実際に起動することを確認した。
+     **正直な開示**: このVS Code拡張機能は`request_access`で「click」ティア
+     (クリックのみ、キー入力・タイピング不可)でしか許可されず、コマンドパレットへ
+     の入力("open-english"で絞り込む等)は行えなかったため、個々のコマンド
+     (音声再生・高音質化・AI先生色分け等)の実クリック確認までは完了していない
+     ——ウィンドウの起動・拡張機能の読み込み自体に失敗が無いことまでを確認。
+     残りのコマンド単位の実クリック確認はユーザー自身にお願いしたい。
+
 - **2026-09-29続き 相談型開発機能(希望者のみ)+maidcafe-programming-school新設+
   VS Code拡張機能の.vsixパッケージ化**: 前項(同日)で「未着手」としていた3項目に着手。
   1. **相談型開発**(ユーザー指示「ニュース・ブログ・URL・フリーランス案件を題材に、

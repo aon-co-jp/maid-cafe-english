@@ -34,6 +34,13 @@ A lightweight, purely visual overlay for pairing an AI teacher with a student in
 
 This extension is packaged with Microsoft's [Live Share](https://marketplace.visualstudio.com/items?itemName=MS-vsliveshare.vsliveshare) (`ms-vsliveshare.vsliveshare`) as an *extension pack*, so installing this extension also installs Live Share. Live Share lets two people read and edit the same files in real time (similar to the early Cloud9 shared-editor experience) — useful for the "Maid Cafe Programming School" project, where a learner and a mentor/AI-assisted pair work in the same editor session. This extension does not integrate with Live Share's protocol itself; it is simply installed alongside it for convenience.
 
+## Also bundled (recommended): Japanese Language Pack + Prettier
+
+This extension also bundles, as part of the same *extension pack* as Live Share (so they install alongside it, but are not a hard requirement to activate this extension):
+
+- Microsoft's [Japanese Language Pack](https://marketplace.visualstudio.com/items?itemName=MS-CEINTL.vscode-language-pack-ja) (`ms-ceintl.vscode-language-pack-ja`) — reflecting the Japanese-first, bilingual nature of open-english and this companion extension.
+- [Prettier](https://marketplace.visualstudio.com/items?itemName=esbenp.prettier-vscode) (`esbenp.prettier-vscode`) — this extension also contributes a guaranteed keybinding, **`Ctrl+Shift+I`**, for VS Code's built-in "Format Document" command (`editor.action.formatDocument`), so a formatting shortcut is always available regardless of the user's own keybinding customizations.
+
 ## Related projects
 
 - [open-english](https://github.com/aon-co-jp/open-english) — the AI-assisted language-learning platform this extension is a companion to.
@@ -74,6 +81,13 @@ This extension is packaged with Microsoft's [Live Share](https://marketplace.vis
 ### 同梱: Live Share
 
 本拡張機能はMicrosoft製の[Live Share](https://marketplace.visualstudio.com/items?itemName=MS-vsliveshare.vsliveshare)(`ms-vsliveshare.vsliveshare`)を*extension pack*として同梱しており、本拡張機能をインストールするとLive Shareも一緒にインストールされます。Live Shareは初期のCloud9のように、相手と同じファイルをリアルタイムに読み書きできる機能で、「Maid Cafe Programming School」プロジェクト(学習者とメンター/AIがペアで同じエディターセッションを共有する)向けに有用です。本拡張機能自体はLive Shareのプロトコルとは連携しておらず、利便性のために同梱しているだけです。
+
+### 同梱(おすすめ): 日本語言語パック + Prettier
+
+Live Shareと同じ*extension pack*の一部として、以下もおすすめ機能として同梱しています(一緒にインストールされますが、無くても本拡張機能自体は動作する非必須の同梱です)。
+
+- Microsoft製の[日本語言語パック](https://marketplace.visualstudio.com/items?itemName=MS-CEINTL.vscode-language-pack-ja)(`ms-ceintl.vscode-language-pack-ja`) — open-englishおよび本拡張機能の日本語ファーストな(英日併記の)方針を反映。
+- [Prettier](https://marketplace.visualstudio.com/items?itemName=esbenp.prettier-vscode)(`esbenp.prettier-vscode`) — あわせて、VS Code標準の「ドキュメントのフォーマット」コマンド(`editor.action.formatDocument`)に**`Ctrl+Shift+I`**のショートカットキーを本拡張機能側で保証しています(利用者のキーバインド設定に関わらず、整形ショートカットが必ず使える状態にする狙い)。
 
 ### 関連プロジェクト
 

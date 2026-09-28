@@ -6156,8 +6156,10 @@ function detectProgrammingTopic(userText) {
   return PROGRAMMING_TOPICS.find((t) => t.aliases.some((a) => programmingAliasMatches(lower, a))) || null;
 }
 
-const PROGRAMMING_LEARN_INTENT_JA = ["学びたい", "勉強したい", "教えて", "習いたい", "始めたい", "入門"];
-const PROGRAMMING_LEARN_INTENT_EN = ["want to learn", "teach me", "learn how", "get started with", "how do i start"];
+// 2026-09-29追記(実機テストで発覚したバグ修正): 「データサイエンティストになりたい」
+// のような「〜になりたい」(将来なりたい職業を述べる表現)が検出できていなかった。
+const PROGRAMMING_LEARN_INTENT_JA = ["学びたい", "勉強したい", "教えて", "習いたい", "始めたい", "入門", "になりたい"];
+const PROGRAMMING_LEARN_INTENT_EN = ["want to learn", "teach me", "learn how", "get started with", "how do i start", "want to become"];
 
 function isProgrammingLearnRequest(userText) {
   const topic = detectProgrammingTopic(userText);
@@ -6166,6 +6168,95 @@ function isProgrammingLearnRequest(userText) {
   const intentJa = PROGRAMMING_LEARN_INTENT_JA.some((k) => userText.includes(k));
   const intentEn = PROGRAMMING_LEARN_INTENT_EN.some((k) => lower.includes(k));
   return (intentJa || intentEn) ? topic : null;
+}
+
+// 2026-09-29新設(ユーザー指示「maidcafe-programming-schoolでもAI先生も自動で使って」
+// への対応)。aon-co-jp/maidcafe-programming-schoolリポジトリのカリキュラムデータ
+// (data-science-path.json、正本はそちら・このアプリの配信ルートには複製を静的配信)を
+// 実際に参照し、isProgrammingLearnRequestと同じ「トピック検出+学習意図」の二重条件で
+// 自動発火する。ユーザーが明示的に「maidcafe-programming-schoolを使って」と言わなくても、
+// 「データサイエンティストになりたい」等のチャット発言だけで自動的に案内される。
+const DATA_SCIENCE_KEYWORDS_JA = ["データサイエンティスト", "データサイエンス"];
+const DATA_SCIENCE_KEYWORDS_EN = ["data scientist", "data science"];
+
+function isDataScienceLearnRequest(userText) {
+  const lower = userText.toLowerCase();
+  const topicJa = DATA_SCIENCE_KEYWORDS_JA.some((k) => userText.includes(k));
+  const topicEn = DATA_SCIENCE_KEYWORDS_EN.some((k) => lower.includes(k));
+  if (!topicJa && !topicEn) return false;
+  const intentJa = PROGRAMMING_LEARN_INTENT_JA.some((k) => userText.includes(k));
+  const intentEn = PROGRAMMING_LEARN_INTENT_EN.some((k) => lower.includes(k));
+  return intentJa || intentEn;
+}
+
+let dataSciencePathCache = null;
+
+async function fetchDataSciencePath() {
+  if (dataSciencePathCache) return dataSciencePathCache;
+  const res = await fetch("/data-science-path.json");
+  if (!res.ok) throw new Error(`HTTP ${res.status}`);
+  dataSciencePathCache = await res.json();
+  return dataSciencePathCache;
+}
+
+/**
+ * データサイエンティスト育成カリキュラム(maidcafe-programming-school由来)を案内する。
+ * teachProgrammingTopicと同じ方針: カリキュラムの内容自体はaruaru-llm生成に頼らず、
+ * data-science-path.jsonの固定データをそのまま表示する。最初の一歩としてPython
+ * (PROGRAMMING_TOPICSのpythonエントリ)の基礎講座も連携して提示する。
+ */
+async function teachDataSciencePath() {
+  let data;
+  try {
+    data = await fetchDataSciencePath();
+  } catch (err) {
+    appendMessage(
+      "system",
+      `⚠ カリキュラムデータの取得に失敗しました / Failed to load the curriculum data: ${err.message}`,
+    );
+    return;
+  }
+
+  const programLines = data.programs.map(
+    (p) => `・${p.nameJa}(${p.topicsJa.join("・")}) / ${p.nameEn} (${p.topicsEn.join(", ")})`,
+  );
+  const workAreaLines = data.coreWorkAreas.map(
+    (a, i) => `${i + 1}. ${a.nameJa} / ${a.nameEn} — ${a.descriptionJa} / ${a.descriptionEn}`,
+  );
+
+  const bodyText =
+    `📊 データサイエンティスト育成カリキュラム / Data Scientist learning path (aon-co-jp/maidcafe-programming-school)\n\n` +
+    `Coursera(https://www.coursera.org)を参考にした主要プログラム / Key programs referencing Coursera:\n` +
+    programLines.join("\n") +
+    `\n\n実務で求められる3つの領域 / Three core work areas:\n` +
+    workAreaLines.join("\n") +
+    `\n\nまずはPythonの基礎から始めましょう。 / Let's start with Python basics.`;
+
+  const node = appendMessage("trainer", bodyText);
+
+  const pythonTopic = PROGRAMMING_TOPICS.find((t) => t.key === "python");
+  if (pythonTopic) {
+    const codeEl = document.createElement("pre");
+    codeEl.className = "tutor-code";
+    codeEl.textContent = pythonTopic.snippet;
+    node.appendChild(codeEl);
+
+    const restEl = document.createElement("div");
+    renderMessageBody(restEl, classicAlgorithmsText());
+    node.appendChild(restEl);
+  }
+
+  const linksHeader = document.createElement("div");
+  linksHeader.className = "tutor-links-header";
+  linksHeader.textContent = "🔎 出典 / Source:";
+  node.appendChild(linksHeader);
+  const linksList = document.createElement("div");
+  linksList.className = "tutor-links-list";
+  const row = document.createElement("div");
+  row.className = "tutor-link-row";
+  row.appendChild(buildSafeResultLink("https://www.coursera.org", "Coursera"));
+  linksList.appendChild(row);
+  node.appendChild(linksList);
 }
 
 // 変数・クラス・for文の説明(言語非依存の概念)。サンプルコード自体は
@@ -6598,6 +6689,15 @@ formEl.addEventListener("submit", async (e) => {
   // 日次利用回数は消費しない。
   if (isReligionHistoryQuestion(text)) {
     appendMessage("trainer", religionHistoryText());
+    return;
+  }
+
+  // データサイエンティスト育成カリキュラム(2026-09-29新設、maidcafe-programming-school
+  // 連携)。「データサイエンティストになりたい」+学習意図の語が揃ったときだけ発火する。
+  // isProgrammingLearnRequestより先に判定する(「データサイエンス」はPROGRAMMING_TOPICS
+  // の個別言語名より具体的な意図のため)。
+  if (isDataScienceLearnRequest(text)) {
+    await teachDataSciencePath();
     return;
   }
 
@@ -8344,6 +8444,8 @@ const SAFE_EXTERNAL_LINK_DOMAINS = [
   "nhk.or.jp", "asahi.com", "yomiuri.co.jp", "mainichi.jp", "nikkei.com",
   "bbc.com", "bbc.co.uk", "cnn.com", "reuters.com", "apnews.com",
   "nasa.gov", "go.jp", "gov", "ac.jp", "edu",
+  // 2026-09-29追加(データサイエンティスト育成カリキュラムの出典、teachDataSciencePath用)。
+  "coursera.org",
 ];
 
 /** ドメインが上記許可リストに含まれるか(サブドメイン含む)を判定する。 */
