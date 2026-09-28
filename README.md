@@ -1407,3 +1407,10 @@ HANDOFFを参照。
 - **新規 `vscode-extension/`(open-english Companion)**: VS Code内でレッスン音声を再生でき、ローカルの[open-audio-sr](https://github.com/aon-co-jp/open-audio-sr)サービスへ送って高音質化もできる薄いクライアント拡張機能。Microsoft Live Shareを同梱し、AI先生/生徒の色分け編集ビジュアライザ(誰がどこを書いたか・次に編集予定のエリア・今編集中のエリアを色分け表示)も搭載。詳細は[vscode-extension/README.md](vscode-extension/README.md)を参照。型検査のみ確認済みで、VS Code拡張機能開発ホストでの実クリック確認・Marketplace公開はこの環境では未実施です。
 
 詳細な経緯はCLAUDE.mdのHANDOFF(2026-09-29)を参照してください。
+
+## 2026-09-29続きの更新: 相談型開発機能(希望者のみ)+maidcafe-programming-school新設
+
+- **相談型開発(希望者のみ)**: チャットで、ニュース記事・フリーランス案件などの長文またはURLを貼り、「一緒に開発したい」のように明示的に意思表示すると、AI先生が一緒にアプリ/サイトの企画を考えるたたき台を提示します(意思表示が無ければ発火しません=常に希望した場合のみ)。URL先の本文はブラウザの制約上自動取得できないため、その旨を伝えた上で本文の貼り付けをお願いする設計です。
+- **[aon-co-jp/maidcafe-programming-school](https://github.com/aon-co-jp/maidcafe-programming-school)を新規作成**: open-englishと連携するプログラミング×語学学習スクールの構想と、コーセラを参考にしたデータサイエンティスト育成カリキュラムの資料をまとめています。
+
+詳細はCLAUDE.mdのHANDOFF(2026-09-29続き)を参照してください。

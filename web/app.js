@@ -6304,6 +6304,109 @@ async function teachProgrammingTopic(topic) {
   }
 }
 
+// 2026-09-29新設(ユーザー指示「インターネットニュースやブログやユーザーが提示した
+// URLの内容や、フリーランス案件のURLや案件…を題材に、…希望すれば相談しながら
+// 開発だけでも、一緒にプログラミングも英語も日本語も…学習可能として。あくまでも
+// ユーザーが希望すれば」への対応)。詳細な設計はmaidcafe-programming-school
+// リポジトリのcurriculum/collaborative-dev-concept.md参照。
+//
+// **正直な開示・技術的制約**: ブラウザ(CORS制約)からは任意サイトのURLを直接
+// クロールして全文取得することはできない。このため、ユーザー自身が本文を
+// チャットに貼り付ける前提とする(著作権的にも、本人が入手した情報を本人が
+// 使う形になり安全)。URLだけが貼られた場合は全文取得できない旨を正直に伝える。
+//
+// **誤検知防止の二重条件**(isProgrammingLearnRequestと同じ設計方針): (1)
+// ある程度長いテキストまたはURLを含む、かつ(2)開発への意思表示となる語句を
+// 含む場合のみ発火する。意思表示が無ければテキストを貼り付けただけでは発火
+// しない=常に「希望すれば」であることを保証する。
+const COLLABORATIVE_DEV_INTENT_JA = ["一緒に開発", "一緒に作り", "これで開発", "アプリ作りたい", "サイト作りたい", "作ってみたい", "開発したい"];
+const COLLABORATIVE_DEV_INTENT_EN = ["let's build", "help me build", "build this together", "develop this together", "want to build", "build an app", "build a website"];
+const URL_PATTERN = /https?:\/\/[^\s]+/i;
+const COLLABORATIVE_DEV_MIN_LENGTH = 40;
+
+function isCollaborativeDevRequest(userText) {
+  const lower = userText.toLowerCase();
+  const intentJa = COLLABORATIVE_DEV_INTENT_JA.some((k) => userText.includes(k));
+  const intentEn = COLLABORATIVE_DEV_INTENT_EN.some((k) => lower.includes(k));
+  if (!intentJa && !intentEn) return false;
+  const hasUrl = URL_PATTERN.test(userText);
+  const isLongEnough = userText.length >= COLLABORATIVE_DEV_MIN_LENGTH;
+  return hasUrl || isLongEnough;
+}
+
+/**
+ * 相談型開発の応答一式を組み立てて表示する。ユーザー固有の内容(何を貼り付けたか)は
+ * 要約せずそのまま引用するだけに留め(誤った要約による事実誤認を避ける)、技術選定・
+ * 基礎解説は既存の`PROGRAMMING_TOPICS`/`programmingBasicsText`を再利用して固定
+ * テキストで組み立てる(teachProgrammingTopicと同じ方針、aruaru-llm生成には頼らない)。
+ */
+async function suggestCollaborativeDevPlan(userText) {
+  const url = userText.match(URL_PATTERN)?.[0];
+  const quoted = userText.length > 300 ? `${userText.slice(0, 300)}…` : userText;
+
+  const introLines = [
+    `🛠️ 一緒に開発、始めましょう! / Let's start planning this together!`,
+    ``,
+    `いただいた内容を確認しますね: / Here's what I received:`,
+    `「${quoted}」`,
+  ];
+  if (url) {
+    introLines.push(
+      ``,
+      `⚠ 正直な開示: このチャットはブラウザの制約上、URL先のページを自動で読み込む` +
+        `ことができません。上記のURL(${url})の本文を、よろしければ直接貼り付けて` +
+        `いただけますか? / Honest note: this chat can't automatically fetch the ` +
+        `contents of a URL (a browser limitation). If you can, please paste the ` +
+        `actual text from ${url} here.`,
+    );
+  }
+  introLines.push(
+    ``,
+    `━━ まず教えてください / First, a couple of questions ━━`,
+    `1) スマホアプリ・WEBサイト・どちらでもよい、のどれがご希望ですか? / ` +
+      `Would you like a mobile app, a website, or either is fine?`,
+    `2) このまま日本語で進めますか、それとも英語(または今書いている言語)で練習しながら` +
+      `進めますか? / Shall we continue in Japanese, or practice in English (or whatever ` +
+      `language you're typing in) as we go?`,
+  );
+
+  const topic = detectProgrammingTopic(userText);
+  const bodyText = introLines.join("\n") + "\n\n" + (topic ? programmingBasicsText(topic) : genericTechChoiceText());
+  const node = appendMessage("trainer", bodyText);
+
+  if (topic) {
+    const codeEl = document.createElement("pre");
+    codeEl.className = "tutor-code";
+    codeEl.textContent = topic.snippet;
+    node.appendChild(codeEl);
+  }
+
+  const footerEl = document.createElement("div");
+  renderMessageBody(
+    footerEl,
+    `\nこれはあくまで最初のたたき台です。次のメッセージで、上記の質問への回答や、` +
+      `もっと詳しく作りたい機能を教えてください。 / This is just a first draft — reply ` +
+      `with answers to the questions above, or more detail on what you'd like to build, ` +
+      `and we'll keep going from there.`,
+  );
+  node.appendChild(footerEl);
+}
+
+// 特定の言語/フレームワークが検出できなかった場合の、汎用的な技術選定ガイド。
+function genericTechChoiceText() {
+  return (
+    `━━ 技術選定の考え方 / How to choose your first technology ━━\n` +
+    `作りたいものによって最初の一歩が変わります。 / The right starting point depends on what you want to build.\n\n` +
+    `・簡単なWEBサイト(見た目中心) → HTML/CSS/JavaScriptから。 / A simple website (mostly visual) → start with HTML/CSS/JavaScript.\n` +
+    `・データを扱うツール・自動化スクリプト → Python。 / A data tool or automation script → Python.\n` +
+    `・スマホアプリ(iOS/Android両対応) → Flutter(Dart)やReact Native。 / A cross-platform mobile app → Flutter (Dart) or React Native.\n` +
+    `・本格的なWEBサービス(ログイン・DB等) → JavaScript/TypeScript(フロント)+ お好みのサーバー言語。 / ` +
+    `A fuller web service (login, database, etc.) → JavaScript/TypeScript on the frontend, plus a server-side language of your choice.\n\n` +
+    `どれか気になるものがあれば、その名前を書いて「学びたい」と送ってください(例: 「Pythonを学びたい」)。基礎から解説します。 / ` +
+    `If one of these interests you, just tell me its name with "I want to learn" (e.g. "I want to learn Python") and I'll walk you through the basics.`
+  );
+}
+
 // 2026-09-24新設(ユーザー指示「文字入力後に、エンターキーでも、画面の
 // エンターキーでも良い様にしましょう」): 物理キーボードのEnterキーは
 // <input type="text">がフォーム内にあれば通常はネイティブ送信されるが、
@@ -6504,6 +6607,14 @@ formEl.addEventListener("submit", async (e) => {
   const programmingTopic = isProgrammingLearnRequest(text);
   if (programmingTopic) {
     await teachProgrammingTopic(programmingTopic);
+    return;
+  }
+
+  // 相談型開発(2026-09-29新設、ユーザーが希望した場合のみ発火)。
+  // ニュース/ブログ本文・URL・フリーランス案件の内容+開発の意思表示が
+  // 揃ったときだけ、一緒に企画を考えるたたき台を提示する。
+  if (isCollaborativeDevRequest(text)) {
+    await suggestCollaborativeDevPlan(text);
     return;
   }
 

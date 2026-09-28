@@ -1194,6 +1194,36 @@ AIコーディング支援パネル)にとどめている。
 
 ## HANDOFF
 
+- **2026-09-29続き 相談型開発機能(希望者のみ)+maidcafe-programming-school新設+
+  VS Code拡張機能の.vsixパッケージ化**: 前項(同日)で「未着手」としていた3項目に着手。
+  1. **相談型開発**(ユーザー指示「ニュース・ブログ・URL・フリーランス案件を題材に、
+     希望すれば相談しながら開発+多言語学習、あくまでもユーザーが希望すれば」への
+     対応): `isCollaborativeDevRequest`/`suggestCollaborativeDevPlan`(`web/app.js`)
+     を新設。長文またはURLを含む+「一緒に開発したい」等の明示的な意思表示、の
+     両方が揃ったときのみ発火(誤検知防止、既存の`isProgrammingLearnRequest`と
+     同じ設計方針=常に「希望すれば」であることを保証)。**正直な開示**: ブラウザの
+     CORS制約により、貼られたURL先の本文を自動取得することはできないため、その旨を
+     正直に伝えた上でユーザー自身に本文貼り付けを依頼する設計にした(著作権的にも
+     安全)。技術選定・基礎解説は既存の`PROGRAMMING_TOPICS`/`programmingBasicsText`
+     を再利用し、AI生成には頼らない。実機確認済み(Rustのフリーランス案件文+URL+
+     「一緒に開発したい」で正しく発火、意思表示の無い長文では発火せず通常のAI応答へ
+     流れることを確認)。設計の経緯は`aon-co-jp/maidcafe-programming-school`
+     リポジトリの`curriculum/collaborative-dev-concept.md`参照。
+  2. **`aon-co-jp/maidcafe-programming-school`新規作成**: open-englishと連携する
+     プログラミング×語学学習スクールの構想と、コーセラの主要プログラム
+     (Google データアナリティクス/IBM データサイエンス/米大学オンライン学位)+
+     データサイエンスチームの実務3領域を整理したカリキュラム資料
+     (`curriculum/data-science-path.md`/`.json`)を作成。**正直な開示**: この
+     カリキュラムデータは、まだopen-english側のAI先生機能から実際には参照されて
+     いない(接続は次回以降の課題)。
+  3. **VS Code拡張機能の`.vsix`パッケージ化**: `npx @vscode/vsce package`で
+     `open-english-companion-0.1.0.vsix`の生成に成功(アイコン未整備で一度失敗し、
+     Node標準の`zlib`だけで最小限のPNGを生成して解決)。`vscode-extension/README.md`
+     に、この環境には無いVS Code GUIが必要な手順(Extension Development Hostでの
+     実クリック確認、Marketplace公開に必要なpublisherアカウント・PAT取得)を
+     英日で明記し、ユーザー自身の端末で行ってもらう形にした——**正直な開示**:
+     実クリック確認・Marketplace公開はこの環境では最後まで代行できない。
+
 - **2026-09-29 チャット入力欄の複数行化+AI先生プログラミング講座+VS Code companion拡張機能新設**:
   1. **チャット入力欄**(`#chat-input`): `<input type="text">`から`<textarea rows="3">`へ変更
      (ユーザー指摘「CLAUDEの様に1行だと使いにくい」)。Enter単体で送信・Shift+Enterで改行

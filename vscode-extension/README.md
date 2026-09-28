@@ -84,3 +84,30 @@ This extension is packaged with Microsoft's [Live Share](https://marketplace.vis
 
 Type-checked with `npm run compile` only. Not yet click-tested in the VS Code Extension Development Host in this environment.
 `npm run compile`による型検査のみ確認済みです。この環境ではVS Code拡張機能開発ホストでの実クリック確認はまだ行っていません。
+
+## Local testing & publishing / ローカルでの実クリック確認・Marketplace公開手順
+
+This environment has no VS Code GUI, so click-testing and Marketplace publishing must be done on your own machine.
+この環境にはVS CodeのGUIが無いため、実クリック確認・Marketplace公開はご自身の端末で行ってください。
+
+1. **Click-test in the Extension Development Host / 実クリック確認**:
+   ```bash
+   cd vscode-extension
+   npm install
+   code .
+   ```
+   Then press **F5** in VS Code (or Run → Start Debugging) to launch a second "Extension Development Host" window with this extension loaded. Try the commands from the Command Palette (`Ctrl+Shift+P` → type "open-english"). /
+   VS Codeで上記を実行後、**F5**キー(または「実行」→「デバッグの開始」)を押すと、この拡張機能が読み込まれた2つ目の「拡張機能開発ホスト」ウィンドウが起動します。コマンドパレット(`Ctrl+Shift+P`→「open-english」で検索)から各コマンドを試せます。
+
+2. **Package as `.vsix` (already done once in this repo, reproducible) / `.vsix`パッケージ化**:
+   ```bash
+   npx --yes @vscode/vsce package
+   ```
+   This produces `open-english-companion-<version>.vsix`, installable locally via VS Code's "Install from VSIX..." command (Extensions view → `...` menu) — no Marketplace account needed for this step. /
+   `open-english-companion-<version>.vsix`が生成されます。VS Codeの「拡張機能」ビュー→`...`メニュー→「VSIXからのインストール」でMarketplaceアカウント無しにローカルインストールできます。
+
+3. **Publish to the Marketplace (requires a Microsoft publisher account + PAT, not something an AI agent should hold) / Marketplaceへの公開(Microsoftのpublisherアカウント・PATが必要、AIエージェントが保持すべきものではありません)**:
+   - Create a publisher at https://marketplace.visualstudio.com/manage (publisher id used here: `aon-co-jp`, matching `package.json`'s `publisher` field — create it under that id, or change the field to match whatever id you register).
+   - Get a Personal Access Token from Azure DevOps (Marketplace (publish) scope) — see https://code.visualstudio.com/api/working-with-extensions/publishing-extension.
+   - Then: `npx --yes @vscode/vsce publish` (prompts for the PAT, or set `VSCE_PAT` env var).
+   / [marketplace.visualstudio.com/manage](https://marketplace.visualstudio.com/manage)でpublisherを作成(`package.json`の`publisher`欄と同じ`aon-co-jp`、または登録したidに合わせて書き換え)。Azure DevOpsでPersonal Access Token(Marketplace publish権限)を発行し、`npx --yes @vscode/vsce publish`を実行してください(PATの入力を求められます、または環境変数`VSCE_PAT`)。
