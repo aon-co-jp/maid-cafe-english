@@ -1427,3 +1427,7 @@ HANDOFFを参照。
 - **基本的なWEBサイト開発コース**: チャットで「Laravelを学びたい」「FastAPIを学びたい」「Rust + Poemを学びたい」のように書くと、[aon-co-jp/maidcafe-programming-school](https://github.com/aon-co-jp/maidcafe-programming-school)のカリキュラムデータ(PHP+Laravel / Python+FastAPI / Rust+Poem・RPoemの3スタック)を自動で案内します。スタック名を書かず「webサイト開発を学びたい」と書くと3択の概要を案内します。いずれも共通のフロントエンド(HTML5+CSS3+TypeScript)とデータベース(aruaru-db)を組み合わせます。
 
 詳細はCLAUDE.mdのHANDOFF(2026-09-30)を参照してください。
+
+## 2026-09-30続き3の更新: 非公開アーカイブリポジトリのローテーション機構
+
+DATABASEに蓄積するデータ(ニュースDB・aruaru-db実データ)が溢れる前に、非公開のGitHubリポジトリを予測的にローテーションする仕組み(`scripts/archive-rotate.mjs`)を新設しました。既定800MBの80%に達したら次のリポジトリを先行作成、100%に達したら実際に切り替えます。新規に[aon-co-jp/open-english-news-archive](https://github.com/aon-co-jp/open-english-news-archive)(非公開)を作成しました。詳細はCLAUDE.mdのHANDOFF(2026-09-30続き3)を参照してください。

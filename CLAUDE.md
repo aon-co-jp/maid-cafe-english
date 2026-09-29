@@ -1194,6 +1194,38 @@ AIコーディング支援パネル)にとどめている。
 
 ## HANDOFF
 
+- **2026-09-30続き3 非公開アーカイブリポジトリのローテーション機構を新設**:
+  ユーザー指示「DATABASEにストックするDATAはすべて、DATAがあふれる前に予測
+  して、非公開のGithubの新規リポジトリをあらかじめ作っておいて、タイミング
+  よくそのリポジトリを切り替えてDATAが溢れないようにして」への対応。
+  1. **新規非公開リポジトリ`aon-co-jp/open-english-news-archive`を作成**
+     (ニュースDB`news_by_country.json`から8日超の古いニュースを退避する
+     アーカイブ先。既存の`news_prune_archive`がローカルMarkdownへ書き出す
+     処理は既にあったが、実際のGitHub pushは「常時稼働サーバーに書き込み
+     権限を持たせない」方針により手動のままだった——今回の対応で、その
+     手動push先が用意された)。
+  2. **`scripts/archive-rotate.mjs`新設**(汎用ローテーションスクリプト):
+     `.archive-pointer.json`(バージョン管理、現在の書き込み先を`kind`ごとに
+     記録)を見ながら、対象リポジトリのサイズ(`gh api repos/{owner}/{repo}`の
+     `.size`)を確認する。**2段階の閾値**: 既定800MB(GitHub公式が目安とする
+     1GBより保守的)の80%(640MB)に達したら次の連番リポジトリ
+     (`-002`等)を**先行作成のみ**(切替はまだしない)、100%(800MB)に
+     達したら実際に**切替**(ポインタ更新)する。常時稼働サーバーには
+     組み込まず、Claude Code(本人)が手動/定期実行する想定
+     (`node scripts/archive-rotate.mjs news`)。
+  3. **実機テスト**: `news`/`aruaru-db`(既存の`aon-co-jp/aruaru-db-archive`、
+     2026-09-27新設・雛形README状態)双方の初回登録、閾値0での強制
+     ローテーション発火(`-002`リポジトリが実際に作成されることを確認)、
+     閾値到達前の非発火、をすべて確認済み。テストで作成した
+     `open-english-news-archive-002`はそのまま先行作成済みリポジトリとして
+     残している(実データはまだ無い)。
+  4. **未接続(次回以降)**: `news_prune_archive`の実際のpush処理
+     (ローカルMarkdown→アーカイブリポジトリ)自体、およびaruaru-db実データ
+     (VPS上のPostgreSQL/aruaru-dbインスタンス)を`aruaru-db-archive`へ
+     同期する処理(open-LiveKit設計で構想されていたGit-on-SQL経由の自動
+     同期)は、今回はリポジトリ側の受け皿とローテーション機構のみで、
+     実際のデータ書き出し処理の実装はまだ。
+
 - **2026-09-30続き2 rust-poemコース内でTauriも実際に学べるように**: ユーザー
   指示「Rust+PoemでもRPeomでもコース内容的にはTauriの内容も学べるようにして」
   への対応。`teachWebDevStack`(`web/app.js`)を、`stack.desktopSnippet`が
