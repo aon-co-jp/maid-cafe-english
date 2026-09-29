@@ -1194,6 +1194,49 @@ AIコーディング支援パネル)にとどめている。
 
 ## HANDOFF
 
+- **2026-09-30続き4 ニュースアーカイブの実push処理+GitHub容量制限の毎朝
+  クロールを実装(実機デプロイ・テスト済み)**: ユーザー指示「実際のデータ
+  書き出し処理…を実装して」+「2026/09/30 毎朝自動クロールでこの情報を
+  入手して、実際に活かして」(GitHub公式の容量制限一覧を資料として提供)
+  への対応。
+  1. **`github-limits.json`新設**: ユーザー提供のGitHub公式容量制限一覧
+     (推奨1GB/ソフト上限5GB/単一ファイル100MB/ブラウザアップロード25MB/
+     1回push 2GB)を記録。`archive-rotate.mjs`はこの`recommendedRepoSizeMb`
+     (1024)の80%(819MB)を実際の既定閾値として使うよう連携した。
+  2. **`scripts/archive-news-to-github.sh`新設・実機デプロイ済み**:
+     aruaru-llmの`POST /v1/news/prune-archive`を呼んで刈り取りを実行させ、
+     `NEWS-TITLE-README.md`へ追記した上で、2段階ローテーション(80%で
+     先行作成/100%で切替、`archive-rotate.mjs`と同じ閾値)により
+     `aon-co-jp/open-english-news-archive`へ実際にpushする。**重要な
+     発覚事項**: このVPSでは`gh auth`のOAuthトークンが失効していた
+     (`gh repo view`等は失敗する状態)。そのため`gh` CLIには依存せず、
+     git本体+既存のcredential store(fine-grained PAT)と、GitHub REST
+     APIへの`curl`直接アクセスで完結させる設計にした。既存の
+     `news-archive-push.service`(2026-09-23新設、`ExecStart`が存在しない
+     `/root/aruaru-llm/scripts/archive-news-to-github.sh`を指していた)の
+     パスを実際のファイルへ修正。**実機テストで発覚し修正したバグ**:
+     `NEWS-TITLE-README.md`が改行で終わっていない場合、追記内容が前の行と
+     結合してしまう(`cat >>`のみでは改行を保証しない)——追記前に確実に
+     改行を1つ入れるよう修正。テスト用の擬似データで実際にGitHubへの
+     push・ファイル作成まで確認し、テストデータは削除済み。
+  3. **`scripts/fetch-github-limits.sh`新設・毎朝06:00のsystemdタイマーで
+     稼働中**(`github-limits-check.timer`/`.service`、VPS側のみ設置、
+     このリポジトリには含まれない——他のVPS専用timerと同じ運用)。GitHubの
+     容量制限ドキュメントページを毎朝クロールし、`github-limits.json`記載の
+     既知の数値がまだ本文中に見つかるかを簡易な文字列一致で確認する。
+     **正直な開示**: 実機テストの結果、このドキュメントページ(Next.js製で
+     クライアント側レンダリングを含む)からcurlで取得した生HTMLには、
+     期待した数値表記(「100 MB」「50 MB」「25 MB」等)がプレーンテキストとして
+     見つからなかった(「5 GB」のみ確認できた)。これは本文が別の仕組みで
+     描画されている、または対象ページが不適切である可能性を示す——本格的な
+     構造化パースへの改善は次回以降の課題として残し、現状は**見つからない
+     場合は`lastChecked`を更新せず警告ログのみ残す**安全側の設計のまま
+     運用している(誤って「確認済み」と偽装しない)。
+  4. **未接続(次回以降)**: aruaru-db実データ(VPS上のPostgreSQL/aruaru-db
+     インスタンス)から`aruaru-db-archive`への実際の同期処理は、
+     aruaru-dbリポジトリ自体の変更が必要なため今回は未着手(このセッションは
+     open-englishのみを対象としたため)。
+
 - **2026-09-30続き3 非公開アーカイブリポジトリのローテーション機構を新設**:
   ユーザー指示「DATABASEにストックするDATAはすべて、DATAがあふれる前に予測
   して、非公開のGithubの新規リポジトリをあらかじめ作っておいて、タイミング

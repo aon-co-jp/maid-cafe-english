@@ -1431,3 +1431,12 @@ HANDOFFを参照。
 ## 2026-09-30続き3の更新: 非公開アーカイブリポジトリのローテーション機構
 
 DATABASEに蓄積するデータ(ニュースDB・aruaru-db実データ)が溢れる前に、非公開のGitHubリポジトリを予測的にローテーションする仕組み(`scripts/archive-rotate.mjs`)を新設しました。既定800MBの80%に達したら次のリポジトリを先行作成、100%に達したら実際に切り替えます。新規に[aon-co-jp/open-english-news-archive](https://github.com/aon-co-jp/open-english-news-archive)(非公開)を作成しました。詳細はCLAUDE.mdのHANDOFF(2026-09-30続き3)を参照してください。
+
+## 2026-09-30続き4の更新: ニュースアーカイブの実push処理+GitHub容量制限の毎朝クロール
+
+DATABASEに蓄積するデータが溢れる前に非公開GitHubリポジトリへ退避する仕組みを、実際に動くところまで実装しました。
+
+- `scripts/archive-news-to-github.sh`: 8日超の古いニュースを[aon-co-jp/open-english-news-archive](https://github.com/aon-co-jp/open-english-news-archive)(非公開)へ実際にpushします。VPS上で`news-archive-push.timer`により毎日03:15に自動実行されます。
+- `scripts/fetch-github-limits.sh`: GitHub公式の容量制限を毎朝06:00に自動クロールし、`github-limits.json`(ローテーション閾値の根拠)が古くなっていないか確認します(VPS上の`github-limits-check.timer`)。
+
+実機テスト済み(擬似データでの実際のpush・ファイル作成まで確認)。詳細・正直な開示(gh CLI認証失効への対応、ドキュメントクロールの既知の限界)はCLAUDE.mdのHANDOFF(2026-09-30続き4)を参照してください。
