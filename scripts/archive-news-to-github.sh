@@ -106,12 +106,14 @@ next_repo_name() {
   fi
 }
 
-create_private_repo() {
+create_archive_repo() {
   local repo="$1"
+  # 2026-09-30変更(ユーザー指示「公開Githubに移して…ハイブリッドなDATABASE化」):
+  # 非公開ではなく公開リポジトリとして作成し、Wiki機能も有効化する。
   curl -fsS --max-time 20 -X POST -H "Authorization: Bearer $PAT" \
     -H "Accept: application/vnd.github+json" \
     "https://api.github.com/orgs/$ORG/repos" \
-    -d "{\"name\":\"$repo\",\"private\":true,\"description\":\"open-englishニュースアーカイブのローテーション先(自動生成、archive-news-to-github.sh)\"}" \
+    -d "{\"name\":\"$repo\",\"private\":false,\"has_wiki\":true,\"description\":\"open-englishニュースアーカイブのローテーション先(公開、Wikipedia風、自動生成)\"}" \
     > /dev/null
 }
 
@@ -122,7 +124,7 @@ if (( $(echo "$CURRENT_SIZE_MB >= $PRECREATE_THRESHOLD_MB" | bc -l) )); then
   STANDBY_REPO="$(next_repo_name "$CURRENT_REPO")"
   if ! repo_exists "$STANDBY_REPO"; then
     log "事前作成閾値到達。次のリポジトリを先行作成します: $ORG/$STANDBY_REPO"
-    create_private_repo "$STANDBY_REPO"
+    create_archive_repo "$STANDBY_REPO"
   fi
 fi
 
@@ -130,26 +132,73 @@ if (( $(echo "$CURRENT_SIZE_MB >= $THRESHOLD_MB" | bc -l) )); then
   NEXT_REPO="$(next_repo_name "$CURRENT_REPO")"
   if ! repo_exists "$NEXT_REPO"; then
     log "容量超過。次のリポジトリを作成します: $ORG/$NEXT_REPO"
-    create_private_repo "$NEXT_REPO"
+    create_archive_repo "$NEXT_REPO"
   fi
   echo "$NEXT_REPO" > "$CURRENT_REPO_FILE"
   CURRENT_REPO="$NEXT_REPO"
   log "書き込み先を切り替えました: $ORG/$CURRENT_REPO"
 fi
 
-# 4) 決定したリポジトリへ、今回刈り取った分だけを日付付きファイルとしてpushする。
+# 4) 決定したリポジトリの**Wiki**(GitHub Wiki、`<repo>.wiki.git`)へ、
+#    Wikipediaのように「国ごとに育っていく記事」として追記する
+#    (ユーザー指示、2026-09-30: 「できればWikiPEDIAみたいなNewsだともっと
+#    良いです」への対応)。日付単位のフラットなファイルではなく、
+#    国名を記事タイトルとするページ(例: `日本.md`)へ、新しいアーカイブ分を
+#    追記していく——ページ自体が時系列で育つ点がWikipediaの記事に近い構成。
+#    索引ページ(Home.md)は、そのリポジトリに存在するページ一覧から
+#    国名の五十音/アルファベット順で自動生成し、毎回上書きする。
 WORKDIR="$(mktemp -d)"
 trap 'rm -rf "$WORKDIR"' EXIT
-git clone --quiet "https://github.com/$ORG/$CURRENT_REPO.git" "$WORKDIR/repo" 2>>"$LOG_FILE"
-DATED_FILE="$WORKDIR/repo/news/$(date -u +%Y-%m-%d).md"
-mkdir -p "$(dirname "$DATED_FILE")"
-cp "$PENDING_MD" "$DATED_FILE"
-cd "$WORKDIR/repo"
-git add "news/$(date -u +%Y-%m-%d).md"
+WIKI_URL="https://github.com/$ORG/$CURRENT_REPO.wiki.git"
+if ! git clone --quiet "$WIKI_URL" "$WORKDIR/wiki" 2>>"$LOG_FILE"; then
+  log "Wikiリポジトリが未初期化のため空で作成します: $WIKI_URL"
+  mkdir -p "$WORKDIR/wiki"
+  (cd "$WORKDIR/wiki" && git init --quiet -b master && git remote add origin "$WIKI_URL")
+fi
+cd "$WORKDIR/wiki"
+
+# pending.md を "### 国名(検索日時 / searched at: ...)" ブロックごとに分割し、
+# 各国のWikiページ(<国名>.md)へ追記する。ファイル名に使えない文字は "_" に置換。
+awk -v outdir="$WORKDIR/wiki" '
+  /^### / {
+    line = $0
+    sub(/^### /, "", line)
+    match(line, /^[^(]+/)
+    country = substr(line, RSTART, RLENGTH)
+    gsub(/[ \t]+$/, "", country)
+    safe = country
+    gsub(/[\/\\:*?"<>|]/, "_", safe)
+    outfile = outdir "/" safe ".md"
+    print $0 >> outfile
+    current = outfile
+    next
+  }
+  { if (current != "") print $0 >> current }
+' "$PENDING_MD"
+
+# 各国ページの先頭に見出し(初回のみ)を保証しつつ、索引ページ(Home.md)を
+# 全ページ一覧から再生成する。
+{
+  echo "# open-english ニュースアーカイブ 索引 / News Archive Index"
+  echo
+  echo "日本語話者・各国語話者どちらでも読めるハイブリッドDATABASE(Wikipedia風、国別ページ)。 /"
+  echo "A hybrid database readable by both Japanese speakers and speakers of each article's own language (Wikipedia-style, one page per country)."
+  echo
+  echo "## 国一覧 / Countries"
+  echo
+  for f in "$WORKDIR"/wiki/*.md; do
+    base="$(basename "$f" .md)"
+    [ "$base" = "Home" ] && continue
+    echo "- [$base]($base)"
+  done | sort
+} > "$WORKDIR/wiki/Home.md"
+
+cd "$WORKDIR/wiki"
+git add -A
 if git -c user.email="noreply@aon.tokyo" -c user.name="open-english archive bot" \
     commit --quiet -m "archive: $(date -u +%Y-%m-%d) 分のニュースを追加 ($PENDING_BYTES bytes)"; then
-  git push --quiet 2>>"$LOG_FILE"
-  log "push完了: $ORG/$CURRENT_REPO/news/$(date -u +%Y-%m-%d).md"
+  git push --quiet origin HEAD:master 2>>"$LOG_FILE" || git push --quiet 2>>"$LOG_FILE"
+  log "Wikiへpush完了: $ORG/$CURRENT_REPO.wiki"
 else
   log "コミット対象なし(変更なし)。"
 fi
