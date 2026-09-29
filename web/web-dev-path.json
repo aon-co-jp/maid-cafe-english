@@ -39,11 +39,14 @@
       "key": "rust-poem",
       "labelJa": "Rust + Poem / RPoem",
       "labelEn": "Rust + Poem / RPoem",
-      "aliases": ["rpoem"],
+      "aliases": ["rpoem", "tauri"],
       "backendSnippet": "use poem::{get, handler, listener::TcpListener, Route, Server};\n\n#[handler]\nfn hello(poem::web::Path(name): poem::web::Path<String>) -> String {\n    format!(\"Hello, {name}!\")\n}\n\n#[tokio::main]\nasync fn main() -> Result<(), std::io::Error> {\n    let app = Route::new().at(\"/hello/:name\", get(hello));\n    Server::new(TcpListener::bind(\"127.0.0.1:3000\")).run(app).await\n}",
-      "prosJa": ["Rust(型安全・高速)でWeb APIを書ける", "`aon-co-jp`のaruaru-llm/aruaru-db/open-audio-sr等、このエコシステムの多くがRPoem(Poem互換の自前実装)を土台にしており、他リポジトリのコードがそのまま参考になる", "実行速度・メモリ安全性の両立"],
+      "desktopNoteJa": "RPoemにはTauri連携が含まれており、同じPoem/RPoemバックエンドをそのままデスクトップアプリ(Windows/macOS/Linux)として配布できます。",
+      "desktopNoteEn": "RPoem includes Tauri integration, so the same Poem/RPoem backend can be packaged as a desktop app (Windows/macOS/Linux) as-is.",
+      "desktopSnippet": "// src-tauri/src/main.rs — Tauri側のRustコマンド。上のPoem/RPoemサーバーへ\n// 通常のHTTPクライアントで問い合わせるだけで、バックエンドはWeb版と共有できる。\n#[tauri::command]\nasync fn greet(name: String) -> Result<String, String> {\n    let url = format!(\"http://127.0.0.1:3000/hello/{name}\");\n    reqwest::get(url).await.map_err(|e| e.to_string())?.text().await.map_err(|e| e.to_string())\n}\n\nfn main() {\n    tauri::Builder::default()\n        .invoke_handler(tauri::generate_handler![greet])\n        .run(tauri::generate_context!())\n        .expect(\"error while running tauri application\");\n}",
+      "prosJa": ["Rust(型安全・高速)でWeb APIを書ける", "`aon-co-jp`のaruaru-llm/aruaru-db/open-audio-sr等、このエコシステムの多くがRPoem(Poem互換の自前実装)を土台にしており、他リポジトリのコードがそのまま参考になる", "実行速度・メモリ安全性の両立", "RPoemはTauri連携も含んでおり、同じバックエンドコードをデスクトップアプリ化する際にも使える"],
       "consJa": ["Rust自体の学習コスト(所有権・借用)が他の2択より高い", "PHP/Pythonほど手軽に始められるレンタルサーバーが少なく、自前でサーバーを用意する前提になりやすい"],
-      "prosEn": ["write web APIs in Rust (type-safe, fast)", "much of the aon-co-jp ecosystem (aruaru-llm, aruaru-db, open-audio-sr, etc.) is already built on RPoem (an in-house Poem-compatible implementation), so other repos' code doubles as reference material", "combines execution speed with memory safety"],
+      "prosEn": ["write web APIs in Rust (type-safe, fast)", "much of the aon-co-jp ecosystem (aruaru-llm, aruaru-db, open-audio-sr, etc.) is already built on RPoem (an in-house Poem-compatible implementation), so other repos' code doubles as reference material", "combines execution speed with memory safety", "RPoem already includes Tauri integration, so the same backend code can be reused when packaging a desktop app"],
       "consEn": ["Rust itself has a steeper learning curve (ownership/borrowing) than the other two stacks", "fewer cheap shared-hosting options than PHP/Python, so you'll more often need to run your own server"]
     }
   ]

@@ -6274,7 +6274,10 @@ async function teachDataSciencePath() {
 const WEB_DEV_STACK_ALIASES = [
   { key: "php-laravel", aliases: ["laravel"] },
   { key: "python-fastapi", aliases: ["fastapi"] },
-  { key: "rust-poem", aliases: ["rpoem"] },
+  // 2026-09-30訂正(ユーザー指摘「RPoemはTauriが含まれていたので除去」):
+  // 独立した「Rust + Tauri + Poem/RPoem」スタックを一度追加したが、RPoem自体に
+  // 既にTauri対応が含まれているとのことで撤回。"tauri"表記もrust-poemへ寄せる。
+  { key: "rust-poem", aliases: ["rpoem", "tauri"] },
 ];
 
 const WEB_DEV_COURSE_KEYWORDS_JA = ["web開発", "webサイト開発", "ウェブサイト開発", "ホームページ制作", "サイト開発"];
@@ -6348,9 +6351,9 @@ async function teachWebDevCourseOverview() {
   const lines = data.stacks.map((s) => `・${s.labelJa} / ${s.labelEn}`);
   const bodyText =
     `🌐 基本的なWEBサイト開発コース / Basic Website Development course (aon-co-jp/maidcafe-programming-school)\n\n` +
-    `次の3つのバックエンドから選べます(スタック名を書いて「学びたい」と送ってください。` +
-    `例: 「Laravelを学びたい」)。 / Choose one of these three backends (name it and say ` +
-    `you want to learn it, e.g. "I want to learn Laravel"):\n` +
+    `次の${data.stacks.length}つのバックエンドから選べます(スタック名を書いて「学びたい」と送って` +
+    `ください。例: 「Laravelを学びたい」)。 / Choose one of these ${data.stacks.length} backends ` +
+    `(name it and say you want to learn it, e.g. "I want to learn Laravel"):\n` +
     lines.join("\n") +
     `\n\n` +
     webDevFrontendText(data);
@@ -6380,6 +6383,23 @@ async function teachWebDevStack(stackKey) {
   codeEl.className = "tutor-code";
   codeEl.textContent = stack.backendSnippet;
   node.appendChild(codeEl);
+
+  // デスクトップアプリ化(Tauri)のセクション。stack.desktopSnippetが定義されている
+  // 場合のみ表示する(現状はrust-poemのみ、RPoemがTauri連携を含んでいるため)。
+  if (stack.desktopSnippet) {
+    const desktopHeaderEl = document.createElement("div");
+    renderMessageBody(
+      desktopHeaderEl,
+      `\n━━ デスクトップアプリ化: Tauri / Packaging as a desktop app: Tauri ━━\n` +
+        `${stack.desktopNoteJa} / ${stack.desktopNoteEn}`,
+    );
+    node.appendChild(desktopHeaderEl);
+
+    const desktopCodeEl = document.createElement("pre");
+    desktopCodeEl.className = "tutor-code";
+    desktopCodeEl.textContent = stack.desktopSnippet;
+    node.appendChild(desktopCodeEl);
+  }
 
   const prosJa = stack.prosJa.map((p) => `・${p}`).join("\n");
   const consJa = stack.consJa.map((c) => `・${c}`).join("\n");

@@ -1194,6 +1194,26 @@ AIコーディング支援パネル)にとどめている。
 
 ## HANDOFF
 
+- **2026-09-30続き2 rust-poemコース内でTauriも実際に学べるように**: ユーザー
+  指示「Rust+PoemでもRPeomでもコース内容的にはTauriの内容も学べるようにして」
+  への対応。`teachWebDevStack`(`web/app.js`)を、`stack.desktopSnippet`が
+  存在する場合に「デスクトップアプリ化: Tauri」セクションとTauriのコード例
+  (`#[tauri::command]`実装、Poem/RPoemサーバーへHTTPで問い合わせる構成)を
+  追加表示するよう拡張。データは`web-dev-path.json`(正本は
+  `aon-co-jp/maidcafe-programming-school`)の`rust-poem`スタックへ
+  `desktopSnippet`/`desktopNoteJa`/`desktopNoteEn`を追加する形で提供。
+  実機テストで「RPoemを学びたい」「Tauriを学びたい」のどちらでも同じ
+  コース内でバックエンド+デスクトップ化の両方のコード例が表示されることを
+  確認済み。
+
+- **2026-09-30続き 「Rust + Tauri + Poem/RPoem」独立スタックを撤回**: 一度
+  4つ目のスタックとして追加したが(`web/app.js`の`WEB_DEV_STACK_ALIASES`に
+  `rust-tauri-poem`エントリを追加)、ユーザー指摘「RPoemはTauriが含まれていた
+  ので除去」を受けて撤回した。RPoemに既にTauri連携が含まれているとのことで、
+  独立スタックにはせず`rust-poem`の`aliases`へ`"tauri"`を追加する形に統一
+  (正本は`aon-co-jp/maidcafe-programming-school`の`curriculum/web-dev-path.json`、
+  `web/web-dev-path.json`は複製)。3スタック構成に戻っている。
+
 - **2026-09-30 基本的なWEBサイト開発コース新設(PHP+Laravel/Python+FastAPI/
   Rust+Poem・RPoem)**: ユーザー指示への対応。`web/web-dev-path.json`(正本は
   `aon-co-jp/maidcafe-programming-school`の`curriculum/web-dev-path.json`)を
