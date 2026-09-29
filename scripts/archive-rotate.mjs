@@ -31,9 +31,27 @@ import { dirname, join } from "node:path";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const POINTER_PATH = join(__dirname, "..", ".archive-pointer.json");
+const LIMITS_PATH = join(__dirname, "..", "github-limits.json");
 
 const ORG = "aon-co-jp";
-const DEFAULT_THRESHOLD_MB = 800; // GitHub公式の目安(1GB)より保守的な既定値。
+
+// 2026-09-30: github-limits.json(GitHub公式の容量制限、ユーザー提供の資料を
+// 記録)の"recommendedRepoSizeMb"(1024=1GB)の80%を既定閾値とする。ファイルが
+// 読めない場合は800MBへフォールバックする(GitHub公式値が変わっても壊れない
+// ようにするための保険)。
+function loadDefaultThresholdMb() {
+  try {
+    const limits = JSON.parse(readFileSync(LIMITS_PATH, "utf8"));
+    const recommended = limits?.limits?.recommendedRepoSizeMb;
+    if (typeof recommended === "number" && recommended > 0) {
+      return Math.round(recommended * 0.8);
+    }
+  } catch {
+    /* github-limits.jsonが無い/壊れている場合はフォールバック */
+  }
+  return 800;
+}
+const DEFAULT_THRESHOLD_MB = loadDefaultThresholdMb();
 
 function gh(args) {
   return execFileSync("gh", args, { encoding: "utf8" }).trim();

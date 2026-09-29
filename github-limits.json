@@ -1,0 +1,18 @@
+{
+  "$comment": "ユーザーから2026-09-30に提供されたGitHub公式の容量・サイズ制限一覧。archive-rotate.mjs等のローテーション閾値の根拠として使う。scripts/fetch-github-limits.shが毎朝クロールし、lastCheckedのみ更新する(数値が実際に変わっていないかの簡易チェック、パース結果での自動書き換えはしない——正直な開示: 現状は既知の数値がまだドキュメントに存在するかの文字列一致チェックに留まる)。",
+  "sourceUrl": "https://docs.github.com/repositories/working-with-files/managing-large-files",
+  "recordedAt": "2026-09-30",
+  "lastChecked": "2026-09-30",
+  "limits": {
+    "recommendedRepoSizeMb": 1024,
+    "recommendedRepoSizeNoteJa": "パフォーマンスを最適に保つための推奨値(1GB未満)。",
+    "softMaxRepoSizeMb": 5120,
+    "softMaxRepoSizeNoteJa": "5GBを超えるとGitHubサポートからサイズ削減や運用の見直しを求める連絡が届く場合がある(ソフト上限)。",
+    "singleFileHardLimitMb": 100,
+    "singleFileHardLimitNoteJa": "100MBを超えるファイルはPush自体がブロックされる(50MB超で警告)。",
+    "browserUploadLimitMb": 25,
+    "browserUploadLimitNoteJa": "Web画面から直接ドラッグ&ドロップする場合の1ファイル制限。",
+    "singlePushLimitMb": 2048,
+    "singlePushLimitNoteJa": "コマンドラインから1回のPushでまとめて送れる合計データ量の上限。"
+  }
+}
