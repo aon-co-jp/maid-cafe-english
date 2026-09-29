@@ -139,27 +139,27 @@ if (( $(echo "$CURRENT_SIZE_MB >= $THRESHOLD_MB" | bc -l) )); then
   log "書き込み先を切り替えました: $ORG/$CURRENT_REPO"
 fi
 
-# 4) 決定したリポジトリの**Wiki**(GitHub Wiki、`<repo>.wiki.git`)へ、
-#    Wikipediaのように「国ごとに育っていく記事」として追記する
-#    (ユーザー指示、2026-09-30: 「できればWikiPEDIAみたいなNewsだともっと
-#    良いです」への対応)。日付単位のフラットなファイルではなく、
-#    国名を記事タイトルとするページ(例: `日本.md`)へ、新しいアーカイブ分を
-#    追記していく——ページ自体が時系列で育つ点がWikipediaの記事に近い構成。
-#    索引ページ(Home.md)は、そのリポジトリに存在するページ一覧から
-#    国名の五十音/アルファベット順で自動生成し、毎回上書きする。
+# 4) 決定したリポジトリの `wiki/` フォルダへ、Wikipediaのように
+#    「国ごとに育っていく記事」として追記する(ユーザー指示、2026-09-30:
+#    「できればWikiPEDIAみたいなNewsだともっと良いです」への対応)。
+#    **正直な開示・設計変更**: 当初GitHub純正のWiki機能
+#    (`<repo>.wiki.git`)を使う設計にしたが、実機テストの結果、GitHubの
+#    Wikiは「最初の1ページをWebブラウザから手動作成するまでgitリポジトリ
+#    自体が存在しない」という仕様であることが判明し(`git clone`が
+#    `Repository not found`で失敗)、自動化スクリプトからは初期化できない
+#    ——そのため純正Wiki機能は使わず、本体リポジトリ内の`wiki/`フォルダに
+#    同じ「国名を記事タイトルとするページが時系列で育つ」構成を実現する
+#    方式に変更した(通常のgit pushで完結するため自動化と相性が良い)。
+#    索引ページ(`wiki/Home.md`)は、実在するページ一覧から国名の
+#    アルファベット順で自動生成し、毎回上書きする。
 WORKDIR="$(mktemp -d)"
 trap 'rm -rf "$WORKDIR"' EXIT
-WIKI_URL="https://github.com/$ORG/$CURRENT_REPO.wiki.git"
-if ! git clone --quiet "$WIKI_URL" "$WORKDIR/wiki" 2>>"$LOG_FILE"; then
-  log "Wikiリポジトリが未初期化のため空で作成します: $WIKI_URL"
-  mkdir -p "$WORKDIR/wiki"
-  (cd "$WORKDIR/wiki" && git init --quiet -b master && git remote add origin "$WIKI_URL")
-fi
-cd "$WORKDIR/wiki"
+git clone --quiet "https://github.com/$ORG/$CURRENT_REPO.git" "$WORKDIR/repo" 2>>"$LOG_FILE"
+mkdir -p "$WORKDIR/repo/wiki"
 
 # pending.md を "### 国名(検索日時 / searched at: ...)" ブロックごとに分割し、
-# 各国のWikiページ(<国名>.md)へ追記する。ファイル名に使えない文字は "_" に置換。
-awk -v outdir="$WORKDIR/wiki" '
+# 各国のページ(wiki/<国名>.md)へ追記する。ファイル名に使えない文字は "_" に置換。
+awk -v outdir="$WORKDIR/repo/wiki" '
   /^### / {
     line = $0
     sub(/^### /, "", line)
@@ -176,8 +176,7 @@ awk -v outdir="$WORKDIR/wiki" '
   { if (current != "") print $0 >> current }
 ' "$PENDING_MD"
 
-# 各国ページの先頭に見出し(初回のみ)を保証しつつ、索引ページ(Home.md)を
-# 全ページ一覧から再生成する。
+# 索引ページ(wiki/Home.md)を、実在する国別ページ一覧から再生成する。
 {
   echo "# open-english ニュースアーカイブ 索引 / News Archive Index"
   echo
@@ -186,19 +185,19 @@ awk -v outdir="$WORKDIR/wiki" '
   echo
   echo "## 国一覧 / Countries"
   echo
-  for f in "$WORKDIR"/wiki/*.md; do
+  for f in "$WORKDIR"/repo/wiki/*.md; do
     base="$(basename "$f" .md)"
     [ "$base" = "Home" ] && continue
-    echo "- [$base]($base)"
+    echo "- [$base](wiki/$base.md)"
   done | sort
-} > "$WORKDIR/wiki/Home.md"
+} > "$WORKDIR/repo/wiki/Home.md"
 
-cd "$WORKDIR/wiki"
-git add -A
+cd "$WORKDIR/repo"
+git add wiki/
 if git -c user.email="noreply@aon.tokyo" -c user.name="open-english archive bot" \
     commit --quiet -m "archive: $(date -u +%Y-%m-%d) 分のニュースを追加 ($PENDING_BYTES bytes)"; then
-  git push --quiet origin HEAD:master 2>>"$LOG_FILE" || git push --quiet 2>>"$LOG_FILE"
-  log "Wikiへpush完了: $ORG/$CURRENT_REPO.wiki"
+  git push --quiet 2>>"$LOG_FILE"
+  log "push完了: $ORG/$CURRENT_REPO/wiki/"
 else
   log "コミット対象なし(変更なし)。"
 fi
