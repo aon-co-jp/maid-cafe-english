@@ -67,7 +67,12 @@ PENDING_BYTES="$(wc -c < "$PENDING_MD")"
 log "刈り取り済みニュース: $PENDING_BYTES bytes ($PENDING_MD)"
 
 # 2) open-english本体のNEWS-TITLE-README.md(archive-search APIが直接読む
-#    ローカルファイル)へ追記する。
+#    ローカルファイル)へ追記する。既存ファイルが改行で終わっていない場合に
+#    前の行と結合してしまうバグが実機テストで発覚したため、先に改行を
+#    1つ確実に入れてから追記する。
+if [ -s "$NEWS_README" ] && [ "$(tail -c 1 "$NEWS_README")" != "" ]; then
+  echo >> "$NEWS_README"
+fi
 cat "$PENDING_MD" >> "$NEWS_README"
 log "NEWS-TITLE-README.md へ追記しました。"
 
