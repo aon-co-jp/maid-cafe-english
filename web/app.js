@@ -6259,6 +6259,142 @@ async function teachDataSciencePath() {
   node.appendChild(linksList);
 }
 
+// 2026-09-30新設(ユーザー指示「PHP + LARAVELコースと、Python＋FastAPIコースと、
+// Rust＋PoemかRPoemコースで、+aruaru-db ＋HTML5+CSS3＋TypeScriptなどで基本的な
+// WEBサイトの開発を学習するコースを新設して」への対応)。3つのバックエンド
+// スタックのいずれかを選び、共通のフロントエンド(HTML5/CSS3/TypeScript)+
+// aon-co-jp自前のaruaru-db(GraphQL、APIキー自動発行)を組み合わせて基本的な
+// WEBサイト開発を学ぶコース。内容はteachProgrammingTopicと同じ方針で固定
+// テキスト(aruaru-llm生成には頼らない)。
+// 検出(alias照合)だけは同期処理で行う必要があるため、キーとaliasesのみを
+// ここに軽量に保持する。実際に表示するスニペット・メリデメ等の内容は、
+// aon-co-jp/maidcafe-programming-schoolが正本のweb-dev-path.jsonをfetchして
+// 得る(fetchWebDevPath、下記)。データサイエンスコース(teachDataSciencePath)
+// と同じ「正本は別リポジトリ、実データはfetchして使う」構成に揃えている。
+const WEB_DEV_STACK_ALIASES = [
+  { key: "php-laravel", aliases: ["laravel"] },
+  { key: "python-fastapi", aliases: ["fastapi"] },
+  { key: "rust-poem", aliases: ["rpoem"] },
+];
+
+const WEB_DEV_COURSE_KEYWORDS_JA = ["web開発", "webサイト開発", "ウェブサイト開発", "ホームページ制作", "サイト開発"];
+const WEB_DEV_COURSE_KEYWORDS_EN = ["web development", "website development", "build a website"];
+
+function detectWebDevStack(userText) {
+  const lower = userText.toLowerCase();
+  const byAlias = WEB_DEV_STACK_ALIASES.find((s) => s.aliases.some((a) => lower.includes(a)));
+  if (byAlias) return byAlias.key;
+  // "poem"は一般的な英単語(詩)でもあるため、Rustと併記された場合のみRust+Poemと判定する
+  // (aliasesの"rpoem"だけでは拾えない「Rust + Poem」という書き方への対応、誤検知防止)。
+  if (lower.includes("poem") && lower.includes("rust")) {
+    return "rust-poem";
+  }
+  return null;
+}
+
+function isWebDevStackLearnRequest(userText) {
+  const stackKey = detectWebDevStack(userText);
+  if (!stackKey) return null;
+  const lower = userText.toLowerCase();
+  const intentJa = PROGRAMMING_LEARN_INTENT_JA.some((k) => userText.includes(k));
+  const intentEn = PROGRAMMING_LEARN_INTENT_EN.some((k) => lower.includes(k));
+  return (intentJa || intentEn) ? stackKey : null;
+}
+
+function isWebDevCourseOverviewRequest(userText) {
+  if (detectWebDevStack(userText)) return false; // 具体的なスタック名があれば個別コースへ譲る
+  const lower = userText.toLowerCase();
+  const topicJa = WEB_DEV_COURSE_KEYWORDS_JA.some((k) => userText.includes(k));
+  const topicEn = WEB_DEV_COURSE_KEYWORDS_EN.some((k) => lower.includes(k));
+  if (!topicJa && !topicEn) return false;
+  const intentJa = PROGRAMMING_LEARN_INTENT_JA.some((k) => userText.includes(k));
+  const intentEn = PROGRAMMING_LEARN_INTENT_EN.some((k) => lower.includes(k));
+  return intentJa || intentEn;
+}
+
+let webDevPathCache = null;
+
+async function fetchWebDevPath() {
+  if (webDevPathCache) return webDevPathCache;
+  const res = await fetch("/web-dev-path.json");
+  if (!res.ok) throw new Error(`HTTP ${res.status}`);
+  webDevPathCache = await res.json();
+  return webDevPathCache;
+}
+
+// 共通フロントエンド(HTML5/CSS3/TypeScript)+データベース(aruaru-db)の説明。
+// 3スタックいずれでも共通。内容はweb-dev-path.json(正本はmaidcafe-programming-school)由来。
+function webDevFrontendText(data) {
+  return (
+    `━━ 共通のフロントエンド / Shared frontend ━━\n` +
+    `${data.frontend.descriptionJa} / ${data.frontend.descriptionEn}\n\n` +
+    `━━ データベース: ${data.database.nameJa} ━━\n` +
+    `${data.database.descriptionJa} 詳細: ${data.database.url} / ` +
+    `${data.database.descriptionEn} Details: ${data.database.url}`
+  );
+}
+
+async function teachWebDevCourseOverview() {
+  let data;
+  try {
+    data = await fetchWebDevPath();
+  } catch (err) {
+    appendMessage(
+      "system",
+      `⚠ コースデータの取得に失敗しました / Failed to load the course data: ${err.message}`,
+    );
+    return;
+  }
+  const lines = data.stacks.map((s) => `・${s.labelJa} / ${s.labelEn}`);
+  const bodyText =
+    `🌐 基本的なWEBサイト開発コース / Basic Website Development course (aon-co-jp/maidcafe-programming-school)\n\n` +
+    `次の3つのバックエンドから選べます(スタック名を書いて「学びたい」と送ってください。` +
+    `例: 「Laravelを学びたい」)。 / Choose one of these three backends (name it and say ` +
+    `you want to learn it, e.g. "I want to learn Laravel"):\n` +
+    lines.join("\n") +
+    `\n\n` +
+    webDevFrontendText(data);
+  appendMessage("trainer", bodyText);
+}
+
+async function teachWebDevStack(stackKey) {
+  let data;
+  try {
+    data = await fetchWebDevPath();
+  } catch (err) {
+    appendMessage(
+      "system",
+      `⚠ コースデータの取得に失敗しました / Failed to load the course data: ${err.message}`,
+    );
+    return;
+  }
+  const stack = data.stacks.find((s) => s.key === stackKey);
+  if (!stack) return;
+
+  const bodyText =
+    `🌐 基本的なWEBサイト開発コース: ${stack.labelJa} / ${stack.labelEn} (aon-co-jp/maidcafe-programming-school)\n\n` +
+    `━━ バックエンドのサンプルコード / Backend sample code (${stack.labelEn}) ━━`;
+  const node = appendMessage("trainer", bodyText);
+
+  const codeEl = document.createElement("pre");
+  codeEl.className = "tutor-code";
+  codeEl.textContent = stack.backendSnippet;
+  node.appendChild(codeEl);
+
+  const prosJa = stack.prosJa.map((p) => `・${p}`).join("\n");
+  const consJa = stack.consJa.map((c) => `・${c}`).join("\n");
+  const prosEn = stack.prosEn.map((p) => `- ${p}`).join("\n");
+  const consEn = stack.consEn.map((c) => `- ${c}`).join("\n");
+  const restText =
+    `\n${webDevFrontendText(data)}\n\n` +
+    `━━ ${stack.labelJa}自体のメリット・デメリット / Pros & cons of ${stack.labelEn} itself ━━\n` +
+    `👍 メリット / Pros:\n${prosJa}\n${prosEn}\n\n` +
+    `👎 デメリット / Cons:\n${consJa}\n${consEn}\n`;
+  const restEl = document.createElement("div");
+  renderMessageBody(restEl, restText);
+  node.appendChild(restEl);
+}
+
 // 変数・クラス・for文の説明(言語非依存の概念)。サンプルコード自体は
 // `.tutor-code`(白空白をpreのまま保つ既存クラス)を使って別要素として
 // 添える(地の文はwhite-space:pre-lineでインデントが潰れるため)。
@@ -6698,6 +6834,19 @@ formEl.addEventListener("submit", async (e) => {
   // の個別言語名より具体的な意図のため)。
   if (isDataScienceLearnRequest(text)) {
     await teachDataSciencePath();
+    return;
+  }
+
+  // 基本的なWEBサイト開発コース(2026-09-30新設)。PHP+Laravel/Python+FastAPI/
+  // Rust+Poem・RPoemの3スタック。具体的なスタック名+学習意図で個別コースへ、
+  // スタック名が無くても「web開発を学びたい」等で3択の概要を案内する。
+  const webDevStack = isWebDevStackLearnRequest(text);
+  if (webDevStack) {
+    await teachWebDevStack(webDevStack);
+    return;
+  }
+  if (isWebDevCourseOverviewRequest(text)) {
+    await teachWebDevCourseOverview();
     return;
   }
 

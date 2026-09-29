@@ -1421,3 +1421,9 @@ HANDOFFを参照。
 - VS Code拡張機能(open-english Companion)に、日本語言語パック・Prettier(整形ショートカット`Ctrl+Shift+I`付き)をおすすめ同梱として追加しました。
 
 詳細はCLAUDE.mdのHANDOFF(2026-09-29続き2)を参照してください。
+
+## 2026-09-30の更新: 基本的なWEBサイト開発コース新設
+
+- **基本的なWEBサイト開発コース**: チャットで「Laravelを学びたい」「FastAPIを学びたい」「Rust + Poemを学びたい」のように書くと、[aon-co-jp/maidcafe-programming-school](https://github.com/aon-co-jp/maidcafe-programming-school)のカリキュラムデータ(PHP+Laravel / Python+FastAPI / Rust+Poem・RPoemの3スタック)を自動で案内します。スタック名を書かず「webサイト開発を学びたい」と書くと3択の概要を案内します。いずれも共通のフロントエンド(HTML5+CSS3+TypeScript)とデータベース(aruaru-db)を組み合わせます。
+
+詳細はCLAUDE.mdのHANDOFF(2026-09-30)を参照してください。

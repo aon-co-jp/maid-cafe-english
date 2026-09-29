@@ -1,0 +1,50 @@
+{
+  "$comment": "open-englishのAI先生機能(web/app.jsのteachWebDevStack/teachWebDevCourseOverview)が実際に参照する、基本的なWEBサイト開発コースの構造化データ。正本はこのリポジトリ(aon-co-jp/maidcafe-programming-school)のcurriculum/web-dev-path.json。open-english側(web/web-dev-path.json)はその複製。",
+  "lastReviewed": "2026-09-30",
+  "frontend": {
+    "descriptionJa": "HTML5(構造)・CSS3(見た目)・TypeScript(型付きJavaScript、画面の動き)の組み合わせは、どのバックエンドを選んでも共通して使えます。",
+    "descriptionEn": "HTML5 (structure), CSS3 (styling), and TypeScript (typed JavaScript, for interactivity) work the same way regardless of which backend you pick."
+  },
+  "database": {
+    "nameJa": "aruaru-db",
+    "nameEn": "aruaru-db",
+    "descriptionJa": "aon-co-jp自前の無料データベースです。GraphQL APIで、APIキーは自動発行されるため事前準備がほぼ不要です。",
+    "descriptionEn": "aon-co-jp's own free database. Speaks GraphQL, and API keys are issued automatically — almost no setup required.",
+    "url": "https://github.com/aon-co-jp/aruaru-db"
+  },
+  "stacks": [
+    {
+      "key": "php-laravel",
+      "labelJa": "PHP + Laravel",
+      "labelEn": "PHP + Laravel",
+      "aliases": ["laravel"],
+      "backendSnippet": "// routes/web.php\nRoute::get('/hello/{name}', function (string $name) {\n    return view('hello', ['name' => $name]);\n});",
+      "prosJa": ["PHPは世界中のレンタルサーバーで動く、Web専用に設計された言語", "Laravelはルーティング・DB操作(Eloquent)・認証などがひとまとまりで揃うフルスタックフレームワーク", "情報量・実績が非常に多く、学習リソースが豊富"],
+      "consJa": ["フレームワークの機能が多く、最初は覚えることが多い", "PHP自体はPython/Rust等と比べて型の扱いが緩め(近年のバージョンで改善中)"],
+      "prosEn": ["PHP is a language purpose-built for the web, and runs on virtually every shared hosting provider", "Laravel bundles routing, database access (Eloquent ORM), and authentication into one full-stack framework", "an enormous amount of learning resources and real-world track record"],
+      "consEn": ["a lot of framework features to learn up front", "PHP's typing is looser than Python/Rust (though recent versions have improved this)"]
+    },
+    {
+      "key": "python-fastapi",
+      "labelJa": "Python + FastAPI",
+      "labelEn": "Python + FastAPI",
+      "aliases": ["fastapi"],
+      "backendSnippet": "from fastapi import FastAPI\n\napp = FastAPI()\n\n@app.get(\"/hello/{name}\")\ndef hello(name: str):\n    return {\"message\": f\"Hello, {name}!\"}",
+      "prosJa": ["型ヒント(Python標準機能)からAPI仕様書(OpenAPI)を自動生成してくれる", "非同期処理(async/await)に対応し高速", "Pythonの豊富なライブラリ(データ処理・AI等)とそのまま連携しやすい"],
+      "consJa": ["フルスタックフレームワーク(画面テンプレートやDB管理まで一式)ではなく、API用途が中心", "Laravelほど「決まった作法」が無いため、大規模開発では設計方針を自分たちで決める必要がある"],
+      "prosEn": ["auto-generates API docs (OpenAPI) straight from Python's own type hints", "built on async/await for high performance", "plugs directly into Python's huge ecosystem (data processing, AI, etc.)"],
+      "consEn": ["focused on APIs rather than being a full-stack framework (no built-in page templating/admin like Laravel)", "fewer built-in conventions than Laravel, so larger projects need more upfront design decisions"]
+    },
+    {
+      "key": "rust-poem",
+      "labelJa": "Rust + Poem / RPoem",
+      "labelEn": "Rust + Poem / RPoem",
+      "aliases": ["rpoem"],
+      "backendSnippet": "use poem::{get, handler, listener::TcpListener, Route, Server};\n\n#[handler]\nfn hello(poem::web::Path(name): poem::web::Path<String>) -> String {\n    format!(\"Hello, {name}!\")\n}\n\n#[tokio::main]\nasync fn main() -> Result<(), std::io::Error> {\n    let app = Route::new().at(\"/hello/:name\", get(hello));\n    Server::new(TcpListener::bind(\"127.0.0.1:3000\")).run(app).await\n}",
+      "prosJa": ["Rust(型安全・高速)でWeb APIを書ける", "`aon-co-jp`のaruaru-llm/aruaru-db/open-audio-sr等、このエコシステムの多くがRPoem(Poem互換の自前実装)を土台にしており、他リポジトリのコードがそのまま参考になる", "実行速度・メモリ安全性の両立"],
+      "consJa": ["Rust自体の学習コスト(所有権・借用)が他の2択より高い", "PHP/Pythonほど手軽に始められるレンタルサーバーが少なく、自前でサーバーを用意する前提になりやすい"],
+      "prosEn": ["write web APIs in Rust (type-safe, fast)", "much of the aon-co-jp ecosystem (aruaru-llm, aruaru-db, open-audio-sr, etc.) is already built on RPoem (an in-house Poem-compatible implementation), so other repos' code doubles as reference material", "combines execution speed with memory safety"],
+      "consEn": ["Rust itself has a steeper learning curve (ownership/borrowing) than the other two stacks", "fewer cheap shared-hosting options than PHP/Python, so you'll more often need to run your own server"]
+    }
+  ]
+}

@@ -1194,6 +1194,23 @@ AIコーディング支援パネル)にとどめている。
 
 ## HANDOFF
 
+- **2026-09-30 基本的なWEBサイト開発コース新設(PHP+Laravel/Python+FastAPI/
+  Rust+Poem・RPoem)**: ユーザー指示への対応。`web/web-dev-path.json`(正本は
+  `aon-co-jp/maidcafe-programming-school`の`curriculum/web-dev-path.json`)を
+  新設し、`server/src/main.rs`の`STATIC_FILES`へ登録。`web/app.js`に
+  `detectWebDevStack`/`isWebDevStackLearnRequest`/`isWebDevCourseOverviewRequest`/
+  `teachWebDevStack`/`teachWebDevCourseOverview`を追加。「Laravelを学びたい」
+  等でスタック個別コース、「webサイト開発を学びたい」(スタック名無し)で3択の
+  概要案内が自動発火する。3スタック共通でフロントエンド(HTML5/CSS3/TypeScript)+
+  `aruaru-db`を案内。**設計変更**: 当初コースデータをJS側にハードコードしたが、
+  「maidcafe-programming-schoolと連携して」との指示で、検出用の軽量なalias表
+  だけをJS側に残し、表示内容は`web-dev-path.json`を`fetch`して取得する方式へ
+  変更(データサイエンスコース=`teachDataSciencePath`と同じパターンに統一)。
+  **誤検知防止**: 「Poem」は一般的な英単語(詩)でもあるため、`rpoem`単体一致に
+  加え`poem`と`rust`が両方含まれる場合のみRust+Poemコースと判定する特別ルールを
+  追加。実機テストで「この詩(poem)を学びたい」が誤検知しないこと、
+  「Rust + Poemを学びたい」の検出、スタック名無しの概要案内、いずれも確認済み。
+
 - **2026-09-29続き2 maidcafe-programming-schoolカリキュラムの自動接続+VS Code拡張機能の
   おすすめ同梱化+実機Extension Development Host確認**:
   1. **カリキュラムの自動接続**(ユーザー指示「madecafe-programming-schoolでもAI先生も
