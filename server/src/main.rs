@@ -24,6 +24,7 @@ mod github_agent;
 mod local_agent;
 mod self_update;
 mod totp;
+mod tts;
 mod vps_agent;
 mod world_lab;
 
@@ -3389,6 +3390,10 @@ async fn main() {
     app = app.at("/v1/public/news/for", get(handler_fn(|req, _p| Box::pin(proxy_aruaru_llm_get_with_query(req, "/v1/news/for")))));
     app = app.at("/v1/public/news/archive-search", get(handler_fn(|req, _p| Box::pin(news_archive_search(req)))));
     app = app.at("/v1/public/freelance/job-search", post(handler_fn(|req, _p| Box::pin(public_freelance_job_search(req)))));
+    // サーバー側の音声合成(ローカル版・ミックス版、2026-09-30新設、`tts.rs`参照)。WEB版・非対応環境では`status`が`available: false`を返し、
+    // クライアント(`app.js`)はWeb Speech APIへフォールバックする。
+    app = app.at("/v1/public/tts/status", get(handler_fn(|_req, _p| Box::pin(tts::status()))));
+    app = app.at("/v1/public/tts", post(handler_fn(|req, _p| Box::pin(tts::handle(req)))));
     app = app.at("/v1/config", get(handler_fn(move |_req, _p| async move { app_config().await })));
     app = app.at("/v1/platform-info", get(handler_fn(move |_req, _p| async move { platform_info().await })));
     // `/health`はopen-web-server/open-easy-web側の「分身の術」テナント

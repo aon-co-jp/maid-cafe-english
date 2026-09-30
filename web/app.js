@@ -2243,9 +2243,158 @@ function splitSpeechChunks(text, lang) {
   return chunks;
 }
 
+// サーバー側の音声合成(ローカル版・ミックス版、2026-09-30新設)。
+//
+// WEB版はブラウザのWeb Speech APIで読み上げるが、その出力音声はスクリプトから取り出せず、声質の加工ができない。
+// ローカルサーバー(`server/src/tts.rs`)は、OSの音声合成(現状はWindowsのSAPI)で作ったWAVを、RPoemの共有クレート
+// `open-runo-voice`で加工して(先生=メイド風、ヘルパー=太く低い男性)返す。起動時に`/v1/public/tts/status`で
+// 使えるか確かめ、使えれば`enqueueSpeech`はサーバーのWAVを再生する。WEB版(静的ホスティング)・VPS・サーバーが
+// 非対応の環境では`available`が偽のままで、従来どおりWeb Speech APIを使う(=既存の挙動は変わらない)。
+// 1つの発話だけ失敗(その言語の声が無い等)した場合は、その発話だけWeb Speech APIへフォールバックする。
+const serverTts = { available: false, failures: 0, queue: [], running: false, epoch: 0, audio: null, stop: null };
+
+async function probeServerTts() {
+  try {
+    const res = await fetch("/v1/public/tts/status", { cache: "no-store" });
+    if (!res.ok) return;
+    const info = await res.json();
+    serverTts.available = info.available === true;
+  } catch (err) {
+    // WEB版など、サーバーが無い環境: Web Speech APIのまま。
+  }
+}
+
+/** 声で読み上げる手段があるか(サーバー側TTS、またはブラウザのWeb Speech API)。 */
+function hasSpeechOutput() {
+  return serverTts.available || "speechSynthesis" in window;
+}
+
+/** サーバー側TTSの音声を再生中、または再生待ちがあるか(音声認識が自分の声を拾わないための判定にも使う)。 */
+function serverTtsSpeaking() {
+  return serverTts.running || serverTts.queue.length > 0 || (serverTts.audio !== null && !serverTts.audio.paused);
+}
+
+/** サーバー側TTSの再生と待ち行列を止める(`speechSynthesis.cancel()`と対)。 */
+function serverTtsCancel() {
+  serverTts.epoch++;
+  serverTts.queue.length = 0;
+  serverTts.running = false;
+  if (serverTts.audio) {
+    try {
+      serverTts.audio.pause();
+    } catch (err) {
+      // 止められなくても続行
+    }
+    serverTts.audio = null;
+  }
+  if (serverTts.stop) serverTts.stop();
+}
+
+async function fetchServerTts(item) {
+  const res = await fetch("/v1/public/tts", {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({ text: item.text, lang: item.lang, persona: item.isHelper ? "helper" : "teacher" }),
+  });
+  if (!res.ok) {
+    const err = new Error("server tts " + res.status);
+    err.status = res.status;
+    throw err;
+  }
+  return res.blob();
+}
+
+function serverTtsEnqueue(chunks, lang, isHelper, onEnd) {
+  chunks.forEach((text, i) => {
+    serverTts.queue.push({ text, lang, isHelper, onEnd: i === chunks.length - 1 ? onEnd : null, blob: null });
+  });
+  // 積んだ直後に先頭の分を取りに行く(前の発話を再生している間に、次の音声の合成を済ませておく)。
+  const head = serverTts.queue[0];
+  if (head && !head.blob) {
+    head.blob = fetchServerTts(head);
+    head.blob.catch(() => {}); // 失敗は`serverTtsPump`が`await`したときに扱う
+  }
+  serverTtsPump();
+}
+
+function playServerTts(blob) {
+  return new Promise((resolve) => {
+    const url = URL.createObjectURL(blob);
+    const audio = new Audio(url);
+    serverTts.audio = audio;
+    const done = (ok) => {
+      URL.revokeObjectURL(url);
+      if (serverTts.audio === audio) serverTts.audio = null;
+      if (serverTts.stop === stop) serverTts.stop = null;
+      resolve(ok);
+    };
+    const stop = () => done(true);
+    serverTts.stop = stop;
+    audio.onended = () => done(true);
+    audio.onerror = () => done(false);
+    audio.play().catch(() => done(false)); // 自動再生のブロック等
+  });
+}
+
+/** 待ち行列を順に再生する。次の分は先に取りに行き、再生の隙間を減らす。 */
+async function serverTtsPump() {
+  if (serverTts.running) return;
+  serverTts.running = true;
+  const epoch = serverTts.epoch;
+  try {
+    while (serverTts.queue.length && epoch === serverTts.epoch) {
+      const item = serverTts.queue.shift();
+      if (!item.blob) item.blob = fetchServerTts(item);
+      const next = serverTts.queue[0];
+      if (next && !next.blob) {
+        next.blob = fetchServerTts(next);
+        next.blob.catch(() => {});
+      }
+      let blob = null;
+      try {
+        blob = await item.blob;
+        serverTts.failures = 0;
+      } catch (err) {
+        // 501(この環境では使えない)や連続の失敗は、以降をWeb Speech APIへ切り替える。
+        serverTts.failures++;
+        if (err.status === 501 || serverTts.failures >= 3) serverTts.available = false;
+      }
+      if (epoch !== serverTts.epoch) return;
+      const played = blob ? await playServerTts(blob) : false;
+      if (epoch !== serverTts.epoch) return;
+      if (played) {
+        if (item.onEnd) item.onEnd();
+      } else if ("speechSynthesis" in window) {
+        // この発話だけWeb Speech APIで読む(終わるまで待ってから次へ進む)
+        await new Promise((resolve) => {
+          enqueueWebSpeech([item.text], item.lang, item.isHelper, () => {
+            if (item.onEnd) item.onEnd();
+            resolve();
+          });
+        });
+      } else if (item.onEnd) {
+        item.onEnd();
+      }
+    }
+  } finally {
+    if (epoch === serverTts.epoch) serverTts.running = false;
+  }
+}
+
+probeServerTts();
+
 /** 整えたテキストを分割して読み上げキューに積む。最後の発話が終わったらonEndを呼ぶ。 */
 function enqueueSpeech(text, lang, isHelper, onEnd) {
   const chunks = splitSpeechChunks(text, lang);
+  if (serverTts.available && chunks.length) {
+    serverTtsEnqueue(chunks, lang, isHelper, onEnd);
+    return chunks.length;
+  }
+  return enqueueWebSpeech(chunks, lang, isHelper, onEnd);
+}
+
+/** ブラウザ標準のWeb Speech APIで読み上げる(WEB版、およびサーバー側TTSが使えないときのフォールバック)。 */
+function enqueueWebSpeech(chunks, lang, isHelper, onEnd) {
   chunks.forEach((chunk, i) => {
     const utter = new SpeechSynthesisUtterance(chunk);
     utter.lang = lang;
@@ -2271,9 +2420,10 @@ function enqueueSpeech(text, lang, isHelper, onEnd) {
 // 再生してくれる)。
 function speakBilingual(text) {
   bubbleEl.textContent = text;
-  if (!(voiceOutEl.checked && "speechSynthesis" in window)) return;
+  if (!(voiceOutEl.checked && hasSpeechOutput())) return;
   try {
-    window.speechSynthesis.cancel();
+    if ("speechSynthesis" in window) window.speechSynthesis.cancel();
+    serverTtsCancel();
     const isHelper = typeof activeCharacter !== "undefined" && activeCharacter === "helper";
     const enText = extractSpeechText(text, "en-US");
     const jaText = extractSpeechText(text, "ja-JP");
@@ -2300,9 +2450,10 @@ function speak(text) {
   // ブラウザ標準のWeb Speech API(SpeechSynthesis)を使う——サーバー側の
   // TTSは未実装なので、対応ブラウザでのみ実際に声が出る(正直な開示)。
   let spokenMs = Math.min(4000, text.length * 60);
-  if (voiceOutEl.checked && "speechSynthesis" in window) {
+  if (voiceOutEl.checked && hasSpeechOutput()) {
     try {
-      window.speechSynthesis.cancel();
+      if ("speechSynthesis" in window) window.speechSynthesis.cancel();
+      serverTtsCancel();
       // 2026-09-13改善: 「自動判定」モードでは`replyLangEl.value`が
       // "auto"のままなので言語コード判定に使えない。実際に生成された
       // 返信テキスト自体に日本語が含まれるかで読み上げ音声を選ぶ方が
@@ -7772,7 +7923,7 @@ if (SpeechRecognitionImpl) {
     if (!voiceAlwaysOn) return;
     setTimeout(() => {
       if (!voiceAlwaysOn || micIsListening) return;
-      if ("speechSynthesis" in window && window.speechSynthesis.speaking) {
+      if (("speechSynthesis" in window && window.speechSynthesis.speaking) || serverTtsSpeaking()) {
         scheduleAutoListen(300); // 読み上げ中はキャラクターの声を拾わないよう再チェック
         return;
       }
@@ -11365,6 +11516,7 @@ function speakOneLanguage(row) {
     return;
   }
   window.speechSynthesis.cancel();
+  serverTtsCancel();
   const tag = SPEECH_LANG_TAGS[row.code] || row.code;
   const utter = new SpeechSynthesisUtterance(row.text);
   utter.lang = tag;
@@ -11387,6 +11539,7 @@ function playMultiSpeakSequence() {
     return;
   }
   window.speechSynthesis.cancel();
+  serverTtsCancel();
   const rows = Array.from(multiSpeakOutputEl.querySelectorAll(".multi-speak-row"));
   lines.forEach((line, i) => {
     const tag = SPEECH_LANG_TAGS[line.code] || line.code;
@@ -11425,6 +11578,7 @@ if (multiSpeakOutputEl) {
   if (stopBtn) {
     stopBtn.addEventListener("click", () => {
       if ("speechSynthesis" in window) window.speechSynthesis.cancel();
+      serverTtsCancel();
       multiSpeakOutputEl.querySelectorAll(".multi-speak-row").forEach((r) => r.classList.remove("speaking-now"));
       if (multiSpeakStatusEl) multiSpeakStatusEl.textContent = "停止しました。 / Stopped.";
     });

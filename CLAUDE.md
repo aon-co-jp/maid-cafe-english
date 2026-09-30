@@ -8268,6 +8268,11 @@ open-englishにはWEB版(ブラウザのみ)・ローカル版・その両方を
 | **ミックス版** | ローカル版と同じ音声をWEBの画面から使う: ローカルサーバーが音声(WAV)を作り、WEB画面が`<audio>`で再生する。ローカルサーバーが無い環境では、WEB版のWeb Speech APIへ自動でフォールバックする設計になる |
 
 - **決定済み**: 音声処理の共有ライブラリは、RPoem内の共有クレート`open-runo-voice`(ユーザー指示、2026-09-30)。`server/Cargo.toml`からは、既存の`open-runo-poem-compat`と同じパス依存(`../../RPoem/crates/open-runo-voice`)で参照できる。
-- **未着手(要決定)**: ローカルサーバーに音声合成のエンドポイント(例: `POST /api/tts`)を足すか。足す場合は、(1)OSの音声合成(WindowsならSAPI)でWAVを作る部分、(2)`open-runo-voice`で声質を加工する部分、(3)WEB画面が`<audio>`で再生し、サーバーが無い環境ではWeb Speech APIへフォールバックする部分、の3つが要る。決まるまで、open-englishのコードは変更しない。
+- **実装済み(2026-09-30、ユーザー指示「open-englishのローカル版・ミックス版でサーバー側の音声合成を作って」)**: `server/src/tts.rs`と`web/app.js`。
+  - `GET /v1/public/tts/status`(使えるか・入っている音声)、`POST /v1/public/tts`(`{text, lang, persona: "teacher"|"helper", harmony}`→`audio/wav`)。既存の公開エンドポイントの規約(`/v1/public/...`)に合わせた。
+  - サーバー側: WindowsのSAPI(PowerShell経由、文章はファイルで渡すのでコマンド注入が起きない)でWAVを作り、`open-runo-voice`で加工(先生=メイド風、ヘルパー=太く低い男性。話速は既存のWeb Speech版と同じ0.82/1.05)。言語ごとに声を選ぶ(その言語の声が無ければ404)。最大600文字、同時2合成、64件のキャッシュ。`OPEN_ENGLISH_TTS=off`で無効化。
+  - クライアント: 起動時に`status`を見て、使えれば`enqueueSpeech`がサーバーのWAVを再生(次の分を先読み)。**使えない環境(WEB版・VPS・macOS/Linux)や、失敗した発話は、従来のWeb Speech APIのまま**(=既存の挙動は変わらない)。中断(`serverTtsCancel`)と「読み上げ中」の判定(音声認識が自分の声を拾わないための`serverTtsSpeaking`)もサーバー音声に対応。多言語の読み上げ(`speakOneLanguage`等)は従来のWeb Speech APIのまま(サーバーのSAPIには入っている言語の声しか無いため)。
+  - 検証: サーバーの単体テスト(選声・話速・入力検証・キャッシュ・**実機SAPIで英語を合成→加工→WAV**)が通り、サーバー全体70件成功。実サーバーを起動し、curlで正常系と異常系(声なし404・空/長すぎ/不正persona/壊れたJSONの400)、内蔵ブラウザで実際のクライアントコードを動かして「再生・連続再生(先読みで隙間0ms)・中断後の再開・声の無い言語のフォールバック」を確認。初回の合成は約1秒(PowerShell起動が支配的)、同じ発話はキャッシュから約20ms。
+  - **正直な開示**: 実装はWindowsのSAPIのみ(macOS/Linuxは`available:false`でWeb Speech APIを使う)。合成の速さはPowerShellの起動が支配的で、常駐ワーカー化すれば縮む余地がある(未実施)。実際に耳で聴いた自然さは評価していない(ブラウザの自動テストは、音声が再生されたこと=`play`/`ended`イベントの発火と長さまでで、聴感ではない)。`speakBilingual`で日本語が英語の声で読まれないよう、言語ごとに声を選ぶ点は従来と同じ。
 - 自前の音声(サーバー側TTS等)を用意できるなら、WEB版でも`maid-cafe-core`をWASM(wasm32向けコンパイルは確認済み・ブラウザ実行は未検証)で使う道がある。
 - 参考: 英語学習アプリなので、声の元になる音声は英語(Windowsの標準にあるのはMicrosoft Zira等)。日本語の声で英語を読ませない(既に`pickVoice`で修正済みの実バグ)という制約は、サーバー側TTSでも同じ。

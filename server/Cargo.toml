@@ -7,6 +7,8 @@ description = "open-englishの静的フロントエンド(index.html/style.css/a
 
 [dependencies]
 open-runo-poem-compat = { path = "../../RPoem/crates/open-runo-poem-compat", features = ["tls"] }
+# 声の後処理(先生=メイド風、ヘルパー=太く低い男性)。RPoemの共有クレート(2026-09-30新設、`RPoem/docs/voice.md`)
+open-runo-voice = { path = "../../RPoem/crates/open-runo-voice" }
 tokio = { version = "1", features = ["macros", "rt-multi-thread", "process", "time", "sync"] }
 # 自動アップデート機能(2026-08-11追加、ユーザー指示「起動時の自動
 # メンテナンスで自動UPDATEの自動バージョンアップ機能も搭載して、

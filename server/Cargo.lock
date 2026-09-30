@@ -2575,6 +2575,7 @@ dependencies = [
  "lettre",
  "open-cpu",
  "open-runo-poem-compat",
+ "open-runo-voice",
  "qrcode",
  "rcgen 0.13.2",
  "reqwest 0.12.28",
@@ -2801,6 +2802,10 @@ dependencies = [
  "serde",
  "serde_json",
 ]
+
+[[package]]
+name = "open-runo-voice"
+version = "0.1.0"
 
 [[package]]
 name = "open-web-server-core"
