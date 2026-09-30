@@ -8242,3 +8242,31 @@ Editツール**で行い、`grep -P '\x08'`等で制御文字が混入してい�
 (4) `news_archive_search`/`parse_news_archive_markdown` in `open-english/server/src/main.rs` (new, `GET /v1/public/news/archive-search?q=<keyword>`): reads the archived Markdown on demand and does substring matching against tags/country/title/snippet (deliberately no full-text search index; verified with 5 passing unit tests).
 (5) `archiveNewsSuffix`/`mentionsPastNews` in `open-english/web/app.js` (new): the question form automatically searches the archive when (a) the latest-news fetch fails, or (b) the user explicitly asks for past news ("last week's", "past", etc.). Both paths verified with mocked browser tests.
 **Not done yet**: actually installing/enabling the systemd units on the VPS, and a real end-to-end check with live archived data (none exists yet since no news has reached the 8-day threshold).
+
+## 音声・音質の研究の成果(maid-cafe-se由来、2026-09-30)
+
+ユーザー指示(2026-09-30)「この音質研究はaruaru-llmにもopen-englishにもmaidcafe-programming-schoolにもmake-diskにもmaid-cafe-seにも影響させて」に基づく。
+正本は[`aon-co-jp/maid-cafe-se`](https://github.com/aon-co-jp/maid-cafe-se)の`PORTING.md`「音質向上の研究」節。ここには、このリポジトリに関係する要点だけを書く。
+
+| 項目 | 結果(すべて実測。聴感ではなく数値・テストでの検証) |
+|---|---|
+| 音程と声の太さ(フォルマント)を独立に制御 | リサンプリング方式は音程を動かすと声の太さも同じ比率で動く(音程を下げると「怪物っぽい声」)。FFT+ケプストラム包絡の周波数伸縮補正で独立に制御できた。直接合成した正解の母音との包絡距離: 新方式1.6dB、旧方式10.3dB(音程0.72倍・声の太さ据え置き)。補正ゲイン上限は±12dBだと鋭いフォルマントを動かせず、±24dBで解決 |
+| AI帯域拡張(LavaSR、Apache-2.0、学習データVCTK) | make-diskの設計(入力の帯域は変えず、高域だけを頭打ちつきで足す)が声にも有効。ただし**声は高域が「崖」でなくなだらかに減衰する**ため、音楽向けの崖検出は12.4kHzを返し可聴域に何も足さなかった。声向けのロールオフ検出を新設。Windows音声Harukaで7.5kHzを検出、自己教師あり評価(6kHzで帯域制限→拡張→元の音声とのLSD、6〜9.5kHz)46.8dB→12.9dB、入力の帯域は変化なし。**LSDはスペクトル包絡の近さで聴感品質ではない。拡張前は帯域が無音のため差の大部分は「何か入れれば縮む」分** |
+| 日本語ニューラルTTS | 安全に配布アプリへ同梱できるモデルは未発見。sherpa-onnx公式に日本語TTSモデルは無い/piper-plus系は日本語の学習データがMOE-Speech(ゲーム音声、機械学習解析目的のみ・再配布禁止)由来で配布不可/Kokoro日本語は作者評価がC+〜C-でG2Pの移植が重い |
+| Rust化と音質 | Rust化そのものは音質を変えない。Kotlin版とRust版の出力は数値的に同一(最大誤差0.00000)、速度もウォーム時はほぼ同じ(4秒の音声を、Kotlin 36ms/126ms、Rust 34ms/68ms、単独/ハモり) |
+
+実装: `maid-cafe-se`の`crates/maid-cafe-core/src/audio/`(依存クレート無しの純Rust。wasm32-unknown-unknown向けのコンパイルは確認済み、ブラウザでの実行は未検証)と`crates/maid-cafe-enhance`(tract+ONNX、モデル約56MBは固定リビジョン+SHA-256で取得/同梱)。
+
+### このリポジトリへの影響(WEB版・ローカル版・ミックス版ごと)
+
+open-englishにはWEB版(ブラウザのみ)・ローカル版・その両方を混ぜたミックス版がある(ユーザー情報、2026-09-30)。音質研究の効き方は版で違う。
+
+| 版 | 現状と、研究の効き方 |
+|---|---|
+| **WEB版** | ブラウザ標準のWeb Speech API(`app.js`の`enqueueSpeech`/`pickVoice`)。**出力音声を取り出せない**ので後処理(声質・ハモり・音量統一・帯域拡張)は掛けられない。声質はブラウザ/OS任せで、できるのは声の選択とpitch/rateの指定まで(先生: pitch 1.1・rate 0.82、ヘルパー: 0.75・1.05)。この2人組は、maid-cafe-seの「メイド風」と「太く低い男性」と同じ発想。**変更なし** |
+| **ローカル版** | ローカルサーバー(Rust/RPoem)がある。**サーバー側でOSの音声合成(WindowsならSAPI)のWAVを作り、`maid-cafe-core`(声質・ハモり・音量統一)や`maid-cafe-enhance`(AI帯域拡張)を通して返す**構成が可能。maid-cafe-seのWindows版がその実装例(PowerShell経由でSAPI→WAV→加工→再生を実機で確認済み) |
+| **ミックス版** | ローカル版と同じ音声をWEBの画面から使う: ローカルサーバーが音声(WAV)を作り、WEB画面が`<audio>`で再生する。ローカルサーバーが無い環境では、WEB版のWeb Speech APIへ自動でフォールバックする設計になる |
+
+- **未着手(要決定)**: (1)ローカルサーバーに音声合成のエンドポイント(例: `POST /api/tts`)を足すか、(2)音声処理の共有ライブラリの置き場所(RPoem内の共有crateか、独立リポジトリか。「汎用化できるロジックはRPoemへ」の恒久方針との整合)。決まるまで、open-englishのコードは変更しない。
+- 自前の音声(サーバー側TTS等)を用意できるなら、WEB版でも`maid-cafe-core`をWASM(wasm32向けコンパイルは確認済み・ブラウザ実行は未検証)で使う道がある。
+- 参考: 英語学習アプリなので、声の元になる音声は英語(Windowsの標準にあるのはMicrosoft Zira等)。日本語の声で英語を読ませない(既に`pickVoice`で修正済みの実バグ)という制約は、サーバー側TTSでも同じ。
