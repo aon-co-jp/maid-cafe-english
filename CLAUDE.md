@@ -8255,7 +8255,7 @@ Editツール**で行い、`grep -P '\x08'`等で制御文字が混入してい�
 | 日本語ニューラルTTS | 安全に配布アプリへ同梱できるモデルは未発見。sherpa-onnx公式に日本語TTSモデルは無い/piper-plus系は日本語の学習データがMOE-Speech(ゲーム音声、機械学習解析目的のみ・再配布禁止)由来で配布不可/Kokoro日本語は作者評価がC+〜C-でG2Pの移植が重い |
 | Rust化と音質 | Rust化そのものは音質を変えない。Kotlin版とRust版の出力は数値的に同一(最大誤差0.00000)、速度もウォーム時はほぼ同じ(4秒の音声を、Kotlin 36ms/126ms、Rust 34ms/68ms、単独/ハモり) |
 
-実装: `maid-cafe-se`の`crates/maid-cafe-core/src/audio/`(依存クレート無しの純Rust。wasm32-unknown-unknown向けのコンパイルは確認済み、ブラウザでの実行は未検証)と`crates/maid-cafe-enhance`(tract+ONNX、モデル約56MBは固定リビジョン+SHA-256で取得/同梱)。
+実装: **RPoemの共有クレート`open-runo-voice`**(`RPoem/crates/open-runo-voice`、`docs/voice.md`。依存クレート無しの純Rust。wasm32-unknown-unknown向けのコンパイルは確認済み、ブラウザでの実行は未検証)。AI帯域拡張は`maid-cafe-se`の`crates/maid-cafe-enhance`(tract+ONNX、モデル約56MBは固定リビジョン+SHA-256で取得/同梱。重い依存をRPoem本体へ持ち込まないため別置き)。
 
 ### このリポジトリへの影響(WEB版・ローカル版・ミックス版ごと)
 
@@ -8267,6 +8267,7 @@ open-englishにはWEB版(ブラウザのみ)・ローカル版・その両方を
 | **ローカル版** | ローカルサーバー(Rust/RPoem)がある。**サーバー側でOSの音声合成(WindowsならSAPI)のWAVを作り、`maid-cafe-core`(声質・ハモり・音量統一)や`maid-cafe-enhance`(AI帯域拡張)を通して返す**構成が可能。maid-cafe-seのWindows版がその実装例(PowerShell経由でSAPI→WAV→加工→再生を実機で確認済み) |
 | **ミックス版** | ローカル版と同じ音声をWEBの画面から使う: ローカルサーバーが音声(WAV)を作り、WEB画面が`<audio>`で再生する。ローカルサーバーが無い環境では、WEB版のWeb Speech APIへ自動でフォールバックする設計になる |
 
-- **未着手(要決定)**: (1)ローカルサーバーに音声合成のエンドポイント(例: `POST /api/tts`)を足すか、(2)音声処理の共有ライブラリの置き場所(RPoem内の共有crateか、独立リポジトリか。「汎用化できるロジックはRPoemへ」の恒久方針との整合)。決まるまで、open-englishのコードは変更しない。
+- **決定済み**: 音声処理の共有ライブラリは、RPoem内の共有クレート`open-runo-voice`(ユーザー指示、2026-09-30)。`server/Cargo.toml`からは、既存の`open-runo-poem-compat`と同じパス依存(`../../RPoem/crates/open-runo-voice`)で参照できる。
+- **未着手(要決定)**: ローカルサーバーに音声合成のエンドポイント(例: `POST /api/tts`)を足すか。足す場合は、(1)OSの音声合成(WindowsならSAPI)でWAVを作る部分、(2)`open-runo-voice`で声質を加工する部分、(3)WEB画面が`<audio>`で再生し、サーバーが無い環境ではWeb Speech APIへフォールバックする部分、の3つが要る。決まるまで、open-englishのコードは変更しない。
 - 自前の音声(サーバー側TTS等)を用意できるなら、WEB版でも`maid-cafe-core`をWASM(wasm32向けコンパイルは確認済み・ブラウザ実行は未検証)で使う道がある。
 - 参考: 英語学習アプリなので、声の元になる音声は英語(Windowsの標準にあるのはMicrosoft Zira等)。日本語の声で英語を読ませない(既に`pickVoice`で修正済みの実バグ)という制約は、サーバー側TTSでも同じ。
