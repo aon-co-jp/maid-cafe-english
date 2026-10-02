@@ -141,7 +141,7 @@ push_country_pages() {
   git clone --quiet "https://github.com/$ORG/$repo.git" "$work/repo" 2>>"$LOG_FILE"
   mkdir -p "$work/repo/wiki"
   awk -v outdir="$work/repo/wiki" '
-    /^### / {
+    /^### [^(]+\(検索日時 \/ searched at: / {
       line = $0; sub(/^### /, "", line)
       match(line, /^[^(]+/); country = substr(line, RSTART, RLENGTH)
       gsub(/[ \t]+$/, "", country)
@@ -192,8 +192,18 @@ log "刈り取り済みニュース: $(wc -c < "$PENDING_MD") bytes"
 #    ならない行(リンクのURLに括弧を含む等、想定外の形式)は、抜粋が残る恐れがあるため
 #    その行だけ公開用から除く(完全版は非公開側に残るので失われない)。
 PUBLIC_MD="$(mktemp)"
-sed -E 's/^(- \[.*\]\(https?:\/\/[^)]*\)) — .*$/\1/' "$PENDING_MD" \
-  | awk '/^- / && !/^- \[.*\]\(https?:\/\/[^)]*\)$/ { dropped++; next } { print } END { if (dropped) print dropped > "/dev/stderr" }' \
+# 許可リスト方式: 「アーカイブ日の見出し」「国の見出し」「Tags行」「空行」「厳密な形の見出し+リンクの箇条書き」
+# だけを残し、それ以外(複数行にまたがる抜粋の2行目以降などを含む)は全て公開用から除く。
+sed -E 's(- \[.*\]\(https?:\/\/[^)]*\)) — .*$/\1/' "$PENDING_MD" \
+  | awk '
+      ## アーカイブ日/ { print; next }
+      ### [^(]+\(検索日時 \/ searched at: [^)]*\)$/ { print; next }
+      Tags: / { print; next }
+      $/ { print; next }
+      - \(no items/ { print; next }
+      - \[.*\]\(https?:\/\/[^)]*\)$/ { print; next }
+      { dropped++ }
+      END { if (dropped) print dropped > "/dev/stderr" }' \
   > "$PUBLIC_MD" 2> "$PUBLIC_MD.dropped" || true
 if [ -s "$PUBLIC_MD.dropped" ]; then
   log "公開用から除いた行(形式が想定外): $(cat "$PUBLIC_MD.dropped") 行(完全版は非公開側に保存済み)"
