@@ -1,0 +1,39 @@
+{
+  "$comment": "GitHubへ退避するデータの公開/非公開ポリシー(2026-10-02、ユーザー指示)。基本は『データの種類ごとの固定ルール(許可リスト方式)』で、どの種類にも当てはまらないものは非公開(default)。AIは『個人情報を含みそう』等で非公開側へ倒す用途にだけ使い、非公開→公開への変更権限は持たせない。archive-news-to-github.shはpush前に、対象リポジトリの実際の公開設定がここの記述と一致するか毎回確認し、食い違えば何もせず止める(fail closed)。**正直な開示**: 著作権の最終判断は法務の領域であり、このポリシーはAIが保守的に置いた初期案で、法的助言ではない。",
+  "default": "private",
+  "kinds": {
+    "news-headlines": {
+      "visibility": "public",
+      "repoBase": "open-english-news-archive",
+      "fields": "タイトル・リンク・国名・日付・タグのみ",
+      "reason": "世界中の人に読んでもらうため公開。見出しとリンクは事実情報・引用の範囲に留め、他社記事の抜粋文は含めない。",
+      "status": "implemented"
+    },
+    "news-snippets": {
+      "visibility": "private",
+      "repoBase": "open-english-news-snippets-archive",
+      "fields": "検索結果の抜粋文(他社記事の本文の一部)",
+      "reason": "Yahoo!ニュース等の他社記事の抜粋は著作権上の問題になりうるため非公開で保管し、公開側へは載せない。",
+      "status": "implemented"
+    },
+    "conversations": {
+      "visibility": "private",
+      "repoBase": null,
+      "reason": "会話は個人情報を含みうるため常に非公開(ユーザー指示)。現状アーカイブ処理自体が無く、作る場合もこの種類のリポジトリは非公開固定。",
+      "status": "policy-only"
+    },
+    "maps-osm": {
+      "visibility": "public-with-attribution",
+      "repoBase": null,
+      "reason": "OpenStreetMap由来のデータはODbLにより帰属表示『© OpenStreetMap contributors』とライセンス明記を付ければ公開可能。それ以外の出所の地図は非公開。",
+      "status": "not-implemented (realdata.pro側の改修が必要)"
+    },
+    "ai-overview": {
+      "visibility": "public-with-label",
+      "repoBase": null,
+      "label": "Google AIの回答です",
+      "reason": "ユーザー指示。ただし現状の検索バックエンド(Google Custom Search API)はAIの回答を返さないため収集自体ができない。また転載の可否はGoogleの利用規約の確認が必要。",
+      "status": "not-available"
+    }
+  }
+}
