@@ -1946,6 +1946,8 @@ function appendMessage(role, text) {
   div.className = `msg ${role}`;
   renderMessageBody(div, text);
   div.dataset.role = role;
+  // 会話の自動削除(2026-10-02、ユーザー指示): 1時間経過したメッセージを消すために時刻を持たせる。
+  div.dataset.ts = String(Date.now());
   // RTL(右書き)対応(2026-08-25追加): アプリ全体のLTRレイアウトは
   // 変えず、このメッセージ吹き出し単体にだけdir="rtl"を設定する。
   // 選択中の言語設定(reply-lang/learn-target)がAR/FA/HEなら、または
@@ -6804,6 +6806,87 @@ function genericTechChoiceText() {
     `If one of these interests you, just tell me its name with "I want to learn" (e.g. "I want to learn Python") and I'll walk you through the basics.`
   );
 }
+
+// 2026-10-02新設(ユーザー指示「会話内容も、open-englishは、短時間にメモリー内だけにして、
+// スムーズな会話の為だけとして、WEB版は、1時間以上前の会話は自動削除して、…ローカルや
+// スマホ版は個人で判断選択出来るようにしてチェックボックスを付けて」)。
+//
+// 会話本文は、この画面のメモリ(DOM)上にだけ置かれ、サーバーへは送信・保存していない
+// (本番DBの会話履歴APIに入るのは採点結果等のみ、2026-10-02に本番DBの件数で確認済み)。
+// WEB版(localhost以外で配信されている場合=`is-web-only`)は1時間経過した会話を自動で
+// 消し、利用者は変更できない。ローカル/スマホ版は既定で同じ自動削除をオンにし、
+// チェックボックスで本人がオフにできる(オフにしても保持は画面を閉じるまで=メモリ上のみ、
+// ディスクやサーバーへは保存しない)。
+const CHAT_RETENTION_MS = 60 * 60 * 1000;
+const CHAT_AUTO_DELETE_KEY = "open-english.chatAutoDelete";
+
+function isChatRetentionForced() {
+  return document.documentElement.classList.contains("is-web-only");
+}
+
+function isChatAutoDeleteEnabled() {
+  if (isChatRetentionForced()) return true;
+  try {
+    return localStorage.getItem(CHAT_AUTO_DELETE_KEY) !== "0"; // 未設定は安全側(自動削除オン)
+  } catch (_) {
+    return true;
+  }
+}
+
+function sweepExpiredChat(now = Date.now()) {
+  if (!isChatAutoDeleteEnabled()) return 0;
+  const logNode = document.getElementById("log");
+  if (!logNode) return 0;
+  let removed = 0;
+  for (const el of Array.from(logNode.querySelectorAll(".msg"))) {
+    const ts = Number(el.dataset.ts);
+    // 時刻を持たない要素(起動時の案内文など)は会話ではないので消さない。
+    if (Number.isFinite(ts) && ts > 0 && now - ts >= CHAT_RETENTION_MS) {
+      el.remove();
+      removed += 1;
+    }
+  }
+  if (removed > 0) {
+    const dock = document.getElementById("dock-answer");
+    if (dock && !dock.classList.contains("hidden")) {
+      dock.textContent = "";
+      dock.classList.add("hidden");
+    }
+  }
+  return removed;
+}
+
+(function setupChatRetention() {
+  const box = document.getElementById("chat-auto-delete");
+  const note = document.getElementById("chat-retention-note");
+  if (!box || !note) return;
+  const forced = isChatRetentionForced();
+  const sync = () => {
+    if (forced) {
+      box.checked = true;
+      box.disabled = true;
+      note.textContent =
+        "会話の記憶は1時間以上は自動で消えます(WEB版では変更できません。会話はこの画面のメモリ上だけに置かれ、サーバーには保存しません)。 / " +
+        "Conversation memory is automatically erased after 1 hour (cannot be changed in the web version; conversations stay only in this page's memory and are never saved to a server).";
+    } else {
+      box.checked = isChatAutoDeleteEnabled();
+      note.textContent = box.checked
+        ? "1時間以上前の会話を自動で消します。会話はこの端末の画面上だけに置かれ、サーバーには保存しません。 / Conversations older than 1 hour are erased automatically; they stay only on this device's screen and are never saved to a server."
+        : "自動削除はオフです。会話はこの画面を閉じるまで残ります(ディスクやサーバーには保存しません)。 / Auto-delete is off; conversations stay until you close this page (nothing is saved to disk or a server).";
+    }
+  };
+  box.addEventListener("change", () => {
+    try {
+      localStorage.setItem(CHAT_AUTO_DELETE_KEY, box.checked ? "1" : "0");
+    } catch (_) {
+      /* 保存できなくても今回の画面では有効 */
+    }
+    sync();
+    sweepExpiredChat();
+  });
+  sync();
+  setInterval(() => sweepExpiredChat(), 60 * 1000);
+})();
 
 // 2026-09-24新設(ユーザー指示「文字入力後に、エンターキーでも、画面の
 // エンターキーでも良い様にしましょう」): 物理キーボードのEnterキーは

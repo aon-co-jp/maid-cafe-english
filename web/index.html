@@ -2997,6 +2997,16 @@ cd aruaru-db
       <div id="chat-dock" class="chat-dock">
         <div id="ai-in-use-line" class="ai-in-use-line">🤖 使用中の無料AIを確認中… / Checking which free AIs are in use…</div>
         <div id="dock-answer" class="dock-answer hidden" aria-live="polite"></div>
+        <!-- 会話の記憶(2026-10-02、ユーザー指示): 会話はこの画面のメモリ上だけに置き、サーバーへは
+             保存しない。WEB版は1時間以上前の会話を自動削除(変更不可)、ローカル/スマホ版は
+             チェックボックスで本人が選ぶ。 -->
+        <div id="chat-retention-row" class="chat-retention-row">
+          <label>
+            <input type="checkbox" id="chat-auto-delete" checked />
+            <span id="chat-auto-delete-label">1時間以上前の会話を自動で消す / Auto-delete conversations older than 1 hour</span>
+          </label>
+          <div id="chat-retention-note" class="chat-retention-note"></div>
+        </div>
         <div class="dock-row">
           <div id="dock-avatar" class="dock-avatar" aria-hidden="true"></div>
           <form id="chat-form" class="chat-form">

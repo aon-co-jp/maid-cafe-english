@@ -972,6 +972,15 @@ label.setup-note {
   height: auto;
 }
 
+/* 会話の自動削除(チェックボックスと説明)。 */
+.chat-retention-row {
+  font-size: 12px;
+  margin: 4px 0 6px;
+  color: #fff;
+}
+.chat-retention-row label { cursor: pointer; }
+.chat-retention-note { opacity: 0.85; margin-top: 2px; }
+
 /* AI先生のプログラミング学習(teachProgrammingTopic)が添える参考リンク一覧。 */
 .tutor-links-header {
   margin-top: 10px;
