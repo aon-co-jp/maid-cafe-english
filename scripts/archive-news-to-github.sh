@@ -32,6 +32,7 @@ STATE_DIR="$OPEN_ENGLISH_DIR/data"
 LOG_FILE="$STATE_DIR/news-archive-push.log"
 PENDING_MD="$ARUARU_LLM_DIR/data/news-archive-pending.md"
 NEWS_README="$OPEN_ENGLISH_DIR/NEWS-TITLE-README.md"
+REALDATA_ENV="${REALDATA_ENV:-/root/repository/realdata.pro/.env.realdata}"
 
 mkdir -p "$STATE_DIR"
 NOW="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
@@ -73,12 +74,26 @@ create_archive_repo() {
   # aon-co-jpは組織ではなく個人ユーザーのアカウントのため、/orgs/ は404になる
   # (2026-10-02の実機テストで判明。初版は組織用APIのみで、一度も作成に成功していなかった)。
   # realdata.pro(github.rs)と同じく、組織用を先に試して404なら個人用へフォールバックする。
+  # さらに、push用のfine-grained PATは仕様上リポジトリを新規作成できない
+  # (403 "Resource not accessible by personal access token")。作成には、realdata.proが
+  # 自動引っ越しで使っている作成権限つきトークン(RRD_GITHUB_TOKEN)を、作成の呼び出し
+  # だけに使う(pushには使わない)。環境変数ARCHIVE_GITHUB_CREATE_TOKENで上書き可能。
+  local ctok="${ARCHIVE_GITHUB_CREATE_TOKEN:-}"
+  if [ -z "$ctok" ] && [ -f "$REALDATA_ENV" ]; then
+    ctok="$(grep -E '^RRD_GITHUB_TOKEN=' "$REALDATA_ENV" | head -1 | cut -d= -f2-)"
+  fi
+  if [ -z "$ctok" ]; then
+    log "エラー: リポジトリ作成用トークンがありません(fine-grained PATは作成不可)。$1 を手動で作成してください。"
+    return 1
+  fi
   local code
-  code="$(curl -s -o /dev/null -w '%{http_code}' --max-time 20 -X POST -H "Authorization: Bearer $PAT" \
+  code="$(curl -s -o /dev/null -w '%{http_code}' --max-time 20 -X POST -H "Authorization: Bearer $ctok" \
     -H "Accept: application/vnd.github+json" "https://api.github.com/orgs/$ORG/repos" -d "$body")"
   if [ "$code" = "404" ]; then
-    api -X POST "https://api.github.com/user/repos" -d "$body" >/dev/null
+    code="$(curl -s -o /dev/null -w '%{http_code}' --max-time 20 -X POST -H "Authorization: Bearer $ctok" \
+      -H "Accept: application/vnd.github+json" "https://api.github.com/user/repos" -d "$body")"
   fi
+  case "$code" in 201|422) return 0 ;; *) log "エラー: リポジトリ作成に失敗しました(HTTP $code): $1"; return 1 ;; esac
 }
 
 # 公開設定の安全装置。$1=リポジトリ名 $2=期待する公開設定(public|private)。
