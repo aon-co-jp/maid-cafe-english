@@ -69,8 +69,16 @@ next_repo_name() {
 create_archive_repo() {
   local priv=true
   [ "$2" = "public" ] && priv=false
-  api -X POST "https://api.github.com/orgs/$ORG/repos" \
-    -d "{\"name\":\"$1\",\"private\":$priv,\"description\":\"open-englishニュースアーカイブ($2、自動生成、archive-policy.json参照)\"}" >/dev/null
+  local body="{\"name\":\"$1\",\"private\":$priv,\"description\":\"open-englishニュースアーカイブ($2、自動生成、archive-policy.json参照)\"}"
+  # aon-co-jpは組織ではなく個人ユーザーのアカウントのため、/orgs/ は404になる
+  # (2026-10-02の実機テストで判明。初版は組織用APIのみで、一度も作成に成功していなかった)。
+  # realdata.pro(github.rs)と同じく、組織用を先に試して404なら個人用へフォールバックする。
+  local code
+  code="$(curl -s -o /dev/null -w '%{http_code}' --max-time 20 -X POST -H "Authorization: Bearer $PAT" \
+    -H "Accept: application/vnd.github+json" "https://api.github.com/orgs/$ORG/repos" -d "$body")"
+  if [ "$code" = "404" ]; then
+    api -X POST "https://api.github.com/user/repos" -d "$body" >/dev/null
+  fi
 }
 
 # 公開設定の安全装置。$1=リポジトリ名 $2=期待する公開設定(public|private)。
@@ -163,20 +171,20 @@ if [ ! -s "$PENDING_MD" ]; then
 fi
 log "刈り取り済みニュース: $(wc -c < "$PENDING_MD") bytes"
 
-# 2) open-english本体のNEWS-TITLE-README.md(archive-search APIが読む)へ追記する(完全版)。
-if [ -s "$NEWS_README" ] && [ "$(tail -c 1 "$NEWS_README")" != "" ]; then echo >> "$NEWS_README"; fi
-cat "$PENDING_MD" >> "$NEWS_README"
-
-# 3) 公開用(抜粋文を除去)を作る。箇条書きは「- [タイトル](リンク) — 抜粋文」形式なので、
-#    " — 以降" を削る。他社記事の抜粋文は公開側へ載せない。
+# 2) 公開用(抜粋文を除去)を作る。箇条書きは「- [タイトル](リンク) — 抜粋文」形式。
+#    タイトルに「 — 」や角括弧が含まれる場合があるため、リンクURLの直後(") — ")で切る。
+#    他社記事の抜粋文は公開側へ載せない。変換後も「- [タイトル](リンク)」の厳密な形に
+#    ならない行(リンクのURLに括弧を含む等、想定外の形式)は、抜粋が残る恐れがあるため
+#    その行だけ公開用から除く(完全版は非公開側に残るので失われない)。
 PUBLIC_MD="$(mktemp)"
-sed -E 's/^(- \[[^]]*\]\([^)]*\)) — .*$/\1/' "$PENDING_MD" > "$PUBLIC_MD"
-# 念のための検査: 公開用に「 — 」が残っていたら(想定外の形式)、公開せず非公開側だけへ送る。
-PUBLIC_OK=1
-if grep -q ' — ' "$PUBLIC_MD"; then
-  PUBLIC_OK=0
-  log "警告: 公開用データに抜粋文が残る行があるため、今回は公開側へpushしません(非公開側のみ)。"
+sed -E 's/^(- \[.*\]\(https?:\/\/[^)]*\)) — .*$/\1/' "$PENDING_MD" \
+  | awk '/^- / && !/^- \[.*\]\(https?:\/\/[^)]*\)$/ { dropped++; next } { print } END { if (dropped) print dropped > "/dev/stderr" }' \
+  > "$PUBLIC_MD" 2> "$PUBLIC_MD.dropped" || true
+if [ -s "$PUBLIC_MD.dropped" ]; then
+  log "公開用から除いた行(形式が想定外): $(cat "$PUBLIC_MD.dropped") 行(完全版は非公開側に保存済み)"
 fi
+rm -f "$PUBLIC_MD.dropped"
+PUBLIC_OK=1
 
 # 4) 非公開(完全版)→ 公開(見出しのみ)の順でpushする。どちらも公開設定を確認してから。
 PRIV_REPO="$(resolve_target_repo news-snippets open-english-news-snippets-archive private)"
@@ -196,6 +204,11 @@ if [ "$PUBLIC_OK" = 1 ]; then
 fi
 rm -f "$PUBLIC_MD"
 
-# 5) 成功したのでpending.mdを空にする(次回の重複追記を防ぐ)。
+# 5) ここまで全て成功した場合だけ、open-english本体のNEWS-TITLE-README.md
+#    (archive-search APIが読む、完全版)へ追記し、pending.mdを空にする。
+#    (以前は追記を先に行っていたため、push失敗のたびに同じ内容が重複追記される
+#    不具合があった。失敗時は何も変えずに終了し、次回の実行で再試行する。)
+if [ -s "$NEWS_README" ] && [ "$(tail -c 1 "$NEWS_README")" != "" ]; then echo >> "$NEWS_README"; fi
+cat "$PENDING_MD" >> "$NEWS_README"
 : > "$PENDING_MD"
 log "完了。$PENDING_MD をクリアしました。"
