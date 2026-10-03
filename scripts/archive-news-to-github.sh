@@ -220,22 +220,33 @@ log "刈り取り済みニュース: $(wc -c < "$PENDING_MD") bytes"
 PUBLIC_MD="$(mktemp)"
 # 許可リスト方式: 「アーカイブ日の見出し」「国の見出し」「Tags行」「空行」「厳密な形の見出し+リンクの箇条書き」
 # だけを残し、それ以外(複数行にまたがる抜粋の2行目以降などを含む)は全て公開用から除く。
-sed -E 's(- \[.*\]\(https?:\/\/[^)]*\)) — .*$/\1/' "$PENDING_MD" \
+PUBLIC_OK=1
+# フィルタ自体が失敗した場合(構文エラー等)は、抜粋を除去できていない恐れがあるため、
+# 公開側へは**絶対にpushしない**(以前は`|| true`で失敗を握りつぶし、壊れたフィルタのまま
+# 公開側へpushされる設計だった。2026-10-03の擬似データ試験で発覚)。
+if ! sed -E 's/^(- \[.*\]\(https?:\/\/[^)]*\)) — .*$/\1/' "$PENDING_MD" \
   | awk '
-      ## アーカイブ日/ { print; next }
-      ### [^(]+\(検索日時 \/ searched at: [^)]*\)$/ { print; next }
-      Tags: / { print; next }
-      $/ { print; next }
-      - \(no items/ { print; next }
-      - \[.*\]\(https?:\/\/[^)]*\)$/ { print; next }
+      /^## アーカイブ日/ { print; next }
+      /^### [^(]+\(検索日時 \/ searched at: [^)]*\)$/ { print; next }
+      /^Tags: / { print; next }
+      /^$/ { print; next }
+      /^- \(no items/ { print; next }
+      /^- \[.*\]\(https?:\/\/[^)]*\)$/ { print; next }
       { dropped++ }
       END { if (dropped) print dropped > "/dev/stderr" }' \
-  > "$PUBLIC_MD" 2> "$PUBLIC_MD.dropped" || true
+  > "$PUBLIC_MD" 2> "$PUBLIC_MD.dropped"; then
+  PUBLIC_OK=0
+  log "エラー: 公開用フィルタが失敗しました。今回は公開側へpushしません(非公開側のみ)。"
+fi
+# 検査: 公開用に抜粋文の区切り「) — 」が1行でも残っていたら、公開しない。
+if [ "$PUBLIC_OK" = 1 ] && grep -qE '\) — ' "$PUBLIC_MD"; then
+  PUBLIC_OK=0
+  log "エラー: 公開用データに抜粋文の区切りが残っています。今回は公開側へpushしません(非公開側のみ)。"
+fi
 if [ -s "$PUBLIC_MD.dropped" ]; then
   log "公開用から除いた行(形式が想定外): $(cat "$PUBLIC_MD.dropped") 行(完全版は非公開側に保存済み)"
 fi
 rm -f "$PUBLIC_MD.dropped"
-PUBLIC_OK=1
 
 # 4) 非公開(完全版)→ 公開(見出しのみ)の順でpushする。どちらも公開設定を確認してから。
 PRIV_REPO="$(resolve_target_repo news-snippets open-english-news-snippets-archive private)"
