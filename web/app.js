@@ -3330,14 +3330,14 @@ async function askTrainer(userText) {
         // Webサイト)由来のテキストのため、`innerHTML`へそのまま挿入せず
         // (XSSリスク回避)、プレーンテキストとしてURLをそのまま列挙する。
         const links = directSearchResults.map((r) => `${r.title} (${r.link})`).join(" / ");
-        reply += `\n\n🔎 Google search used (${viaLabel}, aruaru-llm never saw your key) / ` +
+        reply += `\n\n${SEARCH_ANSWER_LABEL}\n🔎 Google search used (${viaLabel}, aruaru-llm never saw your key) / ` +
           `Google検索を使用しました(${viaLabel}、キーはaruaru-llmへ渡していません): ${links}`;
       } else {
         reply += "\n\n🔎 Google search returned no results / Google検索結果が0件でした。";
       }
     } else if (data.used_search && Array.isArray(data.search_results) && data.search_results.length > 0) {
       const links = data.search_results.map((r) => `${r.title} (${r.link})`).join(" / ");
-      reply += `\n\n🔎 Google search used / Google検索を使用しました: ${links}`;
+      reply += `\n\n${SEARCH_ANSWER_LABEL}\n🔎 Google search used / Google検索を使用しました: ${links}`;
     } else {
       reply +=
         "\n\n🔎 Google search was not used (API key not configured on the server) / " +
@@ -4010,6 +4010,11 @@ function newsCountryForUserText(userText) {
 // (このリポジトリ直下)へVPS上のcronスクリプト(`aruaru-llm/scripts/
 // archive-news-to-github.sh`)経由でGitHubへアーカイブされる。以下はその
 // アーカイブを`/v1/public/news/archive-search`でその場検索して参照する機能。
+// 検索結果を使って作った回答に付ける出典表示(ユーザー指示、2026-10-03: 「Google AIの回答です」ではなく
+// 「検索結果による回答です」/「過去の回答例です」と明記する。現状の検索元はAIの回答を返さないため)。
+const SEARCH_ANSWER_LABEL =
+  "📌 検索結果による回答です(AI自身の知識だけの回答ではありません) / " +
+  "This answer is based on web search results (not only the AI's own knowledge).";
 const PAST_NEWS_KEYWORDS_JA = ["先週", "先月", "過去の", "以前の", "前のニュース", "昔の", "少し前の"];
 const PAST_NEWS_KEYWORDS_EN = ["last week", "last month", "past news", "earlier news", "previous news", "old news", "a while ago"];
 function mentionsPastNews(userText) {
@@ -4025,7 +4030,10 @@ async function archiveNewsSuffix(country) {
     const data = await res.json();
     if (!data.items || data.items.length === 0) return "";
     const lines = data.items.map((i) => `・[${i.date || "?"}] ${i.title}`).join("\n");
-    return `\n\n🗄️ Archived news from earlier (8+ days ago) that may be related / ご参考までに、8日以上前のアーカイブ済みニュースです:\n${lines}`;
+    // 2026-10-03変更(ユーザー指示「過去のネットニュースからです。など…出典を明記して活用」):
+    // 保持期間を8日→20時間へ短縮したため「8日以上前」の文言は古くなった。出典を明記する。
+    return `\n\n🗄️ 過去のネットニュースからです(出典: 当サイトのニュースアーカイブ。[ ]内は収集した日付です) / ` +
+      `From past online news (source: this site's news archive; the [date] is when it was collected):\n${lines}`;
   } catch (err) {
     return "";
   }
@@ -4058,7 +4066,7 @@ async function newsSuffix(userText) {
     };
     const searchedAt = fmtDate(data.fetched_at_unix);
     const headlines = data.items.slice(0, 3).map((i) => `・${i.title}${i.retrieved_at_unix ? ` (${fmtDate(i.retrieved_at_unix)}取得)` : ""}`).join("\n");
-    let out = `\n\n📰 Recent news from ${countryLabel} / ${countryLabel}の最近のニュース${searchedAt ? ` (検索日時 / searched at: ${searchedAt})` : ""}:\n${headlines}`;
+    let out = `\n\n📰 検索結果による情報です。Recent news from ${countryLabel} (web search results) / ${countryLabel}の最近のニュース${searchedAt ? ` (検索日時 / searched at: ${searchedAt})` : ""}:\n${headlines}`;
     // ユーザーが明示的に「過去の」「先週の」ニュースを求めている場合は、最新分に加えてアーカイブも参照する。
     if (mentionsPastNews(userText)) {
       out += await archiveNewsSuffix(country);
