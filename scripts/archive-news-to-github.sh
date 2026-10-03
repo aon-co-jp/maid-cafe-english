@@ -27,6 +27,7 @@ ARUARU_LLM_BASE_URL="${ARUARU_LLM_BASE_URL:-http://127.0.0.1:4600}"
 ORG="aon-co-jp"
 THRESHOLD_MB=819   # github-limits.jsonのrecommendedRepoSizeMb(1024)の80%。
 PRECREATE_THRESHOLD_MB=$((THRESHOLD_MB * 8 / 10))
+PRECREATE_WITHIN_DAYS=14   # 増加ペースから閾値到達まで14日以内と見込まれたら次のリポジトリを先行作成(realdata.proと同じ)
 
 STATE_DIR="$OPEN_ENGLISH_DIR/data"
 LOG_FILE="$STATE_DIR/news-archive-push.log"
@@ -106,6 +107,21 @@ assert_visibility() {
   fi
 }
 
+# 作成からの平均増加ペース(MB/日)から、閾値(THRESHOLD_MB)に達するまでの日数を見積もる。
+# $1=リポジトリ名 $2=現在のサイズ(MB)。見積もれない(作成から1日未満、まだ空、既に閾値以上)場合は空文字。
+predict_days_left() {
+  local created epoch now age_days
+  created="$(api "https://api.github.com/repos/$ORG/$1" | jq -r '.created_at // empty')"
+  [ -n "$created" ] || return 0
+  epoch="$(date -d "$created" +%s 2>/dev/null)" || return 0
+  now="$(date +%s)"
+  age_days="$(echo "scale=4; ($now - $epoch) / 86400" | bc)"
+  if (( $(echo "$age_days < 1" | bc -l) )) || (( $(echo "$2 <= 0" | bc -l) )) || (( $(echo "$2 >= $THRESHOLD_MB" | bc -l) )); then
+    return 0
+  fi
+  echo "scale=1; ($THRESHOLD_MB - $2) / ($2 / $age_days)" | bc
+}
+
 # 種類ごとにローテーション先を決める。$1=kind $2=repoBase $3=public|private
 # 出力: 書き込み先リポジトリ名(標準出力)。
 resolve_target_repo() {
@@ -120,8 +136,18 @@ resolve_target_repo() {
   local size; size="$(repo_size_mb "$current")"
   log "[$kind] 書き込み先: $ORG/$current ($size MB / 閾値 $THRESHOLD_MB MB)"
   local next; next="$(next_repo_name "$current")"
-  if (( $(echo "$size >= $PRECREATE_THRESHOLD_MB" | bc -l) )) && ! repo_exists "$next"; then
-    log "[$kind] 事前作成閾値に到達。次のリポジトリを先行作成: $ORG/$next ($vis)"
+  # 先行作成の条件は2つ(どちらかを満たせば次のリポジトリを先に作る):
+  #   (1) 容量が閾値の80%に達した、(2) 作成からの平均増加ペースで、閾値到達まで14日以内と見込まれる
+  #       (2026-10-03、ユーザー指示「溢れる前に予測して」。realdata.proと同じ考え方)。
+  local days_left; days_left="$(predict_days_left "$current" "$size")"
+  local precreate=0 why=""
+  if (( $(echo "$size >= $PRECREATE_THRESHOLD_MB" | bc -l) )); then precreate=1; why="容量が閾値の80%に到達"; fi
+  if [ -n "$days_left" ] && (( $(echo "$days_left <= $PRECREATE_WITHIN_DAYS" | bc -l) )); then
+    precreate=1; why="増加ペースから約${days_left}日で閾値に達する見込み"
+  fi
+  if [ -n "$days_left" ]; then log "[$kind] 閾値到達まで約${days_left}日の見込み(作成からの平均増加ペース)"; fi
+  if [ "$precreate" = 1 ] && ! repo_exists "$next"; then
+    log "[$kind] $why。次のリポジトリを先行作成: $ORG/$next ($vis)"
     create_archive_repo "$next" "$vis"
   fi
   if (( $(echo "$size >= $THRESHOLD_MB" | bc -l) )); then
