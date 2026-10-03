@@ -3087,7 +3087,10 @@ fn parse_news_archive_markdown(raw: &str, q: &str, limit: usize) -> Vec<serde_js
                     "date": date,
                     "title": title,
                     "link": link,
-                    "snippet": snippet,
+                    // 2026-10-03: 抜粋文(snippet)は検索の照合にだけ使い、公開APIの応答には含めない。
+                    // 他社記事の抜粋は著作権上の問題になりうるため非公開で保管する方針
+                    // (archive-policy.json)で、このAPIは認証不要の公開エンドポイントだから。
+                    // 返すのは出典の明記に足りる 国・日付・見出し・リンクのみ。
                 }));
                 if out.len() >= limit {
                     break;
@@ -3957,6 +3960,22 @@ Tags: `United States` `2026-09`
         let items = parse_news_archive_markdown(SAMPLE_ARCHIVE, "rust", 10);
         assert_eq!(items.len(), 1);
         assert_eq!(items[0]["link"], "https://example.com/a");
+    }
+
+    #[test]
+    fn archive_search_never_returns_third_party_snippets_but_can_match_on_them() {
+        // 抜粋文(" — "以降)は公開APIの応答に含めない(archive-policy.json、著作権への配慮)。
+        let items = parse_news_archive_markdown(SAMPLE_ARCHIVE, "", 10);
+        for i in &items {
+            assert!(i.get("snippet").is_none(), "snippetが返っている: {i}");
+            let text = i.to_string();
+            assert!(!text.contains("More companies adopt"), "抜粋文が漏れている: {text}");
+            assert!(!text.contains("Congress debates"), "抜粋文が漏れている: {text}");
+        }
+        // ただし検索の照合には抜粋も使える(利用者が抜粋中の語で探しても見つかる)。
+        let hit = parse_news_archive_markdown(SAMPLE_ARCHIVE, "congress", 10);
+        assert_eq!(hit.len(), 1);
+        assert_eq!(hit[0]["link"], "https://example.com/c");
     }
 
     #[test]

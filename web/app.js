@@ -4029,7 +4029,7 @@ async function archiveNewsSuffix(country) {
     const res = await fetchWithTimeout(url, { cache: "no-store" }, AUX_TIMEOUT_MS);
     const data = await res.json();
     if (!data.items || data.items.length === 0) return "";
-    const lines = data.items.map((i) => `・[${i.date || "?"}] ${i.title}`).join("\n");
+    const lines = data.items.map((i) => `・[${i.date || "?"}] ${i.title}${i.link ? ` (${i.link})` : ""}`).join("\n");
     // 2026-10-03変更(ユーザー指示「過去のネットニュースからです。など…出典を明記して活用」):
     // 保持期間を8日→20時間へ短縮したため「8日以上前」の文言は古くなった。出典を明記する。
     return `\n\n🗄️ 過去のネットニュースからです(出典: 当サイトのニュースアーカイブ。[ ]内は収集した日付です) / ` +
