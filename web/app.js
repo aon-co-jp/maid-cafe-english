@@ -2506,6 +2506,48 @@ const countryExtraFunFacts = {
   korea: ["I love K-pop! / 私はK-POPが大好きです!", "I love kimchi! / 私はキムチが大好きです!"],
 };
 
+// 2026-10-04追加(ユーザー指示「女性キャラはメイドの先生、男性キャラは執事の先生として、
+// 秋葉原メイドカフェ記事の接客技法と、アクセス者の国の話題を活かして対応」): aruaru-llmの
+// `/v1/persona/prompt`から応対方針+国別の話題ヒントを取得し、プロンプトへ足す。
+// 国の推定は**IPジオロケーションではなく**ブラウザの言語設定(例 en-US→United States)を使う
+// (IP照会は外部サービスへの問い合わせを伴うため、既存方針どおり不採用)。
+// 取得失敗時は記事の要点を言い換えた固定文へ静かにフォールバックする。
+const personaPromptCache = {};
+function visitorCountryGuess() {
+  try {
+    const region = (navigator.language || "").split("-")[1];
+    if (region && region.length === 2) return new Intl.DisplayNames(["en"], { type: "region" }).of(region.toUpperCase()) || "";
+  } catch (e) {
+    /* 推定できなければ空 */
+  }
+  return "";
+}
+async function personaPromptText() {
+  const isButler = typeof activeCharacter !== "undefined" && activeCharacter === "helper";
+  const country = visitorCountryGuess();
+  const key = `${isButler ? "male" : "female"}|${country}`;
+  if (personaPromptCache[key]) return personaPromptCache[key];
+  let text = isButler
+    ? "You are Tora, a courteous butler teacher. Use short sentences around one key word, smile, use gestures, find common topics, and praise every attempt."
+    : "You are Sakura, a cheerful maid teacher. Use short sentences around one key word, smile, use gestures, find common topics, and praise every attempt.";
+  try {
+    const url = location.hostname.endsWith("easy-web.tokyo")
+      ? "/v1/public/persona/prompt"
+      : "https://easy-web.tokyo/open-english/v1/public/persona/prompt";
+    const res = await fetchWithTimeout(url, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ gender: isButler ? "male" : "female", country }),
+    }, AUX_TIMEOUT_MS);
+    const data = await res.json();
+    if (typeof data.system_prompt === "string" && data.system_prompt) text = data.system_prompt;
+  } catch (err) {
+    /* フォールバック文のまま */
+  }
+  personaPromptCache[key] = text;
+  return text;
+}
+
 function pickRandomFrom(array) {
   return array[Math.floor(Math.random() * array.length)];
 }
@@ -3000,7 +3042,9 @@ async function askTrainer(userText) {
   } else {
     trainerRole = trainerRoleByTarget[learnTargetValue] || trainerRoleByTarget.english;
   }
-  const prompt = `${trainerRole} ${levelInstruction} ${langInstruction}\nStudent: ${userText}\nTrainer:`;
+  const personaLine = await personaPromptText();
+  if (activeCharacter === "helper") trainerRole = trainerRole.replace("at a maid cafe", "at a butler cafe");
+  const prompt = `${trainerRole} ${personaLine} ${levelInstruction} ${langInstruction}\nStudent: ${userText}\nTrainer:`;
 
   // マルチLLMプロバイダ優先順位機能。試す順序:
   //   0) この端末(PC版/タブレット版/スマホ版)に、利用者自身のAPIキー/コードが
