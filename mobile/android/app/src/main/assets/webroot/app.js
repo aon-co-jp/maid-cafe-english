@@ -1946,6 +1946,8 @@ function appendMessage(role, text) {
   div.className = `msg ${role}`;
   renderMessageBody(div, text);
   div.dataset.role = role;
+  // 会話の自動削除(2026-10-02、ユーザー指示): 1時間経過したメッセージを消すために時刻を持たせる。
+  div.dataset.ts = String(Date.now());
   // RTL(右書き)対応(2026-08-25追加): アプリ全体のLTRレイアウトは
   // 変えず、このメッセージ吹き出し単体にだけdir="rtl"を設定する。
   // 選択中の言語設定(reply-lang/learn-target)がAR/FA/HEなら、または
@@ -2243,9 +2245,158 @@ function splitSpeechChunks(text, lang) {
   return chunks;
 }
 
+// サーバー側の音声合成(ローカル版・ミックス版、2026-09-30新設)。
+//
+// WEB版はブラウザのWeb Speech APIで読み上げるが、その出力音声はスクリプトから取り出せず、声質の加工ができない。
+// ローカルサーバー(`server/src/tts.rs`)は、OSの音声合成(現状はWindowsのSAPI)で作ったWAVを、RPoemの共有クレート
+// `open-runo-voice`で加工して(先生=メイド風、ヘルパー=太く低い男性)返す。起動時に`/v1/public/tts/status`で
+// 使えるか確かめ、使えれば`enqueueSpeech`はサーバーのWAVを再生する。WEB版(静的ホスティング)・VPS・サーバーが
+// 非対応の環境では`available`が偽のままで、従来どおりWeb Speech APIを使う(=既存の挙動は変わらない)。
+// 1つの発話だけ失敗(その言語の声が無い等)した場合は、その発話だけWeb Speech APIへフォールバックする。
+const serverTts = { available: false, failures: 0, queue: [], running: false, epoch: 0, audio: null, stop: null };
+
+async function probeServerTts() {
+  try {
+    const res = await fetch("/v1/public/tts/status", { cache: "no-store" });
+    if (!res.ok) return;
+    const info = await res.json();
+    serverTts.available = info.available === true;
+  } catch (err) {
+    // WEB版など、サーバーが無い環境: Web Speech APIのまま。
+  }
+}
+
+/** 声で読み上げる手段があるか(サーバー側TTS、またはブラウザのWeb Speech API)。 */
+function hasSpeechOutput() {
+  return serverTts.available || "speechSynthesis" in window;
+}
+
+/** サーバー側TTSの音声を再生中、または再生待ちがあるか(音声認識が自分の声を拾わないための判定にも使う)。 */
+function serverTtsSpeaking() {
+  return serverTts.running || serverTts.queue.length > 0 || (serverTts.audio !== null && !serverTts.audio.paused);
+}
+
+/** サーバー側TTSの再生と待ち行列を止める(`speechSynthesis.cancel()`と対)。 */
+function serverTtsCancel() {
+  serverTts.epoch++;
+  serverTts.queue.length = 0;
+  serverTts.running = false;
+  if (serverTts.audio) {
+    try {
+      serverTts.audio.pause();
+    } catch (err) {
+      // 止められなくても続行
+    }
+    serverTts.audio = null;
+  }
+  if (serverTts.stop) serverTts.stop();
+}
+
+async function fetchServerTts(item) {
+  const res = await fetch("/v1/public/tts", {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({ text: item.text, lang: item.lang, persona: item.isHelper ? "helper" : "teacher" }),
+  });
+  if (!res.ok) {
+    const err = new Error("server tts " + res.status);
+    err.status = res.status;
+    throw err;
+  }
+  return res.blob();
+}
+
+function serverTtsEnqueue(chunks, lang, isHelper, onEnd) {
+  chunks.forEach((text, i) => {
+    serverTts.queue.push({ text, lang, isHelper, onEnd: i === chunks.length - 1 ? onEnd : null, blob: null });
+  });
+  // 積んだ直後に先頭の分を取りに行く(前の発話を再生している間に、次の音声の合成を済ませておく)。
+  const head = serverTts.queue[0];
+  if (head && !head.blob) {
+    head.blob = fetchServerTts(head);
+    head.blob.catch(() => {}); // 失敗は`serverTtsPump`が`await`したときに扱う
+  }
+  serverTtsPump();
+}
+
+function playServerTts(blob) {
+  return new Promise((resolve) => {
+    const url = URL.createObjectURL(blob);
+    const audio = new Audio(url);
+    serverTts.audio = audio;
+    const done = (ok) => {
+      URL.revokeObjectURL(url);
+      if (serverTts.audio === audio) serverTts.audio = null;
+      if (serverTts.stop === stop) serverTts.stop = null;
+      resolve(ok);
+    };
+    const stop = () => done(true);
+    serverTts.stop = stop;
+    audio.onended = () => done(true);
+    audio.onerror = () => done(false);
+    audio.play().catch(() => done(false)); // 自動再生のブロック等
+  });
+}
+
+/** 待ち行列を順に再生する。次の分は先に取りに行き、再生の隙間を減らす。 */
+async function serverTtsPump() {
+  if (serverTts.running) return;
+  serverTts.running = true;
+  const epoch = serverTts.epoch;
+  try {
+    while (serverTts.queue.length && epoch === serverTts.epoch) {
+      const item = serverTts.queue.shift();
+      if (!item.blob) item.blob = fetchServerTts(item);
+      const next = serverTts.queue[0];
+      if (next && !next.blob) {
+        next.blob = fetchServerTts(next);
+        next.blob.catch(() => {});
+      }
+      let blob = null;
+      try {
+        blob = await item.blob;
+        serverTts.failures = 0;
+      } catch (err) {
+        // 501(この環境では使えない)や連続の失敗は、以降をWeb Speech APIへ切り替える。
+        serverTts.failures++;
+        if (err.status === 501 || serverTts.failures >= 3) serverTts.available = false;
+      }
+      if (epoch !== serverTts.epoch) return;
+      const played = blob ? await playServerTts(blob) : false;
+      if (epoch !== serverTts.epoch) return;
+      if (played) {
+        if (item.onEnd) item.onEnd();
+      } else if ("speechSynthesis" in window) {
+        // この発話だけWeb Speech APIで読む(終わるまで待ってから次へ進む)
+        await new Promise((resolve) => {
+          enqueueWebSpeech([item.text], item.lang, item.isHelper, () => {
+            if (item.onEnd) item.onEnd();
+            resolve();
+          });
+        });
+      } else if (item.onEnd) {
+        item.onEnd();
+      }
+    }
+  } finally {
+    if (epoch === serverTts.epoch) serverTts.running = false;
+  }
+}
+
+probeServerTts();
+
 /** 整えたテキストを分割して読み上げキューに積む。最後の発話が終わったらonEndを呼ぶ。 */
 function enqueueSpeech(text, lang, isHelper, onEnd) {
   const chunks = splitSpeechChunks(text, lang);
+  if (serverTts.available && chunks.length) {
+    serverTtsEnqueue(chunks, lang, isHelper, onEnd);
+    return chunks.length;
+  }
+  return enqueueWebSpeech(chunks, lang, isHelper, onEnd);
+}
+
+/** ブラウザ標準のWeb Speech APIで読み上げる(WEB版、およびサーバー側TTSが使えないときのフォールバック)。 */
+function enqueueWebSpeech(chunks, lang, isHelper, onEnd) {
   chunks.forEach((chunk, i) => {
     const utter = new SpeechSynthesisUtterance(chunk);
     utter.lang = lang;
@@ -2271,9 +2422,10 @@ function enqueueSpeech(text, lang, isHelper, onEnd) {
 // 再生してくれる)。
 function speakBilingual(text) {
   bubbleEl.textContent = text;
-  if (!(voiceOutEl.checked && "speechSynthesis" in window)) return;
+  if (!(voiceOutEl.checked && hasSpeechOutput())) return;
   try {
-    window.speechSynthesis.cancel();
+    if ("speechSynthesis" in window) window.speechSynthesis.cancel();
+    serverTtsCancel();
     const isHelper = typeof activeCharacter !== "undefined" && activeCharacter === "helper";
     const enText = extractSpeechText(text, "en-US");
     const jaText = extractSpeechText(text, "ja-JP");
@@ -2300,9 +2452,10 @@ function speak(text) {
   // ブラウザ標準のWeb Speech API(SpeechSynthesis)を使う——サーバー側の
   // TTSは未実装なので、対応ブラウザでのみ実際に声が出る(正直な開示)。
   let spokenMs = Math.min(4000, text.length * 60);
-  if (voiceOutEl.checked && "speechSynthesis" in window) {
+  if (voiceOutEl.checked && hasSpeechOutput()) {
     try {
-      window.speechSynthesis.cancel();
+      if ("speechSynthesis" in window) window.speechSynthesis.cancel();
+      serverTtsCancel();
       // 2026-09-13改善: 「自動判定」モードでは`replyLangEl.value`が
       // "auto"のままなので言語コード判定に使えない。実際に生成された
       // 返信テキスト自体に日本語が含まれるかで読み上げ音声を選ぶ方が
@@ -2352,6 +2505,48 @@ const countryExtraFunFacts = {
   ],
   korea: ["I love K-pop! / 私はK-POPが大好きです!", "I love kimchi! / 私はキムチが大好きです!"],
 };
+
+// 2026-10-04追加(ユーザー指示「女性キャラはメイドの先生、男性キャラは執事の先生として、
+// 秋葉原メイドカフェ記事の接客技法と、アクセス者の国の話題を活かして対応」): aruaru-llmの
+// `/v1/persona/prompt`から応対方針+国別の話題ヒントを取得し、プロンプトへ足す。
+// 国の推定は**IPジオロケーションではなく**ブラウザの言語設定(例 en-US→United States)を使う
+// (IP照会は外部サービスへの問い合わせを伴うため、既存方針どおり不採用)。
+// 取得失敗時は記事の要点を言い換えた固定文へ静かにフォールバックする。
+const personaPromptCache = {};
+function visitorCountryGuess() {
+  try {
+    const region = (navigator.language || "").split("-")[1];
+    if (region && region.length === 2) return new Intl.DisplayNames(["en"], { type: "region" }).of(region.toUpperCase()) || "";
+  } catch (e) {
+    /* 推定できなければ空 */
+  }
+  return "";
+}
+async function personaPromptText() {
+  const isButler = typeof activeCharacter !== "undefined" && activeCharacter === "helper";
+  const country = visitorCountryGuess();
+  const key = `${isButler ? "male" : "female"}|${country}`;
+  if (personaPromptCache[key]) return personaPromptCache[key];
+  let text = isButler
+    ? "You are Tora, a courteous butler teacher. Use short sentences around one key word, smile, use gestures, find common topics, and praise every attempt."
+    : "You are Sakura, a cheerful maid teacher. Use short sentences around one key word, smile, use gestures, find common topics, and praise every attempt.";
+  try {
+    const url = location.hostname.endsWith("easy-web.tokyo")
+      ? "/v1/public/persona/prompt"
+      : "https://easy-web.tokyo/open-english/v1/public/persona/prompt";
+    const res = await fetchWithTimeout(url, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ gender: isButler ? "male" : "female", country }),
+    }, AUX_TIMEOUT_MS);
+    const data = await res.json();
+    if (typeof data.system_prompt === "string" && data.system_prompt) text = data.system_prompt;
+  } catch (err) {
+    /* フォールバック文のまま */
+  }
+  personaPromptCache[key] = text;
+  return text;
+}
 
 function pickRandomFrom(array) {
   return array[Math.floor(Math.random() * array.length)];
@@ -2847,7 +3042,9 @@ async function askTrainer(userText) {
   } else {
     trainerRole = trainerRoleByTarget[learnTargetValue] || trainerRoleByTarget.english;
   }
-  const prompt = `${trainerRole} ${levelInstruction} ${langInstruction}\nStudent: ${userText}\nTrainer:`;
+  const personaLine = await personaPromptText();
+  if (activeCharacter === "helper") trainerRole = trainerRole.replace("at a maid cafe", "at a butler cafe");
+  const prompt = `${trainerRole} ${personaLine} ${levelInstruction} ${langInstruction}\nStudent: ${userText}\nTrainer:`;
 
   // マルチLLMプロバイダ優先順位機能。試す順序:
   //   0) この端末(PC版/タブレット版/スマホ版)に、利用者自身のAPIキー/コードが
@@ -3177,14 +3374,14 @@ async function askTrainer(userText) {
         // Webサイト)由来のテキストのため、`innerHTML`へそのまま挿入せず
         // (XSSリスク回避)、プレーンテキストとしてURLをそのまま列挙する。
         const links = directSearchResults.map((r) => `${r.title} (${r.link})`).join(" / ");
-        reply += `\n\n🔎 Google search used (${viaLabel}, aruaru-llm never saw your key) / ` +
+        reply += `\n\n${SEARCH_ANSWER_LABEL}\n🔎 Google search used (${viaLabel}, aruaru-llm never saw your key) / ` +
           `Google検索を使用しました(${viaLabel}、キーはaruaru-llmへ渡していません): ${links}`;
       } else {
         reply += "\n\n🔎 Google search returned no results / Google検索結果が0件でした。";
       }
     } else if (data.used_search && Array.isArray(data.search_results) && data.search_results.length > 0) {
       const links = data.search_results.map((r) => `${r.title} (${r.link})`).join(" / ");
-      reply += `\n\n🔎 Google search used / Google検索を使用しました: ${links}`;
+      reply += `\n\n${SEARCH_ANSWER_LABEL}\n🔎 Google search used / Google検索を使用しました: ${links}`;
     } else {
       reply +=
         "\n\n🔎 Google search was not used (API key not configured on the server) / " +
@@ -3857,6 +4054,11 @@ function newsCountryForUserText(userText) {
 // (このリポジトリ直下)へVPS上のcronスクリプト(`aruaru-llm/scripts/
 // archive-news-to-github.sh`)経由でGitHubへアーカイブされる。以下はその
 // アーカイブを`/v1/public/news/archive-search`でその場検索して参照する機能。
+// 検索結果を使って作った回答に付ける出典表示(ユーザー指示、2026-10-03: 「Google AIの回答です」ではなく
+// 「検索結果による回答です」/「過去の回答例です」と明記する。現状の検索元はAIの回答を返さないため)。
+const SEARCH_ANSWER_LABEL =
+  "📌 検索結果による回答です(AI自身の知識だけの回答ではありません) / " +
+  "This answer is based on web search results (not only the AI's own knowledge).";
 const PAST_NEWS_KEYWORDS_JA = ["先週", "先月", "過去の", "以前の", "前のニュース", "昔の", "少し前の"];
 const PAST_NEWS_KEYWORDS_EN = ["last week", "last month", "past news", "earlier news", "previous news", "old news", "a while ago"];
 function mentionsPastNews(userText) {
@@ -3871,8 +4073,11 @@ async function archiveNewsSuffix(country) {
     const res = await fetchWithTimeout(url, { cache: "no-store" }, AUX_TIMEOUT_MS);
     const data = await res.json();
     if (!data.items || data.items.length === 0) return "";
-    const lines = data.items.map((i) => `・[${i.date || "?"}] ${i.title}`).join("\n");
-    return `\n\n🗄️ Archived news from earlier (8+ days ago) that may be related / ご参考までに、8日以上前のアーカイブ済みニュースです:\n${lines}`;
+    const lines = data.items.map((i) => `・[${i.date || "?"}] ${i.title}${i.link ? ` (${i.link})` : ""}`).join("\n");
+    // 2026-10-03変更(ユーザー指示「過去のネットニュースからです。など…出典を明記して活用」):
+    // 保持期間を8日→20時間へ短縮したため「8日以上前」の文言は古くなった。出典を明記する。
+    return `\n\n🗄️ 過去のネットニュースからです(出典: 当サイトのニュースアーカイブ。[ ]内は収集した日付です) / ` +
+      `From past online news (source: this site's news archive; the [date] is when it was collected):\n${lines}`;
   } catch (err) {
     return "";
   }
@@ -3905,7 +4110,7 @@ async function newsSuffix(userText) {
     };
     const searchedAt = fmtDate(data.fetched_at_unix);
     const headlines = data.items.slice(0, 3).map((i) => `・${i.title}${i.retrieved_at_unix ? ` (${fmtDate(i.retrieved_at_unix)}取得)` : ""}`).join("\n");
-    let out = `\n\n📰 Recent news from ${countryLabel} / ${countryLabel}の最近のニュース${searchedAt ? ` (検索日時 / searched at: ${searchedAt})` : ""}:\n${headlines}`;
+    let out = `\n\n📰 検索結果による情報です。Recent news from ${countryLabel} (web search results) / ${countryLabel}の最近のニュース${searchedAt ? ` (検索日時 / searched at: ${searchedAt})` : ""}:\n${headlines}`;
     // ユーザーが明示的に「過去の」「先週の」ニュースを求めている場合は、最新分に加えてアーカイブも参照する。
     if (mentionsPastNews(userText)) {
       out += await archiveNewsSuffix(country);
@@ -6072,6 +6277,669 @@ function fourNinesGradeMessage(grade) {
   }
 }
 
+// 2026-09-28新設(ユーザー指示「open-englishのChat＋VSCプラグインのLiveShare＋
+// maidcafe-programming-schoolでAI先生として、生徒が希望したプログラミング言語と
+// フレームワークをGoogle検索して…プログラミングの基本の変数やクラスやfor文や
+// 代表的なアルゴリズム10種…グローバル変数を使わないプログラミング方法…
+// メリットもデメリットも」への対応)。
+//
+// 正直な開示: 変数・クラス・for文・10種のアルゴリズム・グローバル変数を
+// 避ける理由については、aruaru-llm(GPT-2級の小型モデル)による生成に
+// 任せると事実でない内容を生成しうるため、このアプリの他の固定回答
+// (isCreatorQuestion等)と同じ方針で、人手で書いた正確な内容を使う。
+// 言語/フレームワーク固有のメリット・デメリットも同様に、判明している
+// もののみ簡潔な一次情報として記載する。その上で、Google検索(設定済みの
+// 場合のみ)で公式サイト・ブログ・GitHubなど「もっと詳しい一次情報」への
+// リンクを添える——検索結果の文面そのものは表示せず、リンクの提示に留める
+// (検索結果テキストをそのまま生成文へ混ぜると事実性の保証ができないため)。
+const PROGRAMMING_TOPICS = [
+  {
+    key: "python", labelJa: "Python", labelEn: "Python", aliases: ["python", "パイソン"],
+    snippet: "def greet(name):\n    return f\"Hello, {name}!\"\n\nfor i in range(3):\n    print(greet(\"world\"))",
+    prosJa: ["文法がシンプルで初心者が読みやすい", "AI/機械学習・データ分析のライブラリが豊富(NumPy, PyTorch等)", "Web(Django/Flask)からスクリプトまで用途が広い"],
+    consJa: ["実行速度が遅め(C/C++/Rust等と比べて)", "スマホアプリ・組み込み開発にはあまり向かない", "インデント(字下げ)がそのまま文法の一部なので慣れが要る"],
+    prosEn: ["simple, readable syntax — great for beginners", "huge ecosystem for AI/ML and data analysis (NumPy, PyTorch, etc.)", "works for everything from quick scripts to web apps (Django/Flask)"],
+    consEn: ["slower execution than C/C++/Rust", "not a common choice for mobile or embedded development", "indentation is part of the syntax, which takes some getting used to"],
+  },
+  {
+    key: "javascript", labelJa: "JavaScript", labelEn: "JavaScript", aliases: ["javascript", "js", "ジャバスクリプト"],
+    snippet: "function greet(name) {\n  return `Hello, ${name}!`;\n}\n\nfor (let i = 0; i < 3; i++) {\n  console.log(greet(\"world\"));\n}",
+    prosJa: ["ブラウザで動く唯一の言語(追加ソフト不要)", "Node.jsでサーバー側も同じ言語で書ける", "学習リソース・求人が非常に多い"],
+    consJa: ["型が緩く、大規模開発ではバグを生みやすい(→TypeScriptで補う人が多い)", "非同期処理(Promise/async)の理解に少し慣れが要る", "ブラウザ間の細かな挙動差が残ることがある"],
+    prosEn: ["the only language that runs natively in every browser", "Node.js lets you use the same language on the server", "enormous amount of learning resources and job demand"],
+    consEn: ["loose typing can lead to bugs in larger projects (many teams add TypeScript to help)", "asynchronous code (Promise/async) takes a bit to get used to", "some behavior still differs subtly between browsers"],
+  },
+  {
+    key: "typescript", labelJa: "TypeScript", labelEn: "TypeScript", aliases: ["typescript", "ts"],
+    snippet: "function greet(name: string): string {\n  return `Hello, ${name}!`;\n}\n\nfor (let i = 0; i < 3; i++) {\n  console.log(greet(\"world\"));\n}",
+    prosJa: ["JavaScriptに型を追加でき、バグを早期発見できる", "大規模開発・チーム開発で特に効果を発揮", "JavaScriptの資産・ライブラリをそのまま使える"],
+    consJa: ["コンパイル(型チェック)の手順が一つ増える", "型の書き方自体を学ぶ必要がある", "小さなスクリプト1本には少しオーバースペックな場合も"],
+    prosEn: ["adds types to JavaScript, catching bugs earlier", "especially effective for large or team projects", "can use the entire JavaScript ecosystem as-is"],
+    consEn: ["adds a compile/type-check step to your workflow", "you need to learn how to write the types themselves", "can feel like overkill for a single small script"],
+  },
+  {
+    key: "rust", labelJa: "Rust", labelEn: "Rust", aliases: ["rust", "ラスト"],
+    snippet: "fn greet(name: &str) -> String {\n    format!(\"Hello, {name}!\")\n}\n\nfor i in 0..3 {\n    println!(\"{}\", greet(\"world\"));\n}",
+    prosJa: ["C/C++並みの実行速度なのに、メモリ安全性をコンパイラが保証", "並行処理(マルチスレッド)のバグをコンパイル時に防ぎやすい", "近年人気・信頼性が高く、システム開発で採用が増えている"],
+    consJa: ["所有権(ownership)・借用(borrowing)という独自概念の学習コストが高い", "初心者には最初のエラーメッセージ量が多く感じられがち", "コンパイル時間が他言語より長めになりやすい"],
+    prosEn: ["C/C++-level speed while the compiler guarantees memory safety", "prevents many concurrency bugs at compile time", "increasingly trusted and adopted for systems programming"],
+    consEn: ["ownership/borrowing is a genuinely new concept with a real learning curve", "beginners often find the compiler's error messages overwhelming at first", "compile times tend to be longer than in many other languages"],
+  },
+  {
+    key: "go", labelJa: "Go(Golang)", labelEn: "Go (Golang)", aliases: ["golang", "go"],
+    snippet: "func greet(name string) string {\n    return \"Hello, \" + name + \"!\"\n}\n\nfor i := 0; i < 3; i++ {\n    fmt.Println(greet(\"world\"))\n}",
+    prosJa: ["文法がシンプルで学習コストが低い", "並行処理(goroutine)が言語標準で扱いやすい", "サーバー・インフラ系ツールでの採用が多い"],
+    consJa: ["ジェネリクス等、一部の機能追加は他言語より遅れて導入された", "エラー処理を毎回明示的に書く必要があり冗長に感じることがある", "GUIアプリ・フロントエンドにはあまり向かない"],
+    prosEn: ["simple syntax with a low learning curve", "concurrency (goroutines) is a first-class, easy-to-use language feature", "widely adopted for servers and infrastructure tooling"],
+    consEn: ["some features like generics arrived later than in other languages", "explicit error handling everywhere can feel repetitive", "not a common choice for GUI apps or frontend work"],
+  },
+  {
+    key: "java", labelJa: "Java", labelEn: "Java", aliases: ["java", "ジャバ"],
+    snippet: "class Greeter {\n    static String greet(String name) {\n        return \"Hello, \" + name + \"!\";\n    }\n    public static void main(String[] args) {\n        for (int i = 0; i < 3; i++) {\n            System.out.println(greet(\"world\"));\n        }\n    }\n}",
+    prosJa: ["「一度書けばどこでも動く」(JVM上で幅広い環境に対応)", "大規模・業務システムでの実績が非常に長い", "Android開発の主要言語の一つ"],
+    consJa: ["記述量が多く、簡単な処理にもやや冗長なコードが必要", "起動・メモリ消費が軽量言語より重め", "新しめの言語機能の取り込みは比較的保守的"],
+    prosEn: ["\"write once, run anywhere\" via the JVM", "a very long track record in large-scale, enterprise systems", "one of the main languages for Android development"],
+    consEn: ["verbose — even simple tasks need more boilerplate code", "startup time and memory use tend to be heavier than lighter languages", "adopts newer language features relatively conservatively"],
+  },
+];
+
+/** テキスト中に含まれるプログラミング言語/フレームワーク名を見つける(最初の1件)。 */
+function programmingAliasMatches(lowerText, alias) {
+  // 英数字のみのエイリアス(go/js/java等)は単語境界(\b)で厳密に照合する
+  // (2026-09-29修正: 「Goを勉強したい」が" go "のような前後スペース必須の
+  // 素朴なsubstring一致では検出できなかったバグへの対応。日本語の助詞
+  // 「を」等は\wに含まれないため、\bはASCII単語とその直後でも正しく働く)。
+  // 日本語混じりのエイリアス(パイソン等)はそのまま部分一致でよい。
+  if (/^[a-z0-9]+$/.test(alias)) {
+    return new RegExp(`\\b${alias}\\b`, "i").test(lowerText);
+  }
+  return lowerText.includes(alias);
+}
+
+function detectProgrammingTopic(userText) {
+  const lower = userText.toLowerCase();
+  return PROGRAMMING_TOPICS.find((t) => t.aliases.some((a) => programmingAliasMatches(lower, a))) || null;
+}
+
+// 2026-09-29追記(実機テストで発覚したバグ修正): 「データサイエンティストになりたい」
+// のような「〜になりたい」(将来なりたい職業を述べる表現)が検出できていなかった。
+const PROGRAMMING_LEARN_INTENT_JA = ["学びたい", "勉強したい", "教えて", "習いたい", "始めたい", "入門", "になりたい"];
+const PROGRAMMING_LEARN_INTENT_EN = ["want to learn", "teach me", "learn how", "get started with", "how do i start", "want to become"];
+
+function isProgrammingLearnRequest(userText) {
+  const topic = detectProgrammingTopic(userText);
+  if (!topic) return null;
+  const lower = userText.toLowerCase();
+  const intentJa = PROGRAMMING_LEARN_INTENT_JA.some((k) => userText.includes(k));
+  const intentEn = PROGRAMMING_LEARN_INTENT_EN.some((k) => lower.includes(k));
+  return (intentJa || intentEn) ? topic : null;
+}
+
+// 2026-09-29新設(ユーザー指示「maidcafe-programming-schoolでもAI先生も自動で使って」
+// への対応)。aon-co-jp/maidcafe-programming-schoolリポジトリのカリキュラムデータ
+// (data-science-path.json、正本はそちら・このアプリの配信ルートには複製を静的配信)を
+// 実際に参照し、isProgrammingLearnRequestと同じ「トピック検出+学習意図」の二重条件で
+// 自動発火する。ユーザーが明示的に「maidcafe-programming-schoolを使って」と言わなくても、
+// 「データサイエンティストになりたい」等のチャット発言だけで自動的に案内される。
+const DATA_SCIENCE_KEYWORDS_JA = ["データサイエンティスト", "データサイエンス"];
+const DATA_SCIENCE_KEYWORDS_EN = ["data scientist", "data science"];
+
+function isDataScienceLearnRequest(userText) {
+  const lower = userText.toLowerCase();
+  const topicJa = DATA_SCIENCE_KEYWORDS_JA.some((k) => userText.includes(k));
+  const topicEn = DATA_SCIENCE_KEYWORDS_EN.some((k) => lower.includes(k));
+  if (!topicJa && !topicEn) return false;
+  const intentJa = PROGRAMMING_LEARN_INTENT_JA.some((k) => userText.includes(k));
+  const intentEn = PROGRAMMING_LEARN_INTENT_EN.some((k) => lower.includes(k));
+  return intentJa || intentEn;
+}
+
+let dataSciencePathCache = null;
+
+async function fetchDataSciencePath() {
+  if (dataSciencePathCache) return dataSciencePathCache;
+  const res = await fetch("/data-science-path.json");
+  if (!res.ok) throw new Error(`HTTP ${res.status}`);
+  dataSciencePathCache = await res.json();
+  return dataSciencePathCache;
+}
+
+/**
+ * データサイエンティスト育成カリキュラム(maidcafe-programming-school由来)を案内する。
+ * teachProgrammingTopicと同じ方針: カリキュラムの内容自体はaruaru-llm生成に頼らず、
+ * data-science-path.jsonの固定データをそのまま表示する。最初の一歩としてPython
+ * (PROGRAMMING_TOPICSのpythonエントリ)の基礎講座も連携して提示する。
+ */
+async function teachDataSciencePath() {
+  let data;
+  try {
+    data = await fetchDataSciencePath();
+  } catch (err) {
+    appendMessage(
+      "system",
+      `⚠ カリキュラムデータの取得に失敗しました / Failed to load the curriculum data: ${err.message}`,
+    );
+    return;
+  }
+
+  const programLines = data.programs.map(
+    (p) => `・${p.nameJa}(${p.topicsJa.join("・")}) / ${p.nameEn} (${p.topicsEn.join(", ")})`,
+  );
+  const workAreaLines = data.coreWorkAreas.map(
+    (a, i) => `${i + 1}. ${a.nameJa} / ${a.nameEn} — ${a.descriptionJa} / ${a.descriptionEn}`,
+  );
+
+  const bodyText =
+    `📊 データサイエンティスト育成カリキュラム / Data Scientist learning path (aon-co-jp/maidcafe-programming-school)\n\n` +
+    `Coursera(https://www.coursera.org)を参考にした主要プログラム / Key programs referencing Coursera:\n` +
+    programLines.join("\n") +
+    `\n\n実務で求められる3つの領域 / Three core work areas:\n` +
+    workAreaLines.join("\n") +
+    `\n\nまずはPythonの基礎から始めましょう。 / Let's start with Python basics.`;
+
+  const node = appendMessage("trainer", bodyText);
+
+  const pythonTopic = PROGRAMMING_TOPICS.find((t) => t.key === "python");
+  if (pythonTopic) {
+    const codeEl = document.createElement("pre");
+    codeEl.className = "tutor-code";
+    codeEl.textContent = pythonTopic.snippet;
+    node.appendChild(codeEl);
+
+    const restEl = document.createElement("div");
+    renderMessageBody(restEl, classicAlgorithmsText());
+    node.appendChild(restEl);
+  }
+
+  const linksHeader = document.createElement("div");
+  linksHeader.className = "tutor-links-header";
+  linksHeader.textContent = "🔎 出典 / Source:";
+  node.appendChild(linksHeader);
+  const linksList = document.createElement("div");
+  linksList.className = "tutor-links-list";
+  const row = document.createElement("div");
+  row.className = "tutor-link-row";
+  row.appendChild(buildSafeResultLink("https://www.coursera.org", "Coursera"));
+  linksList.appendChild(row);
+  node.appendChild(linksList);
+}
+
+// 2026-09-30新設(ユーザー指示「PHP + LARAVELコースと、Python＋FastAPIコースと、
+// Rust＋PoemかRPoemコースで、+aruaru-db ＋HTML5+CSS3＋TypeScriptなどで基本的な
+// WEBサイトの開発を学習するコースを新設して」への対応)。3つのバックエンド
+// スタックのいずれかを選び、共通のフロントエンド(HTML5/CSS3/TypeScript)+
+// aon-co-jp自前のaruaru-db(GraphQL、APIキー自動発行)を組み合わせて基本的な
+// WEBサイト開発を学ぶコース。内容はteachProgrammingTopicと同じ方針で固定
+// テキスト(aruaru-llm生成には頼らない)。
+// 検出(alias照合)だけは同期処理で行う必要があるため、キーとaliasesのみを
+// ここに軽量に保持する。実際に表示するスニペット・メリデメ等の内容は、
+// aon-co-jp/maidcafe-programming-schoolが正本のweb-dev-path.jsonをfetchして
+// 得る(fetchWebDevPath、下記)。データサイエンスコース(teachDataSciencePath)
+// と同じ「正本は別リポジトリ、実データはfetchして使う」構成に揃えている。
+const WEB_DEV_STACK_ALIASES = [
+  { key: "php-laravel", aliases: ["laravel"] },
+  { key: "python-fastapi", aliases: ["fastapi"] },
+  // 2026-09-30訂正(ユーザー指摘「RPoemはTauriが含まれていたので除去」):
+  // 独立した「Rust + Tauri + Poem/RPoem」スタックを一度追加したが、RPoem自体に
+  // 既にTauri対応が含まれているとのことで撤回。"tauri"表記もrust-poemへ寄せる。
+  { key: "rust-poem", aliases: ["rpoem", "tauri"] },
+];
+
+const WEB_DEV_COURSE_KEYWORDS_JA = ["web開発", "webサイト開発", "ウェブサイト開発", "ホームページ制作", "サイト開発"];
+const WEB_DEV_COURSE_KEYWORDS_EN = ["web development", "website development", "build a website"];
+
+function detectWebDevStack(userText) {
+  const lower = userText.toLowerCase();
+  const byAlias = WEB_DEV_STACK_ALIASES.find((s) => s.aliases.some((a) => lower.includes(a)));
+  if (byAlias) return byAlias.key;
+  // "poem"は一般的な英単語(詩)でもあるため、Rustと併記された場合のみRust+Poemと判定する
+  // (aliasesの"rpoem"だけでは拾えない「Rust + Poem」という書き方への対応、誤検知防止)。
+  if (lower.includes("poem") && lower.includes("rust")) {
+    return "rust-poem";
+  }
+  return null;
+}
+
+function isWebDevStackLearnRequest(userText) {
+  const stackKey = detectWebDevStack(userText);
+  if (!stackKey) return null;
+  const lower = userText.toLowerCase();
+  const intentJa = PROGRAMMING_LEARN_INTENT_JA.some((k) => userText.includes(k));
+  const intentEn = PROGRAMMING_LEARN_INTENT_EN.some((k) => lower.includes(k));
+  return (intentJa || intentEn) ? stackKey : null;
+}
+
+function isWebDevCourseOverviewRequest(userText) {
+  if (detectWebDevStack(userText)) return false; // 具体的なスタック名があれば個別コースへ譲る
+  const lower = userText.toLowerCase();
+  const topicJa = WEB_DEV_COURSE_KEYWORDS_JA.some((k) => userText.includes(k));
+  const topicEn = WEB_DEV_COURSE_KEYWORDS_EN.some((k) => lower.includes(k));
+  if (!topicJa && !topicEn) return false;
+  const intentJa = PROGRAMMING_LEARN_INTENT_JA.some((k) => userText.includes(k));
+  const intentEn = PROGRAMMING_LEARN_INTENT_EN.some((k) => lower.includes(k));
+  return intentJa || intentEn;
+}
+
+let webDevPathCache = null;
+
+async function fetchWebDevPath() {
+  if (webDevPathCache) return webDevPathCache;
+  const res = await fetch("/web-dev-path.json");
+  if (!res.ok) throw new Error(`HTTP ${res.status}`);
+  webDevPathCache = await res.json();
+  return webDevPathCache;
+}
+
+// 共通フロントエンド(HTML5/CSS3/TypeScript)+データベース(aruaru-db)の説明。
+// 3スタックいずれでも共通。内容はweb-dev-path.json(正本はmaidcafe-programming-school)由来。
+function webDevFrontendText(data) {
+  return (
+    `━━ 共通のフロントエンド / Shared frontend ━━\n` +
+    `${data.frontend.descriptionJa} / ${data.frontend.descriptionEn}\n\n` +
+    `━━ データベース: ${data.database.nameJa} ━━\n` +
+    `${data.database.descriptionJa} 詳細: ${data.database.url} / ` +
+    `${data.database.descriptionEn} Details: ${data.database.url}`
+  );
+}
+
+async function teachWebDevCourseOverview() {
+  let data;
+  try {
+    data = await fetchWebDevPath();
+  } catch (err) {
+    appendMessage(
+      "system",
+      `⚠ コースデータの取得に失敗しました / Failed to load the course data: ${err.message}`,
+    );
+    return;
+  }
+  const lines = data.stacks.map((s) => `・${s.labelJa} / ${s.labelEn}`);
+  const bodyText =
+    `🌐 基本的なWEBサイト開発コース / Basic Website Development course (aon-co-jp/maidcafe-programming-school)\n\n` +
+    `次の${data.stacks.length}つのバックエンドから選べます(スタック名を書いて「学びたい」と送って` +
+    `ください。例: 「Laravelを学びたい」)。 / Choose one of these ${data.stacks.length} backends ` +
+    `(name it and say you want to learn it, e.g. "I want to learn Laravel"):\n` +
+    lines.join("\n") +
+    `\n\n` +
+    webDevFrontendText(data);
+  appendMessage("trainer", bodyText);
+}
+
+async function teachWebDevStack(stackKey) {
+  let data;
+  try {
+    data = await fetchWebDevPath();
+  } catch (err) {
+    appendMessage(
+      "system",
+      `⚠ コースデータの取得に失敗しました / Failed to load the course data: ${err.message}`,
+    );
+    return;
+  }
+  const stack = data.stacks.find((s) => s.key === stackKey);
+  if (!stack) return;
+
+  const bodyText =
+    `🌐 基本的なWEBサイト開発コース: ${stack.labelJa} / ${stack.labelEn} (aon-co-jp/maidcafe-programming-school)\n\n` +
+    `━━ バックエンドのサンプルコード / Backend sample code (${stack.labelEn}) ━━`;
+  const node = appendMessage("trainer", bodyText);
+
+  const codeEl = document.createElement("pre");
+  codeEl.className = "tutor-code";
+  codeEl.textContent = stack.backendSnippet;
+  node.appendChild(codeEl);
+
+  // デスクトップアプリ化(Tauri)のセクション。stack.desktopSnippetが定義されている
+  // 場合のみ表示する(現状はrust-poemのみ、RPoemがTauri連携を含んでいるため)。
+  if (stack.desktopSnippet) {
+    const desktopHeaderEl = document.createElement("div");
+    renderMessageBody(
+      desktopHeaderEl,
+      `\n━━ デスクトップアプリ化: Tauri / Packaging as a desktop app: Tauri ━━\n` +
+        `${stack.desktopNoteJa} / ${stack.desktopNoteEn}`,
+    );
+    node.appendChild(desktopHeaderEl);
+
+    const desktopCodeEl = document.createElement("pre");
+    desktopCodeEl.className = "tutor-code";
+    desktopCodeEl.textContent = stack.desktopSnippet;
+    node.appendChild(desktopCodeEl);
+  }
+
+  const prosJa = stack.prosJa.map((p) => `・${p}`).join("\n");
+  const consJa = stack.consJa.map((c) => `・${c}`).join("\n");
+  const prosEn = stack.prosEn.map((p) => `- ${p}`).join("\n");
+  const consEn = stack.consEn.map((c) => `- ${c}`).join("\n");
+  const restText =
+    `\n${webDevFrontendText(data)}\n\n` +
+    `━━ ${stack.labelJa}自体のメリット・デメリット / Pros & cons of ${stack.labelEn} itself ━━\n` +
+    `👍 メリット / Pros:\n${prosJa}\n${prosEn}\n\n` +
+    `👎 デメリット / Cons:\n${consJa}\n${consEn}\n`;
+  const restEl = document.createElement("div");
+  renderMessageBody(restEl, restText);
+  node.appendChild(restEl);
+}
+
+// 変数・クラス・for文の説明(言語非依存の概念)。サンプルコード自体は
+// `.tutor-code`(白空白をpreのまま保つ既存クラス)を使って別要素として
+// 添える(地の文はwhite-space:pre-lineでインデントが潰れるため)。
+function programmingBasicsText(topic) {
+  return (
+    `📘 ${topic.labelJa} / ${topic.labelEn} — programming basics from your AI teacher / AI先生からの基礎講座\n\n` +
+    `━━ 1. 変数 (Variables) ━━\n` +
+    `値に名前を付けて、後から読み書きできるようにする箱です。 / A variable is a named box that holds a value you can read and change later.\n\n` +
+    `━━ 2. クラス (Classes) ━━\n` +
+    `関連するデータ(属性)と処理(メソッド)を1つにまとめる設計図です。同じ設計図から何個でも「インスタンス」(実体)を作れます。 / ` +
+    `A class bundles related data (fields) and behavior (methods) into one blueprint. You can create as many "instances" from it as you like.\n\n` +
+    `━━ 3. for文 (For loops) ━━\n` +
+    `同じ処理を指定回数(または条件を満たす間)繰り返します。 / A for loop repeats the same block of code a set number of times (or while a condition holds).\n\n` +
+    `━━ ${topic.labelJa}でのサンプルコード / Sample code in ${topic.labelEn} ━━`
+  );
+}
+
+// 代表的なアルゴリズム10種(定番かつ言語非依存)。
+const CLASSIC_ALGORITHMS = [
+  ["線形探索 / Linear Search", "先頭から順番に1つずつ調べて目的の値を探す。 / Check each item from the start until you find the target."],
+  ["二分探索 / Binary Search", "ソート済みの配列を半分ずつに絞り込んで高速に探す。 / Repeatedly halve a sorted array to find the target quickly."],
+  ["バブルソート / Bubble Sort", "隣同士を比較して入れ替えることを繰り返す、単純だが遅い並べ替え。 / Repeatedly swap adjacent out-of-order items — simple but slow."],
+  ["クイックソート / Quick Sort", "基準値(pivot)より小さい/大きいで分割しながら並べ替える高速な手法。 / Partition around a pivot and recurse — fast in practice."],
+  ["マージソート / Merge Sort", "配列を半分に分け続け、それぞれをマージ(統合)しながら並べ替える。 / Split the array in half recursively, then merge sorted halves."],
+  ["再帰(階乗) / Recursion (factorial)", "関数が自分自身を呼び出して問題を小さく分解して解く。 / A function calls itself to break a problem into smaller pieces."],
+  ["フィボナッチ数列 / Fibonacci sequence", "直前の2つの数を足して次の数を作る数列(再帰・ループどちらでも書ける代表例)。 / Each number is the sum of the two before it — a classic recursion/loop example."],
+  ["幅優先探索 BFS / Breadth-First Search", "近い場所から順番に、層(レベル)ごとにグラフ・木を探索する。 / Explore a graph/tree level by level, nearest nodes first."],
+  ["深さ優先探索 DFS / Depth-First Search", "行き止まりまで一direction突き進み、戻りながら探索するグラフ・木の探索法。 / Explore a graph/tree by going as deep as possible before backtracking."],
+  ["FizzBuzz", "1から順に数え、3の倍数はFizz、5の倍数はBuzz、両方ならFizzBuzzと出す定番の入門課題。 / Print numbers 1..N, but \"Fizz\" for multiples of 3, \"Buzz\" for 5, \"FizzBuzz\" for both — the classic beginner exercise."],
+];
+
+function classicAlgorithmsText() {
+  const lines = CLASSIC_ALGORITHMS.map((a, i) => `${i + 1}. ${a[0]} — ${a[1]}`);
+  return `━━ 代表的なアルゴリズム10種 / 10 classic algorithms ━━\n` + lines.join("\n") + "\n";
+}
+
+// グローバル変数を避ける理由(メリット・デメリット双方)。
+function globalVariablesAdviceText() {
+  return (
+    `━━ 次のステップ: グローバル変数を使わないプログラミング / Growing up: avoiding global variables ━━\n` +
+    `グローバル変数(どこからでも読み書きできる変数)は最初は便利ですが、プログラムが大きくなるほど「誰がいつ値を変えたか分からない」バグの温床になります。` +
+    `代わりに、関数の引数・戻り値でデータをやり取りしたり(関数の外の変数に触らない)、クラスの中に閉じ込めたりする(カプセル化)と、影響範囲が狭くなり安全です。\n` +
+    `Global variables (readable/writable from anywhere) feel convenient at first, but as a program grows they become a common source of "who changed this, and when?" bugs. ` +
+    `Prefer passing data through function parameters/return values, or keeping it inside a class (encapsulation) — this keeps the blast radius small and code easier to reason about.\n\n` +
+    `メリット(グローバル変数) / Pros of globals: 書くのが手軽・小さなスクリプトでは分かりやすい / quick to write, easy to follow in tiny scripts.\n` +
+    `デメリット(グローバル変数) / Cons of globals: どこからでも書き換えられるためバグの原因を追いにくい・テストしづらい・並行処理で競合しやすい / ` +
+    `can be modified from anywhere (hard to debug), harder to unit-test, prone to race conditions in concurrent code.\n`
+  );
+}
+
+function programmingTopicProsConsText(topic) {
+  const prosJa = topic.prosJa.map((p) => `・${p}`).join("\n");
+  const consJa = topic.consJa.map((c) => `・${c}`).join("\n");
+  const prosEn = topic.prosEn.map((p) => `- ${p}`).join("\n");
+  const consEn = topic.consEn.map((c) => `- ${c}`).join("\n");
+  return (
+    `━━ ${topic.labelJa}自体のメリット・デメリット / Pros & cons of ${topic.labelEn} itself ━━\n` +
+    `👍 メリット / Pros:\n${prosJa}\n${prosEn}\n\n` +
+    `👎 デメリット / Cons:\n${consJa}\n${consEn}\n`
+  );
+}
+
+/**
+ * AI先生としてのプログラミング学習応答一式を組み立てて表示する。
+ * 変数・クラス・for文・10種のアルゴリズム・グローバル変数回避・言語自体の
+ * メリデメは、すべて人手で確認済みの固定テキスト(aruaru-llm生成には
+ * 頼らない)。最後に、Google検索(設定済みの場合のみ)で見つけた公式サイト・
+ * 入門ブログ・GitHubのリンクを、既存の`buildSafeResultLink`と同じ許可
+ * リスト方式で安全に添える。
+ */
+async function teachProgrammingTopic(topic) {
+  const bodyText = programmingBasicsText(topic);
+  const node = appendMessage("trainer", bodyText);
+
+  const codeEl = document.createElement("pre");
+  codeEl.className = "tutor-code";
+  codeEl.textContent = topic.snippet;
+  node.appendChild(codeEl);
+
+  const restText =
+    classicAlgorithmsText() + "\n" +
+    globalVariablesAdviceText() + "\n" +
+    programmingTopicProsConsText(topic);
+  const restEl = document.createElement("div");
+  renderMessageBody(restEl, restText);
+  node.appendChild(restEl);
+
+  const linksHeader = document.createElement("div");
+  linksHeader.className = "tutor-links-header";
+  linksHeader.textContent = "🔎 もっと詳しく学べる参考リンク / Learn more (reference links):";
+  node.appendChild(linksHeader);
+
+  const linksList = document.createElement("div");
+  linksList.className = "tutor-links-list";
+  node.appendChild(linksList);
+
+  const creds = typeof loadOwnGoogleSearchCredentials === "function" ? loadOwnGoogleSearchCredentials() : null;
+  if (!creds || !creds.api_key || !creds.cx) {
+    linksList.textContent =
+      "Google検索APIキーが未設定のため参考リンクは表示できません。「🔎 Setup Google Search.」から設定してください。 / " +
+      "Google Search API key isn't set up, so reference links can't be shown — set it up via \"🔎 Setup Google Search.\"";
+    return;
+  }
+
+  linksList.textContent = "検索中... / Searching...";
+  try {
+    const queries = [
+      `${topic.labelEn} official documentation`,
+      `${topic.labelEn} tutorial for beginners`,
+      `${topic.labelEn} beginner site:github.com`,
+    ];
+    const resultSets = await Promise.all(
+      queries.map((q) => googleSearchDirect(q, creds.api_key, creds.cx, 2).catch(() => [])),
+    );
+    const seen = new Set();
+    const results = resultSets.flat().filter((r) => {
+      if (!r.link || seen.has(r.link)) return false;
+      seen.add(r.link);
+      return true;
+    });
+    linksList.textContent = "";
+    if (results.length === 0) {
+      linksList.textContent = "参考リンクが見つかりませんでした。 / No reference links found.";
+      return;
+    }
+    for (const r of results) {
+      const row = document.createElement("div");
+      row.className = "tutor-link-row";
+      row.appendChild(buildSafeResultLink(r.link, r.title || r.link));
+      linksList.appendChild(row);
+    }
+  } catch (err) {
+    linksList.textContent = `検索に失敗しました / Search failed: ${err.message}`;
+  }
+}
+
+// 2026-09-29新設(ユーザー指示「インターネットニュースやブログやユーザーが提示した
+// URLの内容や、フリーランス案件のURLや案件…を題材に、…希望すれば相談しながら
+// 開発だけでも、一緒にプログラミングも英語も日本語も…学習可能として。あくまでも
+// ユーザーが希望すれば」への対応)。詳細な設計はmaidcafe-programming-school
+// リポジトリのcurriculum/collaborative-dev-concept.md参照。
+//
+// **正直な開示・技術的制約**: ブラウザ(CORS制約)からは任意サイトのURLを直接
+// クロールして全文取得することはできない。このため、ユーザー自身が本文を
+// チャットに貼り付ける前提とする(著作権的にも、本人が入手した情報を本人が
+// 使う形になり安全)。URLだけが貼られた場合は全文取得できない旨を正直に伝える。
+//
+// **誤検知防止の二重条件**(isProgrammingLearnRequestと同じ設計方針): (1)
+// ある程度長いテキストまたはURLを含む、かつ(2)開発への意思表示となる語句を
+// 含む場合のみ発火する。意思表示が無ければテキストを貼り付けただけでは発火
+// しない=常に「希望すれば」であることを保証する。
+const COLLABORATIVE_DEV_INTENT_JA = ["一緒に開発", "一緒に作り", "これで開発", "アプリ作りたい", "サイト作りたい", "作ってみたい", "開発したい"];
+const COLLABORATIVE_DEV_INTENT_EN = ["let's build", "help me build", "build this together", "develop this together", "want to build", "build an app", "build a website"];
+const URL_PATTERN = /https?:\/\/[^\s]+/i;
+const COLLABORATIVE_DEV_MIN_LENGTH = 40;
+
+function isCollaborativeDevRequest(userText) {
+  const lower = userText.toLowerCase();
+  const intentJa = COLLABORATIVE_DEV_INTENT_JA.some((k) => userText.includes(k));
+  const intentEn = COLLABORATIVE_DEV_INTENT_EN.some((k) => lower.includes(k));
+  if (!intentJa && !intentEn) return false;
+  const hasUrl = URL_PATTERN.test(userText);
+  const isLongEnough = userText.length >= COLLABORATIVE_DEV_MIN_LENGTH;
+  return hasUrl || isLongEnough;
+}
+
+/**
+ * 相談型開発の応答一式を組み立てて表示する。ユーザー固有の内容(何を貼り付けたか)は
+ * 要約せずそのまま引用するだけに留め(誤った要約による事実誤認を避ける)、技術選定・
+ * 基礎解説は既存の`PROGRAMMING_TOPICS`/`programmingBasicsText`を再利用して固定
+ * テキストで組み立てる(teachProgrammingTopicと同じ方針、aruaru-llm生成には頼らない)。
+ */
+async function suggestCollaborativeDevPlan(userText) {
+  const url = userText.match(URL_PATTERN)?.[0];
+  const quoted = userText.length > 300 ? `${userText.slice(0, 300)}…` : userText;
+
+  const introLines = [
+    `🛠️ 一緒に開発、始めましょう! / Let's start planning this together!`,
+    ``,
+    `いただいた内容を確認しますね: / Here's what I received:`,
+    `「${quoted}」`,
+  ];
+  if (url) {
+    introLines.push(
+      ``,
+      `⚠ 正直な開示: このチャットはブラウザの制約上、URL先のページを自動で読み込む` +
+        `ことができません。上記のURL(${url})の本文を、よろしければ直接貼り付けて` +
+        `いただけますか? / Honest note: this chat can't automatically fetch the ` +
+        `contents of a URL (a browser limitation). If you can, please paste the ` +
+        `actual text from ${url} here.`,
+    );
+  }
+  introLines.push(
+    ``,
+    `━━ まず教えてください / First, a couple of questions ━━`,
+    `1) スマホアプリ・WEBサイト・どちらでもよい、のどれがご希望ですか? / ` +
+      `Would you like a mobile app, a website, or either is fine?`,
+    `2) このまま日本語で進めますか、それとも英語(または今書いている言語)で練習しながら` +
+      `進めますか? / Shall we continue in Japanese, or practice in English (or whatever ` +
+      `language you're typing in) as we go?`,
+  );
+
+  const topic = detectProgrammingTopic(userText);
+  const bodyText = introLines.join("\n") + "\n\n" + (topic ? programmingBasicsText(topic) : genericTechChoiceText());
+  const node = appendMessage("trainer", bodyText);
+
+  if (topic) {
+    const codeEl = document.createElement("pre");
+    codeEl.className = "tutor-code";
+    codeEl.textContent = topic.snippet;
+    node.appendChild(codeEl);
+  }
+
+  const footerEl = document.createElement("div");
+  renderMessageBody(
+    footerEl,
+    `\nこれはあくまで最初のたたき台です。次のメッセージで、上記の質問への回答や、` +
+      `もっと詳しく作りたい機能を教えてください。 / This is just a first draft — reply ` +
+      `with answers to the questions above, or more detail on what you'd like to build, ` +
+      `and we'll keep going from there.`,
+  );
+  node.appendChild(footerEl);
+}
+
+// 特定の言語/フレームワークが検出できなかった場合の、汎用的な技術選定ガイド。
+function genericTechChoiceText() {
+  return (
+    `━━ 技術選定の考え方 / How to choose your first technology ━━\n` +
+    `作りたいものによって最初の一歩が変わります。 / The right starting point depends on what you want to build.\n\n` +
+    `・簡単なWEBサイト(見た目中心) → HTML/CSS/JavaScriptから。 / A simple website (mostly visual) → start with HTML/CSS/JavaScript.\n` +
+    `・データを扱うツール・自動化スクリプト → Python。 / A data tool or automation script → Python.\n` +
+    `・スマホアプリ(iOS/Android両対応) → Flutter(Dart)やReact Native。 / A cross-platform mobile app → Flutter (Dart) or React Native.\n` +
+    `・本格的なWEBサービス(ログイン・DB等) → JavaScript/TypeScript(フロント)+ お好みのサーバー言語。 / ` +
+    `A fuller web service (login, database, etc.) → JavaScript/TypeScript on the frontend, plus a server-side language of your choice.\n\n` +
+    `どれか気になるものがあれば、その名前を書いて「学びたい」と送ってください(例: 「Pythonを学びたい」)。基礎から解説します。 / ` +
+    `If one of these interests you, just tell me its name with "I want to learn" (e.g. "I want to learn Python") and I'll walk you through the basics.`
+  );
+}
+
+// 2026-10-02新設(ユーザー指示「会話内容も、open-englishは、短時間にメモリー内だけにして、
+// スムーズな会話の為だけとして、WEB版は、1時間以上前の会話は自動削除して、…ローカルや
+// スマホ版は個人で判断選択出来るようにしてチェックボックスを付けて」)。
+//
+// 会話本文は、この画面のメモリ(DOM)上にだけ置かれ、サーバーへは送信・保存していない
+// (本番DBの会話履歴APIに入るのは採点結果等のみ、2026-10-02に本番DBの件数で確認済み)。
+// WEB版(localhost以外で配信されている場合=`is-web-only`)は1時間経過した会話を自動で
+// 消し、利用者は変更できない。ローカル/スマホ版は既定で同じ自動削除をオンにし、
+// チェックボックスで本人がオフにできる(オフにしても保持は画面を閉じるまで=メモリ上のみ、
+// ディスクやサーバーへは保存しない)。
+const CHAT_RETENTION_MS = 60 * 60 * 1000;
+const CHAT_AUTO_DELETE_KEY = "open-english.chatAutoDelete";
+
+function isChatRetentionForced() {
+  return document.documentElement.classList.contains("is-web-only");
+}
+
+function isChatAutoDeleteEnabled() {
+  if (isChatRetentionForced()) return true;
+  try {
+    return localStorage.getItem(CHAT_AUTO_DELETE_KEY) !== "0"; // 未設定は安全側(自動削除オン)
+  } catch (_) {
+    return true;
+  }
+}
+
+function sweepExpiredChat(now = Date.now()) {
+  if (!isChatAutoDeleteEnabled()) return 0;
+  const logNode = document.getElementById("log");
+  if (!logNode) return 0;
+  let removed = 0;
+  for (const el of Array.from(logNode.querySelectorAll(".msg"))) {
+    const ts = Number(el.dataset.ts);
+    // 時刻を持たない要素(起動時の案内文など)は会話ではないので消さない。
+    if (Number.isFinite(ts) && ts > 0 && now - ts >= CHAT_RETENTION_MS) {
+      el.remove();
+      removed += 1;
+    }
+  }
+  if (removed > 0) {
+    const dock = document.getElementById("dock-answer");
+    if (dock && !dock.classList.contains("hidden")) {
+      dock.textContent = "";
+      dock.classList.add("hidden");
+    }
+  }
+  return removed;
+}
+
+(function setupChatRetention() {
+  const box = document.getElementById("chat-auto-delete");
+  const note = document.getElementById("chat-retention-note");
+  if (!box || !note) return;
+  const forced = isChatRetentionForced();
+  const sync = () => {
+    if (forced) {
+      box.checked = true;
+      box.disabled = true;
+      note.textContent =
+        "会話の記憶は1時間以上は自動で消えます(WEB版では変更できません。会話はこの画面のメモリ上だけに置かれ、サーバーには保存しません)。 / " +
+        "Conversation memory is automatically erased after 1 hour (cannot be changed in the web version; conversations stay only in this page's memory and are never saved to a server).";
+    } else {
+      box.checked = isChatAutoDeleteEnabled();
+      note.textContent = box.checked
+        ? "1時間以上前の会話を自動で消します。会話はこの端末の画面上だけに置かれ、サーバーには保存しません。 / Conversations older than 1 hour are erased automatically; they stay only on this device's screen and are never saved to a server."
+        : "自動削除はオフです。会話はこの画面を閉じるまで残ります(ディスクやサーバーには保存しません)。 / Auto-delete is off; conversations stay until you close this page (nothing is saved to disk or a server).";
+    }
+  };
+  box.addEventListener("change", () => {
+    try {
+      localStorage.setItem(CHAT_AUTO_DELETE_KEY, box.checked ? "1" : "0");
+    } catch (_) {
+      /* 保存できなくても今回の画面では有効 */
+    }
+    sync();
+    sweepExpiredChat();
+  });
+  sync();
+  setInterval(() => sweepExpiredChat(), 60 * 1000);
+})();
+
 // 2026-09-24新設(ユーザー指示「文字入力後に、エンターキーでも、画面の
 // エンターキーでも良い様にしましょう」): 物理キーボードのEnterキーは
 // <input type="text">がフォーム内にあれば通常はネイティブ送信されるが、
@@ -6079,8 +6947,11 @@ function fourNinesGradeMessage(grade) {
 // ネイティブsubmitが発火しない場合があるため、明示的にrequestSubmit()を
 // 呼ぶフォールバックを追加する。日本語IME変換中のEnter(確定操作)で
 // 誤送信しないよう、isComposing中は無視する。
+// 2026-09-28改訂(ユーザー指示「Chatの入力欄がCLAUDEの用に1行だと使いにくいので3行くらいに」):
+// <input type="text">から<textarea rows="3">へ変更したため、Shift+Enterでの
+// 改行も明示的にサポートする(Claude等のチャット入力と同じ操作感)。
 inputEl.addEventListener("keydown", (e) => {
-  if (e.key !== "Enter" || e.isComposing) return;
+  if (e.key !== "Enter" || e.isComposing || e.shiftKey) return;
   e.preventDefault();
   formEl.requestSubmit();
 });
@@ -6260,6 +7131,45 @@ formEl.addEventListener("submit", async (e) => {
   // 日次利用回数は消費しない。
   if (isReligionHistoryQuestion(text)) {
     appendMessage("trainer", religionHistoryText());
+    return;
+  }
+
+  // データサイエンティスト育成カリキュラム(2026-09-29新設、maidcafe-programming-school
+  // 連携)。「データサイエンティストになりたい」+学習意図の語が揃ったときだけ発火する。
+  // isProgrammingLearnRequestより先に判定する(「データサイエンス」はPROGRAMMING_TOPICS
+  // の個別言語名より具体的な意図のため)。
+  if (isDataScienceLearnRequest(text)) {
+    await teachDataSciencePath();
+    return;
+  }
+
+  // 基本的なWEBサイト開発コース(2026-09-30新設)。PHP+Laravel/Python+FastAPI/
+  // Rust+Poem・RPoemの3スタック。具体的なスタック名+学習意図で個別コースへ、
+  // スタック名が無くても「web開発を学びたい」等で3択の概要を案内する。
+  const webDevStack = isWebDevStackLearnRequest(text);
+  if (webDevStack) {
+    await teachWebDevStack(webDevStack);
+    return;
+  }
+  if (isWebDevCourseOverviewRequest(text)) {
+    await teachWebDevCourseOverview();
+    return;
+  }
+
+  // AI先生としてのプログラミング学習(2026-09-28新設)。「Pythonを学びたい」
+  // 「teach me Rust」のように、既知の言語/フレームワーク名+学習意図の語が
+  // 揃ったときだけ発火する(誤検知を避けるため両方が必要)。
+  const programmingTopic = isProgrammingLearnRequest(text);
+  if (programmingTopic) {
+    await teachProgrammingTopic(programmingTopic);
+    return;
+  }
+
+  // 相談型開発(2026-09-29新設、ユーザーが希望した場合のみ発火)。
+  // ニュース/ブログ本文・URL・フリーランス案件の内容+開発の意思表示が
+  // 揃ったときだけ、一緒に企画を考えるたたき台を提示する。
+  if (isCollaborativeDevRequest(text)) {
+    await suggestCollaborativeDevPlan(text);
     return;
   }
 
@@ -7148,7 +8058,7 @@ if (SpeechRecognitionImpl) {
     if (!voiceAlwaysOn) return;
     setTimeout(() => {
       if (!voiceAlwaysOn || micIsListening) return;
-      if ("speechSynthesis" in window && window.speechSynthesis.speaking) {
+      if (("speechSynthesis" in window && window.speechSynthesis.speaking) || serverTtsSpeaking()) {
         scheduleAutoListen(300); // 読み上げ中はキャラクターの声を拾わないよう再チェック
         return;
       }
@@ -7989,6 +8899,8 @@ const SAFE_EXTERNAL_LINK_DOMAINS = [
   "nhk.or.jp", "asahi.com", "yomiuri.co.jp", "mainichi.jp", "nikkei.com",
   "bbc.com", "bbc.co.uk", "cnn.com", "reuters.com", "apnews.com",
   "nasa.gov", "go.jp", "gov", "ac.jp", "edu",
+  // 2026-09-29追加(データサイエンティスト育成カリキュラムの出典、teachDataSciencePath用)。
+  "coursera.org",
 ];
 
 /** ドメインが上記許可リストに含まれるか(サブドメイン含む)を判定する。 */
@@ -10739,6 +11651,7 @@ function speakOneLanguage(row) {
     return;
   }
   window.speechSynthesis.cancel();
+  serverTtsCancel();
   const tag = SPEECH_LANG_TAGS[row.code] || row.code;
   const utter = new SpeechSynthesisUtterance(row.text);
   utter.lang = tag;
@@ -10761,6 +11674,7 @@ function playMultiSpeakSequence() {
     return;
   }
   window.speechSynthesis.cancel();
+  serverTtsCancel();
   const rows = Array.from(multiSpeakOutputEl.querySelectorAll(".multi-speak-row"));
   lines.forEach((line, i) => {
     const tag = SPEECH_LANG_TAGS[line.code] || line.code;
@@ -10799,6 +11713,7 @@ if (multiSpeakOutputEl) {
   if (stopBtn) {
     stopBtn.addEventListener("click", () => {
       if ("speechSynthesis" in window) window.speechSynthesis.cancel();
+      serverTtsCancel();
       multiSpeakOutputEl.querySelectorAll(".multi-speak-row").forEach((r) => r.classList.remove("speaking-now"));
       if (multiSpeakStatusEl) multiSpeakStatusEl.textContent = "停止しました。 / Stopped.";
     });

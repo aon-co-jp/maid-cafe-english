@@ -1,0 +1,54 @@
+{
+  "$comment": "open-englishのAI先生機能(web/app.jsのteachDataSciencePath)が実際に参照する構造化カリキュラムデータ。正本はaon-co-jp/maidcafe-programming-schoolリポジトリのcurriculum/data-science-path.json(このファイルはその複製)。内容はユーザー提示情報+一般に知られる各プログラムの概要に基づく要約であり、公式情報の代替ではない。",
+  "source": "https://www.coursera.org",
+  "lastReviewed": "2026-09-29",
+  "programs": [
+    {
+      "key": "google-data-analytics",
+      "nameJa": "Google データアナリティクス プロフェッショナル認定",
+      "nameEn": "Google Data Analytics Professional Certificate",
+      "level": "beginner",
+      "topicsJa": ["データ分析の基礎", "SQL", "R", "Tableau"],
+      "topicsEn": ["data analysis fundamentals", "SQL", "R", "Tableau"]
+    },
+    {
+      "key": "ibm-data-science",
+      "nameJa": "IBM データサイエンス プロフェッショナル認定",
+      "nameEn": "IBM Data Science Professional Certificate",
+      "level": "intermediate",
+      "topicsJa": ["Python", "機械学習", "SQL"],
+      "topicsEn": ["Python", "machine learning", "SQL"]
+    },
+    {
+      "key": "us-university-ms-data-science",
+      "nameJa": "アメリカの大学のオンライン学位(例: コロラド大学ボルダー校 Master of Science in Data Science)",
+      "nameEn": "US university online degree (e.g., University of Colorado Boulder's Master of Science in Data Science)",
+      "level": "advanced",
+      "topicsJa": ["統計学", "機械学習", "大規模データ処理"],
+      "topicsEn": ["statistics", "machine learning", "large-scale data processing"]
+    }
+  ],
+  "coreWorkAreas": [
+    {
+      "key": "insight",
+      "nameJa": "インサイト業務",
+      "nameEn": "Insight work",
+      "descriptionJa": "因果推論や統計手法を使い、データから有意義なパターンを発見する。",
+      "descriptionEn": "Use causal inference and statistical methods to find meaningful patterns in data."
+    },
+    {
+      "key": "product-experimentation",
+      "nameJa": "プロダクト実験",
+      "nameEn": "Product experimentation",
+      "descriptionJa": "機会のサイジングから実験デザイン、結果分析までのプロダクト検証をエンドツーエンドで行う。",
+      "descriptionEn": "Run product validation end-to-end, from opportunity sizing through experiment design to results analysis."
+    },
+    {
+      "key": "analytics-enablement",
+      "nameJa": "アナリティクス有効化",
+      "nameEn": "Analytics enablement",
+      "descriptionJa": "新しいデータパイプラインの構築や、ダッシュボードの作成を行う。",
+      "descriptionEn": "Build new data pipelines and create dashboards."
+    }
+  ]
+}
