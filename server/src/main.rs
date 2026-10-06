@@ -3390,7 +3390,8 @@ async fn main() {
     // 2026-09-22追加: 「日本語なら日本のニュース、英語ならアメリカのニュース」のように
     // 呼び出し側が国を指定できる`/v1/news/for?country=...`のクエリ文字列を、そのまま
     // aruaru-llmへ中継する(`proxy_aruaru_llm_get`は固定パスのみでクエリを転送できないため専用実装)。
-    app = app.at("/v1/public/persona/prompt", post(handler_fn(|req, _p| Box::pin(proxy_aruaru_llm_post("/v1/persona/prompt", req)))));
+    app = app.at("/v1/public/knowledge/export", get(handler_fn(|_req, _p| Box::pin(proxy_aruaru_llm_get("/v1/knowledge/search")))));
+    app = app.at("/v1/public/persona/prompt",post(handler_fn(|req, _p| Box::pin(proxy_aruaru_llm_post("/v1/persona/prompt", req)))));
     app = app.at("/v1/public/news/for",get(handler_fn(|req, _p| Box::pin(proxy_aruaru_llm_get_with_query(req, "/v1/news/for")))));
     app = app.at("/v1/public/news/archive-search", get(handler_fn(|req, _p| Box::pin(news_archive_search(req)))));
     app = app.at("/v1/public/freelance/job-search", post(handler_fn(|req, _p| Box::pin(public_freelance_job_search(req)))));
