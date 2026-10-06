@@ -8403,3 +8403,8 @@ open-englishにはWEB版(ブラウザのみ)・ローカル版・その両方を
   - **正直な開示**: 実装はWindowsのSAPIのみ(macOS/Linuxは`available:false`でWeb Speech APIを使う)。合成の速さはPowerShellの起動が支配的で、常駐ワーカー化すれば縮む余地がある(未実施)。実際に耳で聴いた自然さは評価していない(ブラウザの自動テストは、音声が再生されたこと=`play`/`ended`イベントの発火と長さまでで、聴感ではない)。`speakBilingual`で日本語が英語の声で読まれないよう、言語ごとに声を選ぶ点は従来と同じ。
 - 自前の音声(サーバー側TTS等)を用意できるなら、WEB版でも`maid-cafe-core`をWASM(wasm32向けコンパイルは確認済み・ブラウザ実行は未検証)で使う道がある。
 - 参考: 英語学習アプリなので、声の元になる音声は英語(Windowsの標準にあるのはMicrosoft Zira等)。日本語の声で英語を読ませない(既に`pickVoice`で修正済みの実バグ)という制約は、サーバー側TTSでも同じ。
+
+## メイド/執事の先生と知識の自動復元(2026-10-06)
+- 女性キャラ=メイドの先生(さくら)、男性キャラ=執事の先生(トラ)。`web/app.js`の`personaPromptText()`が`/v1/public/persona/prompt`(aruaru-llmの`/v1/persona/prompt`へ中継)から応対方針+国別の話題を取得しプロンプトへ足す。国は`visitorCountryGuess()`(言語の地域コード→タイムゾーン→地域の無い言語、の順。**IP照会はしない**既存方針)。
+- 知識の公開エクスポート`/v1/public/knowledge/export`、GitHub退避先`data/knowledge/knowledge.json`(VPSの`knowledge-sync-push.timer`が6時間ごとに更新、詳細は`aruaru-llm/CLAUDE.md`)。`data/`は.gitignore対象のため`git add -f`で追加している。
+- 確認済み(2026-10-06): GitHubのみからの復元、WEB停止(1番目の取得元が失敗)時のGitHubへの切替、タイマー自身の発火によるpush成功、公開サイトでのメイド/執事の切替。Android実機での動作は未確認。

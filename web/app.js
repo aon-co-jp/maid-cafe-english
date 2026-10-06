@@ -2514,9 +2514,23 @@ const countryExtraFunFacts = {
 // 取得失敗時は記事の要点を言い換えた固定文へ静かにフォールバックする。
 const personaPromptCache = {};
 function visitorCountryGuess() {
+  // 優先順: (1)言語の地域コード(en-US) (2)タイムゾーン(Asia/Tokyo) (3)地域コードの無い言語(ja)。
+  // いずれもブラウザが自己申告する値で、IP照会はしない。曖昧な言語(en/es/pt/ar等)は推定しない。
+  const tzCountry = {
+    "Asia/Tokyo": "Japan", "Asia/Seoul": "South Korea", "Asia/Shanghai": "China", "Asia/Taipei": "Taiwan",
+    "Asia/Bangkok": "Thailand", "Asia/Ho_Chi_Minh": "Vietnam", "Asia/Manila": "Philippines", "Asia/Kolkata": "India",
+    "Europe/Berlin": "Germany", "Europe/Paris": "France", "Europe/Rome": "Italy", "Europe/Madrid": "Spain",
+    "Europe/London": "United Kingdom", "Europe/Moscow": "Russia", "Europe/Istanbul": "Turkey",
+    "America/New_York": "United States", "America/Chicago": "United States", "America/Los_Angeles": "United States",
+    "Australia/Sydney": "Australia",
+  };
+  const langCountry = { ja: "Japan", ko: "South Korea", th: "Thailand", vi: "Vietnam", de: "Germany", fr: "France", it: "Italy", ru: "Russia", tr: "Turkey" };
   try {
     const region = (navigator.language || "").split("-")[1];
     if (region && region.length === 2) return new Intl.DisplayNames(["en"], { type: "region" }).of(region.toUpperCase()) || "";
+    const tz = Intl.DateTimeFormat().resolvedOptions().timeZone;
+    if (tzCountry[tz]) return tzCountry[tz];
+    return langCountry[(navigator.language || "").split("-")[0]] || "";
   } catch (e) {
     /* 推定できなければ空 */
   }
