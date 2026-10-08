@@ -219,5 +219,41 @@
       "learning"
     ],
     "text": "Correction: AI wrote price \"一部無料、月額1,078円〜\" for paiza.jp but the verified monthly price is 1490 yen. Do not repeat this mistake. AIがpaiza.jpの料金を「一部無料、月額1,078円〜」と書いたが誤り。検証済みの月額は1490円。"
+  },
+  {
+    "created_unix": 1791490380,
+    "id": 20,
+    "source": "https://dotinstall.com/premium",
+    "tags": [
+      "dotinstall",
+      "price",
+      "verified",
+      "learning"
+    ],
+    "text": "Verified price (2026-10-09): Dotinstall monthly plan costs 1480 yen including tax. ドットインストールの月額プランは1480円（税込）。公式ページ https://dotinstall.com/premium で確認。"
+  },
+  {
+    "created_unix": 1791490380,
+    "id": 21,
+    "source": "https://progate.com/plans/for_users",
+    "tags": [
+      "progate",
+      "price",
+      "verified",
+      "learning"
+    ],
+    "text": "Verified price (2026-10-09): Progate monthly plan costs 1490 yen including tax. Progateの月額プランは1490円（税込）。公式ページ https://progate.com/plans/for_users で確認。"
+  },
+  {
+    "created_unix": 1791490380,
+    "id": 22,
+    "source": "https://paiza.jp/works/paid_plan_lp/settlement",
+    "tags": [
+      "paiza",
+      "price",
+      "verified",
+      "learning"
+    ],
+    "text": "Verified price (2026-10-09): paiza monthly plan costs 1490 yen including tax. paizaラーニングの月額プランは1490円（税込）。公式ページ https://paiza.jp/works/paid_plan_lp/settlement で確認。"
   }
 ]
