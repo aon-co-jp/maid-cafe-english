@@ -1224,3 +1224,23 @@ When porting to another language, keep this three-stage shape (normalize → str
   として扱うため、`\bgo\b`のような単語境界付き正規表現にすると、スペースの無い日本語文
   中でも正しく検出できる(英数字のみのエイリアスに限定して適用、日本語混じりのエイリアス
   はそのまま部分一致でよい)。
+
+## お引越し手順(VPS再構成) / Migration runbook (rebuilding the VPS)
+
+**日本語**
+1. 依存リポジトリを兄弟ディレクトリに置く(`/root/easy-web.tokyo/RPoem`・`RS-JSON`(→`/root/RS-JSON`)・`open-cpu`)。
+2. `git clone https://github.com/aon-co-jp/open-english /root/easy-web.tokyo/open-english` → `cd server && cargo build --release`。
+3. 秘密を別経路で復元(Gitに無い): `/etc/open-english.env`(SMTP・管理者メール等)。
+4. `open-english.service`(`OPEN_ENGLISH_SERVER_BIND=127.0.0.1:8104`、`EnvironmentFile=/etc/open-english.env`)と`open-english-demo.service`を設置して起動。nginxの`easy-web.tokyo`設定も再現。
+5. aruaru-llm側(別リポジトリ`aruaru-llm`のPORTING.md「お引越し」)を先に起動しておくと、知識・先生キャラ応対が即使える。
+6. 確認: `curl https://easy-web.tokyo/open-english/v1/public/knowledge/export`で件数、ブラウザで女性キャラ=メイド/男性キャラ=執事の応対。
+確認済み(2026-10-06): 公開サイトの切替・知識エクスポート・v0.8.14のAndroid/PC/Linux/macOSリリース。Android実機と、VPS丸ごとの再構成の通し試験は未実施。
+
+**English**
+1. Put dependency repos next to it (`/root/easy-web.tokyo/RPoem`, `RS-JSON` (→ `/root/RS-JSON`), `open-cpu`).
+2. `git clone https://github.com/aon-co-jp/open-english /root/easy-web.tokyo/open-english`, then `cd server && cargo build --release`.
+3. Restore secrets out of band (not in Git): `/etc/open-english.env` (SMTP, admin e-mails, …).
+4. Install `open-english.service` (`OPEN_ENGLISH_SERVER_BIND=127.0.0.1:8104`, `EnvironmentFile=/etc/open-english.env`) and `open-english-demo.service`; recreate the nginx `easy-web.tokyo` site.
+5. Start aruaru-llm first (see "Migration" in the aruaru-llm PORTING.md) so knowledge and the maid/butler persona are available immediately.
+6. Verify: `curl https://easy-web.tokyo/open-english/v1/public/knowledge/export` returns items; in the browser, the female character answers as the maid and the male one as the butler.
+Verified (2026-10-06): public-site persona switching, knowledge export, v0.8.14 releases (Android/Windows/Linux/macOS). **Not** verified: a real Android device, and a from-scratch VPS rebuild.

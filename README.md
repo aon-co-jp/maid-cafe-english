@@ -1440,3 +1440,9 @@ DATABASEに蓄積するデータが溢れる前に非公開GitHubリポジトリ
 - `scripts/fetch-github-limits.sh`: GitHub公式の容量制限を毎朝06:00に自動クロールし、`github-limits.json`(ローテーション閾値の根拠)が古くなっていないか確認します(VPS上の`github-limits-check.timer`)。
 
 実機テスト済み(擬似データでの実際のpush・ファイル作成まで確認)。詳細・正直な開示(gh CLI認証失効への対応、ドキュメントクロールの既知の限界)はCLAUDE.mdのHANDOFF(2026-09-30続き4)を参照してください。
+
+## お引越し(VPS・PCの作り直し) / Migration (rebuilding a VPS or PC)
+
+**日本語**: アプリ(PC/スマホ/タブレット)をアンインストールしても、知識データはWEB側(VPS)とGitHub(`data/knowledge/knowledge.json`)に残り、再インストール後の初回起動で自動的に戻ります。VPSを作り直す場合も、aruaru-llmがGitHubから知識を復元します。手順は[`PORTING.md`](PORTING.md)「お引越し」節。
+
+**English**: Uninstalling the PC / phone / tablet app loses nothing: the knowledge data stays on the web side (VPS) and in GitHub (`data/knowledge/knowledge.json`), and returns automatically on the first launch after reinstalling. If the VPS is rebuilt, aruaru-llm restores it from GitHub. Steps: "Migration" in [`PORTING.md`](PORTING.md).

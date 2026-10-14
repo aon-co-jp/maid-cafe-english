@@ -8408,3 +8408,8 @@ open-englishにはWEB版(ブラウザのみ)・ローカル版・その両方を
 - 女性キャラ=メイドの先生(さくら)、男性キャラ=執事の先生(トラ)。`web/app.js`の`personaPromptText()`が`/v1/public/persona/prompt`(aruaru-llmの`/v1/persona/prompt`へ中継)から応対方針+国別の話題を取得しプロンプトへ足す。国は`visitorCountryGuess()`(言語の地域コード→タイムゾーン→地域の無い言語、の順。**IP照会はしない**既存方針)。
 - 知識の公開エクスポート`/v1/public/knowledge/export`、GitHub退避先`data/knowledge/knowledge.json`(VPSの`knowledge-sync-push.timer`が6時間ごとに更新、詳細は`aruaru-llm/CLAUDE.md`)。`data/`は.gitignore対象のため`git add -f`で追加している。
 - 確認済み(2026-10-06): GitHubのみからの復元、WEB停止(1番目の取得元が失敗)時のGitHubへの切替、タイマー自身の発火によるpush成功、公開サイトでのメイド/執事の切替。Android実機での動作は未確認。
+
+## お引越し(2026-10-14) / Migration notes
+
+- **日本語**: 公開エクスポート`/v1/public/knowledge/export`(aruaru-llmへ中継)と、GitHub上の`data/knowledge/knowledge.json`(VPSの`knowledge-sync-push.timer`が6時間ごとに更新。`data/`は.gitignore対象のため`git add -f`)が復元元。ローカルPC版のaruaru-llmは起動時に自動取得して統合する。スマホ/タブレット版は端末に知識を持たずWEB版を使う。VPS側は`open-english.service`/`open-english-demo.service`(WorkingDirectory=`server/`)で、起動時に`web/`を配信ルートへミラーするため、更新は`git pull`→`cargo build --release`→再起動。Android版を更新するにはリリース(`v*`タグ)が必要。
+- **English**: Restore sources are the public export `/v1/public/knowledge/export` (proxied to aruaru-llm) and `data/knowledge/knowledge.json` in GitHub (refreshed every 6 h by the VPS `knowledge-sync-push.timer`; `data/` is git-ignored, hence `git add -f`). The local PC build of aruaru-llm fetches and merges it at start-up. Phone/tablet builds keep no knowledge on the device and use the web side. On the VPS, `open-english.service` / `open-english-demo.service` (WorkingDirectory `server/`) mirror `web/` into the serving root at start-up, so an update is `git pull` → `cargo build --release` → restart. Updating the Android app requires a release (`v*` tag).
