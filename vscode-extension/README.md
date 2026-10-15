@@ -2,14 +2,33 @@
 
 *日本語は下にあります / Japanese follows below.*
 
-A small companion extension for [open-english](https://github.com/aon-co-jp/open-english) — an AI-assisted language-learning platform. This extension itself is a **thin client**: it only opens a Webview and hands playback to the HTML `<audio>` element, and it never processes audio in JavaScript. When you ask it to enhance audio quality, it forwards the file's bytes to a locally running [open-audio-sr](https://github.com/aon-co-jp/open-audio-sr) service (a real diffusion-model audio super-resolution AI, run entirely on your own machine) and writes back whatever that service returns — it does not implement any audio DSP itself, and it does not send audio anywhere over the network beyond `127.0.0.1`.
+A companion extension for [open-english](https://github.com/aon-co-jp/open-english) — an AI-assisted language-learning platform where you study English, Japanese and languages from all over the world together with an AI teacher. It plays lesson audio in a Webview player that can optionally clean up the sound in real time (see below), and it can forward a file to a locally running [open-audio-sr](https://github.com/aon-co-jp/open-audio-sr) service (a real diffusion-model audio super-resolution AI, run entirely on your own machine) for AI quality enhancement. Nothing is sent anywhere beyond `127.0.0.1`.
+
+## What it is for
+
+Together with open-english you can choose **aruaru-search + aruaru-llm (completely free)**, free trials of **ChatGPT / DeepSeek / Grok**, or the most capable (but paid) **Claude Code Desktop**. You study English, Japanese and languages from all over the world with an AI teacher — and, at the same time, learn programming and enjoy building a smartphone app or a website together, using freelance job posts, internet news and the public curriculum of online-learning sites such as [Coursera](https://www.coursera.org) (for example, the data-scientist learning paths popular in the United States) as study material. This is the idea behind the [Maid Cafe Programming School](https://github.com/aon-co-jp/maidcafe-programming-school), which works hand in hand with open-english. (Coursera's offerings and prices change — always check Coursera's own site.)
+
+## 何ができるか
+
+open-englishと一緒に使うと、**aruaru-search + aruaru-llmの完全無料版**、無料でお試しできる**ChatGPT・DeepSeek・Grok**、一番優秀ですが有料の**Claude Code Desktop**などをお選びいただけます。AI先生と一緒に日本語・英語や世界中の言語を学びながら、同時にフリーランス案件・インターネットニュース・[Coursera](https://www.coursera.org)などオンライン学習サイトの公開カリキュラム(アメリカで求められるデータサイエンティストの学習内容など)を題材に、プログラミングを学び、スマホアプリやWEBサイトの開発も一緒に楽しめます。これが、open-englishと連携する[メイドカフェ・プログラミングスクール(Maid Cafe Programming School)](https://github.com/aon-co-jp/maidcafe-programming-school)の構想です。(Courseraの提供内容・料金は変わります。必ずCoursera公式サイトでご確認ください。)
 
 ## Commands
 
 - **open-english: Open Audio Player** — opens a lesson/recording audio file in a Webview `<audio>` player.
 - **open-english: Enhance Audio Quality (via local open-audio-sr)** — sends the selected file to a locally running `open-audio-sr` HTTP service (`http://127.0.0.1:4620`) for AI-based bandwidth extension / quality enhancement, and saves the result as `<name>.enhanced.wav` next to the original.
 
-Dedicated noise reduction is not yet available in the aon-co-jp toolchain and is intentionally not claimed by this extension; it may be added once a real backend exists.
+### Real-time sound enhancement in the player (new in 0.2.0, off by default)
+
+The player has a **Preset** selector. It uses the Web Audio API inside the Webview — classic DSP, **not AI denoising**:
+
+| Preset | What it does |
+|---|---|
+| Off | The original sound (default). |
+| Clarity | Low-cut (90 Hz), a gentle voice-presence EQ, and a compressor/limiter that evens out loudness. |
+| Quiet background | Low-cut, 50/60 Hz hum filters, and a **noise gate** that lowers steady background noise *between* phrases (by about 18 dB), with a short look-ahead so word beginnings are not cut. |
+| Clarity + quiet background | Both. |
+
+Measured in a browser with a synthetic voice over a −52 dBFS noise floor: the "Quiet background" preset lowered the background noise by about 15 dB while the voice level changed by only +1.3 dB. It cannot remove noise that overlaps the voice — for that, use AI enhancement below. If the gate cuts word beginnings, lower the *Noise gate threshold* slider. If a file's sound cannot be routed through the enhancer (it would be muted), the player detects it after a few seconds and automatically falls back to the original sound.
 
 - **open-english: Toggle AI Teacher / Student Color View** — turns the color-coded overlay below on/off for the active editor.
 - **open-english: Announce AI Teacher's Next Edit Area** — marks the current selection (or current line) with a dashed-yellow "about to be edited by the AI teacher" outline, before any text is actually written.
@@ -50,14 +69,25 @@ This extension also bundles, as part of the same *extension pack* as Live Share 
 
 ## 日本語
 
-[open-english](https://github.com/aon-co-jp/open-english)(AI活用の語学学習プラットフォーム)の相棒(companion)となる小さな拡張機能です。この拡張機能自体は**薄いクライアント**であり、Webview内のHTML `<audio>` 要素に再生を任せるだけで、JavaScript側で音声処理を一切行いません。「高音質化」コマンドを実行した場合も、ファイルのバイト列をローカルで起動している[open-audio-sr](https://github.com/aon-co-jp/open-audio-sr)サービス(拡散モデルによる実在の音声帯域拡張AIを、利用者自身のPC上で完結して実行するもの)へ転送し、その応答をそのまま書き出すだけです。拡張機能自体は音声DSPを実装しておらず、`127.0.0.1`(自分のPC)を超えてネットワークへ音声を送信することもありません。
+[open-english](https://github.com/aon-co-jp/open-english)(AI先生と一緒に、英語・日本語・世界中の言語を学べるAI活用の語学学習プラットフォーム)の相棒(companion)となる拡張機能です。レッスン音声をWebviewのプレーヤーで再生し、任意でリアルタイムに音を整えられます(下記)。また、利用者自身のPC上で動く[open-audio-sr](https://github.com/aon-co-jp/open-audio-sr)(拡散モデルによる実在の音声帯域拡張AI)へファイルを渡して、AIによる高音質化もできます。`127.0.0.1`(自分のPC)を超えてネットワークへ音声を送信することはありません。
 
 ### コマンド
 
 - **open-english: Open Audio Player / 音声プレーヤーを開く** — レッスン・録音音声ファイルをWebview内の`<audio>`プレーヤーで開きます。
 - **open-english: Enhance Audio Quality (via local open-audio-sr) / 音声を高音質化する(ローカルのopen-audio-sr経由)** — 選択したファイルをローカルで起動している`open-audio-sr`のHTTPサービス(`http://127.0.0.1:4620`)へ送り、AIによる帯域拡張/高音質化を行い、結果を元ファイルと同じ場所へ`<ファイル名>.enhanced.wav`として保存します。
 
-低ノイズ処理(ノイズ除去)専用の機能は、aon-co-jpのツール群にまだ実在するバックエンドが無いため、本拡張機能では意図的に謳っていません。実在のバックエンドが用意でき次第、追加を検討します。
+### プレーヤーのリアルタイム音質強調(0.2.0新機能、既定はオフ)
+
+プレーヤーに**プリセット**の選択欄があります。Webview内のWeb Audio APIを使う一般的なDSPで、**AIによるノイズ除去ではありません**。
+
+| プリセット | 内容 |
+|---|---|
+| オフ | 元の音(既定)。 |
+| 明瞭化 | 低域カット(90Hz)、声の聞き取りやすさを上げる軽いEQ、音量を均一にするコンプレッサ/リミッタ。 |
+| 背景ノイズ低減 | 低域カット、50/60Hzのハム除去、発話の「間」の一定の背景ノイズを(約18dB)下げる**ノイズゲート**(語頭が切れないよう短い先読み付き)。 |
+| 明瞭化+背景ノイズ低減 | 両方。 |
+
+ブラウザでの実測(−52dBFSの雑音床に擬似音声を重ねた音源): 「背景ノイズ低減」で背景ノイズが約15dB下がり、声の音量の変化は+1.3dBでした。声に重なったノイズは除けません(その場合は下記のAI高音質化を使ってください)。語頭が切れるときは「ノイズゲートのしきい値」スライダーを下げてください。ファイルによっては強調を通すと音が出なくなる場合があり、その際は数秒後に自動で検知して元の音の再生へ戻します。
 
 - **open-english: AI先生・生徒の色分け表示を切り替え** — 下記の色分けオーバーレイのON/OFFを切り替えます。
 - **open-english: AI先生の次の編集予定エリアを予告** — 実際に書き込む前に、選択範囲(または現在行)を「AI先生がこれから編集予定」として黄色の破線で予告表示します。
@@ -96,8 +126,8 @@ Live Shareと同じ*extension pack*の一部として、以下もおすすめ機
 
 ## Status / 現状
 
-Type-checked with `npm run compile` only. Not yet click-tested in the VS Code Extension Development Host in this environment.
-`npm run compile`による型検査のみ確認済みです。この環境ではVS Code拡張機能開発ホストでの実クリック確認はまだ行っていません。
+Type-checked with `npm run compile`. The player's enhancement code (`media/enhance.js`) and the exact webview HTML this extension generates were checked in a real browser (preset switching, noise-gate state, loudness change, and the automatic fall-back when a source is muted). **Not yet click-tested inside VS Code's Extension Development Host** (this environment has no VS Code GUI), so the Webview's own resource loading under VS Code's content-security policy still needs a run on your machine.
+`npm run compile`による型検査済み。プレーヤーの強調処理(`media/enhance.js`)と、この拡張機能が実際に生成するWebviewのHTMLは、実ブラウザで確認しました(プリセット切替・ノイズゲートの状態・音量変化・音が消えたときの自動復旧)。**VS Codeの拡張機能開発ホストでの実クリック確認はまだです**(この環境にVS Code GUIが無いため)。VS CodeのCSP下でのWebview自身のリソース読み込みは、お手元の端末での確認が必要です。
 
 ## Local testing & publishing / ローカルでの実クリック確認・Marketplace公開手順
 

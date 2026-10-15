@@ -2,15 +2,16 @@ import * as vscode from 'vscode';
 import * as http from 'http';
 import * as fs from 'fs';
 import * as path from 'path';
+import * as crypto from 'crypto';
 import { AiTeacherVisualizer } from './aiTeacherVisualizer';
 
-// Thin client only: this extension never processes audio itself. It either
-// hands a <audio> element in a Webview to the browser engine bundled with
-// VS Code, or forwards file bytes to a locally running AI service
-// (open-audio-sr) that the user starts and owns on their own machine.
-// このVS Code拡張機能自体は音声処理を一切行わない「薄いクライアント」。
-// WebviewのHTML<audio>要素に再生を任せるか、利用者自身が起動する
-// ローカルのAIサービス(open-audio-sr)へバイト列を転送するだけ。
+// Mostly a thin client: AI enhancement is forwarded to a locally running service (open-audio-sr)
+// that the user starts and owns. The player additionally offers classic real-time DSP (filters,
+// EQ, noise gate, compressor) inside the webview via the Web Audio API (media/enhance.js) — it is
+// opt-in (default off) and is not AI denoising.
+// 基本は薄いクライアント: AI高音質化は利用者自身が起動するローカルのopen-audio-srへ転送するだけ。
+// プレーヤーは加えて、Webview内のWeb Audio API(media/enhance.js)による一般的なリアルタイムDSP
+// (フィルタ・EQ・ノイズゲート・コンプレッサ)を任意(既定オフ)で提供する。AIノイズ除去ではない。
 
 const AUDIO_SR_HOST = '127.0.0.1';
 const AUDIO_SR_PORT = 4620;
@@ -98,45 +99,143 @@ async function openPlayer(context: vscode.ExtensionContext, fileToLoad?: vscode.
     return;
   }
 
-  if (playerPanel) {
-    playerPanel.reveal(vscode.ViewColumn.Beside);
-  } else {
-    playerPanel = vscode.window.createWebviewPanel(
-      'openEnglishCompanionPlayer',
-      'open-english Companion Player',
-      vscode.ViewColumn.Beside,
-      { enableScripts: true, localResourceRoots: [vscode.Uri.file(path.dirname(uri.fsPath))] },
-    );
-    playerPanel.onDidDispose(() => {
+  // A panel's readable folders are fixed when it is created, so re-opening with a file from another
+  // folder would fail silently if the old panel were reused. Always start a fresh one.
+  // パネルの読み取り可能なフォルダは作成時に固定されるため、別フォルダの音声を開くときは作り直す。
+  playerPanel?.dispose();
+  playerPanel = vscode.window.createWebviewPanel(
+    'openEnglishCompanionPlayer',
+    'open-english Companion Player',
+    vscode.ViewColumn.Beside,
+    {
+      enableScripts: true,
+      localResourceRoots: [vscode.Uri.file(path.dirname(uri.fsPath)), vscode.Uri.file(path.join(context.extensionPath, 'media'))],
+    },
+  );
+  const thisPanel = playerPanel;
+  thisPanel.onDidDispose(() => {
+    if (playerPanel === thisPanel) {
       playerPanel = undefined;
-    });
-  }
+    }
+  });
 
   const audioSrc = playerPanel.webview.asWebviewUri(uri);
   playerPanel.title = path.basename(uri.fsPath);
-  playerPanel.webview.html = renderPlayerHtml(audioSrc.toString(), path.basename(uri.fsPath));
+  const enhanceJs = playerPanel.webview.asWebviewUri(vscode.Uri.file(path.join(context.extensionPath, "media", "enhance.js")));
+  const nonce = crypto.randomBytes(16).toString("hex");
+  playerPanel.webview.html = renderPlayerHtml(audioSrc.toString(), path.basename(uri.fsPath), enhanceJs.toString(), playerPanel.webview.cspSource, nonce);
 }
 
-function renderPlayerHtml(audioSrc: string, fileName: string): string {
+function renderPlayerHtml(audioSrc: string, fileName: string, enhanceJsUri: string, cspSource: string, nonce: string): string {
   const escapedName = fileName.replace(/&/g, '&amp;').replace(/</g, '&lt;');
   return `<!DOCTYPE html>
 <html lang="en">
 <head>
 <meta charset="UTF-8" />
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; media-src ${cspSource} blob:; script-src ${cspSource} 'nonce-${nonce}'; style-src 'unsafe-inline';" />
 <style>
   body { font-family: var(--vscode-font-family); padding: 1rem; color: var(--vscode-foreground); }
   audio { width: 100%; margin-top: 0.5rem; }
   h2 { font-size: 1rem; word-break: break-all; }
   p.hint { opacity: 0.7; font-size: 0.85rem; }
+  fieldset { border: 1px solid var(--vscode-panel-border); margin-top: 1rem; padding: 0.5rem 0.8rem; }
+  label { display: block; margin: 0.4rem 0; }
+  select, input[type=range] { margin-left: 0.5rem; }
+  #status { margin-top: 0.4rem; font-size: 0.85rem; min-height: 1.2em; }
+  .gate-on { color: var(--vscode-testing-iconPassed, #3c9); }
+  .gate-low { color: var(--vscode-descriptionForeground); }
 </style>
 </head>
 <body>
   <h2>${escapedName}</h2>
-  <audio controls autoplay src="${audioSrc}"></audio>
-  <p class="hint">
-    Playback only — no audio processing happens in this extension.<br/>
-    再生のみ。この拡張機能自体は音声処理を行いません。
-  </p>
+  <audio id="player" controls autoplay src="${audioSrc}"></audio>
+  <fieldset>
+    <legend>Sound enhancement (real-time) / 音の強調(リアルタイム)</legend>
+    <label>Preset / プリセット
+      <select id="preset">
+        <option value="off">Off (original) / オフ(元の音)</option>
+        <option value="clarity">Clarity: low-cut + voice EQ + leveling / 明瞭化: 低域カット+声のEQ+音量の均一化</option>
+        <option value="noise">Quiet background: hum filter + noise gate / 背景ノイズ低減: ハム除去+ノイズゲート</option>
+        <option value="both">Clarity + quiet background / 明瞭化+背景ノイズ低減</option>
+      </select>
+    </label>
+    <label>Noise gate threshold / ノイズゲートのしきい値: <span id="thrLabel">-50</span> dB
+      <input id="thr" type="range" min="-80" max="-20" step="1" value="-50" />
+    </label>
+    <div id="status"></div>
+    <p class="hint">
+      Classic DSP (filters, EQ, gate, compressor) — it lowers steady background noise <em>between</em> phrases and makes speech clearer;
+      it is not AI denoising and cannot remove noise that overlaps the voice. For AI quality enhancement use
+      “Enhance Audio Quality” (local open-audio-sr). If the gate cuts word beginnings, lower the threshold.<br/>
+      一般的なDSP(フィルタ・EQ・ゲート・コンプレッサ)で、発話の「間」の一定の背景ノイズを下げ、声を明瞭にします。
+      AIによるノイズ除去ではなく、声に重なったノイズは除けません。AIによる高音質化は「音声を高音質化する」(ローカルのopen-audio-sr)を使ってください。
+      語頭が切れるときはしきい値を下げてください。
+    </p>
+  </fieldset>
+  <script nonce="${nonce}" src="${enhanceJsUri}"></script>
+  <script nonce="${nonce}">
+    (function () {
+      var audio = document.getElementById('player');
+      var presetSel = document.getElementById('preset');
+      var thr = document.getElementById('thr');
+      var thrLabel = document.getElementById('thrLabel');
+      var statusEl = document.getElementById('status');
+      var ctx = null, ctl = null, meterTimer = null;
+      var src = audio.getAttribute('src');
+
+      // A media element can be routed into Web Audio only once. If that ever leaves the sound muted
+      // (the watchdog in enhance.js detects it), replace the element with a fresh one that plays the
+      // original, un-routed sound, and keep the position. / 無音化された場合は、素の再生へ戻す。
+      function recoverToPlainPlayback() {
+        var t = audio.currentTime, wasPlaying = !audio.paused;
+        if (meterTimer) clearInterval(meterTimer);
+        if (ctl) ctl.dispose();
+        var fresh = document.createElement('audio');
+        fresh.id = 'player'; fresh.controls = true; fresh.src = src;
+        audio.replaceWith(fresh);
+        audio = fresh; ctx = null; ctl = null;
+        fresh.addEventListener('loadedmetadata', function () {
+          fresh.currentTime = t;
+          if (wasPlaying) fresh.play();
+        });
+        presetSel.value = 'off';
+        statusEl.textContent = 'Enhancement could not be applied to this file, so the original sound is playing. / この音声には強調を適用できなかったため、元の音で再生しています。';
+      }
+
+      function ensureChain() {
+        if (ctl) return;
+        ctx = new (window.AudioContext || window.webkitAudioContext)();
+        var node = ctx.createMediaElementSource(audio);
+        ctl = window.OpenEnglishEnhance.create(ctx, node, ctx.destination, { preset: 'off', gateThresholdDb: Number(thr.value) });
+        ctl.watchForSilence(function () { return !audio.paused; }, recoverToPlainPlayback);
+        meterTimer = setInterval(function () {
+          if (!ctl || ctl.getPreset() === 'off') return;
+          var p = ctl.getPreset();
+          if (p === 'noise' || p === 'both') {
+            statusEl.className = ctl.isGateOpen() ? 'gate-on' : 'gate-low';
+            statusEl.textContent = ctl.isGateOpen()
+              ? 'Gate: open (voice) / ゲート: 開(発話中)'
+              : 'Gate: lowering background / ゲート: 背景ノイズを低減中';
+          } else {
+            statusEl.className = '';
+            statusEl.textContent = 'Clarity on / 明瞭化オン';
+          }
+        }, 150);
+      }
+
+      presetSel.addEventListener('change', function () {
+        if (presetSel.value === 'off' && !ctl) { statusEl.textContent = ''; return; }
+        ensureChain();
+        if (ctx.state === 'suspended') ctx.resume();
+        ctl.setPreset(presetSel.value);
+        if (presetSel.value === 'off') { statusEl.className = ''; statusEl.textContent = 'Original sound / 元の音で再生中'; }
+      });
+      thr.addEventListener('input', function () {
+        thrLabel.textContent = thr.value;
+        if (ctl) ctl.setGateThresholdDb(Number(thr.value));
+      });
+    })();
+  </script>
 </body>
 </html>`;
 }

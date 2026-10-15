@@ -1,8 +1,8 @@
 {
   "name": "open-english-companion",
   "displayName": "open-english Companion",
-  "description": "Companion extension for open-english — play lesson audio in a webview and optionally send it to your own local open-audio-sr AI service for quality enhancement. / open-englishの相棒拡張機能。レッスン音声をWebviewで再生し、任意でローカルのopen-audio-sr AIサービスへ送って高音質化できます。",
-  "version": "0.1.0",
+  "description": "Companion for open-english (AI language learning with an AI teacher). Play lesson audio with optional real-time clarity / noise-gate enhancement, and send audio to your own local open-audio-sr for AI enhancement. / open-english(AI先生と学ぶ語学学習)の相棒。レッスン音声をリアルタイムの明瞭化・ノイズゲート付きで再生し、ローカルのopen-audio-srでAI高音質化もできます。",
+  "version": "0.2.0",
   "publisher": "aon-co-jp",
   "license": "SEE LICENSE IN https://github.com/aon-co-jp/open-english",
   "icon": "media/icon.png",
@@ -17,10 +17,15 @@
     "open-english",
     "language learning",
     "英語学習",
+    "japanese",
+    "english",
     "audio",
+    "noise gate",
     "audio enhancement",
     "AudioSR",
-    "companion"
+    "programming school",
+    "Maid Cafe Programming School",
+    "aon-co-jp"
   ],
   "repository": {
     "type": "git",
@@ -84,5 +89,9 @@
     "@types/node": "^20.0.0",
     "@types/vscode": "^1.85.0",
     "typescript": "^5.4.0"
+  },
+  "galleryBanner": {
+    "color": "#f096be",
+    "theme": "light"
   }
 }
