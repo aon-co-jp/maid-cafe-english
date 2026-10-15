@@ -898,6 +898,7 @@ makeCollapsiblePanel("world-language-banner", "world-language-banner-toggle", "w
 makeCollapsiblePanel("topbar", "topbar-toggle", "topbar", "✕ CLOSE", "＋ OPEN");
 makeCollapsiblePanel("maintenance-banner-detail", "maintenance-banner-toggle", "maintenanceBannerDetail", "✕ CLOSE", "＋ OPEN");
 makeCollapsiblePanel("download-recommend-banner", "download-recommend-banner-toggle", "downloadRecommendBanner", "✕ CLOSE", "＋ OPEN");
+makeCollapsiblePanel("about-school-banner", "about-school-banner-toggle", "aboutSchoolBanner", "✕ CLOSE", "＋ OPEN");
 // 2026-09-07追記(ユーザー指示): 「PC版を起動してご利用下さい」という
 // 案内は、ローカルPC版(この端末でインストール済みのサーバーへ
 // localhost/127.0.0.1で接続している場合)では出さない——PC版利用者
