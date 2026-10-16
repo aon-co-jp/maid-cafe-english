@@ -52,7 +52,7 @@ tokio-rustls = { version = "0.26", default-features = false, features = ["ring",
 # ——RPC/wire formatの型付き入出力を明示的に想定した関数)を踏まえると
 # 過度に狭い解釈だったため撤回し、この新規HTTPエンドポイントでは実際に
 # RS-JSONの厳密モード(`parse_strict`と同じRFC 8259検証)を経由させる。
-rust-json = { path = "../../RS-JSON" }
+rust-json = { path = "../../RS-JSON", features = ["fast"] }
 # CPU命令セット(AVX2/AVX-512/PCLMULQDQ/AES-NI等)のランタイム検出。
 # aon-co-jpエコシステム共通のライブラリクレート(2026-08-22導入)。
 # /v1/cpu-runtime エンドポイントと起動ログで使用する。

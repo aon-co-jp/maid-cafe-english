@@ -2920,7 +2920,9 @@ async fn world_languages() -> Response {
             )
         }
     };
-    let parsed: serde_json::Value = match serde_json::from_str(&raw) {
+    // 速い値の型(sonic_rs::Value)で読む。静的な同梱ファイルなので防御付きの読み込みは不要。
+    use rust_json::fast::sonic_rs::{self, JsonContainerTrait, JsonValueTrait};
+    let parsed: sonic_rs::Value = match sonic_rs::from_str(&raw) {
         Ok(v) => v,
         Err(e) => {
             return rs_json_response(
@@ -2929,30 +2931,36 @@ async fn world_languages() -> Response {
             )
         }
     };
-    let empty = vec![];
-    let langs = parsed.get("languages").and_then(|v| v.as_array()).unwrap_or(&empty);
-    let summary: Vec<serde_json::Value> = langs
-        .iter()
-        .map(|lang| {
-            let questions = lang.get("questions").and_then(|v| v.as_array()).cloned().unwrap_or_default();
-            let mut levels: Vec<String> = questions
+    let summary: Vec<serde_json::Value> = parsed
+        .get("languages")
+        .as_array()
+        .map(|langs| {
+            langs
                 .iter()
-                .filter_map(|q| q.get("level").and_then(|v| v.as_str()).map(|s| s.to_string()))
-                .collect();
-            levels.sort();
-            levels.dedup();
-            serde_json::json!({
-                "code": lang.get("code").cloned().unwrap_or(serde_json::Value::Null),
-                "endonym": lang.get("endonym").cloned().unwrap_or(serde_json::Value::Null),
-                "en": lang.get("en").cloned().unwrap_or(serde_json::Value::Null),
-                "ja": lang.get("ja").cloned().unwrap_or(serde_json::Value::Null),
-                "rtl": lang.get("rtl").cloned().unwrap_or(serde_json::Value::Bool(false)),
-                "authored": lang.get("authored").cloned().unwrap_or(serde_json::Value::Bool(false)),
-                "question_count": questions.len(),
-                "levels": levels,
-            })
+                .map(|lang| {
+                    let qs = lang.get("questions");
+                    let questions = qs.as_array();
+                    let mut levels: Vec<String> = questions
+                        .map(|a| a.iter().filter_map(|q| q.get("level").as_str().map(|s| s.to_string())).collect())
+                        .unwrap_or_default();
+                    levels.sort();
+                    levels.dedup();
+                    // 欠けた値は従来どおり null(rtl/authored は false)。sonic の Value は Serialize 済み
+                    let pick = |k: &str| serde_json::to_value(lang.get(k).as_ref()).unwrap_or(serde_json::Value::Null);
+                    serde_json::json!({
+                        "code": pick("code"),
+                        "endonym": pick("endonym"),
+                        "en": pick("en"),
+                        "ja": pick("ja"),
+                        "rtl": lang.get("rtl").as_bool().unwrap_or(false),
+                        "authored": lang.get("authored").as_bool().unwrap_or(false),
+                        "question_count": questions.map_or(0, |a| a.len()),
+                        "levels": levels,
+                    })
+                })
+                .collect()
         })
-        .collect();
+        .unwrap_or_default();
     rs_json_response(
         StatusCode::OK,
         &serde_json::json!({
@@ -2986,7 +2994,9 @@ async fn region_info(req: Request) -> Response {
             )
         }
     };
-    let parsed: serde_json::Value = match serde_json::from_str(&raw) {
+    // 速い値の型(sonic_rs::Value)で読む。静的な同梱ファイルなので防御付きの読み込みは不要。
+    use rust_json::fast::sonic_rs::{self, JsonContainerTrait, JsonValueTrait};
+    let parsed: sonic_rs::Value = match sonic_rs::from_str(&raw) {
         Ok(v) => v,
         Err(e) => {
             return rs_json_response(
@@ -2995,13 +3005,10 @@ async fn region_info(req: Request) -> Response {
             )
         }
     };
-    let empty = vec![];
-    let found = parsed
-        .get("languages")
-        .and_then(|v| v.as_array())
-        .unwrap_or(&empty)
-        .iter()
-        .find(|l| l.get("code").and_then(|c| c.as_str()) == Some(lang.as_str()));
+    let languages = parsed.get("languages");
+    let found = languages
+        .as_array()
+        .and_then(|a| a.iter().find(|l| l.get("code").as_str() == Some(lang.as_str())));
     match found {
         Some(entry) => rs_json_response(
             StatusCode::OK,
