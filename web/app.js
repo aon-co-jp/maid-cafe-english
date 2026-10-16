@@ -5138,7 +5138,7 @@ function creatorIntroductionText() {
 // WEBサイトという単語(または会社名・代表取締役社長という肩書き)を
 // 尋ねている場合にのみ発火する——単に「誰が作ったか」だけの質問
 // (`isCreatorQuestion`)とは区別し、こちらはサイト一覧を追加提示する。
-const CREATOR_NAME_JA = ["石 塚 正 浩", "石塚 正浩", "いしづかまさひろ", "いしづか まさひろ"];
+const CREATOR_NAME_JA = ["石 塚 正 浩", "石 塚 正 浩", "いしづかまさひろ", "いしづか まさひろ"];
 const CREATOR_NAME_EN = ["masahiro ishizuka", "ishizuka"];
 const CREATOR_COMPANY_JA = ["株式会社エーオン", "エーオン", "代表取締役社長"];
 const CREATOR_COMPANY_EN = ["aon co", "aon corporation", "aon inc"];
