@@ -207,7 +207,7 @@ si presentano, non si insegnano. È cambiato solo lo stile, per leggibilità:
 
 A richieste come "proponimi un problema" / "give me a quiz" l'app
 risponde con un indovinello originale dell'autore **Masahiro Ishizuka
-(石塚正浩)**: `9 ◯ 9 ◯ 9 ◯ 9 = 10` — al posto di ogni cerchio va uno fra
+(石 塚 正 浩)**: `9 ◯ 9 ◯ 9 ◯ 9 = 10` — al posto di ogni cerchio va uno fra
 `+`, `-`, `×`, `÷` (ripetizioni ammesse) e le parentesi ( ) possono
 cambiare l'ordine; soluzione `(9 × 9 + 9) ÷ 9 = 10`. Nel testo va detto
 **esplicitamente** che non è un gioco di parole né un tranello ma

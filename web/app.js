@@ -1911,7 +1911,7 @@ function playToraSanJingle() {
 // 外部由来の任意テキストがURLに紛れ込むことはないため、ドメイン単位で
 // 許可しても安全と判断した。
 // **2026-09-06追記(その2)**: 作者(株式会社エーオン代表取締役社長・
-// 石塚正浩)のホームページ/WEBサイトを尋ねられた際に紹介する自社
+// 石 塚 正 浩)のホームページ/WEBサイトを尋ねられた際に紹介する自社
 // ドメイン4件(`aon.co.jp`/`aon.tokyo`/`nasa.tokyo`/`aruaru.tokyo`)を
 // 追加(`audiocafe.tokyo`は既に許可済み)。いずれも自社が管理する
 // 固定のドメインであり、AI生成テキストが任意に生成しうる文字列
@@ -2177,7 +2177,7 @@ const SPEECH_READINGS = [
   ["中性子", "ちゅうせいし"], ["増殖", "ぞうしょく"], ["熱交換器", "ねつこうかんき"], ["遠隔保守", "えんかくほしゅ"],
   ["通電", "つうでん"], ["実証炉", "じっしょうろ"], ["原型炉", "げんけいろ"], ["燃焼", "ねんしょう"], ["発電", "はつでん"],
   ["京都フュージョニアリング", "きょうとフュージョニアリング"], ["京都", "きょうと"], ["奈良", "なら"],
-  ["石塚正浩", "いしづかまさひろ"], ["株式会社", "かぶしきがいしゃ"], ["代表取締役社長", "だいひょうとりしまりやくしゃちょう"],
+  ["石 塚 正 浩", "いしづかまさひろ"], ["株式会社", "かぶしきがいしゃ"], ["代表取締役社長", "だいひょうとりしまりやくしゃちょう"],
   ["御座います", "ございます"], ["御座い", "ござい"], ["我が国", "わがくに"], ["一長一短", "いっちょういったん"],
   ["仕返し", "しかえし"], ["報復措置", "ほうふくそち"], ["舐められ", "なめられ"], ["巻き込", "まきこ"], ["一社", "いっしゃ"],
   ["神社仏閣", "じんじゃぶっかく"], ["茶道", "さどう"], ["書道", "しょどう"], ["剣道", "けんどう"], ["相撲", "すもう"],
@@ -4154,7 +4154,7 @@ function troubledEncouragementText() {
     "この問題についての問題点はここが明白で明確で、私はこの様に思うの" +
     "ですが、皆様、解決策をご提案下さい。もしくは、ご意見をお述べ" +
     "下さい。大胆かつ繊細が成功しやすく、小心者はおどおどして失敗" +
-    "しやすいものです。これは、株式会社エーオン代表取締役社長　石塚正浩　" +
+    "しやすいものです。これは、株式会社エーオン代表取締役社長　石 塚 正 浩　" +
     "に最高の質問のあり方への御提案で御座います。" +
     "\n\nまだ問題が解決していない様でしたら、成功者への道のりとして、" +
     "大胆かつ繊細な気持ちを持って、問題点を一緒に明確に明白にして、" +
@@ -5095,7 +5095,7 @@ function isCreatorQuestion(userText) {
 function creatorIntroductionText() {
   const en =
     "[About the creator]\n" +
-    "My name is Masahiro Ishizuka (石塚正浩), and I live in Akiruno City, Tokyo. " +
+    "My name is Masahiro Ishizuka (石 塚 正 浩), and I live in Akiruno City, Tokyo. " +
     "These days I work as a volunteer; I used to be a web programmer. " +
     "I built this system myself by giving instructions to Claude Code Desktop.\n" +
     "In my free time I listen to music — a USB-DAC and earphones with my " +
@@ -5112,10 +5112,10 @@ function creatorIntroductionText() {
     "movies and live concerts together.";
   const ja =
     "【作者について】\n" +
-    "氏名: 石塚正浩(いしづか まさひろ)(MASAHIRO ISHIZUKA)。" +
+    "氏名: 石 塚 正 浩(いしづか まさひろ)(MASAHIRO ISHIZUKA)。" +
     "住所: 東京都あきる野市。" +
     "職業: 今はボランティアで、元WEBプログラマー。" +
-    "私、石塚正浩が、CLAUDE CODE DESKTOP(クロードコードデスクトップ)に" +
+    "私、石 塚 正 浩が、CLAUDE CODE DESKTOP(クロードコードデスクトップ)に" +
     "命令して作りました。\n" +
     "趣味は、スマホにUSB-DACとイヤフォンや、PCにDDCのGUSTARD U18と" +
     "USB-DACとアンプとスピーカーを接続してYouTubeで東亜樹さんや" +
@@ -5132,13 +5132,13 @@ function creatorIntroductionText() {
   return `👤 ${en}\n\n${ja}`;
 }
 
-// 作者(株式会社エーオン代表取締役社長・石塚正浩)のホームページ/WEBサイト
+// 作者(株式会社エーオン代表取締役社長・石 塚 正 浩)のホームページ/WEBサイト
 // を尋ねる質問かどうかを判定する(2026-09-06新設、ユーザー指示)。
 // `isCreatorQuestion`と同じ「作者への言及」に加えて、ホームページ/
 // WEBサイトという単語(または会社名・代表取締役社長という肩書き)を
 // 尋ねている場合にのみ発火する——単に「誰が作ったか」だけの質問
 // (`isCreatorQuestion`)とは区別し、こちらはサイト一覧を追加提示する。
-const CREATOR_NAME_JA = ["石塚正浩", "石塚 正浩", "いしづかまさひろ", "いしづか まさひろ"];
+const CREATOR_NAME_JA = ["石 塚 正 浩", "石塚 正浩", "いしづかまさひろ", "いしづか まさひろ"];
 const CREATOR_NAME_EN = ["masahiro ishizuka", "ishizuka"];
 const CREATOR_COMPANY_JA = ["株式会社エーオン", "エーオン", "代表取締役社長"];
 const CREATOR_COMPANY_EN = ["aon co", "aon corporation", "aon inc"];
@@ -5181,7 +5181,7 @@ function creatorWebsiteLinksText() {
     "[Websites related to the creator (Masahiro Ishizuka, President & " +
     "Representative Director of aon Co., Ltd.)]\n" + listText;
   const ja =
-    "【作者(株式会社エーオン 代表取締役社長 石塚正浩)関連のWEBサイト】\n" + listText;
+    "【作者(株式会社エーオン 代表取締役社長 石 塚 正 浩)関連のWEBサイト】\n" + listText;
   return `🌐 ${en}\n\n${ja}`;
 }
 
@@ -5651,7 +5651,7 @@ function markOfBeastText() {
 }
 
 // ---------------------------------------------------------------------------
-// 作者(石塚正浩様)のオリジナル算数クイズ(2026-08-23追加、ユーザー指示)
+// 作者(石 塚 正 浩様)のオリジナル算数クイズ(2026-08-23追加、ユーザー指示)
 //
 // 上の`isCreatorQuestion()`/`isReligionHistoryQuestion()`/
 // `isMarkOfBeastQuestion()`と全く同じ方式——**AI推論(aruaru-llm)を通さず**
@@ -5794,7 +5794,7 @@ const QUIZ_TEXTS_FOUR_NINES = {
   },
   ja: {
     intro:
-      "このアプリの作者・石塚正浩さんのオリジナル問題、その1です。",
+      "このアプリの作者・石 塚 正 浩さんのオリジナル問題、その1です。",
     question:
       "数字の9を4つ使って、\n" +
       "    9 ◯ 9 ◯ 9 ◯ 9 = 10\n" +
@@ -5880,7 +5880,7 @@ const QUIZ_TEXTS_FOUR_NINES = {
     closing: "Danke fürs Durchhalten. Geben Sie es gern weiter!",
   },
   zh: {
-    intro: "这是本应用作者石塚正浩先生的原创趣题。",
+    intro: "这是本应用作者石 塚 正 浩先生的原创趣题。",
     question:
       "用四个9,在\n" +
       "    9 ◯ 9 ◯ 9 ◯ 9 = 10\n" +
@@ -5967,7 +5967,7 @@ const QUIZ_TEXTS_SNAIL = {
     closing: "Nicely done. The trick is that the final climb is not followed by a slide.",
   },
   ja: {
-    intro: "このアプリの作者・石塚正浩さんのオリジナル問題、その2です。",
+    intro: "このアプリの作者・石 塚 正 浩さんのオリジナル問題、その2です。",
     question:
       "深さ10mの井戸の底に、カタツムリが1匹います。\n" +
       "    昼間のあいだに3m登ります。\n" +
@@ -6017,7 +6017,7 @@ const QUIZ_TEXTS_HEN = {
     closing: "Well spotted. The three \"and a half\"s cancel each other out.",
   },
   ja: {
-    intro: "このアプリの作者・石塚正浩さんのオリジナル問題、その3です。",
+    intro: "このアプリの作者・石 塚 正 浩さんのオリジナル問題、その3です。",
     question:
       "ニワトリ1羽半が、卵1個半を、1日半で産むとしたら、\n" +
       "ニワトリ1羽が卵1個を産むのにかかる日数は何日でしょうか?",
@@ -6989,7 +6989,7 @@ formEl.addEventListener("submit", async (e) => {
     return;
   }
 
-  // 作者(株式会社エーオン代表取締役社長・石塚正浩)のホームページ/WEB
+  // 作者(株式会社エーオン代表取締役社長・石 塚 正 浩)のホームページ/WEB
   // サイトを尋ねる質問には、クリック可能な自社サイト一覧を返す
   // (ユーザー指示、2026-09-06新設)。`isCreatorQuestion`より先に判定
   // することで、「誰が作ったのか+そのサイトも教えて」のような複合的な

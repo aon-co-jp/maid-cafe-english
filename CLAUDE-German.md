@@ -217,7 +217,7 @@ von Lesbarkeit — **keine Aufweichung der Ehrlichkeit**.
 ## Quizfunktion: Original-Rätsel des Autors (2026-08-23, Fortsetzung 4)
 
 Auf Anfragen wie "Stell mir eine Aufgabe" / "give me a quiz" antwortet die
-App mit einem Original-Rätsel des Autors **Masahiro Ishizuka (石塚正浩)**:
+App mit einem Original-Rätsel des Autors **Masahiro Ishizuka (石 塚 正 浩)**:
 `9 ◯ 9 ◯ 9 ◯ 9 = 10` — in die Kreise kommt je eines der Zeichen `+`, `-`,
 `×`, `÷` (Wiederholung erlaubt), Klammern ( ) dürfen die Reihenfolge
 ändern; Lösung `(9 × 9 + 9) ÷ 9 = 10`. Im Text ist **ausdrücklich**

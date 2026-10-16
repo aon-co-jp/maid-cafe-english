@@ -114,7 +114,7 @@
 >   aucune nouvelle API n'a été ajoutée.
 
 > 📌 **Dernière mise à jour (2026-08-23, suite)** : un **quiz original de
-> l'auteur de l'application, Masahiro Ishizuka (石塚正浩)**. Si vous demandez
+> l'auteur de l'application, Masahiro Ishizuka (石 塚 正 浩)**. Si vous demandez
 > « pose-moi un problème », « donne-moi un quiz » ou "give me a quiz",
 > l'application propose ceci : utiliser quatre fois le chiffre 9 dans
 > `9 ◯ 9 ◯ 9 ◯ 9 = 10`, en mettant dans chaque ◯ l'un des signes `+`, `-`,

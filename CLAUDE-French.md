@@ -218,7 +218,7 @@ de l'honnêteté**.
 
 Lorsque l'utilisateur demande « donne-moi un problème », « pose-moi une
 question », "give me a quiz", l'application propose un **problème original de
-son auteur, Masahiro Ishizuka (石塚正浩)** : utiliser quatre fois le chiffre 9
+son auteur, Masahiro Ishizuka (石 塚 正 浩)** : utiliser quatre fois le chiffre 9
 dans `9 ◯ 9 ◯ 9 ◯ 9 = 10`, en remplaçant chaque ◯ par `+`, `-`, `×` ou `÷`
 (un même signe peut servir plusieurs fois) et en ajoutant si besoin des
 parenthèses ( ) pour changer les priorités, afin d'obtenir exactement 10.

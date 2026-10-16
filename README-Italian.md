@@ -103,7 +103,7 @@
 > 📌 **Ultimo aggiornamento (2026-08-23, seguito 4)**: **funzione quiz con
 > un indovinello originale dell'autore**. Se si scrive "proponimi un
 > problema", "fammi un quiz" o "give me a quiz", l'app propone un
-> problema originale di **Masahiro Ishizuka (石塚正浩)**, autore di questa
+> problema originale di **Masahiro Ishizuka (石 塚 正 浩)**, autore di questa
 > applicazione: usando **quattro cifre 9** — `9 ◯ 9 ◯ 9 ◯ 9 = 10` — al
 > posto di ogni ◯ va messo uno fra i segni `+`, `-`, `×`, `÷` (lo stesso
 > segno può ripetersi); se serve, le parentesi ( ) possono cambiare

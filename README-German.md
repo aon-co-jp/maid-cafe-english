@@ -201,7 +201,7 @@
 > 📌 **Neuestes Update (2026-08-23, Fortsetzung 4)**: **Quizfunktion mit
 > einem Original-Rätsel des Autors**. Wer "Stell mir eine Aufgabe",
 > "Gib mir ein Quiz" oder "give me a quiz" schreibt, bekommt ein
-> Original-Rätsel von **Masahiro Ishizuka (石塚正浩)**, dem Autor dieser
+> Original-Rätsel von **Masahiro Ishizuka (石 塚 正 浩)**, dem Autor dieser
 > App: Setze zwischen **vier Neunen** — `9 ◯ 9 ◯ 9 ◯ 9 = 10` — jeweils
 > eines der Zeichen `+`, `-`, `×`, `÷` ein (dasselbe Zeichen darf
 > mehrfach vorkommen); bei Bedarf dürfen Klammern ( ) die Reihenfolge
