@@ -4,6 +4,18 @@
 
 A companion extension for [open-english](https://github.com/aon-co-jp/open-english) — an AI-assisted language-learning platform where you study English, Japanese and languages from all over the world together with an AI teacher. It plays lesson audio in a Webview player that can optionally clean up the sound in real time (see below), and it can forward a file to a locally running [open-audio-sr](https://github.com/aon-co-jp/open-audio-sr) service (a real diffusion-model audio super-resolution AI, run entirely on your own machine) for AI quality enhancement. Nothing is sent anywhere beyond `127.0.0.1`.
 
+## Install (VSIX from GitHub — no Marketplace account needed) / インストール(GitHubのVSIX、Marketplaceアカウント不要)
+
+1. Download **`open-english-companion-0.2.0.vsix`** from the [companion-0.2.0 release](https://github.com/aon-co-jp/open-english/releases/tag/companion-0.2.0).
+2. In VS Code: Extensions view → `...` menu → **Install from VSIX...** (or `code --install-extension open-english-companion-0.2.0.vsix`).
+3. Open the Command Palette (`Ctrl+Shift+P`) and type `open-english`.
+
+It is **not yet on the VS Code Marketplace**, so the search box inside VS Code will not find it yet. / VS Code Marketplaceには**未公開**のため、VS Code内の検索ではまだ見つかりません。
+
+1. [companion-0.2.0のリリース](https://github.com/aon-co-jp/open-english/releases/tag/companion-0.2.0)から **`open-english-companion-0.2.0.vsix`** をダウンロードします。
+2. VS Codeの「拡張機能」ビュー → `...` メニュー → **VSIXからのインストール**(または `code --install-extension open-english-companion-0.2.0.vsix`)。
+3. コマンドパレット(`Ctrl+Shift+P`)で `open-english` と入力します。
+
 ## What it is for
 
 Together with open-english you can choose **aruaru-search + aruaru-llm (completely free)**, free trials of **ChatGPT / DeepSeek / Grok**, or the most capable (but paid) **Claude Code Desktop**. You study English, Japanese and languages from all over the world with an AI teacher — and, at the same time, learn programming and enjoy building a smartphone app or a website together, using freelance job posts, internet news and the public curriculum of online-learning sites such as [Coursera](https://www.coursera.org) (for example, the data-scientist learning paths popular in the United States) as study material. This is the idea behind the [Maid Cafe Programming School](https://github.com/aon-co-jp/maidcafe-programming-school), which works hand in hand with open-english. (Coursera's offerings and prices change — always check Coursera's own site.)
