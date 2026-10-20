@@ -253,3 +253,32 @@ jobs:
             open-english-installer-linux-x86_64/*.tar.gz
             open-english-installer-macos-aarch64/*.tar.gz
             open-english-android-apks/*.apk
+
+  # 2026-10-21: リポジトリを maid-cafe-english へ改名・お引越しした。更新の参照先は**新旧の両方**を永久に残す
+  # (ユーザー指示)ため、元の open-english で作った同じ成果物を、新しい参照先にも同じタグで公開する。
+  # 新しい参照先への書き込み権限を持つトークンをシークレット MAID_CAFE_ENGLISH_TOKEN に入れておくこと
+  # (推奨: 対象リポジトリ maid-cafe-english だけの Contents: Read and write の細粒度トークン)。
+  # 未設定なら警告だけ出して何もしない(元のリリースは影響を受けない)。
+  mirror-to-maid-cafe-english:
+    name: 新しい参照先(maid-cafe-english)へも同じリリースを公開
+    needs: [release]
+    runs-on: ubuntu-latest
+    if: startsWith(github.ref, 'refs/tags/v') && github.repository == 'aon-co-jp/open-english'
+    env:
+      MIRROR_TOKEN: ${{ secrets.MAID_CAFE_ENGLISH_TOKEN }}
+    steps:
+      - name: Copy the release assets
+        run: |
+          if [ -z "$MIRROR_TOKEN" ]; then
+            echo "::warning::MAID_CAFE_ENGLISH_TOKEN is not set - skipping the copy to aon-co-jp/maid-cafe-english (the release in open-english is unaffected)"
+            exit 0
+          fi
+          TAG="${GITHUB_REF_NAME}"
+          mkdir assets && cd assets
+          GH_TOKEN="${{ github.token }}" gh release download "$TAG" --repo "${{ github.repository }}"
+          NOTES="Same binaries as aon-co-jp/open-english ${TAG} (copied, not rebuilt). / aon-co-jp/open-english の ${TAG} と同一のバイナリです(コピーであり再ビルドではありません)。"
+          if GH_TOKEN="$MIRROR_TOKEN" gh release view "$TAG" --repo aon-co-jp/maid-cafe-english >/dev/null 2>&1; then
+            GH_TOKEN="$MIRROR_TOKEN" gh release upload "$TAG" ./* --clobber --repo aon-co-jp/maid-cafe-english
+          else
+            GH_TOKEN="$MIRROR_TOKEN" gh release create "$TAG" ./* --repo aon-co-jp/maid-cafe-english --target master --title "$TAG" --notes "$NOTES" --latest
+          fi

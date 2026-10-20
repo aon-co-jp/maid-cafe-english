@@ -86,10 +86,14 @@ class MainActivity : AppCompatActivity() {
 
     companion object {
         private const val PREFS_NAME = "open_english_prefs"
-        private const val GITHUB_LATEST_RELEASE_API =
-            "https://api.github.com/repos/aon-co-jp/open-english/releases/latest"
+        // 2026-10-21: リポジトリを maid-cafe-english へ改名・お引越しした。更新の確認先は新しい参照先(先頭)と
+        // 元の open-english(末尾)の**両方**(ユーザー指示「元も残して、両方を一生ずっと残す」)。どちらも削除しない。
+        private val GITHUB_LATEST_RELEASE_APIS = listOf(
+            "https://api.github.com/repos/aon-co-jp/maid-cafe-english/releases/latest",
+            "https://api.github.com/repos/aon-co-jp/open-english/releases/latest",
+        )
         private const val GITHUB_RELEASES_PAGE =
-            "https://github.com/aon-co-jp/open-english/releases"
+            "https://github.com/aon-co-jp/maid-cafe-english/releases"
         private const val NATIVE_BINARY_NAME = "libopenenglishserver.so"
         private const val ARUARU_LLM_BINARY_NAME = "libaruarullm.so"
         private const val WEBROOT_ASSET_DIR = "webroot"
@@ -759,8 +763,8 @@ class MainActivity : AppCompatActivity() {
         CoroutineScope(Dispatchers.Main).launch {
             val release = withContext(Dispatchers.IO) { fetchLatestRelease() } ?: return@launch
             val installed = packageManager.getPackageInfo(packageName, 0).versionName ?: return@launch
-            val latestVersion = release.tag.removePrefix("v")
-            if (latestVersion == installed) return@launch
+            // 数値として新しい時だけ通知する(両方の参照先の最新のうち新しい方を採用済み)
+            if (!ReleaseVersion.isNewer(release.tag, installed)) return@launch
 
             val apkUrl = release.apkAssetUrl
             if (apkUrl == null) {
@@ -769,7 +773,7 @@ class MainActivity : AppCompatActivity() {
                         "A newer version ${release.tag} is available (current: $installed). Tap to open."
                 updateNotice.visibility = View.VISIBLE
                 updateNotice.setOnClickListener {
-                    startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(GITHUB_RELEASES_PAGE)))
+                    startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(release.page)))
                 }
                 return@launch
             }
@@ -829,11 +833,18 @@ class MainActivity : AppCompatActivity() {
         }
     }
 
-    private data class LatestRelease(val tag: String, val apkAssetUrl: String?)
+    private data class LatestRelease(val tag: String, val apkAssetUrl: String?, val page: String)
 
+    /** 新旧どちらの参照先にも問い合わせ、**新しい版**を採用する(同じ版なら新しい参照先)。片方に届かなくても続行する。 */
     private fun fetchLatestRelease(): LatestRelease? {
+        val found = GITHUB_LATEST_RELEASE_APIS.mapNotNull { fetchLatestReleaseFrom(it) }
+        val best = ReleaseVersion.indexOfNewest(found.map { it.tag })
+        return if (best >= 0) found[best] else null
+    }
+
+    private fun fetchLatestReleaseFrom(api: String): LatestRelease? {
         return try {
-            val conn = URL(GITHUB_LATEST_RELEASE_API).openConnection() as HttpURLConnection
+            val conn = URL(api).openConnection() as HttpURLConnection
             conn.connectTimeout = 5000
             conn.readTimeout = 5000
             conn.requestMethod = "GET"
@@ -853,7 +864,7 @@ class MainActivity : AppCompatActivity() {
                     }
                 }
             }
-            LatestRelease(tag, apkUrl)
+            LatestRelease(tag, apkUrl, api.replace("https://api.github.com/repos/", "https://github.com/").removeSuffix("/latest"))
         } catch (err: Exception) {
             null
         }

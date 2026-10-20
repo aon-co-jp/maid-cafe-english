@@ -8455,3 +8455,15 @@ Reading into `serde_json::Value` gives almost no speed-up even with SIMD (188 ms
 **Adoption**: in `Cargo.toml`, `rust-json = { path = "../RS-JSON", features = ["fast"] }`. Example in `RS-JSON/README.md`.
 
 **Status in this repository**: Not yet applied (policy only). Code will be switched over place by place, starting where measurements show large or frequent JSON reads.
+
+## HANDOFF 2026-10-21: リポジトリを maid-cafe-english へ改名・お引越し(旧 open-english も永久に残す)
+
+ユーザー指示: 「GitHubに open-english の名前は残して、英語・日本語・世界中の言語で改名したことを分かりやすく残し、新リポジトリ `maid-cafe-english` を作って改名作業とお引越し。**自動更新の参照URLやディレクトリは、元も残して、新しい参照先と両方を一生ずっと残す**」。
+範囲の決定(ユーザー): **GitHubの名前・README・文書のリンクまで**。アプリ内のパッケージ名(`tokyo.runo.openenglish`)・公開URL(`https://easy-web.tokyo/open-english/`)・リリースのファイル名(`open-english-*.exe`等)は**変えない**(Androidの更新・App Links・既存インストールの自動更新を壊さないため)。
+
+- **新リポジトリ**: https://github.com/aon-co-jp/maid-cafe-english(公開)。`master`の全履歴と全タグ(28個)を同一の内容でコピー済み。最新リリース `v0.8.14` の資産(インストーラー・APK)は**同一バイナリをコピー**(再ビルドなし、署名も同一)。
+- **旧リポジトリ `open-english`**: コードも履歴もリリースもそのまま残す。`README.md`・`README-English.md` の冒頭に改名バナー、[`RENAMED.md`](RENAMED.md) に約37言語の告知(AI翻訳、ネイティブ検証前)。GitHubの説明文にも改名を明記。
+- **自動更新(新旧の両方を問い合わせ、新しい版を採用)**: サーバー `server/src/self_update.rs`(`GITHUB_REPOS`、`pick_newest_release`、テストあり)、Android `MainActivity.kt`(`GITHUB_LATEST_RELEASE_APIS`、`ReleaseVersion.kt`で数値比較、テストは`androidTest`)。**どちらの参照先も削除しない**。片方に届かなくても、もう片方で更新を続ける。同じ版なら新しい参照先を優先。
+- **リリースの手順(重要)**: これまでどおり**元の `open-english` に `v*.*.*` タグを push**して CI(署名鍵のシークレットは元のリポジトリにだけある)でビルドする。`release.yml` の最後のジョブ `mirror-to-maid-cafe-english` が、同じ成果物を新リポジトリへ同じタグで公開する。**このジョブにはシークレット `MAID_CAFE_ENGLISH_TOKEN`(`maid-cafe-english` だけの Contents: Read and write の細粒度トークン)が必要で、未設定の間は警告だけ出してスキップする**(= 新リポジトリの最新が古いままになる)。**新リポジトリへはタグを push しない**(署名鍵が無くCIが失敗する)。`master` は両方へ push する(`git remote` に `maid-cafe-english` を追加済み)。
+- **静的なダウンロードリンク**(`web/index.html` 等)は、常に最新が置かれる元の `open-english` のままにした(新リポジトリの最新は上のジョブが動くまで古くなりうるため)。GitHubのリンク欄は新旧の両方を並べた。
+- **VPS**: `/root/url/easy-web.tokyo/open-english`(`/root/easy-web.tokyo/open-english` と同じ)の写しは履歴書き換え後に整列済み(旧履歴は `backup-pre-anon-20261016` ブランチ)。デプロイは `git fetch` + `git merge --ff-only origin/master`、サーバーのソースが変わったときは `cargo build --release` 後に `open-english{,-demo}.service` を再起動。**`git pull` は使わない**。

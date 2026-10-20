@@ -140,7 +140,11 @@ use std::time::Duration;
 
 use serde::Deserialize;
 
-const GITHUB_REPO: &str = "aon-co-jp/open-english";
+/// 更新を確認するGitHubリポジトリ。**2026-10-21**: リポジトリを `maid-cafe-english` へ改名・お引越しした
+/// (ユーザー指示「自動更新の参照URLやディレクトリは、元も残して、新しい参照先と両方を一生ずっと残す」)。
+/// 先頭が新しい参照先、末尾が元の参照先。**どちらも削除しない**(元の `open-english` だけを見る旧版の
+/// アプリへも更新を配り続けるため、両方に同じ版を公開する運用)。
+const GITHUB_REPOS: [&str; 2] = ["aon-co-jp/maid-cafe-english", "aon-co-jp/open-english"];
 
 /// 新バージョン起動後、ヘルスチェックへ猶予を与える秒数
 /// (2026-08-19新設、自動ロールバック機能)。「シンプルに」というユーザー
@@ -378,8 +382,30 @@ pub(crate) fn local_version() -> Option<String> {
     serde_json::from_str::<V>(&text).ok().map(|v: V| v.version)
 }
 
+/// 新旧どちらのリポジトリにも問い合わせ、**新しい版を採用する**(同じ版なら先に並べた新しい参照先)。
+/// 片方に届かなくても、もう片方で更新を続けられる(両方に届かない時だけ失敗)。
 async fn fetch_latest_release() -> anyhow::Result<LatestRelease> {
-    fetch_latest_release_for(GITHUB_REPO).await
+    let mut found: Vec<LatestRelease> = Vec::new();
+    let mut errors: Vec<String> = Vec::new();
+    for repo in GITHUB_REPOS {
+        match fetch_latest_release_for(repo).await {
+            Ok(r) => found.push(r),
+            Err(e) => errors.push(format!("{repo}: {e:#}")),
+        }
+    }
+    pick_newest_release(found).ok_or_else(|| anyhow::anyhow!("no release source reachable ({})", errors.join("; ")))
+}
+
+/// 候補のうち一番新しい版を返す。同じ版なら先頭(=新しい参照先)を残す。
+fn pick_newest_release(candidates: Vec<LatestRelease>) -> Option<LatestRelease> {
+    let mut best: Option<LatestRelease> = None;
+    for r in candidates {
+        best = match best {
+            None => Some(r),
+            Some(b) => Some(if is_newer(&r.tag_name, &b.tag_name) { r } else { b }),
+        };
+    }
+    best
 }
 
 /// `component_update.rs`(同梱コンポーネントaruaru-llm/aruaru-dbの自動
@@ -785,5 +811,35 @@ mod tests {
         assert!(is_newer("v1.0.0", "0.9.9"));
         assert!(!is_newer("v0.5.1", "0.5.1"));
         assert!(!is_newer("v0.5.0", "0.5.1"));
+    }
+
+    fn rel(tag: &str, marker: &str) -> LatestRelease {
+        LatestRelease {
+            tag_name: tag.to_string(),
+            assets: vec![ReleaseAsset { name: marker.to_string(), browser_download_url: String::new() }],
+        }
+    }
+
+    #[test]
+    fn newest_of_the_two_repositories_wins_and_ties_prefer_the_new_one() {
+        // 新リポジトリが新しい → 新リポジトリ
+        let p = pick_newest_release(vec![rel("v0.9.0", "new"), rel("v0.8.14", "old")]).unwrap();
+        assert_eq!(p.assets[0].name, "new");
+        // 旧リポジトリだけが新しい(旧版アプリ向けに旧側にだけ先に公開された場合も取りこぼさない)
+        let p = pick_newest_release(vec![rel("v0.8.14", "new"), rel("v0.9.0", "old")]).unwrap();
+        assert_eq!(p.assets[0].name, "old");
+        // 同じ版 → 先頭(新しい参照先)
+        let p = pick_newest_release(vec![rel("v0.8.14", "new"), rel("v0.8.14", "old")]).unwrap();
+        assert_eq!(p.assets[0].name, "new");
+        // 片方しか届かない
+        let p = pick_newest_release(vec![rel("v0.8.14", "old")]).unwrap();
+        assert_eq!(p.assets[0].name, "old");
+        assert!(pick_newest_release(vec![]).is_none());
+    }
+
+    #[test]
+    fn both_repositories_are_listed_and_the_original_is_never_dropped() {
+        assert_eq!(GITHUB_REPOS[0], "aon-co-jp/maid-cafe-english");
+        assert!(GITHUB_REPOS.contains(&"aon-co-jp/open-english"));
     }
 }

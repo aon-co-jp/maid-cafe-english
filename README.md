@@ -1,5 +1,9 @@
 ﻿# open-english
 
+> 📛 **改名のお知らせ**: このプロジェクトは **open-english → [maid-cafe-english](https://github.com/aon-co-jp/maid-cafe-english)** に改名・お引越ししました。旧名のこのリポジトリも**永久に残し**、リンク・リリース・自動更新はそのまま使えます(更新は新旧の両方で配布)。
+> 📛 **Renamed**: this project is now **[maid-cafe-english](https://github.com/aon-co-jp/maid-cafe-english)** (formerly open-english). This repository is kept permanently; links, releases and automatic updates keep working.
+> **世界中の言語での告知 / Notice in 35+ languages → [RENAMED.md](RENAMED.md)**
+
 *English*: [README-English.md](README-English.md) ·
 *Other languages*: [中文](README-Chinese.md) · [한국어](README-Korean.md) ·
 [Español](README-Spanish.md) · [Deutsch](README-German.md) · [Italiano](README-Italian.md) ·

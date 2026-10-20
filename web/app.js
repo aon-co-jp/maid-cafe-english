@@ -3870,7 +3870,7 @@ const TOPIC_GUIDES = [
   { ja: ["作者のgithub", "githubを紹介", "作者について", "ソースコード"], en: ["author's github", "source code", "your github"],
     title: "👤 作者のGitHub / Author's GitHub",
     desc: "ソースコードはすべて公開しています。 / All source code is public.",
-    q: [], links: ["https://github.com/aon-co-jp", "https://github.com/aon-co-jp/open-english", "https://github.com/aon-co-jp/aruaru-llm", "https://github.com/aon-co-jp/aruaru-db"] },
+    q: [], links: ["https://github.com/aon-co-jp", "https://github.com/aon-co-jp/maid-cafe-english", "https://github.com/aon-co-jp/open-english", "https://github.com/aon-co-jp/aruaru-llm", "https://github.com/aon-co-jp/aruaru-db"] },
   { ja: ["イヤホン", "ヘッドホン", "ヘッドフォン", "イヤフォン", "usb-c", "4.4mm", "xlr", "ブルートゥース"], en: ["earphone", "headphone", "earbuds", "bluetooth audio"],
     title: "🎧 イヤホン・ヘッドホン / Earphones & headphones",
     desc: "安いUSB-C・3.5mm・4.4mmバランス・XLR・Bluetoothまで。 / From cheap USB-C, 3.5mm, 4.4mm balanced, XLR to Bluetooth.",
