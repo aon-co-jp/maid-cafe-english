@@ -3000,6 +3000,11 @@ cd aruaru-db
         指定レベルへの適合は保証されません。声の入出力はブラウザ標準の
         Web Speech API(対応ブラウザのみ)を使用します。これはPhase 0の
         試作品であり、本番運用レベルの講師ではありません。<br /><br />
+        <strong>📱 LINEアプリ版:</strong> LINEで友だちになると、このページと同じ英会話レッスンをLINEのトークで使えます。
+        マウスの代わりに<b>数字</b>で選び(1=英会話レッスン、2=メイドカフェ英会話研修、3=レベル、4=言語、7=先生〈メイドちゃん/執事〉、0=メニュー)、
+        文字でも、LINEの音声メッセージ(マイク)でも話しかけられます。返事は文字と同時に、選んだ先生の声(メイドちゃん=かわいい女性、執事=男性)でも届きます
+        (音声の返事・音声入力は、サーバー側の準備ができている場合のみ)。
+        <span id="line-friend-link">友だち追加の準備中です。</span><br /><br />
         秋葉原メイドカフェ(@ほぉ～むカフェ)の接客技法・英会話研修の
         ブログを参考にさせて頂きました:
         <a href="https://aonceo.blogspot.com/2026/10/blog-post_23.html" target="_blank" rel="noopener noreferrer">
@@ -3095,5 +3100,20 @@ cd aruaru-db
 
   <script src="app.js"></script>
   <script src="auto-update.js"></script>
+<script>
+(function () {
+  var el = document.getElementById("line-friend-link");
+  if (!el) return;
+  var base = location.pathname.replace(/\/[^\/]*$/, "");
+  fetch(base + "/v1/line/info").then(function (r) { return r.json(); }).then(function (j) {
+    if (j && j.configured && j.add_friend_url) {
+      var a = document.createElement("a");
+      a.href = j.add_friend_url; a.target = "_blank"; a.rel = "noopener noreferrer";
+      a.textContent = "➕ LINEで友だち追加";
+      el.textContent = ""; el.appendChild(a);
+    }
+  }).catch(function () {});
+})();
+</script>
 </body>
 </html>
