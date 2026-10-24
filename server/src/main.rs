@@ -3051,17 +3051,36 @@ async fn news_archive_search(req: Request) -> Response {
     let q = query_param(&req, "q").unwrap_or_default().trim().to_lowercase();
     let limit: usize = query_param(&req, "limit").and_then(|s| s.parse().ok()).unwrap_or(10);
     let path = repo_root().join("NEWS-TITLE-README.md");
-    let raw = match std::fs::read_to_string(&path) {
-        Ok(v) => v,
-        Err(_) => {
+    let raw = match cached_news_archive(&path) {
+        Some(v) => v,
+        None => {
             return rs_json_response_cors(
                 StatusCode::OK,
                 &serde_json::json!({"count": 0, "items": [], "note_en": "No archived news yet.", "note_ja": "アーカイブ済みのニュースはまだありません。"}),
             )
         }
     };
-    let items = parse_news_archive_markdown(&raw, &q, limit);
+    let items = parse_news_archive_markdown(raw.as_str(), &q, limit);
     rs_json_response_cors(StatusCode::OK, &serde_json::json!({"count": items.len(), "items": items}))
+}
+
+/// アーカイブ本体(数MB)を、更新時刻と大きさが変わるまで1つだけメモリに保持する
+/// (2026-10-24、大量アクセス時に毎回ファイルを読み直して数MBを確保しないため)。
+fn cached_news_archive(path: &std::path::Path) -> Option<Arc<String>> {
+    static CACHE: std::sync::Mutex<Option<(std::time::SystemTime, u64, Arc<String>)>> = std::sync::Mutex::new(None);
+    let meta = std::fs::metadata(path).ok()?;
+    let (mtime, len) = (meta.modified().ok()?, meta.len());
+    {
+        let g = CACHE.lock().unwrap_or_else(|e| e.into_inner());
+        if let Some((t, l, v)) = g.as_ref() {
+            if *t == mtime && *l == len {
+                return Some(v.clone());
+            }
+        }
+    }
+    let v = Arc::new(std::fs::read_to_string(path).ok()?);
+    *CACHE.lock().unwrap_or_else(|e| e.into_inner()) = Some((mtime, len, v.clone()));
+    Some(v)
 }
 
 /// [`news_archive_search`]の中身の純粋関数版(テストしやすいよう分離)。

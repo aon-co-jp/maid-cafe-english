@@ -23,6 +23,7 @@ const LEVELS: [&str; 3] = ["Beginner / 初級", "Intermediate / 中級", "Advanc
 const LANGS: [&str; 9] = ["English", "Japanese", "German", "French", "Spanish", "Italian", "Russian", "Thai", "Vietnamese"];
 const MAX_SESSIONS: usize = 5000;
 const MAX_REPLY_CHARS: usize = 4500;
+const MAX_CONCURRENT_EVENTS: usize = 16;
 
 /// メイドカフェ英会話研修のフレーズ(日本語, 英語)。
 const TRAINING: [(&str, &str); 8] = [
@@ -530,8 +531,16 @@ pub async fn webhook(req: Request) -> Response {
         return crate::rs_json_response(StatusCode::UNAUTHORIZED, &serde_json::json!({"error": "bad signature"}));
     }
     let events = serde_json::from_slice::<serde_json::Value>(&bytes).ok().and_then(|v| v["events"].as_array().cloned()).unwrap_or_default();
+    // 同時に処理するイベント数を制限する(少ないメモリで大量のアクセスをさばくための背圧)。
+    // 上限を超えた分は待たせる(LINEのreplyTokenの有効時間内に間に合う範囲)。
+    static LIMIT: std::sync::OnceLock<std::sync::Arc<tokio::sync::Semaphore>> = std::sync::OnceLock::new();
+    let limit = LIMIT.get_or_init(|| std::sync::Arc::new(tokio::sync::Semaphore::new(MAX_CONCURRENT_EVENTS))).clone();
     for ev in events {
-        tokio::spawn(handle_event(token.clone(), ev));
+        let (token, limit) = (token.clone(), limit.clone());
+        tokio::spawn(async move {
+            let _permit = limit.acquire_owned().await;
+            handle_event(token, ev).await;
+        });
     }
     crate::rs_json_response(StatusCode::OK, &serde_json::json!({"ok": true}))
 }
