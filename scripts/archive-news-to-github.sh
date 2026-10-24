@@ -202,12 +202,80 @@ push_country_pages() {
   rm -rf "$work"
 }
 
+# ---- 6) open-english本体の自動コミット&push・肥大化時の引っ越し・自動索引(2026-10-24、ユーザー指示) ----
+# NEWS-TITLE-README.md(完全版、archive-search APIが読む)が NEWS_LIMIT_MB を超えたら、
+# 本文を非公開のアーカイブ用リポジトリ(open-english-news-readme-archive、容量が溜まれば
+# resolve_target_repoが自動で -002, -003... を作る)へ引っ越し、手元にはヘッダーだけを残す。
+NEWS_LIMIT_MB=30
+
+rotate_news_readme() {
+  [ -s "$NEWS_README" ] || return 0
+  local sz; sz="$(stat -c %s "$NEWS_README")"
+  [ "$sz" -gt $((NEWS_LIMIT_MB * 1024 * 1024)) ] || return 0
+  local repo; repo="$(resolve_target_repo readme-archive open-english-news-readme-archive private)" || return 0
+  assert_visibility "$repo" private || return 0
+  local work; work="$(mktemp -d)"
+  git clone --quiet "https://github.com/$ORG/$repo.git" "$work/repo" 2>>"$LOG_FILE" || { rm -rf "$work"; return 0; }
+  mkdir -p "$work/repo/segments"
+  local seg; seg="segments/NEWS-TITLE-README-$(date -u +%Y%m%d%H%M).md"
+  awk 'b || /^## アーカイブ日/ { b=1; print }' "$NEWS_README" > "$work/repo/$seg"
+  if [ ! -s "$work/repo/$seg" ]; then rm -rf "$work"; return 0; fi
+  if ( cd "$work/repo" && git add segments/        && git -c user.email="noreply@aon.tokyo" -c user.name="open-english archive bot" commit --quiet -m "readme-archive: $seg ($sz bytes)"        && git push --quiet origin HEAD 2>>"$LOG_FILE" ); then
+    awk '/^## アーカイブ日/ { exit } { print }' "$NEWS_README" > "$NEWS_README.tmp" && mv "$NEWS_README.tmp" "$NEWS_README"
+    echo "- $(date -u +%Y-%m-%d) \`$seg\` → [$ORG/$repo](https://github.com/$ORG/$repo)(非公開) ($sz bytes)" >> "$STATE_DIR/readme-segments.txt"
+    log "NEWS-TITLE-README.md が ${sz} bytes に達したため $ORG/$repo/$seg へ引っ越しました。"
+  else
+    log "警告: NEWS-TITLE-README.md の引っ越しに失敗しました。次回再試行します。"
+  fi
+  rm -rf "$work"
+}
+
+# 全アーカイブリポジトリ(-001, -002... の連番を存在する限り辿る)の索引 NEWS-ARCHIVE-INDEX.md を作り直す。
+build_news_index() {
+  local out="$OPEN_ENGLISH_DIR/NEWS-ARCHIVE-INDEX.md" kind base vis name
+  {
+    echo "# open-english ニュースアーカイブ 索引 / News Archive Index"
+    echo
+    echo "自動生成(archive-news-to-github.sh)。リポジトリが容量で増えると連番で自動追加されます。"
+    for spec in "news-headlines:open-english-news-archive:public:見出し・リンクのみ(公開)"                 "news-snippets:open-english-news-snippets-archive:private:抜粋つき完全版(非公開)"                 "readme-archive:open-english-news-readme-archive:private:NEWS-TITLE-README.mdの引っ越し分(非公開)"; do
+      IFS=: read -r kind base vis desc <<< "$spec"
+      echo; echo "## $desc"; echo
+      name="$base"
+      while repo_exists "$name"; do
+        echo "- [$name](https://github.com/$ORG/$name) — $(repo_size_mb "$name") MB / $vis"
+        name="$(next_repo_name "$name")"
+      done
+    done
+    if [ -s "$STATE_DIR/readme-segments.txt" ]; then
+      echo; echo "## 引っ越し履歴 / Moved segments"; echo
+      cat "$STATE_DIR/readme-segments.txt"
+    fi
+  } > "$out.tmp" && mv "$out.tmp" "$out"
+}
+
+# open-english本体へ自動でコミットしてpushする。他の変更(Cargo.lock等)には触れない。
+commit_push_self() {
+  ( cd "$OPEN_ENGLISH_DIR" || exit 0
+    git add NEWS-TITLE-README.md NEWS-ARCHIVE-INDEX.md
+    git diff --cached --quiet && exit 0
+    git -c user.email="noreply@aon.tokyo" -c user.name="open-english archive bot"       commit --quiet -m "data: news archive $(date -u +%Y-%m-%d_%H)" -- NEWS-TITLE-README.md NEWS-ARCHIVE-INDEX.md
+    git pull --rebase --autostash --quiet 2>>"$LOG_FILE" && git push --quiet origin HEAD 2>>"$LOG_FILE"       && log "push完了: open-english 本体(NEWS-TITLE-README.md / NEWS-ARCHIVE-INDEX.md)"       || log "警告: open-english 本体のpushに失敗しました。次回再試行します。"
+  )
+}
+
+post_steps() {
+  rotate_news_readme || true
+  build_news_index || log "警告: 索引の生成に失敗しました。"
+  commit_push_self || true
+}
+
 # 1) aruaru-llmへ刈り取りを依頼する。
 if ! curl -fsS -X POST --max-time 15 "$ARUARU_LLM_BASE_URL/v1/news/prune-archive" -o /dev/null; then
   log "警告: prune-archive の呼び出しに失敗しました(aruaru-llm未起動の可能性)。中断します。"
   exit 0
 fi
 if [ ! -s "$PENDING_MD" ]; then
+  post_steps
   exit 0   # 毎時実行なので、対象なしは静かに終了する
 fi
 log "刈り取り済みニュース: $(wc -c < "$PENDING_MD") bytes"
@@ -274,3 +342,4 @@ if [ -s "$NEWS_README" ] && [ "$(tail -c 1 "$NEWS_README")" != "" ]; then echo >
 cat "$PENDING_MD" >> "$NEWS_README"
 : > "$PENDING_MD"
 log "完了。$PENDING_MD をクリアしました。"
+post_steps
