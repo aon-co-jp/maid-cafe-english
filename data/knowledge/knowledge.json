@@ -874,5 +874,41 @@
       "adaptation"
     ],
     "text": "Rule: the maid cafe references and phrases above are a base, not a script. Apply them flexibly: adjust to the learner's level, topic, and role (customer or staff), vary the wording, and only state facts found in these sources; never invent prices, shop rules or URLs."
+  },
+  {
+    "created_unix": 1792873098,
+    "id": 75,
+    "source": "https://dotinstall.com/premium",
+    "tags": [
+      "dotinstall",
+      "price",
+      "verified",
+      "learning"
+    ],
+    "text": "Verified price (2026-10-25): Dotinstall monthly plan costs 1480 yen including tax. ドットインストールの月額プランは1480円（税込）。公式ページ https://dotinstall.com/premium で確認。"
+  },
+  {
+    "created_unix": 1792873098,
+    "id": 76,
+    "source": "https://progate.com/plans/for_users",
+    "tags": [
+      "progate",
+      "price",
+      "verified",
+      "learning"
+    ],
+    "text": "Verified price (2026-10-25): Progate monthly plan costs 1490 yen including tax. Progateの月額プランは1490円（税込）。公式ページ https://progate.com/plans/for_users で確認。"
+  },
+  {
+    "created_unix": 1792873098,
+    "id": 77,
+    "source": "https://paiza.jp/works/paid_plan_lp/settlement",
+    "tags": [
+      "paiza",
+      "price",
+      "verified",
+      "learning"
+    ],
+    "text": "Verified price (2026-10-25): paiza monthly plan costs 1490 yen including tax. paizaラーニングの月額プランは1490円（税込）。公式ページ https://paiza.jp/works/paid_plan_lp/settlement で確認。"
   }
 ]
