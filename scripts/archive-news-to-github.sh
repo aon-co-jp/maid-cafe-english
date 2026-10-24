@@ -206,13 +206,14 @@ push_country_pages() {
 # NEWS-TITLE-README.md(完全版、archive-search APIが読む)が NEWS_LIMIT_MB を超えたら、
 # 本文を非公開のアーカイブ用リポジトリ(open-english-news-readme-archive、容量が溜まれば
 # resolve_target_repoが自動で -002, -003... を作る)へ引っ越し、手元にはヘッダーだけを残す。
-NEWS_LIMIT_MB=30
+NEWS_LIMIT_MB="${NEWS_LIMIT_MB:-30}"
+README_ARCHIVE_BASE="${README_ARCHIVE_BASE:-open-english-news-readme-archive}"
 
 rotate_news_readme() {
   [ -s "$NEWS_README" ] || return 0
   local sz; sz="$(stat -c %s "$NEWS_README")"
   [ "$sz" -gt $((NEWS_LIMIT_MB * 1024 * 1024)) ] || return 0
-  local repo; repo="$(resolve_target_repo readme-archive open-english-news-readme-archive public)" || return 0
+  local repo; repo="$(resolve_target_repo readme-archive "$README_ARCHIVE_BASE" public)" || return 0
   assert_visibility "$repo" public || return 0
   local work; work="$(mktemp -d)"
   git clone --quiet "https://github.com/$ORG/$repo.git" "$work/repo" 2>>"$LOG_FILE" || { rm -rf "$work"; return 0; }
@@ -268,6 +269,9 @@ post_steps() {
   build_news_index || log "警告: 索引の生成に失敗しました。"
   commit_push_self || true
 }
+
+# 試験用: 引っ越しだけを単独で実行する(NEWS_LIMIT_MB / README_ARCHIVE_BASE / OPEN_ENGLISH_DIR を上書きして使う)。
+if [ "${ARCHIVE_TEST_ROTATE:-}" = 1 ]; then rotate_news_readme; build_news_index; exit 0; fi
 
 # 1) aruaru-llmへ刈り取りを依頼する。
 if ! curl -fsS -X POST --max-time 15 "$ARUARU_LLM_BASE_URL/v1/news/prune-archive" -o /dev/null; then
