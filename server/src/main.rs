@@ -21,6 +21,7 @@ mod auth;
 mod component_update;
 mod db;
 mod github_agent;
+mod line_bot;
 mod local_agent;
 mod self_update;
 mod totp;
@@ -3387,6 +3388,9 @@ async fn main() {
     app = app.at("/v1/public/aruaru-llm/generate", post(handler_fn(|req, _p| Box::pin(public_aruaru_llm_generate("/v1/generate", req)))));
     app = app.at("/v1/public/aruaru-llm/generate-with-search", post(handler_fn(|req, _p| Box::pin(public_aruaru_llm_generate("/v1/generate-with-search", req)))));
     app = app.at("/v1/public/chat-providers/complete-priority", post(handler_fn(|req, _p| Box::pin(public_chat_provider_complete_priority(req)))));
+    app = app.at("/v1/line/webhook", post(handler_fn(|req, _p| Box::pin(line_bot::webhook(req)))));
+    app = app.at("/v1/line/audio", get(handler_fn(|req, _p| Box::pin(line_bot::audio(req)))));
+    app = app.at("/v1/line/info", get(handler_fn(|_req, _p| Box::pin(line_bot::info()))));
     app = app.at("/v1/public/chat-providers/active", get(handler_fn(|_req, _p| Box::pin(public_chat_provider_active()))));
     // 2026-09-22新設(ユーザー報告「今日のニュースは？に今は回答出来ていません」): WEB版
     // (閲覧者のブラウザ)は自分自身のaruaru-llmを持たず、`apiBaseEl`が既定の

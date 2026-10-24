@@ -220,6 +220,18 @@ pub async fn synthesize(v: &Validated) -> Result<Arc<Vec<u8>>, TtsError> {
     Ok(wav)
 }
 
+/// 文字列から直接合成する(LINE版など、HTTP経由でない呼び出し用)。
+pub async fn synthesize_text(text: &str, lang: &str, persona: Persona) -> Result<Arc<Vec<u8>>, TtsError> {
+    let v = validate(TtsBody { text: text.to_string(), lang: Some(lang.to_string()), persona: Some(if persona == Persona::Helper { "helper" } else { "teacher" }.to_string()), harmony: false })?;
+    synthesize(&v).await
+}
+
+/// 16bit PCM WAVの長さ(ミリ秒)。
+pub fn wav_duration_ms(wav: &[u8]) -> Option<u64> {
+    let p = parse_wav(wav)?;
+    Some(p.samples.len() as u64 * 1000 / p.sample_rate.max(1) as u64)
+}
+
 #[cfg(windows)]
 mod engine {
     use super::{OsVoice, TtsError};
@@ -343,16 +355,69 @@ mod engine {
 
 #[cfg(not(windows))]
 mod engine {
+    //! Linux等: 外部コマンド方式(2026-10-24、LINE版の音声返信用)。環境変数`OPEN_ENGLISH_TTS_CMD`に、
+    //! 空白区切りのコマンド(例 `piper --model /opt/piper/en_US-amy-medium.onnx --output_file {out}`)を書く。
+    //! `{out}`は出力WAVのパスに置き換わり、読み上げる文は標準入力へ渡す(シェルは介さない)。
+    //! 未設定でも`espeak-ng`がPATHにあればそれを使う。どちらも無ければ`Unavailable`(正直な開示)。
+    //! 声の加工(メイド風/太く低い男性)は`synthesize`側で`open-runo-voice`が行う。
     use super::{OsVoice, TtsError};
+    use open_runo_voice::SourceGender;
+    use std::process::Stdio;
+    use std::sync::atomic::{AtomicU64, Ordering};
+    use tokio::io::AsyncWriteExt;
 
-    pub const NAME: &str = "none";
+    pub const NAME: &str = "external-command";
 
-    pub async fn list_voices() -> Vec<OsVoice> {
-        Vec::new()
+    fn on_path(name: &str) -> bool {
+        std::env::var_os("PATH").is_some_and(|p| std::env::split_paths(&p).any(|d| d.join(name).is_file()))
     }
 
-    pub async fn synthesize_wav(_voice: &OsVoice, _text: &str, _rate: i32) -> Result<Vec<u8>, TtsError> {
-        Err(TtsError::Unavailable)
+    pub fn command_line() -> Option<String> {
+        if std::env::var("OPEN_ENGLISH_TTS").is_ok_and(|v| v == "off") {
+            return None;
+        }
+        match std::env::var("OPEN_ENGLISH_TTS_CMD") {
+            Ok(c) if !c.trim().is_empty() => Some(c),
+            _ if on_path("espeak-ng") => Some("espeak-ng -v en-us -s 150 -w {out} --stdin".to_string()),
+            _ => None,
+        }
+    }
+
+    pub async fn list_voices() -> Vec<OsVoice> {
+        if command_line().is_none() {
+            return Vec::new();
+        }
+        let culture = std::env::var("OPEN_ENGLISH_TTS_LANG").unwrap_or_else(|_| "en-US".to_string());
+        vec![OsVoice { name: "external".into(), culture, gender: SourceGender::Female }]
+    }
+
+    pub async fn synthesize_wav(_voice: &OsVoice, text: &str, _rate: i32) -> Result<Vec<u8>, TtsError> {
+        static N: AtomicU64 = AtomicU64::new(0);
+        let line = command_line().ok_or(TtsError::Unavailable)?;
+        let out = std::env::temp_dir().join(format!("oe-tts-{}-{}.wav", std::process::id(), N.fetch_add(1, Ordering::Relaxed)));
+        let mut parts = line.split_whitespace().map(|p| p.replace("{out}", &out.to_string_lossy()));
+        let prog = parts.next().ok_or(TtsError::Unavailable)?;
+        let mut child = tokio::process::Command::new(prog)
+            .args(parts)
+            .stdin(Stdio::piped())
+            .stdout(Stdio::null())
+            .stderr(Stdio::null())
+            .kill_on_drop(true)
+            .spawn()
+            .map_err(|e| TtsError::Failed(format!("could not start the TTS command: {e}")))?;
+        if let Some(mut stdin) = child.stdin.take() {
+            let _ = stdin.write_all(text.as_bytes()).await;
+        }
+        let status = tokio::time::timeout(std::time::Duration::from_secs(40), child.wait())
+            .await
+            .map_err(|_| TtsError::Failed("the TTS command timed out".into()))?
+            .map_err(|e| TtsError::Failed(e.to_string()))?;
+        let bytes = std::fs::read(&out);
+        let _ = std::fs::remove_file(&out);
+        if !status.success() {
+            return Err(TtsError::Failed(format!("the TTS command exited with {status}")));
+        }
+        bytes.map_err(|e| TtsError::Failed(format!("the TTS command wrote no WAV: {e}")))
     }
 }
 

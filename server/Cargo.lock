@@ -2620,6 +2620,7 @@ dependencies = [
  "serde",
  "serde_json",
  "sha1 0.10.7",
+ "sha2 0.10.9",
  "tokio",
  "tokio-postgres",
  "tokio-postgres-rustls",
@@ -2643,6 +2644,7 @@ dependencies = [
  "schemars",
  "serde",
  "serde_json",
+ "sonic-rs",
 ]
 
 [[package]]
@@ -2653,6 +2655,7 @@ dependencies = [
  "chrono",
  "open-runo-core",
  "serde",
+ "sonic-rs",
 ]
 
 [[package]]
@@ -2732,6 +2735,7 @@ dependencies = [
  "serde",
  "serde_json",
  "sha2 0.10.9",
+ "sonic-rs",
 ]
 
 [[package]]
@@ -2787,6 +2791,7 @@ dependencies = [
  "serde_json",
  "sha1 0.10.7",
  "sha2 0.10.9",
+ "sonic-rs",
  "tokio",
  "tokio-rustls",
  "tracing",
@@ -2820,6 +2825,7 @@ dependencies = [
  "open-runo-db",
  "serde",
  "serde_json",
+ "sonic-rs",
  "uuid",
 ]
 
@@ -2833,6 +2839,7 @@ dependencies = [
  "open-runo-core",
  "serde",
  "serde_json",
+ "sonic-rs",
 ]
 
 [[package]]
@@ -2873,6 +2880,7 @@ dependencies = [
  "serde",
  "serde_json",
  "sha2 0.10.9",
+ "sonic-rs",
  "subtle",
  "tokio",
  "tokio-rustls",
