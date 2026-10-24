@@ -212,8 +212,8 @@ rotate_news_readme() {
   [ -s "$NEWS_README" ] || return 0
   local sz; sz="$(stat -c %s "$NEWS_README")"
   [ "$sz" -gt $((NEWS_LIMIT_MB * 1024 * 1024)) ] || return 0
-  local repo; repo="$(resolve_target_repo readme-archive open-english-news-readme-archive private)" || return 0
-  assert_visibility "$repo" private || return 0
+  local repo; repo="$(resolve_target_repo readme-archive open-english-news-readme-archive public)" || return 0
+  assert_visibility "$repo" public || return 0
   local work; work="$(mktemp -d)"
   git clone --quiet "https://github.com/$ORG/$repo.git" "$work/repo" 2>>"$LOG_FILE" || { rm -rf "$work"; return 0; }
   mkdir -p "$work/repo/segments"
@@ -222,7 +222,7 @@ rotate_news_readme() {
   if [ ! -s "$work/repo/$seg" ]; then rm -rf "$work"; return 0; fi
   if ( cd "$work/repo" && git add segments/        && git -c user.email="noreply@aon.tokyo" -c user.name="open-english archive bot" commit --quiet -m "readme-archive: $seg ($sz bytes)"        && git push --quiet origin HEAD 2>>"$LOG_FILE" ); then
     awk '/^## アーカイブ日/ { exit } { print }' "$NEWS_README" > "$NEWS_README.tmp" && mv "$NEWS_README.tmp" "$NEWS_README"
-    echo "- $(date -u +%Y-%m-%d) \`$seg\` → [$ORG/$repo](https://github.com/$ORG/$repo)(非公開) ($sz bytes)" >> "$STATE_DIR/readme-segments.txt"
+    echo "- $(date -u +%Y-%m-%d) \`$seg\` → [$ORG/$repo](https://github.com/$ORG/$repo)(公開) ($sz bytes)" >> "$STATE_DIR/readme-segments.txt"
     log "NEWS-TITLE-README.md が ${sz} bytes に達したため $ORG/$repo/$seg へ引っ越しました。"
   else
     log "警告: NEWS-TITLE-README.md の引っ越しに失敗しました。次回再試行します。"
@@ -237,7 +237,7 @@ build_news_index() {
     echo "# open-english ニュースアーカイブ 索引 / News Archive Index"
     echo
     echo "自動生成(archive-news-to-github.sh)。リポジトリが容量で増えると連番で自動追加されます。"
-    for spec in "news-headlines:open-english-news-archive:public:見出し・リンクのみ(公開)"                 "news-snippets:open-english-news-snippets-archive:private:抜粋つき完全版(非公開)"                 "readme-archive:open-english-news-readme-archive:private:NEWS-TITLE-README.mdの引っ越し分(非公開)"; do
+    for spec in "news-headlines:open-english-news-archive:public:見出し・リンクのみ(公開)"                 "news-snippets:open-english-news-snippets-archive:public:抜粋つき完全版(公開)"                 "readme-archive:open-english-news-readme-archive:public:NEWS-TITLE-README.mdの引っ越し分(公開)"; do
       IFS=: read -r kind base vis desc <<< "$spec"
       echo; echo "## $desc"; echo
       name="$base"
@@ -317,8 +317,8 @@ fi
 rm -f "$PUBLIC_MD.dropped"
 
 # 4) 非公開(完全版)→ 公開(見出しのみ)の順でpushする。どちらも公開設定を確認してから。
-PRIV_REPO="$(resolve_target_repo news-snippets open-english-news-snippets-archive private)"
-if assert_visibility "$PRIV_REPO" private; then
+PRIV_REPO="$(resolve_target_repo news-snippets open-english-news-snippets-archive public)"
+if assert_visibility "$PRIV_REPO" public; then
   push_country_pages "$PRIV_REPO" "$PENDING_MD"
 else
   rm -f "$PUBLIC_MD"; exit 1

@@ -10,10 +10,10 @@
       "status": "implemented"
     },
     "news-snippets": {
-      "visibility": "private",
+      "visibility": "public",
       "repoBase": "open-english-news-snippets-archive",
       "fields": "検索結果の抜粋文(他社記事の本文の一部)",
-      "reason": "Yahoo!ニュース等の他社記事の抜粋は著作権上の問題になりうるため非公開で保管し、公開側へは載せない。",
+      "reason": "Yahoo!ニュース等の他社記事の抜粋は著作権上の問題になりうるが、2026-10-24にユーザーが方針を承知の上で「ニュースストックは全て公開」と決定したため公開する(以前は非公開)。",
       "status": "implemented"
     },
     "conversations": {
