@@ -344,6 +344,10 @@ rm -f "$PUBLIC_MD"
 #    不具合があった。失敗時は何も変えずに終了し、次回の実行で再試行する。)
 if [ -s "$NEWS_README" ] && [ "$(tail -c 1 "$NEWS_README")" != "" ]; then echo >> "$NEWS_README"; fi
 cat "$PENDING_MD" >> "$NEWS_README"
+# 共有ニュースストック(aruaru-llm/src/news_stock.rs)へも同じ内容を追記する。realdata.proと
+# maid-cafe-english(open-english)のAI会話が、同じaruaru-llm経由でこのストックを参照する(月ごとのファイル)。
+STOCK_DIR="${ARUARU_LLM_NEWS_STOCK_DIR:-$ARUARU_LLM_DIR/data/news-stock}"
+mkdir -p "$STOCK_DIR" && cat "$PENDING_MD" >> "$STOCK_DIR/stock-$(date -u +%Y%m).md"   || log "警告: 共有ニュースストックへの追記に失敗しました。"
 : > "$PENDING_MD"
 log "完了。$PENDING_MD をクリアしました。"
 post_steps
