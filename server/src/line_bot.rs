@@ -289,6 +289,11 @@ pub fn speakable(text: &str) -> String {
         .collect()
 }
 
+/// LINEのAPIの基点(通常は変更しない。試験でモックLINEサーバーを指すためだけの環境変数)。
+fn api_base(var: &str, default: &str) -> String {
+    std::env::var(var).ok().filter(|v| !v.is_empty()).unwrap_or_else(|| default.to_string()).trim_end_matches('/').to_string()
+}
+
 fn audio_dir() -> std::path::PathBuf {
     std::env::var("LINE_AUDIO_DIR").map(Into::into).unwrap_or_else(|_| std::path::PathBuf::from("data/line-audio"))
 }
@@ -377,7 +382,7 @@ async fn transcribe_line_audio(token: &str, message_id: &str, lang: usize) -> Re
     use tokio::io::AsyncWriteExt;
     let client = reqwest::Client::builder().timeout(std::time::Duration::from_secs(40)).build().map_err(|e| e.to_string())?;
     let content = client
-        .get(format!("https://api-data.line.me/v2/bot/message/{message_id}/content"))
+        .get(format!("{}/v2/bot/message/{message_id}/content", api_base("LINE_DATA_API_BASE", "https://api-data.line.me")))
         .bearer_auth(token)
         .send()
         .await
@@ -442,7 +447,7 @@ async fn reply_with_audio(token: &str, reply_token: &str, text: &str, audio: Opt
         Err(_) => return,
     };
     let _ = client
-        .post("https://api.line.me/v2/bot/message/reply")
+        .post(format!("{}/v2/bot/message/reply", api_base("LINE_API_BASE", "https://api.line.me")))
         .bearer_auth(token)
         .json(&serde_json::json!({"replyToken": reply_token, "messages": messages}))
         .send()
