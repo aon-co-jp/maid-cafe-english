@@ -263,7 +263,7 @@ impl WorldLab {
     }
 }
 
-#[derive(Debug, Clone, serde::Deserialize)]
+#[derive(Debug, Clone, serde::Deserialize, schemars::JsonSchema)]
 pub struct BulkPairEntry {
     pub device_name: String,
     pub connection: String,

@@ -2617,6 +2617,7 @@ dependencies = [
  "rust-json",
  "rustls",
  "rustls-native-certs",
+ "schemars",
  "serde",
  "serde_json",
  "sha1 0.10.7",

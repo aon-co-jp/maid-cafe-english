@@ -19,6 +19,7 @@ tokio = { version = "1", features = ["macros", "rt-multi-thread", "process", "ti
 reqwest = { version = "0.12", default-features = false, features = ["rustls-tls", "json"] }
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
+schemars = "1"
 anyhow = "1"
 # 会話履歴・設定の永続化(2026-08-18追加、ユーザー指示「DATABASEは…
 # 本格的なローカルデータベース化してから」への対応)。常時利用可能な

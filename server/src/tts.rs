@@ -79,8 +79,8 @@ pub enum TtsError {
     Failed(String),
 }
 
-#[derive(serde::Deserialize)]
-struct TtsBody {
+#[derive(serde::Deserialize, schemars::JsonSchema)]
+pub(crate) struct TtsBody {
     text: String,
     #[serde(default)]
     lang: Option<String>,

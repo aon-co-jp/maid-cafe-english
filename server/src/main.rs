@@ -28,6 +28,7 @@ mod totp;
 mod tts;
 mod vps_agent;
 mod world_lab;
+mod api_docs;
 
 use db::Db;
 
@@ -792,7 +793,7 @@ async fn proxy_aruaru_llm_post(path: &str, req: Request) -> Response {
 /// キー不要)へ回す。呼び出し元(`app.js`)は`query`のみを送り、`source`/
 /// `free_only`はここで固定するため、任意のsourceを呼べてしまう心配は
 /// 無い(`aruaru-llm`の`/v1/search/raw`をそのまま公開はしない)。
-#[derive(Debug, serde::Deserialize)]
+#[derive(Debug, serde::Deserialize, schemars::JsonSchema)]
 struct PublicFreelanceJobSearchRequest {
     query: String,
 }
@@ -1300,7 +1301,7 @@ fn rs_json_response_cors(status: StatusCode, value: &impl serde::Serialize) -> R
         .expect("building a response from a fixed set of valid headers cannot fail")
 }
 
-#[derive(serde::Deserialize)]
+#[derive(serde::Deserialize, schemars::JsonSchema)]
 struct AddMessageRequest {
     role: String,
     content: String,
@@ -1331,7 +1332,7 @@ async fn db_clear_messages(db: Arc<Db>) -> Response {
     }
 }
 
-#[derive(serde::Deserialize)]
+#[derive(serde::Deserialize, schemars::JsonSchema)]
 struct SetSettingRequest {
     key: String,
     value: String,
@@ -1414,7 +1415,7 @@ async fn public_custom_qa(db: Arc<Db>) -> Response {
 /// (デモには表示されない)ため、書き込みエンドポイント自体には
 /// ログインを課さない——「ボタンが見えない」ことをアクセス制御とする
 /// 既存方針に揃える。
-#[derive(serde::Deserialize)]
+#[derive(serde::Deserialize, schemars::JsonSchema)]
 struct SetCustomQaRequest {
     pairs: serde_json::Value,
 }
@@ -1474,7 +1475,7 @@ async fn auth_config(db: Arc<Db>) -> Response {
     )
 }
 
-#[derive(serde::Deserialize)]
+#[derive(serde::Deserialize, schemars::JsonSchema)]
 struct SetAuthConfigRequest {
     /// 新方式(2026-08-28新設): `"none"`/`"otp"`/`"qr"`/`"otp_qr"`のいずれか。
     #[serde(default)]
@@ -1516,7 +1517,7 @@ async fn auth_set_config(req: Request, db: Arc<Db>) -> Response {
     rs_json_response(StatusCode::OK, &serde_json::json!({"ok": true, "login_mode": mode, "login_required": mode != "none"}))
 }
 
-#[derive(serde::Deserialize)]
+#[derive(serde::Deserialize, schemars::JsonSchema)]
 struct RequestOtpRequest {
     email: String,
     /// バックアップ用の2つ目のメールアドレス(任意、2026-08-27新設)。
@@ -1545,7 +1546,7 @@ async fn auth_request_otp(req: Request) -> Response {
     }
 }
 
-#[derive(serde::Deserialize)]
+#[derive(serde::Deserialize, schemars::JsonSchema)]
 struct RequestSmsOtpRequest {
     phone: String,
 }
@@ -1575,7 +1576,7 @@ async fn auth_request_sms_otp(req: Request) -> Response {
     }
 }
 
-#[derive(serde::Deserialize)]
+#[derive(serde::Deserialize, schemars::JsonSchema)]
 struct VerifyOtpRequest {
     email: String,
     code: String,
@@ -1655,7 +1656,7 @@ async fn auth_qr_login_start(req: Request) -> Response {
     qr_login_start_response(&host, scheme, qr_login_id)
 }
 
-#[derive(serde::Deserialize)]
+#[derive(serde::Deserialize, schemars::JsonSchema)]
 struct QrLoginIdRequest {
     id: String,
 }
@@ -1723,7 +1724,7 @@ async fn auth_qr_login_whoami(req: Request) -> Response {
     }
 }
 
-#[derive(serde::Deserialize)]
+#[derive(serde::Deserialize, schemars::JsonSchema)]
 struct TotpSetupRequest {
     email: String,
     #[serde(default)]
@@ -1744,7 +1745,7 @@ async fn auth_totp_setup(req: Request, db: Arc<Db>) -> Response {
     }
 }
 
-#[derive(serde::Deserialize)]
+#[derive(serde::Deserialize, schemars::JsonSchema)]
 struct TotpVerifyRequest {
     email: String,
     code: String,
@@ -1996,7 +1997,7 @@ fn fs_list_roots() -> serde_json::Value {
 /// (3) DuckDNSのトークンはリクエストのたびに受け取り、このプロセスの
 ///     メモリ上でのみ使う(`github_agent.rs`と同じ設計、ディスクへの
 ///     平文保存はしない)。
-#[derive(serde::Deserialize)]
+#[derive(serde::Deserialize, schemars::JsonSchema)]
 struct DuckDnsUpdateRequest {
     domain: String,
     token: String,
@@ -2104,7 +2105,7 @@ fn urlencoding_simple(s: &str) -> String {
 /// 保存先変更(ユーザー指示「DATA保存先は、既存の保存先でもそれ以外でも
 /// 選択可能にして」への対応、2026-08-18新設)。`new_path`にフルパスを
 /// 渡す(例: 増設したマイクロSDのマウント先配下)。
-#[derive(serde::Deserialize)]
+#[derive(serde::Deserialize, schemars::JsonSchema)]
 struct RelocateRequest {
     new_path: String,
 }
@@ -2127,7 +2128,7 @@ async fn db_relocate(req: Request, db: Arc<Db>) -> Response {
 /// RSyncで選択可能にして」への対応、2026-08-18新設)。`destination`は
 /// rsyncのCLIがそのまま受理する文字列(ローカルパス・`user@host:/path`の
 /// いずれも可)。
-#[derive(serde::Deserialize)]
+#[derive(serde::Deserialize, schemars::JsonSchema)]
 struct RsyncBackupRequest {
     destination: String,
 }
@@ -2170,7 +2171,7 @@ async fn db_rsync_backup(req: Request, db: Arc<Db>) -> Response {
 /// インストールして簡単に自動で移行する機能を搭載して」への対応、
 /// 2026-08-18新設——「インストール」ボタン1回でインストール→
 /// バックアップまで通しで完了する設計)。
-#[derive(serde::Deserialize)]
+#[derive(serde::Deserialize, schemars::JsonSchema)]
 struct InstallRsyncRequest {
     #[serde(default)]
     retry_destination: Option<String>,
@@ -2268,13 +2269,13 @@ async fn db_rsync_backup_all(req: Request, db: Arc<Db>) -> Response {
 /// システムに移動も簡単にする機能」への対応、2026-08-18新設。実際に
 /// 存在する旧データ形式は無い〈`db.rs`の`import_legacy`doc参照〉ため、
 /// 汎用的な取り込み口として実装)。
-#[derive(serde::Deserialize)]
+#[derive(serde::Deserialize, schemars::JsonSchema)]
 struct LegacyMessage {
     role: String,
     content: String,
 }
 
-#[derive(serde::Deserialize)]
+#[derive(serde::Deserialize, schemars::JsonSchema)]
 struct MigrateLegacyRequest {
     #[serde(default)]
     messages: Vec<LegacyMessage>,
@@ -2370,7 +2371,7 @@ async fn agent_local_read(req: Request) -> Response {
     }
 }
 
-#[derive(serde::Deserialize)]
+#[derive(serde::Deserialize, schemars::JsonSchema)]
 struct LocalWriteRequest {
     path: String,
     content: String,
@@ -2418,7 +2419,7 @@ async fn agent_vps_read(req: Request) -> Response {
     }
 }
 
-#[derive(serde::Deserialize)]
+#[derive(serde::Deserialize, schemars::JsonSchema)]
 struct VpsWriteRequest {
     path: String,
     content: String,
@@ -2461,7 +2462,7 @@ async fn agent_github_read(req: Request) -> Response {
     }
 }
 
-#[derive(serde::Deserialize)]
+#[derive(serde::Deserialize, schemars::JsonSchema)]
 struct GithubCommitRequest {
     owner: String,
     repo: String,
@@ -2498,7 +2499,7 @@ async fn agent_github_status(req: Request) -> Response {
     rs_json_response(StatusCode::OK, &github_agent::status())
 }
 
-#[derive(serde::Deserialize)]
+#[derive(serde::Deserialize, schemars::JsonSchema)]
 struct GithubCreateAndPushRequest {
     repo_name: String,
     #[serde(default)]
@@ -2552,7 +2553,7 @@ async fn world_lab_status(wl: Arc<world_lab::WorldLab>) -> Response {
     rs_json_response(StatusCode::OK, &wl.status())
 }
 
-#[derive(serde::Deserialize)]
+#[derive(serde::Deserialize, schemars::JsonSchema)]
 struct WorldLabPairRequest {
     token: String,
     device_name: String,
@@ -2586,7 +2587,7 @@ async fn world_lab_devices(wl: Arc<world_lab::WorldLab>) -> Response {
     }
 }
 
-#[derive(serde::Deserialize)]
+#[derive(serde::Deserialize, schemars::JsonSchema)]
 struct WorldLabUnpairRequest {
     device_id: String,
 }
@@ -2605,7 +2606,7 @@ async fn world_lab_unpair(req: Request, wl: Arc<world_lab::WorldLab>) -> Respons
 /// `POST /v1/world-lab/pair/bulk`(2026-08-25新設): 複数デバイスの
 /// 一括ペアリング(企業・オフィス等で大量のPC/タブレット/スマホを
 /// 一度に登録する用途、`world_lab.rs`の`bulk_pair`doc参照)。
-#[derive(serde::Deserialize)]
+#[derive(serde::Deserialize, schemars::JsonSchema)]
 struct WorldLabBulkPairRequest {
     token: String,
     devices: Vec<world_lab::BulkPairEntry>,
@@ -2632,7 +2633,7 @@ async fn world_lab_pair_bulk(req: Request, wl: Arc<world_lab::WorldLab>) -> Resp
 /// 兼ねる(トークンが一致しなければ実行しない)。wasmtimeの実行自体は
 /// 同期(ブロッキング)APIのため`spawn_blocking`で包み、fuel計算の
 /// ズレに対する保険として`tokio::time::timeout`も併用する。
-#[derive(serde::Deserialize)]
+#[derive(serde::Deserialize, schemars::JsonSchema)]
 struct WorldLabTaskRunRequest {
     token: String,
     wasm_base64: String,
@@ -2678,7 +2679,7 @@ async fn read_capped_rs_json_body<T: serde::de::DeserializeOwned>(req: Request, 
 // 実際の承認ロジック(自動実行しない・二重承認できない・拒否を正直に
 // 報告する等)はすべて`ApprovalQueue`側にある。
 
-#[derive(serde::Deserialize)]
+#[derive(serde::Deserialize, schemars::JsonSchema)]
 struct WorldLabDispatchRequestBody {
     token: String,
     from_device_name: String,
@@ -2736,7 +2737,7 @@ async fn world_lab_dispatch_request(req: Request, wl: Arc<world_lab::WorldLab>, 
     }
 }
 
-#[derive(serde::Deserialize)]
+#[derive(serde::Deserialize, schemars::JsonSchema)]
 struct WorldLabDispatchTokenOnlyRequest {
     token: String,
 }
@@ -2842,7 +2843,7 @@ async fn updates_history() -> Response {
     rs_json_response(StatusCode::OK, &serde_json::json!({"components": list}))
 }
 
-#[derive(serde::Deserialize)]
+#[derive(serde::Deserialize, schemars::JsonSchema)]
 struct DowngradeRequest {
     component: String,
     version: String,
@@ -3893,7 +3894,7 @@ async fn main() {
     // 完全に委譲しており、本サーバー独自の暗号コードは一切無い。
     // 型駆動のAPIドキュメント(OpenAPI/Swagger UI/ReDoc/Cosmo互換SDL/Tauriマニフェスト/TSクライアント)。
     // 登録済みの全ルートを自動で文書化する(2026-10-26、RPoemのRoute::docs_auto)。
-    let router = app.docs_auto("/api", "open-english server", env!("CARGO_PKG_VERSION")).build();
+    let router = app.docs("/api", api_docs::spec()).build();
     let tls_enabled = std::env::var("OPEN_ENGLISH_TLS_ENABLED").map(|v| v == "1").unwrap_or(false);
     if tls_enabled {
         match load_or_generate_tls_config() {
