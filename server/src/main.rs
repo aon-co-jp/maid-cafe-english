@@ -3891,7 +3891,9 @@ async fn main() {
     // ハンドシェイクそのものは`rustls`(`open_runo_poem_compat::
     // hyper_compat::tls`、RPoem/RS-SmartTCP既存パターンの再利用)に
     // 完全に委譲しており、本サーバー独自の暗号コードは一切無い。
-    let router = app.build();
+    // 型駆動のAPIドキュメント(OpenAPI/Swagger UI/ReDoc/Cosmo互換SDL/Tauriマニフェスト/TSクライアント)。
+    // 登録済みの全ルートを自動で文書化する(2026-10-26、RPoemのRoute::docs_auto)。
+    let router = app.docs_auto("/api", "open-english server", env!("CARGO_PKG_VERSION")).build();
     let tls_enabled = std::env::var("OPEN_ENGLISH_TLS_ENABLED").map(|v| v == "1").unwrap_or(false);
     if tls_enabled {
         match load_or_generate_tls_config() {
