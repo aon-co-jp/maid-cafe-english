@@ -15610,3 +15610,123 @@ Tags: `Switzerland (Japanese)` `2026-10`
 - [「 スイス 」の ニュース - CNN.co.jp](https://www.cnn.co.jp/topic/switzerland/) — 2026. 09/01: レイブ会場での銃乱射、男を逮捕 スイス ; 08/30: スイス 北部のレイブ会場で銃撃 1人死亡、5人負傷 容疑者追跡中; 07/12: アルゼンチン、3―1で スイス を ...
 - [特集 - SWI swissinfo.ch](https://www.swissinfo.ch/jpn/longform/) — 2022/10/30 ... スイス のメディアが報じた日本の ニュース 無料 ニュース レター. もっと読む ... 今日 では、 スイス 人に限らずさまざまな国籍の移民にとっても ...
 
+
+## アーカイブ日 / Archived on 2026-10-26
+
+### Malaysia(検索日時 / searched at: 2026-10-25)
+
+Tags: `Malaysia` `2026-10`
+
+- [Berita Utama Malaysia & Dunia | Harian Metro](https://www.hmetro.com.my/utama) — 17 hours ago · Berita terkini yang utama dalam Harian Metro termasuk berita harian di Malaysia, berita dunia, berita hiburan dan …
+- [Berita Harian (BHarian Online) | Berita Malaysia & Dunia Terkini](https://www.bharian.com.my/?home) — Mar 3, 2026 · Liputan berita terkini: Berita Harian menyampaikan berita dan video terkini ehwal semasa, politik, jenayah dan kisah …
+- [Harian Metro | Berita Malaysia dan berita dunia terkini](https://www.hmetro.com.my/) — 17 hours ago · Laman Harian Metro membawa berita harian di Malaysia, berita dunia, berita sukan, berita ekonomi, isu semasa …
+- [Berita Harian (BHarian Online) | Berita Malaysia & Dunia Terkini](https://www.bharian.com.my/) — Liputan berita terkini: Berita Harian menyampaikan berita dan video terkini ehwal semasa, politik, jenayah dan kisah menarik minat. …
+- [Berita dan Informasi Malaysia Terkini dan Terbaru Hari ini ...](https://www.detik.com/tag/malaysia/) — 17 hours ago · Berita dan Informasi Malaysia Terkini dan Terbaru Hari ini - detikcom detikTravelMinggu, 25 Okt 2026 20:15 WIB …
+- [Berita Utama - MalaysiaNow](https://www.malaysianow.com/my/section/lead-story) — 5 days ago · MalaysiaNow goes behind the headlines to bring you news, views and insights into the nation&#039;s biggest stories, …
+- [BeautifulSoup scraping news article](https://stackoverflow.com/questions/60065910) — [SALAH] Passing Grade Universitas Indonesia 18 Tidak ada media arus utama yang mengangkat ber... &hellip; [BERITA] Kemenpan RB: Tidak Ada Pengangkatan C... 198 Juru Bicara Kepala BIN, Wawan Hari Purwanto me... &hellip;
+- [Astro Awani - Liputan harian berita terkini | Awani](https://www.astroawani.com/) — May 7, 2024 · BN, PH kosong tujuh kerusi, petanda penjajaran politik baharu? Keputusan Barisan Nasional …
+
+### Taiwan(検索日時 / searched at: 2026-10-25)
+
+Tags: `Taiwan` `2026-10`
+
+- [NOWnews今日新聞](https://www.nownews.com/) — NOWNEWS今日新聞 《NOWNEWS APP》「聽新聞」功能，每日為您朗讀超過600則新聞。不需坐在電腦前或盯著手機瞧，可一邊做家事、開車、運動，讓AI語音主播用聲音陪伴您生活的每一刻。 ... 《鄉民大學問EP.162》字幕版｜#黃揚明 唱這首歌評洋流民調！#吳崢 同意民調不一定讓#沈伯洋 贏！#黃暐瀚 大膽預測結果！#洪孟楷 ：藍營需要大罷免團結！台北市藍綠版圖大洗牌了？！｜NOWNEWS ... 台灣大賽G5／關鍵盜三壘跑回致勝分！江坤宇笑曝給教練團一個眼神：也不知道他們有沒有看我｜NOWNEWS
+- [Yahoo新聞](https://tw.news.yahoo.com/) — 第61屆節目類金鐘獎因颱風延期至10月25日舉行，由陳漢典獨挑大樑主持。他開場展現模仿功力，一口氣模仿多位資深主持人並帶來精彩歌舞秀，炒熱典禮氣氛。典禮首度因颱風延期兩天，陳漢典感性宣布典禮重生，並感謝工作人員辛勞。本屆金鐘獎於台北流行音樂中心舉辦，並透過各大電視與網路平台同步直播，邀請觀眾一同見證精彩時刻。 ... 新北國王今靠李愷諺末節逆轉三分彈，以89：81力退新北中信特攻，收下2連勝，續居聯盟龍頭。特攻原定昨舉行開幕戰對決戰神，不過首戰因颱風攪局延至今天，今上半場靠法拉帝獨攬10分，加上謝亞軒3顆三分球，帶著48：42領先進入下半場。易籃後，特攻陷入得分荒，單節僅拿下14分，讓國王打完前三節取得67：62
+- [台灣 TV 新聞 |即時新聞、政治、財經、生活娛樂|最新 頭條 報導](http://www.baidu.com/link?url=sej6gdvdoK22apYMlPWP1LYo9kxBiywYNwONdyFKjz_) — 
+- [台海新闻网_今日 台湾新闻 _最新,最近中国台湾新闻报道-手机闽南网](http://www.baidu.com/link?url=3QzCeDQQGbTLlrBUsfX1HFv_hQh8dUGgBBkn67_iNbX-WJE19VYcia5qoe_64AIW) — 
+- [即时 新闻 _新华 台湾 _新华网](http://www.baidu.com/link?url=P3G59UC2LJHSWx-8BOSlMNe-wP3VaixXeW3GZ-XVJCVuKQIo5UEkUYV04ahQuT6h) — 
+- [台灣 週報 - 提供台灣及全球即時 頭條新聞 , 財經信息,社會新聞,國際資訊](http://www.baidu.com/link?url=3QzCeDQQGbTLlrBUsfX1HIUiyPDhu9g2vfYlrvvkkL-Yp9L1SlWZQBisDZukTD6U) — 
+- [台海新闻网_今日 台湾新闻 _最新,最近中国台湾新闻报道-台海网](http://www.baidu.com/link?url=KsrNTLJNQqm3Wg4vEqFmxYGYdohzf4rEStLt2dojWR4l4e0qz1_AvoPBxgR7wW7J-B_U7mM37ITNhhgnpQFPVq) — 
+- [台灣頭條 :您的地區 新聞 和企業新聞來源](http://www.baidu.com/link?url=sej6gdvdoK22apYMlPWP1TH4y6oUc0cnp-7YftzehtK) — 
+
+### South Korea(検索日時 / searched at: 2026-10-25)
+
+Tags: `South Korea` `2026-10`
+
+- [조선일보 - 1등 디지털뉴스](https://www.chosun.com/) — 국내 최초의 온라인 뉴스서비스 조선닷컴은 국내 최고 언론사인 조선일보의 오피니언, 정치, 사회, 경제, 국제, 스포츠, 문화 뉴스를 빠르고 정확하게 제공합니다.
+- [가장빠른 주식 뉴스 국내주식 뉴스 오늘](https://overseasstockevents.com/%ea%b0%80%ec%9e%a5%eb%b9%a0%eb%a5%b8-%ec%a3%bc%ec%8b%9d%eb%89%b4%ec%8a%a4-%ea%b5%ad%eb%82%b4%ec%a3%bc%ec%8b%9d-%eb%89%b4%ec%8a%a4-%ec%98%a4%eb%8a%98/) — 가장빠른 주식 뉴스 ’는 신속하고 정확한 정보를 제공하여 투자자들이 시장에서 빠르게 대응할 수 있도록 돕습니다. ‘국내주식 뉴스 ’는 한국 주식 시장의 주요 뉴스 와 동향을 다루며, ‘ 오늘 주식 뉴스 ’는 하루 동안의 중요한 사건들을 정리하여 제공합니다. 이 정보를 통해 투자자들은 더 나은 결정을 내릴 수...
+- [IT/테크 주요 뉴스 오늘 의 핵심 흐름과 실무 시사점 분석](https://bstar36.tistory.com/610) — 주요 뉴스 오늘 의 핵심 흐름 아래 내용은 최근 24시간 내 수집된 원문 보도를 바탕으로 정리한 핵심 이슈입니다. 확정되지 않은 사실은 추가하지 않고, 원문에서 확인되는 범위 안에서 의미를 설명합니다. 1. 브랜드 인게이지먼트 네트워크, 카타네오 인수 완료 [지디넷코리아] 이번 인수는 반복 수익을 창출하는 수익성...
+- [뉴스 - 주요 뉴스 | KTV 국민방송](http://m.ktv.go.kr/news/major/list) — 이 시각 주요 뉴스 (26. 10. 25. 12시) ; "강력범죄, 전쟁 선포 각오로"···'가석방 없는 무기형' 검토 ; 국방부, 북에 군사회담 다시 제의···"MDL 명확한 위치 확인"
+- [연합뉴스TV | 대한민국 No.1 보도채널](https://www.yonhapnewstv.co.kr/) — 대한민국 No.1 보도채널, 뉴스 투데이, 속보, 정치, 경제, 사회, 라이브 방송 제공.
+- [경제 뉴스 — 오늘 의 날씨와 경제](https://weaco.co.kr/economy/) — 한눈에 보는 오늘의 뉴스
+- [9월 8일 한국 주요 뉴스 TOP 10](https://nwforyou.tistory.com/753) — 점은 인정했지만 부정한 청탁은 없었다고 밝혔습니다. 청와대는 제기된 의혹은 국회 인사청문회에서 검증해야 한다는 입장입니다. 출처: MBC·연합 뉴스 오늘 한국 주요 뉴스 는 초대 중수청장 후보자 지명과 한·프랑스 정상회담, 호르무즈 파병 검토가 정치·외교 분야의 핵심입니다. 경제 분야에서는 미국 원전 8기와...
+- [10월 5일- 세계 주요 언론이 본 한국](https://cafe.daum.net/achasansijo/IWBC/31?q=%ED%95%9C%EA%B5%AD%20%EB%89%B4%EC%8A%A4%20%EC%98%A4%EB%8A%98%20%EC%A3%BC%EC%9A%94&re=1) — 로이터와 AP 모두 폐막 소식을 국제 스포츠 주요 기사로 다뤘습니다. Reuters 다만 국내에서는 한국 의 금메달 수가 44년 만에 가장 적었다는 평가가 나오고 있어...일본과의 경기력 격차를 어떻게 줄일지가 과제로 남았습니다. SBS 뉴스 오늘 아침 제가 보는 중요도 1순위는 알래스카 LNG입니다. 미국 대통령이 한국 의...
+
+### Philippines(検索日時 / searched at: 2026-10-25)
+
+Tags: `Philippines` `2026-10`
+
+- [Abante News Online | Una sa Balita](https://www.abante.com.ph/) — 3 weeks ago - Abante ang #1 leading tabloid sa Pilipinas. Tutok lang para sa latest Pinoy balita at showbiz news ngayon. Abante lang ang laging una sa balitang mainit-init pa
+- [Balita - Balita](https://balita.mb.com.ph/balita/) — 5 days ago - Mariing kinondena ng mga mambabatas na sina Senate President (SP) Sherwin Gatchalian, Sen. Erwin Tulfo, at Sen. Risa Hontiveros ang naging pahayag ni Chinese Ambassador to the Philippines Jing Quan na madali umano mananalo ang China kontra sa Pilipinas kung gagamit ito ng puwersa.
+- [Breaking News & Headlines in the Philippines | ABS-CBN …](https://www.abs-cbn.com/news) — 1 week ago - Stay updated with the latest breaking news, in-depth reports, and exclusive interviews. Get your trusted news coverage from ABS-CBN News.
+- [Videos - 24 Oras, Philippines Live News Today | GMA News ...](https://www.gmanetwork.com/news/video/shows/105/balitapilipinas/) — 1 week ago - Watch news reports, social videos, and livestreams that cover top stories and breaking events in the Philippines.
+- [Pilipino Star Ngayon | Balita ngayon - Philstar.com](https://www.philstar.com/pilipino-star-ngayon/) — Dec 25, 2021 · Online edition ng Pilipino Star Ngayon, ang dyaryong disente ng masang intelihente. Abangan ang pinakabagong …
+- [Balita - National](https://balita.mb.com.ph/national/) — Oct 13, 2026 · Nagbigay ng tips si Pangulong Ferdinand 'Bongbong' Marcos, Jr. sa publiko para paghandaan ang Super El Niño sa …
+- [Pilipino Star Ngayon - Bansa | Philstar.com](https://www.philstar.com/pilipino-star-ngayon/bansa) — Kinuwestiyon ni Chairman Emeritus Dr. Jose Antonio Goitia kung bahagi ng mas malawak na estratehiya ng Tsina ang tumitinding mga kilos nito sa West Philippine Sea upang pahinain ang paninindigan ng Pilipinas.
+- [Balita - Philippine News](https://balita.mb.com.ph/) — Viral ngayon ang isang pari sa Italy matapos nitong mag-middle finger sa isa sa mga kabataang nagmimitsa ng riot sa kanilang lugar. Kasunod ito ng sumiklab na malawakang kilos-protesta sa iba’t ibang pangunahing mga siyudad sa bansang Italy, partikular sa Milan, Bologna, at Turin, noong Oktubre 17-18, 2026.
+
+### Thailand(検索日時 / searched at: 2026-10-25)
+
+Tags: `Thailand` `2026-10`
+
+- [ข่าว ข่าววันนี้ ข่าวด่วนทั่ว ...](https://thethaiger.com/th/thai-news/) — 17 ชั่วโมงที่ผ่านมา · อ่าน ข่าวไทยวันนี้ ที่ The Thaiger รับข่าวสารเกี่ยวกับเหตุการณ์ล่าสุดในประเทศไทย ข่าวสดใหม่ …
+- [ข่าวเด่นวันนี้ | Thai PBS News ข่าวไทย ...](https://www.thaipbs.or.th/news) — ที่ 17 ส.ค. พ.ศ. 2563 · ข่าวเด่นวันนี้ ข่าวที่คุณวางใจ โดยสำนักข่าวไทยพีบีเอส ติดตามข่าวและสถานการณ์ทั้งในและต่างประเทศได้ที่นี่
+- [ข่าวไทยรัฐ ข่าวล่าสุด ข่าวด่วน ...](https://www.thairath.co.th/news) — อ่านข่าวไทยรัฐ ข่าวด่วน ข่าวล่าสุด ข่าววันนี้ ทันทุกเหตุการณ์ ทุกเรื่องเด่น ทุกประเด็นร้อน อัพเดทข่าวสด รู้ข่าวสารก่อน ...
+- [Thaiger ข่าวประเทศไทย : ข่าววันนี้ ...](https://thethaiger.com/th/) — ที่ 16 ต.ค. พ.ศ. 2569 · Thaiger ข่าวประเทศไทย ข่าววันนี้ รายงานข่าวล่าสุดครอบคลุมทุกประเด็นร้อน …
+- [ข่าว ข่าววันนี้ ข่าวสด ข่าว ...](https://www.sanook.com/news/) — เกาะติดข่าว ข่าววันนี้ ข่าวด่วน ข่าวออนไลน์ ข่าวอาชญากรรม ข่าวบันเทิง ข่าวดารา ทันเหตุการณ์ ในประเทศ และต่างประเทศ
+- [Sanook - ข่าว ข่าววันนี้ ข่าวสด ข่าว ...](https://news.sanook.com/index.php) — เกาะติดข่าว ข่าววันนี้ ข่าวด่วน ข่าวบันเทิง ข่าวดารา ทันเหตุการณ์ จากทุกสำนักข่าวทั้ง ในประเทศ และต่างประเทศ ที่ Sanook News "แม่อ้อย" …
+- [ข่าวทั่วไทย รวมข่าว ...](https://www.thairath.co.th/news/local) — 1 วันที่แล้ว · ผนึกกำลังยกระดับ SMEs ไทย เจาะตลาดจีน–อินโดนีเซีย. “นรินทร์ เผ่าวณิช” ผู้ว่าการ กฟผ. คว้าสุดยอด CEO รัฐวิสาหกิจด้าน ESG.
+- [ข่าวด่วนวันนี้ ข่าวด่วน ข่าว ...](https://www.sanook.com/hot/news/) — เปิดสถิติ Starbucks ทั่วโลก ประเทศไหนมีสาขาเยอะที่สุด? ไทยอยู่อันดับที่เท่าไหร่?
+
+### Cambodia(検索日時 / searched at: 2026-10-25)
+
+Tags: `Cambodia` `2026-10`
+
+- [ព័ត៌មានកម្ពុជាថ្ងៃនេះ ...](https://kampuchea.news/kh/) — ព័ត៌មានថ្មីៗពីកម្ពុជា ជាភាសាខ្មែរ ...
+- [កម្ពុជាថ្ងៃនេះ - Cambodia Today - កម្មវិធី​នីមួយៗ](https://khmer.voanews.com/z/2690) — August 1, 2026 - កម្ពុជាថ្ងៃនេះ (Cambodia Today) នាំជូនមក​នូវ​សេចក្តី​រាយការណ៍​ជា​វីដេអូស្តី​អំពី ព័ត៌មាន​និង​ព្រឹត្តិការណ៍​ទាក់ទងនឹង​កម្ពុជា ទាំង​ក្នុង​និង​ក្រៅ​ប្រទេស។ - កម្មវិធី​នីមួយៗ
+- [ព័ត៌មានក្នុងប្រទេស ...](https://www.information.gov.kh/c/national_news) — AKP កំពង់ស្ពឺ ថ្ងៃទី២៤ ខែតុលា ឆ្នាំ២០២៦—សម្តេចមហាបវរធិបតី ហ៊ុន ម៉ាណែត នាយករដ្ឋមន្ត្រី នៃព្រះរាជាណាចក្រកម្ពុជា …
+- [Post Khmer Insights: Accurate Cambodia National News](https://www.postkhmer.com/) — Jul 25, 2026 · ភ្នំពេញ ប៉ុស្តិ៍ ឈានមុខ គេ ក្នុងការ ផ្សព្វផ្សាយ ពី ព័ត៌មាន វិស័យ អចលនទ្រព្យ កម្ពុជា ទៅ ទីផ្សារ អន្តរជាតិ
+- [Cambodia News: - Khmer News - ពត៌មាន ...](https://www.cambodia.org/news/) — 17 hours ago · Looking for Cambodia News: or Khmer News: , or current situation in Cambodia, cambodia.org is the site for you. …
+- [ព័ត៌មាន​ថ្មីៗ Archives - The Cambodia Daily Khmer](https://www.cambodiadaily.com/category/latest/) — កម្ពុជាច្រានចោលការទាមទារព្រំដែនជាឯកតោភាគីរបស់ថៃ និងចោទថាបន្តរំលោភកិច្ចព្រមព្រៀងទ្វេភាគី ...
+- [កម្ពុជាថ្ងៃនេះ | Sihanoukville (city) | Facebook](https://www.facebook.com/camdaynews/) — ព័ត៌មាន បឋម៖ ករណីអគ្គីយភ័យឆា/បឆេះយ៉ាងសន្ធោសន្ធៅ នៅក្រោយផ្ទះសំណាក់ប៉ៃលិន (កន្លែងចាក់សម...
+- [វីអូអេ - ព័ត៌មាន VOA](https://khmer.voanews.com/) — 17 hours ago · ព័ត៌មាន ពេល ព្រឹក ព័ត៌មាន ពេល រាត្រី Hello VOA សំឡេង ជំនាន់ ថ្មី វេទិកា អាស៊ាន ព័ត៌មាន តាមប្រធានបទ កម្ពុជា អន្តរជាតិ …
+
+### China(検索日時 / searched at: 2026-10-25)
+
+Tags: `China` `2026-10`
+
+- [今日头条](https://www.toutiao.com/) — 扫码下载今日头条关于头条反馈 · 北京雾11℃轻度 · 切换10月23日 · 今天(周五)11℃ ~ 17℃ · 明天(周六)9℃ ~ 13℃ · 后天(周日)4℃ ~ 17℃ · 消息 · 发布作品登录 · 搜索 · Anthropic进入上市冲刺阶段约旦河西岸发生枪击4人受伤证监会核准花旗中国设立我国对外投资存量居全球前三伊朗电视台展示新型无人机娃哈哈董事长被曝辞职贫困户1.2万住院费医保报销93v人29分大逆转胜骑士学者：以希望伊朗主动打自己卢旺达外交官称赞中国Anthropic进入上市冲刺阶段 ·
+- [头条新闻_今日中国](http://www.baidu.com/link?url=E9GuDUrbGtmJ5skhRD-oepKM7CH0I5K9Sl7HJE8SNP0UzqQrudUuPMZeHuuuRjrx5DgPWObeyehpfnxOPUEkcK) — 
+- [今日头条](http://www.baidu.com/link?url=QIAPycp1fT808ylB058iW-g45mwN4pCds3DIt2POcI0c2Vpg-xEOC_zzh68tlauo) — 
+- [头条新闻 _头条_ 中国 政府网](http://www.baidu.com/link?url=m-qRHzGYQ7ldnUSi2A6y3ZA3Pl7dvfaawCwPPEX4sxjNK4z9ybDpSpCGBx-husIx) — 
+- [中国新闻网_梳理天下新闻](https://www.chinanews.com.cn/) — 中国新闻网，是知名的中文新闻门户网站，也是全球互联网中文新闻资讯最重要的原创内容供应商之一。 依托中新社遍布全球的采编 …
+- [头条新闻 的微博_微博](http://www.baidu.com/link?url=QT-g2QN0xs4qzOtyow0SqKj63aBd28fTYeCDm8mAHd2dVxDKUMqqoOqynfLAGXmZ) — 
+- [头条新闻 - 让新闻离你更近](http://www.baidu.com/link?url=OopBDbYVLSEbbWx-3LTp6EOQqXQ6oFuJ9THVMg7A17JOBIN3dWaITVe2YihwdWaFfinun000H-yyTVYOonDC3_) — 
+- [中国新闻 网_梳理天下新闻](http://www.baidu.com/link?url=VY0Ch28lNCWzgdjLHv2c7DWRcbpzrP_TrzYx8JU7-ou) — 
+
+### United States(検索日時 / searched at: 2026-10-25)
+
+Tags: `United States` `2026-10`
+
+- [US News Today: Latest Headlines & Updates | Yahoo](https://www.yahoo.com/news/us/) — Today's top US news from Yahoo News — breaking national stories, crime and courts coverage from trusted sources, updated throughout the day.
+- [Associated Press News: Breaking News | Latest News Today](https://apnews.com/) — Read the latest headlines, breaking news, and videos at APNews.com, the definitive source for independent journalism from every …
+- [NBC News – Breaking Headlines and Video Reports on World ...](https://www.nbcnews.com/) — Where Democrats see openings for Senate gains in red states ... Trump touts U.S. oil business making ‘hundreds of billions’ ... Senator says China benefits if U.S. won't regulate A.I. ... Trump admin. sues to block Alaska Senate certification ...
+- [Latest U.S. News | Top headlines from the USA | Reuters](https://www.reuters.com/world/us/) — 1 day ago - The World Cup has captured the imagination of fans across the United States, no better illustrated than in the tournament store in Houston, where locals have been snapping ​up mementos of a rare chance to have the global finals on their doorstep.
+- [U.S. News: Latest news, breaking news, today's news ...](https://www.cbsnews.com/us/) — U.S. breaking news: Today's top stories updated by the CBS News team.
+- [NBC News USA - Breaking News, Top Stories, Politics ...](https://nbcnewsusa.com/) — 6 days ago · The latest headlines shaping the U.S. and the world today Follow the latest developments in politics, business, world …
+- [USA News Today | Latest USA & White House News - NewsNow](https://www.newsnow.com/us/US) — Our NewsNow USA feed brings together the latest headlines on US politics, the White House, Congress, the Supreme Court, the …
+- [U.S. News: Latest Breaking Stories and Video on National Issues](https://www.nbcnews.com/us-news) — Mar 25, 2013 · Get the latest news headlines and top stories from NBCNews.com. Find videos and news articles on the latest stories …
+
+### Japan(検索日時 / searched at: 2026-10-25)
+
+Tags: `Japan` `2026-10`
+
+- [NHKニュース 速報・最新情報](https://news.web.nhk/newsweb) — 新着 ニュース · 新潟市長選挙 現職の中原八一氏 3回目の当選確実. 10月25日 21:06 · 【速報中】 日本 シリーズ DeNAが逆転 筒香嘉智のスリーラン. 10月25日 21:01 · マラソン ...
+- [Yahoo!ニュース](https://news.yahoo.co.jp/) — 台風30号は温帯低気圧に 大雨警戒. 84. 1時間前 ; AI投資に巨額マネー 実態と展望. 25. 1時間前 ; 事故で脚切断 25歳諦めていた恋愛. 447. 2時間前 ; 伊東純也 ゴールの内側 ...
+- [Google ニュース](https://news.google.com/home?hl=ja&gl=JP&ceid=JP%3Aja) — トップ ニュース · 読む政治：高市内閣支持率、45％で横ばい 最も評価する取り組みは? · 和菓子店経営者殺害、男2人を強盗殺人容疑などで逮捕…被害男性の長男「知らせを受け ...
+- [日本経済新聞 - ニュース・速報 最新情報](https://www.nikkei.com/) — GMOへの攻撃者、利用者PCの乗っ取りを画策 会社は注意喚起 · 日経平均は戻り試す､円は弱含む展開 今週の市場・予定 · 高市内閣支持率、横ばい62% 簗前農相の辞任「首相対応に ...
+- [時事ドットコム：時事通信社が運営するニュースサイト](https://www.jiji.com/) — ニュースＱ＆Ａ · 深層探訪 · 悲願の減税、首相「検討」連発 野党、給付で対抗―与党、公・国取り込みに課題 2026年10月20日 · 深層探訪 · 高市政権１年、揺らぐ「高市１強」 財政・日中、内憂外患―頼みの支持率、...
+- [新着ニュース一覧 - NHKニュース - NHK ONE](https://news.web.nhk/newsweb/pl/news-nwa-latest-nationwide) — 福島県知事選挙 現職の内堀雅雄氏が4回目の当選 · GMO社長 能動的サイバー防御「国民生活への影響照らし検討を」 · 台風30号 東シナ海で温帯低気圧に変わる(午後9時) · 【速報 ...
+- [主要トピックス一覧 - Yahoo!ニュース](https://news.yahoo.co.jp/topics/top-picks) — トピックス一覧 ; SBが2戦連続の延長戦制す 日本 S · 10/25(日) 21:49 ; 速報 SB川村が10回に勝ち越し弾. 10/25(日) 21:31 ; 事故で脚切断 25歳諦めていた恋愛. 10/25(日) 21:17.
+- [速報・新着ニュース一覧：朝日新聞](https://www.asahi.com/news/) — 1 日前 - ニュース > 日付別一覧 · 速報・新着ニュース一覧 · 2026年7月 · 2026年8月 · 2026年9月 · 2026年10月 · 1日 · 2日 · 3日 · 4日 · 5日 · 6日 · 7日 · 8日 · 9日 · 10日 · 11日 · 12日 · 13日 · 14日 · 15日 · 16日 ·
+
