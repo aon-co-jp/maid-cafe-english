@@ -50,12 +50,19 @@ fn is_within_allowed(candidate: &Path, allowed: &[PathBuf]) -> bool {
 }
 
 /// ブラウザ側UIの「SETUP済み表示」用の状態確認(2026-09-01新設)。
-pub fn status() -> serde_json::Value {
+/// `GET /v1/agent/local/status`のレスポンス(ハンドラはこの型をそのまま返す)。
+#[derive(Debug, serde::Serialize, schemars::JsonSchema)]
+pub struct LocalAgentStatus {
+    pub configured: bool,
+    pub allowed_dirs: Vec<String>,
+}
+
+pub fn status() -> LocalAgentStatus {
     let allowed = allowed_dirs();
-    serde_json::json!({
-        "configured": !allowed.is_empty(),
-        "allowed_dirs": allowed.iter().map(|p| p.display().to_string()).collect::<Vec<_>>(),
-    })
+    LocalAgentStatus {
+        configured: !allowed.is_empty(),
+        allowed_dirs: allowed.iter().map(|p| p.display().to_string()).collect::<Vec<_>>(),
+    }
 }
 
 /// 読み込み対象パスを検証し、正規化済みの実体パスを返す。

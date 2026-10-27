@@ -44,6 +44,28 @@ use std::time::{SystemTime, UNIX_EPOCH};
 
 use serde::Serialize;
 
+/// `GET /v1/world-lab/status`のレスポンス(ハンドラはこの型をそのまま返す)。
+#[derive(Debug, Serialize, schemars::JsonSchema)]
+pub struct WorldLabStatus {
+    pub enabled: bool,
+    pub paired_device_count: usize,
+    pub paired_by_kind: PairedByKind,
+    pub disclosure_ja: &'static str,
+    pub disclosure_en: &'static str,
+    pub capabilities_disclosure_ja: &'static str,
+    pub capabilities_disclosure_en: &'static str,
+    pub wan_disclosure_ja: &'static str,
+    pub wan_disclosure_en: &'static str,
+}
+
+#[derive(Debug, Serialize, schemars::JsonSchema)]
+pub struct PairedByKind {
+    pub phone: usize,
+    pub tablet: usize,
+    pub pc: usize,
+    pub other: usize,
+}
+
 /// ペアリング済みデバイス1件分の情報。
 #[derive(Debug, Clone, Serialize)]
 pub struct PairedDevice {
@@ -132,7 +154,7 @@ impl WorldLab {
         Self { enabled: true, pairing_token: token.to_string(), devices: Mutex::new(HashMap::new()) }
     }
 
-    pub fn status(&self) -> serde_json::Value {
+    pub fn status(&self) -> WorldLabStatus {
         let devices = self.devices.lock().unwrap();
         // 種別ごとの内訳(2026-08-24追加、ユーザー指示「複数のスマホ/
         // タブレット/PC接続対応」の一覧性向上——利用者が一覧を開かずとも
@@ -142,22 +164,22 @@ impl WorldLab {
         for d in devices.values() {
             *by_kind.entry(d.kind.as_str()).or_insert(0) += 1;
         }
-        serde_json::json!({
-            "enabled": self.enabled,
-            "paired_device_count": devices.len(),
-            "paired_by_kind": {
-                "phone": by_kind.get("phone").copied().unwrap_or(0),
-                "tablet": by_kind.get("tablet").copied().unwrap_or(0),
-                "pc": by_kind.get("pc").copied().unwrap_or(0),
-                "other": by_kind.get("other").copied().unwrap_or(0),
+        WorldLabStatus {
+            enabled: self.enabled,
+            paired_device_count: devices.len(),
+            paired_by_kind: PairedByKind {
+                phone: by_kind.get("phone").copied().unwrap_or(0),
+                tablet: by_kind.get("tablet").copied().unwrap_or(0),
+                pc: by_kind.get("pc").copied().unwrap_or(0),
+                other: by_kind.get("other").copied().unwrap_or(0),
             },
-            "disclosure_ja": "これはデバイス発見/ペアリングの記帳のみを行う実験的機能です。実際のタスク配布・計算の共有・通信の中継は実装していません。このサーバーには他者宛ての通信を転送するコード自体が存在しないため、ペアリング済みデバイスが増えても、あるいは接続方式が何であっても(USB/Wi-Fi/Bluetooth/LAN)、Winnyのような『踏み台』(第三者への攻撃・不正アクセスの中継点)として悪用することは構造上できません。",
-            "disclosure_en": "This is an experimental device discovery/pairing bookkeeping feature only. Task dispatch, shared computation, and traffic relaying are not implemented. Because this server contains no code path that forwards traffic on behalf of anyone, it cannot be abused as a Winny-style relay/stepping-stone for attacking or gaining unauthorized access to third parties, regardless of how many devices are paired or which transport (USB/Wi-Fi/Bluetooth/LAN) they use.",
-            "capabilities_disclosure_ja": "各デバイスのCPU/GPU/NPU対応は接続側の自己申告であり、サーバー側では検証・計測していません。実際の計算タスク(WASMサンドボックス)は常にCPUで実行され、GPU/NPUへの越境ディスパッチは未実装です。",
-            "capabilities_disclosure_en": "Each device's CPU/GPU/NPU capability is self-reported by the pairing client and is not verified or measured by this server. Actual compute tasks (the WASM sandbox) always run on CPU — dispatching to a remote device's GPU/NPU is not implemented.",
-            "wan_disclosure_ja": "接続方式に「wan」を選ぶことはできますが、これは自己申告の分類ラベルに過ぎません。このサーバーは既定で127.0.0.1(このPC自身)にのみ待受し、外部からは一切到達できません——インターネットまたはLAN越しに公開したい場合は、利用者自身が`OPEN_ENGLISH_SERVER_BIND`環境変数を明示的に変更する必要があり、これが唯一の「手動設定」経路です。自動でのポート開放(UPnP等)は意図的に実装していません——UPnPによる自動ポート開放はそれ自体がルーターの既知の攻撃経路として長年問題視されており、踏み台化防止を掲げるworld-labへ組み込むのは本末転倒と判断しました。実際にインターネット越しへ公開する場合、現在のペアリングAPIは平文HTTP(TLS無し)のため、ご自身でTLS終端(リバースプロキシ等、既存のopen-web-server/open-easy-webが利用できます)を用意することを強く推奨します。",
-            "wan_disclosure_en": "You can label a device's connection as \"wan\", but that is only a self-reported classification. This server listens on 127.0.0.1 (this machine only) by default and is unreachable from outside — exposing it to a LAN or the internet requires the operator to explicitly change the OPEN_ENGLISH_SERVER_BIND environment variable, which is the one and only manual path to doing so. Automatic port opening (e.g. UPnP) is deliberately not implemented — UPnP-based auto port-forwarding is itself a long-standing, well-known router attack vector, and building it into a feature whose whole point is preventing relay/stepping-stone abuse would be self-defeating. If you do expose this over the real internet, the pairing API is still plain HTTP (no TLS) today, so setting up your own TLS termination (e.g. via open-web-server/open-easy-web) is strongly recommended.",
-        })
+            disclosure_ja: "これはデバイス発見/ペアリングの記帳のみを行う実験的機能です。実際のタスク配布・計算の共有・通信の中継は実装していません。このサーバーには他者宛ての通信を転送するコード自体が存在しないため、ペアリング済みデバイスが増えても、あるいは接続方式が何であっても(USB/Wi-Fi/Bluetooth/LAN)、Winnyのような『踏み台』(第三者への攻撃・不正アクセスの中継点)として悪用することは構造上できません。",
+            disclosure_en: "This is an experimental device discovery/pairing bookkeeping feature only. Task dispatch, shared computation, and traffic relaying are not implemented. Because this server contains no code path that forwards traffic on behalf of anyone, it cannot be abused as a Winny-style relay/stepping-stone for attacking or gaining unauthorized access to third parties, regardless of how many devices are paired or which transport (USB/Wi-Fi/Bluetooth/LAN) they use.",
+            capabilities_disclosure_ja: "各デバイスのCPU/GPU/NPU対応は接続側の自己申告であり、サーバー側では検証・計測していません。実際の計算タスク(WASMサンドボックス)は常にCPUで実行され、GPU/NPUへの越境ディスパッチは未実装です。",
+            capabilities_disclosure_en: "Each device's CPU/GPU/NPU capability is self-reported by the pairing client and is not verified or measured by this server. Actual compute tasks (the WASM sandbox) always run on CPU — dispatching to a remote device's GPU/NPU is not implemented.",
+            wan_disclosure_ja: "接続方式に「wan」を選ぶことはできますが、これは自己申告の分類ラベルに過ぎません。このサーバーは既定で127.0.0.1(このPC自身)にのみ待受し、外部からは一切到達できません——インターネットまたはLAN越しに公開したい場合は、利用者自身が`OPEN_ENGLISH_SERVER_BIND`環境変数を明示的に変更する必要があり、これが唯一の「手動設定」経路です。自動でのポート開放(UPnP等)は意図的に実装していません——UPnPによる自動ポート開放はそれ自体がルーターの既知の攻撃経路として長年問題視されており、踏み台化防止を掲げるworld-labへ組み込むのは本末転倒と判断しました。実際にインターネット越しへ公開する場合、現在のペアリングAPIは平文HTTP(TLS無し)のため、ご自身でTLS終端(リバースプロキシ等、既存のopen-web-server/open-easy-webが利用できます)を用意することを強く推奨します。",
+            wan_disclosure_en: "You can label a device's connection as \"wan\", but that is only a self-reported classification. This server listens on 127.0.0.1 (this machine only) by default and is unreachable from outside — exposing it to a LAN or the internet requires the operator to explicitly change the OPEN_ENGLISH_SERVER_BIND environment variable, which is the one and only manual path to doing so. Automatic port opening (e.g. UPnP) is deliberately not implemented — UPnP-based auto port-forwarding is itself a long-standing, well-known router attack vector, and building it into a feature whose whole point is preventing relay/stepping-stone abuse would be self-defeating. If you do expose this over the real internet, the pairing API is still plain HTTP (no TLS) today, so setting up your own TLS termination (e.g. via open-web-server/open-easy-web) is strongly recommended.",
+        }
     }
 
     pub fn pair(&self, token: &str, device_name: &str, connection: &str, kind: &str, capabilities: &[String]) -> Result<PairedDevice, String> {
@@ -1257,7 +1279,7 @@ mod tests {
         }
         let devices = wl.list_devices().unwrap();
         assert_eq!(devices.len(), 20);
-        let status = wl.status();
+        let status = serde_json::to_value(wl.status()).unwrap();
         assert_eq!(status["paired_device_count"], 20);
         assert_eq!(status["paired_by_kind"]["phone"], 10);
         assert_eq!(status["paired_by_kind"]["tablet"], 5);
@@ -1275,7 +1297,7 @@ mod tests {
     #[test]
     fn status_includes_wan_disclosure() {
         let wl = WorldLab::new_enabled_for_test("test-token");
-        let status = wl.status();
+        let status = serde_json::to_value(wl.status()).unwrap();
         assert!(status["wan_disclosure_en"].as_str().unwrap().contains("TLS"));
         assert!(status["wan_disclosure_ja"].as_str().unwrap().contains("TLS"));
     }

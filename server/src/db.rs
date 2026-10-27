@@ -832,7 +832,7 @@ impl Db {
     }
 }
 
-#[derive(Debug, Clone, serde::Serialize)]
+#[derive(Debug, Clone, serde::Serialize, schemars::JsonSchema)]
 pub struct StoredMessage {
     pub id: i64,
     pub role: String,

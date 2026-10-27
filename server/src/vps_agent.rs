@@ -133,18 +133,22 @@ fn resolved_key_path() -> Option<String> {
     default_key_path().map(|p| p.to_string_lossy().to_string())
 }
 
-pub fn status() -> serde_json::Value {
+/// `GET /v1/agent/vps/status`のレスポンス(ハンドラはこの型をそのまま返す)。
+#[derive(Debug, serde::Serialize, schemars::JsonSchema)]
+pub struct VpsAgentStatus {
+    pub configured: bool,
+    pub host: Option<String>,
+    pub user: Option<String>,
+    pub allowed_paths: Vec<String>,
+}
+
+pub fn status() -> VpsAgentStatus {
     let host = std::env::var("OPEN_ENGLISH_VPS_HOST").ok();
     let user = std::env::var("OPEN_ENGLISH_VPS_USER").ok();
     let has_key = resolved_key_path().is_some();
     let allowed = allowed_remote_dirs();
     let configured = host.is_some() && user.is_some() && has_key && !allowed.is_empty();
-    serde_json::json!({
-        "configured": configured,
-        "host": host,
-        "user": user,
-        "allowed_paths": allowed,
-    })
+    VpsAgentStatus { configured, host, user, allowed_paths: allowed }
 }
 
 fn config_from_env() -> Result<VpsConfig> {

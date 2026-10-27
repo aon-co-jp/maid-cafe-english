@@ -124,7 +124,7 @@ pub async fn commit_file(owner: &str, repo: &str, path: &str, content: &str, mes
 /// 何らかの形でトークンがブラウザのJS上に一度は存在するが、この
 /// モードはその瞬間が構造的に存在しない、既存モードより一段安全な
 /// 選択肢)。
-#[derive(Debug, Serialize)]
+#[derive(Debug, Serialize, schemars::JsonSchema)]
 pub struct ServerModeStatus {
     pub configured: bool,
 }

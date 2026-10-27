@@ -643,7 +643,7 @@ async fn read_rs_json_body<T: serde::de::DeserializeOwned>(req: Request) -> Resu
 /// ヘルスチェック先として`self_update.rs`が使う。既存の`aruaru-llm`側
 /// `/healthz`と同じ命名に揃えた)。
 async fn healthz() -> Response {
-    rs_json_response(StatusCode::OK, &serde_json::json!({"ok": true}))
+    rs_json_response(StatusCode::OK, &crate::api_docs::OkResponse { ok: true })
 }
 
 // ── aruaru-llm モデル管理プロキシ(2026-09-11新設) ───────────────────
@@ -1141,10 +1141,7 @@ async fn admin_aruaru_llm_models() -> Response {
 async fn platform_info() -> Response {
     rs_json_response(
         StatusCode::OK,
-        &serde_json::json!({
-            "os": std::env::consts::OS,
-            "arch": std::env::consts::ARCH,
-        }),
+        &crate::api_docs::PlatformInfo { os: std::env::consts::OS, arch: std::env::consts::ARCH },
     )
 }
 
@@ -1186,11 +1183,7 @@ async fn app_config() -> Response {
     let aruaru_llm_public_chat_available = aruaru_llm_reachable_from_server().await;
     rs_json_response(
         StatusCode::OK,
-        &serde_json::json!({
-            "aruaru_llm_base_url": aruaru_llm_base_url,
-            "self_hosted_hostnames": self_hosted_hostnames,
-            "aruaru_llm_public_chat_available": aruaru_llm_public_chat_available,
-        }),
+        &crate::api_docs::AppConfig { aruaru_llm_base_url, self_hosted_hostnames, aruaru_llm_public_chat_available },
     )
 }
 
@@ -1210,66 +1203,66 @@ async fn cpu_runtime() -> Response {
     let (vendor, family) = open_cpu::vendor_family();
     rs_json_response(
         StatusCode::OK,
-        &serde_json::json!({
-            "open_cpu_version": open_cpu::VERSION,
-            "summary": c.summary(),
-            "gf_impl": format!("{:?}", open_cpu::selected_impl()),
+        &crate::api_docs::CpuRuntime {
+            open_cpu_version: open_cpu::VERSION,
+            summary: c.summary(),
+            gf_impl: format!("{:?}", open_cpu::selected_impl()),
             // --- 2026-08-23 追加: 複数命令セットの「組み合わせ」情報 ---
             // 単独フラグの羅列だけでは「AVX-512F と BW が両方揃っているか」
             // のような実際のディスパッチ条件が分からないため、open-cpu が
             // 判定した組み合わせプロファイルと各カーネルの選択実装を返す。
-            "isa_profile": c.isa_profile().name(),
-            "isa_profile_raw": c.isa_profile_raw().name(),
-            "float_impl": open_cpu::selected_float_impl().to_string(),
-            "bit_impl": open_cpu::bit_impl_summary(),
-            "avx512_opt_in": open_cpu::avx512_opt_in(),
-            "cpu_vendor": format!("{:?}", vendor),
-            "cpu_family": format!("{family:#x}"),
+            isa_profile: c.isa_profile().name().to_string(),
+            isa_profile_raw: c.isa_profile_raw().name().to_string(),
+            float_impl: open_cpu::selected_float_impl().to_string(),
+            bit_impl: open_cpu::bit_impl_summary(),
+            avx512_opt_in: open_cpu::avx512_opt_in(),
+            cpu_vendor: format!("{:?}", vendor),
+            cpu_family: format!("{family:#x}"),
             // BMI2 ビットが立っていても Zen〜Zen 2 では pext/pdep が
             // マイクロコードで遅く、スカラーの方が速い(実測 7.1 倍差)。
-            "fast_bmi2": c.fast_bmi2(),
-            "detected_but_unused": c.detected_but_unused().to_names(),
-            "combination_examples": {
-                "avx2+fma3": c.supports_all(&[open_cpu::Feature::Avx2, open_cpu::Feature::Fma]),
-                "avx512f+bw+vl": c.supports_all(&[
+            fast_bmi2: c.fast_bmi2(),
+            detected_but_unused: c.detected_but_unused().to_names(),
+            combination_examples: crate::api_docs::CombinationExamples {
+                avx2_fma3: c.supports_all(&[open_cpu::Feature::Avx2, open_cpu::Feature::Fma]),
+                avx512f_bw_vl: c.supports_all(&[
                     open_cpu::Feature::Avx512f,
                     open_cpu::Feature::Avx512bw,
                     open_cpu::Feature::Avx512vl
                 ]),
-                "avx512f+bw+vnni": c.supports_all(&[
+                avx512f_bw_vnni: c.supports_all(&[
                     open_cpu::Feature::Avx512f,
                     open_cpu::Feature::Avx512bw,
                     open_cpu::Feature::Avx512vnni
                 ]),
-                "ssse3+pclmulqdq": c.supports_all(&[
+                ssse3_pclmulqdq: c.supports_all(&[
                     open_cpu::Feature::Ssse3,
                     open_cpu::Feature::Pclmulqdq
                 ]),
-                "gfni+avx2": c.supports_all(&[open_cpu::Feature::Gfni, open_cpu::Feature::Avx2])
+                gfni_avx2: c.supports_all(&[open_cpu::Feature::Gfni, open_cpu::Feature::Avx2])
             },
-            "features": {
-                "sse2": c.sse2,
-                "ssse3": c.ssse3,
-                "popcnt": c.popcnt,
-                "aes": c.aes,
-                "pclmulqdq": c.pclmulqdq,
-                "bmi1": c.bmi1,
-                "bmi2": c.bmi2,
-                "fma": c.fma,
-                "sha": c.sha,
-                "avx2": c.avx2,
-                "avx512f": c.avx512f,
-                "avx512bw": c.avx512bw,
-                "avx512vl": c.avx512vl,
-                "avx_vnni": c.avx_vnni,
-                "avx512vnni": c.avx512vnni,
-                "gfni": c.gfni,
-                "vpclmulqdq": c.vpclmulqdq
+            features: crate::api_docs::CpuFeatures {
+                sse2: c.sse2,
+                ssse3: c.ssse3,
+                popcnt: c.popcnt,
+                aes: c.aes,
+                pclmulqdq: c.pclmulqdq,
+                bmi1: c.bmi1,
+                bmi2: c.bmi2,
+                fma: c.fma,
+                sha: c.sha,
+                avx2: c.avx2,
+                avx512f: c.avx512f,
+                avx512bw: c.avx512bw,
+                avx512vl: c.avx512vl,
+                avx_vnni: c.avx_vnni,
+                avx512vnni: c.avx512vnni,
+                gfni: c.gfni,
+                vpclmulqdq: c.vpclmulqdq
             },
             // 誇張しないための明示。
-            "disclosure_ja": "このエンドポイントはCPU命令セットの検出結果を報告するだけで、open-english本体の処理(チャット応答・学習機能)はCPU集約的な演算を持たないため、現時点でSIMD高速化の適用先は無い。実際に高速化されているのは open-raid-z のGF(2^8)演算、open-cuda/aruaru-llm のCPU推論、open-cg-cad の断面積微分。",
-            "disclosure_en": "This endpoint only reports detected CPU features. open-english itself has no CPU-bound hot loop, so no SIMD path is applied here yet; the actual accelerated consumers are open-raid-z (GF(2^8)), open-cuda/aruaru-llm (CPU inference) and open-cg-cad."
-        }),
+            disclosure_ja: "このエンドポイントはCPU命令セットの検出結果を報告するだけで、open-english本体の処理(チャット応答・学習機能)はCPU集約的な演算を持たないため、現時点でSIMD高速化の適用先は無い。実際に高速化されているのは open-raid-z のGF(2^8)演算、open-cuda/aruaru-llm のCPU推論、open-cg-cad の断面積微分。",
+            disclosure_en: "This endpoint only reports detected CPU features. open-english itself has no CPU-bound hot loop, so no SIMD path is applied here yet; the actual accelerated consumers are open-raid-z (GF(2^8)), open-cuda/aruaru-llm (CPU inference) and open-cg-cad."
+        },
     )
 }
 
@@ -1313,7 +1306,7 @@ async fn db_add_message(req: Request, db: Arc<Db>) -> Response {
         Err(resp) => return resp,
     };
     match db.add_message(&body.role, &body.content) {
-        Ok(()) => rs_json_response(StatusCode::OK, &serde_json::json!({"ok": true})),
+        Ok(()) => rs_json_response(StatusCode::OK, &crate::api_docs::OkResponse { ok: true }),
         Err(e) => rs_json_response(StatusCode::INTERNAL_SERVER_ERROR, &serde_json::json!({"error": e.to_string()})),
     }
 }
@@ -1327,7 +1320,7 @@ async fn db_list_messages(db: Arc<Db>) -> Response {
 
 async fn db_clear_messages(db: Arc<Db>) -> Response {
     match db.clear_messages() {
-        Ok(()) => rs_json_response(StatusCode::OK, &serde_json::json!({"ok": true})),
+        Ok(()) => rs_json_response(StatusCode::OK, &crate::api_docs::OkResponse { ok: true }),
         Err(e) => rs_json_response(StatusCode::INTERNAL_SERVER_ERROR, &serde_json::json!({"error": e.to_string()})),
     }
 }
@@ -1351,7 +1344,7 @@ async fn db_set_setting(req: Request, db: Arc<Db>) -> Response {
         return rs_json_response(StatusCode::FORBIDDEN, &serde_json::json!({"error": "administrator login required / 管理者ログインが必要です"}));
     }
     match db.set_setting(&body.key, &body.value) {
-        Ok(()) => rs_json_response(StatusCode::OK, &serde_json::json!({"ok": true})),
+        Ok(()) => rs_json_response(StatusCode::OK, &crate::api_docs::OkResponse { ok: true }),
         Err(e) => rs_json_response(StatusCode::INTERNAL_SERVER_ERROR, &serde_json::json!({"error": e.to_string()})),
     }
 }
@@ -1429,7 +1422,7 @@ async fn set_custom_qa(req: Request, db: Arc<Db>) -> Response {
     };
     let raw = serde_json::to_string(&body.pairs).unwrap_or_else(|_| "[]".to_string());
     match db.set_setting("open-english.customQaPairs", &raw) {
-        Ok(()) => rs_json_response(StatusCode::OK, &serde_json::json!({"ok": true})),
+        Ok(()) => rs_json_response(StatusCode::OK, &crate::api_docs::OkResponse { ok: true }),
         Err(e) => rs_json_response(StatusCode::INTERNAL_SERVER_ERROR, &serde_json::json!({"error": e.to_string()})),
     }
 }
@@ -1465,13 +1458,13 @@ async fn auth_config(db: Arc<Db>) -> Response {
     let mode = login_mode(&db);
     rs_json_response(
         StatusCode::OK,
-        &serde_json::json!({
-            "login_mode": mode,
-            "login_required": mode != "none",
-            "smtp_configured": auth::is_smtp_configured(),
-            "sms_configured": auth::is_sms_configured(),
-            "webotp_domain_configured": auth::is_webotp_domain_configured(),
-        }),
+        &crate::api_docs::AuthConfig {
+            login_required: mode != "none",
+            login_mode: mode,
+            smtp_configured: auth::is_smtp_configured(),
+            sms_configured: auth::is_sms_configured(),
+            webotp_domain_configured: auth::is_webotp_domain_configured(),
+        },
     )
 }
 
@@ -1635,7 +1628,7 @@ async fn auth_verify_otp(req: Request, db: Arc<Db>) -> Response {
         // 従来通りの単一要素ログイン。
         match auth::verify_otp(&body.email, &body.code) {
             Ok(token) => {
-                let resp_body = rust_json::to_vec_strict(&serde_json::json!({"ok": true})).unwrap_or_else(|_| b"{}".to_vec());
+                let resp_body = rust_json::to_vec_strict(&crate::api_docs::OkResponse { ok: true }).unwrap_or_else(|_| b"{}".to_vec());
                 hyper::Response::builder()
                     .status(StatusCode::OK)
                     .header("content-type", "application/json")
@@ -1672,7 +1665,7 @@ async fn auth_qr_login_confirm(req: Request) -> Response {
         Err(resp) => return resp,
     };
     match auth::qr_login_confirm(&body.id) {
-        Ok(()) => rs_json_response(StatusCode::OK, &serde_json::json!({"ok": true})),
+        Ok(()) => rs_json_response(StatusCode::OK, &crate::api_docs::OkResponse { ok: true }),
         Err(e) => rs_json_response(StatusCode::BAD_REQUEST, &serde_json::json!({"error": format!("{e:#}")})),
     }
 }
@@ -1700,7 +1693,7 @@ async fn auth_qr_login_finish(req: Request) -> Response {
     };
     match auth::qr_login_finish(&body.id) {
         Ok(token) => {
-            let resp_body = rust_json::to_vec_strict(&serde_json::json!({"ok": true})).unwrap_or_else(|_| b"{}".to_vec());
+            let resp_body = rust_json::to_vec_strict(&crate::api_docs::OkResponse { ok: true }).unwrap_or_else(|_| b"{}".to_vec());
             hyper::Response::builder()
                 .status(StatusCode::OK)
                 .header("content-type", "application/json")
@@ -1762,7 +1755,7 @@ async fn auth_totp_verify(req: Request, db: Arc<Db>) -> Response {
     };
     match auth::totp_verify(&db, &body.email, &body.code) {
         Ok(token) => {
-            let resp_body = rust_json::to_vec_strict(&serde_json::json!({"ok": true})).unwrap_or_else(|_| b"{}".to_vec());
+            let resp_body = rust_json::to_vec_strict(&crate::api_docs::OkResponse { ok: true }).unwrap_or_else(|_| b"{}".to_vec());
             hyper::Response::builder()
                 .status(StatusCode::OK)
                 .header("content-type", "application/json")
@@ -1869,29 +1862,29 @@ async fn db_info(db: Arc<Db>) -> Response {
     let rsync_available = tokio::task::spawn_blocking(Db::rsync_available).await.unwrap_or(false);
     rs_json_response(
         StatusCode::OK,
-        &serde_json::json!({
-            "db_path": db.path().display().to_string(),
-            "db_file_size_bytes": db.file_size_bytes(),
-            "postgres_mirror_configured": db.has_postgres_mirror(),
-            "rsync_available": rsync_available,
+        &crate::api_docs::DbInfo {
+            db_path: db.path().display().to_string(),
+            db_file_size_bytes: db.file_size_bytes(),
+            postgres_mirror_configured: db.has_postgres_mirror(),
+            rsync_available,
             // 2026-08-24 DUAL同時書き込み対応で追加。`dual_mirror`が
             // trueなら`OPEN_ENGLISH_DATABASE_URL`と
             // `OPEN_ENGLISH_DATABASE_URL_SECONDARY`の両方が設定済みで、
             // 会話履歴が2つのDBへ同時に書き込まれる状態。
             // `mirror_targets`は表示名のみ(接続文字列はパスワードを
             // 含み得るため返さない)。
-            "dual_mirror": db.is_dual_mirror(),
-            "mirror_targets": db.mirror_labels(),
+            dual_mirror: db.is_dual_mirror(),
+            mirror_targets: db.mirror_labels(),
             // 2026-08-24 自己修復(未反映キュー)対応で追加。
             // `mirror_outbox_pending`は「ミラー書き込みに失敗して
             // 再送待ちの件数」、`mirror_outbox_given_up`は
             // 「規定回数リトライしても成功しなかった件数」
             // (黙って捨てず件数として見えるようにしてある)。
-            "mirror_outbox_pending": db.outbox_counts().0,
-            "mirror_outbox_given_up": db.outbox_counts().1,
-            "used_disk_bytes": serde_json::Value::Null,
-            "total_disk_bytes": serde_json::Value::Null,
-        }),
+            mirror_outbox_pending: db.outbox_counts().0,
+            mirror_outbox_given_up: db.outbox_counts().1,
+            used_disk_bytes: None,
+            total_disk_bytes: None,
+        },
     )
 }
 
@@ -2386,7 +2379,7 @@ async fn agent_local_write(req: Request) -> Response {
         Err(resp) => return resp,
     };
     match tokio::task::spawn_blocking(move || local_agent::write_file(&body.path, &body.content)).await {
-        Ok(Ok(())) => rs_json_response(StatusCode::OK, &serde_json::json!({"ok": true})),
+        Ok(Ok(())) => rs_json_response(StatusCode::OK, &crate::api_docs::OkResponse { ok: true }),
         Ok(Err(e)) => rs_json_response(StatusCode::FORBIDDEN, &serde_json::json!({"ok": false, "error": e.to_string()})),
         Err(e) => rs_json_response(StatusCode::INTERNAL_SERVER_ERROR, &serde_json::json!({"error": format!("task panicked: {e}")})),
     }
@@ -2434,7 +2427,7 @@ async fn agent_vps_write(req: Request) -> Response {
         Err(resp) => return resp,
     };
     match vps_agent::write_file(&body.path, &body.content).await {
-        Ok(()) => rs_json_response(StatusCode::OK, &serde_json::json!({"ok": true})),
+        Ok(()) => rs_json_response(StatusCode::OK, &crate::api_docs::OkResponse { ok: true }),
         Err(e) => rs_json_response(StatusCode::BAD_REQUEST, &serde_json::json!({"ok": false, "error": e.to_string()})),
     }
 }
@@ -2870,7 +2863,7 @@ async fn updates_downgrade(req: Request) -> Response {
         }
     } else {
         match component_update::downgrade_component(&body.component, &body.version).await {
-            Ok(()) => rs_json_response(StatusCode::OK, &serde_json::json!({"ok": true})),
+            Ok(()) => rs_json_response(StatusCode::OK, &crate::api_docs::OkResponse { ok: true }),
             Err(e) => rs_json_response(StatusCode::BAD_REQUEST, &serde_json::json!({"ok": false, "error": e.to_string()})),
         }
     }
