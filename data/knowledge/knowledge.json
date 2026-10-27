@@ -1,8 +1,7 @@
 [
   {
-    "created_unix": 1791100000,
     "id": 1,
-    "source": "https://president.jp/articles/-/26332",
+    "text": "Akihabara maid cafe staff talk with foreign guests by building the conversation around key words such as anime, movies or Ghibli, instead of aiming for fluent sentences.",
     "tags": [
       "maid-cafe",
       "hospitality",
@@ -10,58 +9,58 @@
       "akihabara",
       "anime"
     ],
-    "text": "Akihabara maid cafe staff talk with foreign guests by building the conversation around key words such as anime, movies or Ghibli, instead of aiming for fluent sentences."
+    "source": "https://president.jp/articles/-/26332",
+    "created_unix": 1791100000
   },
   {
-    "created_unix": 1791100001,
     "id": 2,
-    "source": "https://president.jp/articles/-/26332",
+    "text": "When English words run out, maid cafe staff fill the gap with gestures, big reactions and a constant smile; communication works even when the English is imperfect.",
     "tags": [
       "maid-cafe",
       "hospitality",
       "gesture",
       "smile"
     ],
-    "text": "When English words run out, maid cafe staff fill the gap with gestures, big reactions and a constant smile; communication works even when the English is imperfect."
+    "source": "https://president.jp/articles/-/26332",
+    "created_unix": 1791100001
   },
   {
-    "created_unix": 1791100002,
     "id": 3,
-    "source": "https://president.jp/articles/-/26332",
+    "text": "Look for common ground with the guest (shared anime, films, food, travel) and weave in a little Japanese to answer the guest's interest in Japanese culture.",
     "tags": [
       "maid-cafe",
       "common-topic",
       "japanese",
       "culture"
     ],
-    "text": "Look for common ground with the guest (shared anime, films, food, travel) and weave in a little Japanese to answer the guest's interest in Japanese culture."
+    "source": "https://president.jp/articles/-/26332",
+    "created_unix": 1791100002
   },
   {
-    "created_unix": 1791100003,
     "id": 4,
-    "source": "open-english / aruaru-llm design",
+    "text": "Teacher personas: a female character acts as a maid teacher (greeting: Welcome home, master!), a male character acts as a butler teacher (greeting: Welcome back, my lady / my lord). Both praise every attempt and never mock imperfect English.",
     "tags": [
       "persona",
       "maid",
       "butler",
       "teacher"
     ],
-    "text": "Teacher personas: a female character acts as a maid teacher (greeting: Welcome home, master!), a male character acts as a butler teacher (greeting: Welcome back, my lady / my lord). Both praise every attempt and never mock imperfect English."
+    "source": "open-english / aruaru-llm design",
+    "created_unix": 1791100003
   },
   {
-    "created_unix": 1791280316,
     "id": 5,
-    "source": "https://news.livedoor.com/article/detail/15438655/",
+    "text": "The PRESIDENT Online article on Akihabara maid cafe English was re-edited and republished by livedoor News on 2018-10-13.",
     "tags": [
       "maid-cafe",
       "article"
     ],
-    "text": "The PRESIDENT Online article on Akihabara maid cafe English was re-edited and republished by livedoor News on 2018-10-13."
+    "source": "https://news.livedoor.com/article/detail/15438655/",
+    "created_unix": 1791280316
   },
   {
-    "created_unix": 1791449287,
     "id": 6,
-    "source": "aruaru-ai-teach",
+    "text": "Rule: never guess prices of learning services (Progate, dotinstall, paiza, Udemy, Schoo). State only prices verified on the official page; otherwise write \"要確認\". 学習サービスの料金は推測で書かない。公式ページで確認できた金額だけを書き、不明なら「要確認」とする。",
     "tags": [
       "rule",
       "price",
@@ -72,915 +71,952 @@
       "udemy",
       "schoo"
     ],
-    "text": "Rule: never guess prices of learning services (Progate, dotinstall, paiza, Udemy, Schoo). State only prices verified on the official page; otherwise write \"要確認\". 学習サービスの料金は推測で書かない。公式ページで確認できた金額だけを書き、不明なら「要確認」とする。"
+    "source": "aruaru-ai-teach",
+    "created_unix": 1791449287
   },
   {
-    "created_unix": 1791449287,
     "id": 7,
-    "source": "https://dotinstall.com/premium",
+    "text": "Verified price (2026-10-08): Dotinstall monthly plan costs 1480 yen including tax. ドットインストールの月額プランは1480円（税込）。公式ページ https://dotinstall.com/premium で確認。",
     "tags": [
       "dotinstall",
       "price",
       "verified",
       "learning"
     ],
-    "text": "Verified price (2026-10-08): Dotinstall monthly plan costs 1480 yen including tax. ドットインストールの月額プランは1480円（税込）。公式ページ https://dotinstall.com/premium で確認。"
+    "source": "https://dotinstall.com/premium",
+    "created_unix": 1791449287
   },
   {
-    "created_unix": 1791449287,
     "id": 8,
-    "source": "https://progate.com/plans/for_users",
+    "text": "Verified price (2026-10-08): Progate monthly plan costs 1490 yen including tax. Progateの月額プランは1490円（税込）。公式ページ https://progate.com/plans/for_users で確認。",
     "tags": [
       "progate",
       "price",
       "verified",
       "learning"
     ],
-    "text": "Verified price (2026-10-08): Progate monthly plan costs 1490 yen including tax. Progateの月額プランは1490円（税込）。公式ページ https://progate.com/plans/for_users で確認。"
+    "source": "https://progate.com/plans/for_users",
+    "created_unix": 1791449287
   },
   {
-    "created_unix": 1791449287,
     "id": 9,
-    "source": "https://paiza.jp/works/paid_plan_lp/settlement",
+    "text": "Verified price (2026-10-08): paiza monthly plan costs 1490 yen including tax. paizaラーニングの月額プランは1490円（税込）。公式ページ https://paiza.jp/works/paid_plan_lp/settlement で確認。",
     "tags": [
       "paiza",
       "price",
       "verified",
       "learning"
     ],
-    "text": "Verified price (2026-10-08): paiza monthly plan costs 1490 yen including tax. paizaラーニングの月額プランは1490円（税込）。公式ページ https://paiza.jp/works/paid_plan_lp/settlement で確認。"
+    "source": "https://paiza.jp/works/paid_plan_lp/settlement",
+    "created_unix": 1791449287
   },
   {
-    "created_unix": 1791449287,
     "id": 10,
-    "source": "aruaru-ai-teach",
+    "text": "Correction: AI wrote price \"無料あり、月額1,078円〜\" for prog-8.com but the verified monthly price is 1490 yen. Do not repeat this mistake. AIがprog-8.comの料金を「無料あり、月額1,078円〜」と書いたが誤り。検証済みの月額は1490円。",
     "tags": [
       "correction",
       "price",
       "learning"
     ],
-    "text": "Correction: AI wrote price \"無料あり、月額1,078円〜\" for prog-8.com but the verified monthly price is 1490 yen. Do not repeat this mistake. AIがprog-8.comの料金を「無料あり、月額1,078円〜」と書いたが誤り。検証済みの月額は1490円。"
+    "source": "aruaru-ai-teach",
+    "created_unix": 1791449287
   },
   {
-    "created_unix": 1791449287,
     "id": 11,
-    "source": "aruaru-ai-teach",
+    "text": "Correction: AI wrote price \"無料あり、月額1,080円\" for dotinstall.com but the verified monthly price is 1480 yen. Do not repeat this mistake. AIがdotinstall.comの料金を「無料あり、月額1,080円」と書いたが誤り。検証済みの月額は1480円。",
     "tags": [
       "correction",
       "price",
       "learning"
     ],
-    "text": "Correction: AI wrote price \"無料あり、月額1,080円\" for dotinstall.com but the verified monthly price is 1480 yen. Do not repeat this mistake. AIがdotinstall.comの料金を「無料あり、月額1,080円」と書いたが誤り。検証済みの月額は1480円。"
+    "source": "aruaru-ai-teach",
+    "created_unix": 1791449287
   },
   {
-    "created_unix": 1791449287,
     "id": 12,
-    "source": "aruaru-ai-teach",
+    "text": "Correction: AI wrote price \"一部無料、月額1,078円\" for prog-8.com but the verified monthly price is 1490 yen. Do not repeat this mistake. AIがprog-8.comの料金を「一部無料、月額1,078円」と書いたが誤り。検証済みの月額は1490円。",
     "tags": [
       "correction",
       "price",
       "learning"
     ],
-    "text": "Correction: AI wrote price \"一部無料、月額1,078円\" for prog-8.com but the verified monthly price is 1490 yen. Do not repeat this mistake. AIがprog-8.comの料金を「一部無料、月額1,078円」と書いたが誤り。検証済みの月額は1490円。"
+    "source": "aruaru-ai-teach",
+    "created_unix": 1791449287
   },
   {
-    "created_unix": 1791449287,
     "id": 13,
-    "source": "aruaru-ai-teach",
+    "text": "Correction: AI wrote price \"一部無料、月額1,080円\" for dotinstall.com but the verified monthly price is 1480 yen. Do not repeat this mistake. AIがdotinstall.comの料金を「一部無料、月額1,080円」と書いたが誤り。検証済みの月額は1480円。",
     "tags": [
       "correction",
       "price",
       "learning"
     ],
-    "text": "Correction: AI wrote price \"一部無料、月額1,080円\" for dotinstall.com but the verified monthly price is 1480 yen. Do not repeat this mistake. AIがdotinstall.comの料金を「一部無料、月額1,080円」と書いたが誤り。検証済みの月額は1480円。"
+    "source": "aruaru-ai-teach",
+    "created_unix": 1791449287
   },
   {
-    "created_unix": 1791449287,
     "id": 14,
-    "source": "aruaru-ai-teach",
+    "text": "Correction: AI wrote price \"一部無料、月額1,078円\" for paiza.jp but the verified monthly price is 1490 yen. Do not repeat this mistake. AIがpaiza.jpの料金を「一部無料、月額1,078円」と書いたが誤り。検証済みの月額は1490円。",
     "tags": [
       "correction",
       "price",
       "learning"
     ],
-    "text": "Correction: AI wrote price \"一部無料、月額1,078円\" for paiza.jp but the verified monthly price is 1490 yen. Do not repeat this mistake. AIがpaiza.jpの料金を「一部無料、月額1,078円」と書いたが誤り。検証済みの月額は1490円。"
+    "source": "aruaru-ai-teach",
+    "created_unix": 1791449287
   },
   {
-    "created_unix": 1791449287,
     "id": 15,
-    "source": "aruaru-ai-teach",
+    "text": "Correction: AI wrote price \"一部無料、月額1,078円〜\" for prog-8.com but the verified monthly price is 1490 yen. Do not repeat this mistake. AIがprog-8.comの料金を「一部無料、月額1,078円〜」と書いたが誤り。検証済みの月額は1490円。",
     "tags": [
       "correction",
       "price",
       "learning"
     ],
-    "text": "Correction: AI wrote price \"一部無料、月額1,078円〜\" for prog-8.com but the verified monthly price is 1490 yen. Do not repeat this mistake. AIがprog-8.comの料金を「一部無料、月額1,078円〜」と書いたが誤り。検証済みの月額は1490円。"
+    "source": "aruaru-ai-teach",
+    "created_unix": 1791449287
   },
   {
-    "created_unix": 1791449287,
     "id": 16,
-    "source": "aruaru-ai-teach",
+    "text": "Correction: AI wrote price \"無料/月額1,078円\" for prog-8.com but the verified monthly price is 1490 yen. Do not repeat this mistake. AIがprog-8.comの料金を「無料/月額1,078円」と書いたが誤り。検証済みの月額は1490円。",
     "tags": [
       "correction",
       "price",
       "learning"
     ],
-    "text": "Correction: AI wrote price \"無料/月額1,078円\" for prog-8.com but the verified monthly price is 1490 yen. Do not repeat this mistake. AIがprog-8.comの料金を「無料/月額1,078円」と書いたが誤り。検証済みの月額は1490円。"
+    "source": "aruaru-ai-teach",
+    "created_unix": 1791449287
   },
   {
-    "created_unix": 1791449287,
     "id": 17,
-    "source": "aruaru-ai-teach",
+    "text": "Correction: AI wrote price \"無料/月額1,080円\" for dotinstall.com but the verified monthly price is 1480 yen. Do not repeat this mistake. AIがdotinstall.comの料金を「無料/月額1,080円」と書いたが誤り。検証済みの月額は1480円。",
     "tags": [
       "correction",
       "price",
       "learning"
     ],
-    "text": "Correction: AI wrote price \"無料/月額1,080円\" for dotinstall.com but the verified monthly price is 1480 yen. Do not repeat this mistake. AIがdotinstall.comの料金を「無料/月額1,080円」と書いたが誤り。検証済みの月額は1480円。"
+    "source": "aruaru-ai-teach",
+    "created_unix": 1791449287
   },
   {
-    "created_unix": 1791449287,
     "id": 18,
-    "source": "aruaru-ai-teach",
+    "text": "Correction: AI wrote price \"一部無料、月額1,080円〜\" for dotinstall.com but the verified monthly price is 1480 yen. Do not repeat this mistake. AIがdotinstall.comの料金を「一部無料、月額1,080円〜」と書いたが誤り。検証済みの月額は1480円。",
     "tags": [
       "correction",
       "price",
       "learning"
     ],
-    "text": "Correction: AI wrote price \"一部無料、月額1,080円〜\" for dotinstall.com but the verified monthly price is 1480 yen. Do not repeat this mistake. AIがdotinstall.comの料金を「一部無料、月額1,080円〜」と書いたが誤り。検証済みの月額は1480円。"
+    "source": "aruaru-ai-teach",
+    "created_unix": 1791449287
   },
   {
-    "created_unix": 1791449287,
     "id": 19,
-    "source": "aruaru-ai-teach",
+    "text": "Correction: AI wrote price \"一部無料、月額1,078円〜\" for paiza.jp but the verified monthly price is 1490 yen. Do not repeat this mistake. AIがpaiza.jpの料金を「一部無料、月額1,078円〜」と書いたが誤り。検証済みの月額は1490円。",
     "tags": [
       "correction",
       "price",
       "learning"
     ],
-    "text": "Correction: AI wrote price \"一部無料、月額1,078円〜\" for paiza.jp but the verified monthly price is 1490 yen. Do not repeat this mistake. AIがpaiza.jpの料金を「一部無料、月額1,078円〜」と書いたが誤り。検証済みの月額は1490円。"
+    "source": "aruaru-ai-teach",
+    "created_unix": 1791449287
   },
   {
-    "created_unix": 1791490380,
     "id": 20,
-    "source": "https://dotinstall.com/premium",
+    "text": "Verified price (2026-10-09): Dotinstall monthly plan costs 1480 yen including tax. ドットインストールの月額プランは1480円（税込）。公式ページ https://dotinstall.com/premium で確認。",
     "tags": [
       "dotinstall",
       "price",
       "verified",
       "learning"
     ],
-    "text": "Verified price (2026-10-09): Dotinstall monthly plan costs 1480 yen including tax. ドットインストールの月額プランは1480円（税込）。公式ページ https://dotinstall.com/premium で確認。"
+    "source": "https://dotinstall.com/premium",
+    "created_unix": 1791490380
   },
   {
-    "created_unix": 1791490380,
     "id": 21,
-    "source": "https://progate.com/plans/for_users",
+    "text": "Verified price (2026-10-09): Progate monthly plan costs 1490 yen including tax. Progateの月額プランは1490円（税込）。公式ページ https://progate.com/plans/for_users で確認。",
     "tags": [
       "progate",
       "price",
       "verified",
       "learning"
     ],
-    "text": "Verified price (2026-10-09): Progate monthly plan costs 1490 yen including tax. Progateの月額プランは1490円（税込）。公式ページ https://progate.com/plans/for_users で確認。"
+    "source": "https://progate.com/plans/for_users",
+    "created_unix": 1791490380
   },
   {
-    "created_unix": 1791490380,
     "id": 22,
-    "source": "https://paiza.jp/works/paid_plan_lp/settlement",
+    "text": "Verified price (2026-10-09): paiza monthly plan costs 1490 yen including tax. paizaラーニングの月額プランは1490円（税込）。公式ページ https://paiza.jp/works/paid_plan_lp/settlement で確認。",
     "tags": [
       "paiza",
       "price",
       "verified",
       "learning"
     ],
-    "text": "Verified price (2026-10-09): paiza monthly plan costs 1490 yen including tax. paizaラーニングの月額プランは1490円（税込）。公式ページ https://paiza.jp/works/paid_plan_lp/settlement で確認。"
+    "source": "https://paiza.jp/works/paid_plan_lp/settlement",
+    "created_unix": 1791490380
   },
   {
-    "created_unix": 1791576804,
     "id": 23,
-    "source": "https://dotinstall.com/premium",
+    "text": "Verified price (2026-10-10): Dotinstall monthly plan costs 1480 yen including tax. ドットインストールの月額プランは1480円（税込）。公式ページ https://dotinstall.com/premium で確認。",
     "tags": [
       "dotinstall",
       "price",
       "verified",
       "learning"
     ],
-    "text": "Verified price (2026-10-10): Dotinstall monthly plan costs 1480 yen including tax. ドットインストールの月額プランは1480円（税込）。公式ページ https://dotinstall.com/premium で確認。"
+    "source": "https://dotinstall.com/premium",
+    "created_unix": 1791576804
   },
   {
-    "created_unix": 1791576804,
     "id": 24,
-    "source": "https://progate.com/plans/for_users",
+    "text": "Verified price (2026-10-10): Progate monthly plan costs 1490 yen including tax. Progateの月額プランは1490円（税込）。公式ページ https://progate.com/plans/for_users で確認。",
     "tags": [
       "progate",
       "price",
       "verified",
       "learning"
     ],
-    "text": "Verified price (2026-10-10): Progate monthly plan costs 1490 yen including tax. Progateの月額プランは1490円（税込）。公式ページ https://progate.com/plans/for_users で確認。"
+    "source": "https://progate.com/plans/for_users",
+    "created_unix": 1791576804
   },
   {
-    "created_unix": 1791576804,
     "id": 25,
-    "source": "https://paiza.jp/works/paid_plan_lp/settlement",
+    "text": "Verified price (2026-10-10): paiza monthly plan costs 1490 yen including tax. paizaラーニングの月額プランは1490円（税込）。公式ページ https://paiza.jp/works/paid_plan_lp/settlement で確認。",
     "tags": [
       "paiza",
       "price",
       "verified",
       "learning"
     ],
-    "text": "Verified price (2026-10-10): paiza monthly plan costs 1490 yen including tax. paizaラーニングの月額プランは1490円（税込）。公式ページ https://paiza.jp/works/paid_plan_lp/settlement で確認。"
+    "source": "https://paiza.jp/works/paid_plan_lp/settlement",
+    "created_unix": 1791576804
   },
   {
-    "created_unix": 1791663282,
     "id": 26,
-    "source": "https://dotinstall.com/premium",
+    "text": "Verified price (2026-10-11): Dotinstall monthly plan costs 1480 yen including tax. ドットインストールの月額プランは1480円（税込）。公式ページ https://dotinstall.com/premium で確認。",
     "tags": [
       "dotinstall",
       "price",
       "verified",
       "learning"
     ],
-    "text": "Verified price (2026-10-11): Dotinstall monthly plan costs 1480 yen including tax. ドットインストールの月額プランは1480円（税込）。公式ページ https://dotinstall.com/premium で確認。"
+    "source": "https://dotinstall.com/premium",
+    "created_unix": 1791663282
   },
   {
-    "created_unix": 1791663282,
     "id": 27,
-    "source": "https://progate.com/plans/for_users",
+    "text": "Verified price (2026-10-11): Progate monthly plan costs 1490 yen including tax. Progateの月額プランは1490円（税込）。公式ページ https://progate.com/plans/for_users で確認。",
     "tags": [
       "progate",
       "price",
       "verified",
       "learning"
     ],
-    "text": "Verified price (2026-10-11): Progate monthly plan costs 1490 yen including tax. Progateの月額プランは1490円（税込）。公式ページ https://progate.com/plans/for_users で確認。"
+    "source": "https://progate.com/plans/for_users",
+    "created_unix": 1791663282
   },
   {
-    "created_unix": 1791663282,
     "id": 28,
-    "source": "https://paiza.jp/works/paid_plan_lp/settlement",
+    "text": "Verified price (2026-10-11): paiza monthly plan costs 1490 yen including tax. paizaラーニングの月額プランは1490円（税込）。公式ページ https://paiza.jp/works/paid_plan_lp/settlement で確認。",
     "tags": [
       "paiza",
       "price",
       "verified",
       "learning"
     ],
-    "text": "Verified price (2026-10-11): paiza monthly plan costs 1490 yen including tax. paizaラーニングの月額プランは1490円（税込）。公式ページ https://paiza.jp/works/paid_plan_lp/settlement で確認。"
+    "source": "https://paiza.jp/works/paid_plan_lp/settlement",
+    "created_unix": 1791663282
   },
   {
-    "created_unix": 1791749893,
     "id": 29,
-    "source": "https://dotinstall.com/premium",
+    "text": "Verified price (2026-10-12): Dotinstall monthly plan costs 1480 yen including tax. ドットインストールの月額プランは1480円（税込）。公式ページ https://dotinstall.com/premium で確認。",
     "tags": [
       "dotinstall",
       "price",
       "verified",
       "learning"
     ],
-    "text": "Verified price (2026-10-12): Dotinstall monthly plan costs 1480 yen including tax. ドットインストールの月額プランは1480円（税込）。公式ページ https://dotinstall.com/premium で確認。"
+    "source": "https://dotinstall.com/premium",
+    "created_unix": 1791749893
   },
   {
-    "created_unix": 1791749893,
     "id": 30,
-    "source": "https://progate.com/plans/for_users",
+    "text": "Verified price (2026-10-12): Progate monthly plan costs 1490 yen including tax. Progateの月額プランは1490円（税込）。公式ページ https://progate.com/plans/for_users で確認。",
     "tags": [
       "progate",
       "price",
       "verified",
       "learning"
     ],
-    "text": "Verified price (2026-10-12): Progate monthly plan costs 1490 yen including tax. Progateの月額プランは1490円（税込）。公式ページ https://progate.com/plans/for_users で確認。"
+    "source": "https://progate.com/plans/for_users",
+    "created_unix": 1791749893
   },
   {
-    "created_unix": 1791749893,
     "id": 31,
-    "source": "https://paiza.jp/works/paid_plan_lp/settlement",
+    "text": "Verified price (2026-10-12): paiza monthly plan costs 1490 yen including tax. paizaラーニングの月額プランは1490円（税込）。公式ページ https://paiza.jp/works/paid_plan_lp/settlement で確認。",
     "tags": [
       "paiza",
       "price",
       "verified",
       "learning"
     ],
-    "text": "Verified price (2026-10-12): paiza monthly plan costs 1490 yen including tax. paizaラーニングの月額プランは1490円（税込）。公式ページ https://paiza.jp/works/paid_plan_lp/settlement で確認。"
+    "source": "https://paiza.jp/works/paid_plan_lp/settlement",
+    "created_unix": 1791749893
   },
   {
-    "created_unix": 1791836055,
     "id": 32,
-    "source": "https://dotinstall.com/premium",
+    "text": "Verified price (2026-10-13): Dotinstall monthly plan costs 1480 yen including tax. ドットインストールの月額プランは1480円（税込）。公式ページ https://dotinstall.com/premium で確認。",
     "tags": [
       "dotinstall",
       "price",
       "verified",
       "learning"
     ],
-    "text": "Verified price (2026-10-13): Dotinstall monthly plan costs 1480 yen including tax. ドットインストールの月額プランは1480円（税込）。公式ページ https://dotinstall.com/premium で確認。"
+    "source": "https://dotinstall.com/premium",
+    "created_unix": 1791836055
   },
   {
-    "created_unix": 1791836055,
     "id": 33,
-    "source": "https://progate.com/plans/for_users",
+    "text": "Verified price (2026-10-13): Progate monthly plan costs 1490 yen including tax. Progateの月額プランは1490円（税込）。公式ページ https://progate.com/plans/for_users で確認。",
     "tags": [
       "progate",
       "price",
       "verified",
       "learning"
     ],
-    "text": "Verified price (2026-10-13): Progate monthly plan costs 1490 yen including tax. Progateの月額プランは1490円（税込）。公式ページ https://progate.com/plans/for_users で確認。"
+    "source": "https://progate.com/plans/for_users",
+    "created_unix": 1791836055
   },
   {
-    "created_unix": 1791836055,
     "id": 34,
-    "source": "https://paiza.jp/works/paid_plan_lp/settlement",
+    "text": "Verified price (2026-10-13): paiza monthly plan costs 1490 yen including tax. paizaラーニングの月額プランは1490円（税込）。公式ページ https://paiza.jp/works/paid_plan_lp/settlement で確認。",
     "tags": [
       "paiza",
       "price",
       "verified",
       "learning"
     ],
-    "text": "Verified price (2026-10-13): paiza monthly plan costs 1490 yen including tax. paizaラーニングの月額プランは1490円（税込）。公式ページ https://paiza.jp/works/paid_plan_lp/settlement で確認。"
+    "source": "https://paiza.jp/works/paid_plan_lp/settlement",
+    "created_unix": 1791836055
   },
   {
-    "created_unix": 1791922520,
     "id": 35,
-    "source": "https://dotinstall.com/premium",
+    "text": "Verified price (2026-10-14): Dotinstall monthly plan costs 1480 yen including tax. ドットインストールの月額プランは1480円（税込）。公式ページ https://dotinstall.com/premium で確認。",
     "tags": [
       "dotinstall",
       "price",
       "verified",
       "learning"
     ],
-    "text": "Verified price (2026-10-14): Dotinstall monthly plan costs 1480 yen including tax. ドットインストールの月額プランは1480円（税込）。公式ページ https://dotinstall.com/premium で確認。"
+    "source": "https://dotinstall.com/premium",
+    "created_unix": 1791922520
   },
   {
-    "created_unix": 1791922520,
     "id": 36,
-    "source": "https://progate.com/plans/for_users",
+    "text": "Verified price (2026-10-14): Progate monthly plan costs 1490 yen including tax. Progateの月額プランは1490円（税込）。公式ページ https://progate.com/plans/for_users で確認。",
     "tags": [
       "progate",
       "price",
       "verified",
       "learning"
     ],
-    "text": "Verified price (2026-10-14): Progate monthly plan costs 1490 yen including tax. Progateの月額プランは1490円（税込）。公式ページ https://progate.com/plans/for_users で確認。"
+    "source": "https://progate.com/plans/for_users",
+    "created_unix": 1791922520
   },
   {
-    "created_unix": 1791922520,
     "id": 37,
-    "source": "https://paiza.jp/works/paid_plan_lp/settlement",
+    "text": "Verified price (2026-10-14): paiza monthly plan costs 1490 yen including tax. paizaラーニングの月額プランは1490円（税込）。公式ページ https://paiza.jp/works/paid_plan_lp/settlement で確認。",
     "tags": [
       "paiza",
       "price",
       "verified",
       "learning"
     ],
-    "text": "Verified price (2026-10-14): paiza monthly plan costs 1490 yen including tax. paizaラーニングの月額プランは1490円（税込）。公式ページ https://paiza.jp/works/paid_plan_lp/settlement で確認。"
+    "source": "https://paiza.jp/works/paid_plan_lp/settlement",
+    "created_unix": 1791922520
   },
   {
-    "created_unix": 1792008996,
     "id": 38,
-    "source": "https://dotinstall.com/premium",
+    "text": "Verified price (2026-10-15): Dotinstall monthly plan costs 1480 yen including tax. ドットインストールの月額プランは1480円（税込）。公式ページ https://dotinstall.com/premium で確認。",
     "tags": [
       "dotinstall",
       "price",
       "verified",
       "learning"
     ],
-    "text": "Verified price (2026-10-15): Dotinstall monthly plan costs 1480 yen including tax. ドットインストールの月額プランは1480円（税込）。公式ページ https://dotinstall.com/premium で確認。"
+    "source": "https://dotinstall.com/premium",
+    "created_unix": 1792008996
   },
   {
-    "created_unix": 1792008996,
     "id": 39,
-    "source": "https://progate.com/plans/for_users",
+    "text": "Verified price (2026-10-15): Progate monthly plan costs 1490 yen including tax. Progateの月額プランは1490円（税込）。公式ページ https://progate.com/plans/for_users で確認。",
     "tags": [
       "progate",
       "price",
       "verified",
       "learning"
     ],
-    "text": "Verified price (2026-10-15): Progate monthly plan costs 1490 yen including tax. Progateの月額プランは1490円（税込）。公式ページ https://progate.com/plans/for_users で確認。"
+    "source": "https://progate.com/plans/for_users",
+    "created_unix": 1792008996
   },
   {
-    "created_unix": 1792008996,
     "id": 40,
-    "source": "https://paiza.jp/works/paid_plan_lp/settlement",
+    "text": "Verified price (2026-10-15): paiza monthly plan costs 1490 yen including tax. paizaラーニングの月額プランは1490円（税込）。公式ページ https://paiza.jp/works/paid_plan_lp/settlement で確認。",
     "tags": [
       "paiza",
       "price",
       "verified",
       "learning"
     ],
-    "text": "Verified price (2026-10-15): paiza monthly plan costs 1490 yen including tax. paizaラーニングの月額プランは1490円（税込）。公式ページ https://paiza.jp/works/paid_plan_lp/settlement で確認。"
+    "source": "https://paiza.jp/works/paid_plan_lp/settlement",
+    "created_unix": 1792008996
   },
   {
-    "created_unix": 1792095282,
     "id": 41,
-    "source": "https://dotinstall.com/premium",
+    "text": "Verified price (2026-10-16): Dotinstall monthly plan costs 1480 yen including tax. ドットインストールの月額プランは1480円（税込）。公式ページ https://dotinstall.com/premium で確認。",
     "tags": [
       "dotinstall",
       "price",
       "verified",
       "learning"
     ],
-    "text": "Verified price (2026-10-16): Dotinstall monthly plan costs 1480 yen including tax. ドットインストールの月額プランは1480円（税込）。公式ページ https://dotinstall.com/premium で確認。"
+    "source": "https://dotinstall.com/premium",
+    "created_unix": 1792095282
   },
   {
-    "created_unix": 1792095282,
     "id": 42,
-    "source": "https://progate.com/plans/for_users",
+    "text": "Verified price (2026-10-16): Progate monthly plan costs 1490 yen including tax. Progateの月額プランは1490円（税込）。公式ページ https://progate.com/plans/for_users で確認。",
     "tags": [
       "progate",
       "price",
       "verified",
       "learning"
     ],
-    "text": "Verified price (2026-10-16): Progate monthly plan costs 1490 yen including tax. Progateの月額プランは1490円（税込）。公式ページ https://progate.com/plans/for_users で確認。"
+    "source": "https://progate.com/plans/for_users",
+    "created_unix": 1792095282
   },
   {
-    "created_unix": 1792095282,
     "id": 43,
-    "source": "https://paiza.jp/works/paid_plan_lp/settlement",
+    "text": "Verified price (2026-10-16): paiza monthly plan costs 1490 yen including tax. paizaラーニングの月額プランは1490円（税込）。公式ページ https://paiza.jp/works/paid_plan_lp/settlement で確認。",
     "tags": [
       "paiza",
       "price",
       "verified",
       "learning"
     ],
-    "text": "Verified price (2026-10-16): paiza monthly plan costs 1490 yen including tax. paizaラーニングの月額プランは1490円（税込）。公式ページ https://paiza.jp/works/paid_plan_lp/settlement で確認。"
+    "source": "https://paiza.jp/works/paid_plan_lp/settlement",
+    "created_unix": 1792095282
   },
   {
-    "created_unix": 1792181780,
     "id": 44,
-    "source": "https://dotinstall.com/premium",
+    "text": "Verified price (2026-10-17): Dotinstall monthly plan costs 1480 yen including tax. ドットインストールの月額プランは1480円（税込）。公式ページ https://dotinstall.com/premium で確認。",
     "tags": [
       "dotinstall",
       "price",
       "verified",
       "learning"
     ],
-    "text": "Verified price (2026-10-17): Dotinstall monthly plan costs 1480 yen including tax. ドットインストールの月額プランは1480円（税込）。公式ページ https://dotinstall.com/premium で確認。"
+    "source": "https://dotinstall.com/premium",
+    "created_unix": 1792181780
   },
   {
-    "created_unix": 1792181780,
     "id": 45,
-    "source": "https://progate.com/plans/for_users",
+    "text": "Verified price (2026-10-17): Progate monthly plan costs 1490 yen including tax. Progateの月額プランは1490円（税込）。公式ページ https://progate.com/plans/for_users で確認。",
     "tags": [
       "progate",
       "price",
       "verified",
       "learning"
     ],
-    "text": "Verified price (2026-10-17): Progate monthly plan costs 1490 yen including tax. Progateの月額プランは1490円（税込）。公式ページ https://progate.com/plans/for_users で確認。"
+    "source": "https://progate.com/plans/for_users",
+    "created_unix": 1792181780
   },
   {
-    "created_unix": 1792181780,
     "id": 46,
-    "source": "https://paiza.jp/works/paid_plan_lp/settlement",
+    "text": "Verified price (2026-10-17): paiza monthly plan costs 1490 yen including tax. paizaラーニングの月額プランは1490円（税込）。公式ページ https://paiza.jp/works/paid_plan_lp/settlement で確認。",
     "tags": [
       "paiza",
       "price",
       "verified",
       "learning"
     ],
-    "text": "Verified price (2026-10-17): paiza monthly plan costs 1490 yen including tax. paizaラーニングの月額プランは1490円（税込）。公式ページ https://paiza.jp/works/paid_plan_lp/settlement で確認。"
+    "source": "https://paiza.jp/works/paid_plan_lp/settlement",
+    "created_unix": 1792181780
   },
   {
-    "created_unix": 1792268172,
     "id": 47,
-    "source": "https://dotinstall.com/premium",
+    "text": "Verified price (2026-10-18): Dotinstall monthly plan costs 1480 yen including tax. ドットインストールの月額プランは1480円（税込）。公式ページ https://dotinstall.com/premium で確認。",
     "tags": [
       "dotinstall",
       "price",
       "verified",
       "learning"
     ],
-    "text": "Verified price (2026-10-18): Dotinstall monthly plan costs 1480 yen including tax. ドットインストールの月額プランは1480円（税込）。公式ページ https://dotinstall.com/premium で確認。"
+    "source": "https://dotinstall.com/premium",
+    "created_unix": 1792268172
   },
   {
-    "created_unix": 1792268172,
     "id": 48,
-    "source": "https://progate.com/plans/for_users",
+    "text": "Verified price (2026-10-18): Progate monthly plan costs 1490 yen including tax. Progateの月額プランは1490円（税込）。公式ページ https://progate.com/plans/for_users で確認。",
     "tags": [
       "progate",
       "price",
       "verified",
       "learning"
     ],
-    "text": "Verified price (2026-10-18): Progate monthly plan costs 1490 yen including tax. Progateの月額プランは1490円（税込）。公式ページ https://progate.com/plans/for_users で確認。"
+    "source": "https://progate.com/plans/for_users",
+    "created_unix": 1792268172
   },
   {
-    "created_unix": 1792268172,
     "id": 49,
-    "source": "https://paiza.jp/works/paid_plan_lp/settlement",
+    "text": "Verified price (2026-10-18): paiza monthly plan costs 1490 yen including tax. paizaラーニングの月額プランは1490円（税込）。公式ページ https://paiza.jp/works/paid_plan_lp/settlement で確認。",
     "tags": [
       "paiza",
       "price",
       "verified",
       "learning"
     ],
-    "text": "Verified price (2026-10-18): paiza monthly plan costs 1490 yen including tax. paizaラーニングの月額プランは1490円（税込）。公式ページ https://paiza.jp/works/paid_plan_lp/settlement で確認。"
+    "source": "https://paiza.jp/works/paid_plan_lp/settlement",
+    "created_unix": 1792268172
   },
   {
-    "created_unix": 1792354613,
     "id": 50,
-    "source": "https://dotinstall.com/premium",
+    "text": "Verified price (2026-10-19): Dotinstall monthly plan costs 1480 yen including tax. ドットインストールの月額プランは1480円（税込）。公式ページ https://dotinstall.com/premium で確認。",
     "tags": [
       "dotinstall",
       "price",
       "verified",
       "learning"
     ],
-    "text": "Verified price (2026-10-19): Dotinstall monthly plan costs 1480 yen including tax. ドットインストールの月額プランは1480円（税込）。公式ページ https://dotinstall.com/premium で確認。"
+    "source": "https://dotinstall.com/premium",
+    "created_unix": 1792354613
   },
   {
-    "created_unix": 1792354613,
     "id": 51,
-    "source": "https://progate.com/plans/for_users",
+    "text": "Verified price (2026-10-19): Progate monthly plan costs 1490 yen including tax. Progateの月額プランは1490円（税込）。公式ページ https://progate.com/plans/for_users で確認。",
     "tags": [
       "progate",
       "price",
       "verified",
       "learning"
     ],
-    "text": "Verified price (2026-10-19): Progate monthly plan costs 1490 yen including tax. Progateの月額プランは1490円（税込）。公式ページ https://progate.com/plans/for_users で確認。"
+    "source": "https://progate.com/plans/for_users",
+    "created_unix": 1792354613
   },
   {
-    "created_unix": 1792354613,
     "id": 52,
-    "source": "https://paiza.jp/works/paid_plan_lp/settlement",
+    "text": "Verified price (2026-10-19): paiza monthly plan costs 1490 yen including tax. paizaラーニングの月額プランは1490円（税込）。公式ページ https://paiza.jp/works/paid_plan_lp/settlement で確認。",
     "tags": [
       "paiza",
       "price",
       "verified",
       "learning"
     ],
-    "text": "Verified price (2026-10-19): paiza monthly plan costs 1490 yen including tax. paizaラーニングの月額プランは1490円（税込）。公式ページ https://paiza.jp/works/paid_plan_lp/settlement で確認。"
+    "source": "https://paiza.jp/works/paid_plan_lp/settlement",
+    "created_unix": 1792354613
   },
   {
-    "created_unix": 1792441043,
     "id": 53,
-    "source": "https://dotinstall.com/premium",
+    "text": "Verified price (2026-10-20): Dotinstall monthly plan costs 1480 yen including tax. ドットインストールの月額プランは1480円（税込）。公式ページ https://dotinstall.com/premium で確認。",
     "tags": [
       "dotinstall",
       "price",
       "verified",
       "learning"
     ],
-    "text": "Verified price (2026-10-20): Dotinstall monthly plan costs 1480 yen including tax. ドットインストールの月額プランは1480円（税込）。公式ページ https://dotinstall.com/premium で確認。"
+    "source": "https://dotinstall.com/premium",
+    "created_unix": 1792441043
   },
   {
-    "created_unix": 1792441043,
     "id": 54,
-    "source": "https://progate.com/plans/for_users",
+    "text": "Verified price (2026-10-20): Progate monthly plan costs 1490 yen including tax. Progateの月額プランは1490円（税込）。公式ページ https://progate.com/plans/for_users で確認。",
     "tags": [
       "progate",
       "price",
       "verified",
       "learning"
     ],
-    "text": "Verified price (2026-10-20): Progate monthly plan costs 1490 yen including tax. Progateの月額プランは1490円（税込）。公式ページ https://progate.com/plans/for_users で確認。"
+    "source": "https://progate.com/plans/for_users",
+    "created_unix": 1792441043
   },
   {
-    "created_unix": 1792441043,
     "id": 55,
-    "source": "https://paiza.jp/works/paid_plan_lp/settlement",
+    "text": "Verified price (2026-10-20): paiza monthly plan costs 1490 yen including tax. paizaラーニングの月額プランは1490円（税込）。公式ページ https://paiza.jp/works/paid_plan_lp/settlement で確認。",
     "tags": [
       "paiza",
       "price",
       "verified",
       "learning"
     ],
-    "text": "Verified price (2026-10-20): paiza monthly plan costs 1490 yen including tax. paizaラーニングの月額プランは1490円（税込）。公式ページ https://paiza.jp/works/paid_plan_lp/settlement で確認。"
+    "source": "https://paiza.jp/works/paid_plan_lp/settlement",
+    "created_unix": 1792441043
   },
   {
-    "created_unix": 1792527307,
     "id": 56,
-    "source": "https://dotinstall.com/premium",
+    "text": "Verified price (2026-10-21): Dotinstall monthly plan costs 1480 yen including tax. ドットインストールの月額プランは1480円（税込）。公式ページ https://dotinstall.com/premium で確認。",
     "tags": [
       "dotinstall",
       "price",
       "verified",
       "learning"
     ],
-    "text": "Verified price (2026-10-21): Dotinstall monthly plan costs 1480 yen including tax. ドットインストールの月額プランは1480円（税込）。公式ページ https://dotinstall.com/premium で確認。"
+    "source": "https://dotinstall.com/premium",
+    "created_unix": 1792527307
   },
   {
-    "created_unix": 1792527307,
     "id": 57,
-    "source": "https://progate.com/plans/for_users",
+    "text": "Verified price (2026-10-21): Progate monthly plan costs 1490 yen including tax. Progateの月額プランは1490円（税込）。公式ページ https://progate.com/plans/for_users で確認。",
     "tags": [
       "progate",
       "price",
       "verified",
       "learning"
     ],
-    "text": "Verified price (2026-10-21): Progate monthly plan costs 1490 yen including tax. Progateの月額プランは1490円（税込）。公式ページ https://progate.com/plans/for_users で確認。"
+    "source": "https://progate.com/plans/for_users",
+    "created_unix": 1792527307
   },
   {
-    "created_unix": 1792527307,
     "id": 58,
-    "source": "https://paiza.jp/works/paid_plan_lp/settlement",
+    "text": "Verified price (2026-10-21): paiza monthly plan costs 1490 yen including tax. paizaラーニングの月額プランは1490円（税込）。公式ページ https://paiza.jp/works/paid_plan_lp/settlement で確認。",
     "tags": [
       "paiza",
       "price",
       "verified",
       "learning"
     ],
-    "text": "Verified price (2026-10-21): paiza monthly plan costs 1490 yen including tax. paizaラーニングの月額プランは1490円（税込）。公式ページ https://paiza.jp/works/paid_plan_lp/settlement で確認。"
+    "source": "https://paiza.jp/works/paid_plan_lp/settlement",
+    "created_unix": 1792527307
   },
   {
-    "created_unix": 1792613830,
     "id": 59,
-    "source": "https://dotinstall.com/premium",
+    "text": "Verified price (2026-10-22): Dotinstall monthly plan costs 1480 yen including tax. ドットインストールの月額プランは1480円（税込）。公式ページ https://dotinstall.com/premium で確認。",
     "tags": [
       "dotinstall",
       "price",
       "verified",
       "learning"
     ],
-    "text": "Verified price (2026-10-22): Dotinstall monthly plan costs 1480 yen including tax. ドットインストールの月額プランは1480円（税込）。公式ページ https://dotinstall.com/premium で確認。"
+    "source": "https://dotinstall.com/premium",
+    "created_unix": 1792613830
   },
   {
-    "created_unix": 1792613830,
     "id": 60,
-    "source": "https://progate.com/plans/for_users",
+    "text": "Verified price (2026-10-22): Progate monthly plan costs 1490 yen including tax. Progateの月額プランは1490円（税込）。公式ページ https://progate.com/plans/for_users で確認。",
     "tags": [
       "progate",
       "price",
       "verified",
       "learning"
     ],
-    "text": "Verified price (2026-10-22): Progate monthly plan costs 1490 yen including tax. Progateの月額プランは1490円（税込）。公式ページ https://progate.com/plans/for_users で確認。"
+    "source": "https://progate.com/plans/for_users",
+    "created_unix": 1792613830
   },
   {
-    "created_unix": 1792613830,
     "id": 61,
-    "source": "https://paiza.jp/works/paid_plan_lp/settlement",
+    "text": "Verified price (2026-10-22): paiza monthly plan costs 1490 yen including tax. paizaラーニングの月額プランは1490円（税込）。公式ページ https://paiza.jp/works/paid_plan_lp/settlement で確認。",
     "tags": [
       "paiza",
       "price",
       "verified",
       "learning"
     ],
-    "text": "Verified price (2026-10-22): paiza monthly plan costs 1490 yen including tax. paizaラーニングの月額プランは1490円（税込）。公式ページ https://paiza.jp/works/paid_plan_lp/settlement で確認。"
+    "source": "https://paiza.jp/works/paid_plan_lp/settlement",
+    "created_unix": 1792613830
   },
   {
-    "created_unix": 1792700220,
     "id": 62,
-    "source": "https://dotinstall.com/premium",
+    "text": "Verified price (2026-10-23): Dotinstall monthly plan costs 1480 yen including tax. ドットインストールの月額プランは1480円（税込）。公式ページ https://dotinstall.com/premium で確認。",
     "tags": [
       "dotinstall",
       "price",
       "verified",
       "learning"
     ],
-    "text": "Verified price (2026-10-23): Dotinstall monthly plan costs 1480 yen including tax. ドットインストールの月額プランは1480円（税込）。公式ページ https://dotinstall.com/premium で確認。"
+    "source": "https://dotinstall.com/premium",
+    "created_unix": 1792700220
   },
   {
-    "created_unix": 1792700220,
     "id": 63,
-    "source": "https://progate.com/plans/for_users",
+    "text": "Verified price (2026-10-23): Progate monthly plan costs 1490 yen including tax. Progateの月額プランは1490円（税込）。公式ページ https://progate.com/plans/for_users で確認。",
     "tags": [
       "progate",
       "price",
       "verified",
       "learning"
     ],
-    "text": "Verified price (2026-10-23): Progate monthly plan costs 1490 yen including tax. Progateの月額プランは1490円（税込）。公式ページ https://progate.com/plans/for_users で確認。"
+    "source": "https://progate.com/plans/for_users",
+    "created_unix": 1792700220
   },
   {
-    "created_unix": 1792700220,
     "id": 64,
-    "source": "https://paiza.jp/works/paid_plan_lp/settlement",
+    "text": "Verified price (2026-10-23): paiza monthly plan costs 1490 yen including tax. paizaラーニングの月額プランは1490円（税込）。公式ページ https://paiza.jp/works/paid_plan_lp/settlement で確認。",
     "tags": [
       "paiza",
       "price",
       "verified",
       "learning"
     ],
-    "text": "Verified price (2026-10-23): paiza monthly plan costs 1490 yen including tax. paizaラーニングの月額プランは1490円（税込）。公式ページ https://paiza.jp/works/paid_plan_lp/settlement で確認。"
+    "source": "https://paiza.jp/works/paid_plan_lp/settlement",
+    "created_unix": 1792700220
   },
   {
-    "created_unix": 1792786441,
     "id": 65,
-    "source": "https://dotinstall.com/premium",
+    "text": "Verified price (2026-10-24): Dotinstall monthly plan costs 1480 yen including tax. ドットインストールの月額プランは1480円（税込）。公式ページ https://dotinstall.com/premium で確認。",
     "tags": [
       "dotinstall",
       "price",
       "verified",
       "learning"
     ],
-    "text": "Verified price (2026-10-24): Dotinstall monthly plan costs 1480 yen including tax. ドットインストールの月額プランは1480円（税込）。公式ページ https://dotinstall.com/premium で確認。"
+    "source": "https://dotinstall.com/premium",
+    "created_unix": 1792786441
   },
   {
-    "created_unix": 1792786441,
     "id": 66,
-    "source": "https://progate.com/plans/for_users",
+    "text": "Verified price (2026-10-24): Progate monthly plan costs 1490 yen including tax. Progateの月額プランは1490円（税込）。公式ページ https://progate.com/plans/for_users で確認。",
     "tags": [
       "progate",
       "price",
       "verified",
       "learning"
     ],
-    "text": "Verified price (2026-10-24): Progate monthly plan costs 1490 yen including tax. Progateの月額プランは1490円（税込）。公式ページ https://progate.com/plans/for_users で確認。"
+    "source": "https://progate.com/plans/for_users",
+    "created_unix": 1792786441
   },
   {
-    "created_unix": 1792786441,
     "id": 67,
-    "source": "https://paiza.jp/works/paid_plan_lp/settlement",
+    "text": "Verified price (2026-10-24): paiza monthly plan costs 1490 yen including tax. paizaラーニングの月額プランは1490円（税込）。公式ページ https://paiza.jp/works/paid_plan_lp/settlement で確認。",
     "tags": [
       "paiza",
       "price",
       "verified",
       "learning"
     ],
-    "text": "Verified price (2026-10-24): paiza monthly plan costs 1490 yen including tax. paizaラーニングの月額プランは1490円（税込）。公式ページ https://paiza.jp/works/paid_plan_lp/settlement で確認。"
+    "source": "https://paiza.jp/works/paid_plan_lp/settlement",
+    "created_unix": 1792786441
   },
   {
-    "created_unix": 1792819789,
     "id": 68,
-    "source": "https://aonceo.blogspot.com/2026/10/blog-post_23.html",
+    "text": "Default reference (1st) for maid cafe English conversation: the blog at https://aonceo.blogspot.com/2026/10/blog-post_23.html. When the user asks about maid cafe English, cite this URL first and adapt its content to the learner's level and question instead of reciting it.",
     "tags": [
       "maid-cafe",
       "default-reference",
       "blog"
     ],
-    "text": "Default reference (1st) for maid cafe English conversation: the blog at https://aonceo.blogspot.com/2026/10/blog-post_23.html. When the user asks about maid cafe English, cite this URL first and adapt its content to the learner's level and question instead of reciting it."
+    "source": "https://aonceo.blogspot.com/2026/10/blog-post_23.html",
+    "created_unix": 1792819789
   },
   {
-    "created_unix": 1792819789,
     "id": 69,
-    "source": "https://maidreamin.com/recruit/special/detail.html?id=4168",
+    "text": "Second reference: Maidreamin recruit story 'Working at a maid cafe, I found myself able to speak English!? - I started with broken English and now communicate in English (Akihabara study-abroad experience)' at https://maidreamin.com/recruit/special/detail.html?id=4168. Use it as encouragement: English grows naturally through serving foreign guests every day.",
     "tags": [
       "maid-cafe",
       "reference",
       "maidreamin",
       "work-experience"
     ],
-    "text": "Second reference: Maidreamin recruit story 'Working at a maid cafe, I found myself able to speak English!? - I started with broken English and now communicate in English (Akihabara study-abroad experience)' at https://maidreamin.com/recruit/special/detail.html?id=4168. Use it as encouragement: English grows naturally through serving foreign guests every day."
+    "source": "https://maidreamin.com/recruit/special/detail.html?id=4168",
+    "created_unix": 1792819789
   },
   {
-    "created_unix": 1792819789,
     "id": 70,
-    "source": "https://kimini.online/blog/archives/91887",
+    "text": "Third reference: kimini English blog 'Explaining a maid cafe worker's job in English - duties and Japanese maid cafe culture explained simply' at https://kimini.online/blog/archives/91887. Use it when the learner wants to explain maid cafe work or culture to foreigners.",
     "tags": [
       "maid-cafe",
       "reference",
       "kimini",
       "explaining-job"
     ],
-    "text": "Third reference: kimini English blog 'Explaining a maid cafe worker's job in English - duties and Japanese maid cafe culture explained simply' at https://kimini.online/blog/archives/91887. Use it when the learner wants to explain maid cafe work or culture to foreigners."
+    "source": "https://kimini.online/blog/archives/91887",
+    "created_unix": 1792819789
   },
   {
-    "created_unix": 1792819789,
     "id": 71,
-    "source": "maid cafe English training (AI overview)",
+    "text": "Maid cafe English training focuses on conveying simple words and the maid-cafe worldview (moe), not on grammar. Use 'Kyun-kyun', gestures and simple words; keep the Dreamland (mansion) role-play from greeting to farewell; real practice comes from talking with foreign tourists while working. Adapt: match vocabulary to the learner's level, keep the role-play, and encourage every attempt.",
     "tags": [
       "maid-cafe",
       "training",
       "principle"
     ],
-    "text": "Maid cafe English training focuses on conveying simple words and the maid-cafe worldview (moe), not on grammar. Use 'Kyun-kyun', gestures and simple words; keep the Dreamland (mansion) role-play from greeting to farewell; real practice comes from talking with foreign tourists while working. Adapt: match vocabulary to the learner's level, keep the role-play, and encourage every attempt."
+    "source": "maid cafe English training (AI overview)",
+    "created_unix": 1792819789
   },
   {
-    "created_unix": 1792819789,
     "id": 72,
-    "source": "maid cafe English training (AI overview)",
+    "text": "Service phrases: Welcome home, Master / Princess! (My Lord / My Lady also fine). Seating fee: There is a seating fee of X yen per hour. Ordering: Are you ready to order? Food: Your food is here! Spell: Let's cast a magic spell to make it delicious! Please make a heart shape with your hands and repeat after me! Moe Moe Kyun! (understood worldwide). Photo: Would you like to take a souvenir photo with me? Farewell: Thank you! Please come back home soon. / Have a wonderful day, My Lord!",
     "tags": [
       "maid-cafe",
       "phrases",
       "service"
     ],
-    "text": "Service phrases: Welcome home, Master / Princess! (My Lord / My Lady also fine). Seating fee: There is a seating fee of X yen per hour. Ordering: Are you ready to order? Food: Your food is here! Spell: Let's cast a magic spell to make it delicious! Please make a heart shape with your hands and repeat after me! Moe Moe Kyun! (understood worldwide). Photo: Would you like to take a souvenir photo with me? Farewell: Thank you! Please come back home soon. / Have a wonderful day, My Lord!"
+    "source": "maid cafe English training (AI overview)",
+    "created_unix": 1792819789
   },
   {
-    "created_unix": 1792819789,
     "id": 73,
-    "source": "maid cafe English training (AI overview)",
+    "text": "Explaining house rules gently to foreign guests: Please do not touch the maids. We cannot exchange personal contact information. Please do not take photos of the maids without permission. Teach these as polite 'Please ...' / 'We cannot ...' patterns and let the learner rephrase them in their own words.",
     "tags": [
       "maid-cafe",
       "rules",
       "service"
     ],
-    "text": "Explaining house rules gently to foreign guests: Please do not touch the maids. We cannot exchange personal contact information. Please do not take photos of the maids without permission. Teach these as polite 'Please ...' / 'We cannot ...' patterns and let the learner rephrase them in their own words."
+    "source": "maid cafe English training (AI overview)",
+    "created_unix": 1792819789
   },
   {
-    "created_unix": 1792819789,
     "id": 74,
-    "source": "user instruction 2026-10-24",
+    "text": "Rule: the maid cafe references and phrases above are a base, not a script. Apply them flexibly: adjust to the learner's level, topic, and role (customer or staff), vary the wording, and only state facts found in these sources; never invent prices, shop rules or URLs.",
     "tags": [
       "rule",
       "maid-cafe",
       "adaptation"
     ],
-    "text": "Rule: the maid cafe references and phrases above are a base, not a script. Apply them flexibly: adjust to the learner's level, topic, and role (customer or staff), vary the wording, and only state facts found in these sources; never invent prices, shop rules or URLs."
+    "source": "user instruction 2026-10-24",
+    "created_unix": 1792819789
   },
   {
-    "created_unix": 1792873098,
     "id": 75,
-    "source": "https://dotinstall.com/premium",
+    "text": "Verified price (2026-10-25): Dotinstall monthly plan costs 1480 yen including tax. ドットインストールの月額プランは1480円（税込）。公式ページ https://dotinstall.com/premium で確認。",
     "tags": [
       "dotinstall",
       "price",
       "verified",
       "learning"
     ],
-    "text": "Verified price (2026-10-25): Dotinstall monthly plan costs 1480 yen including tax. ドットインストールの月額プランは1480円（税込）。公式ページ https://dotinstall.com/premium で確認。"
+    "source": "https://dotinstall.com/premium",
+    "created_unix": 1792873098
   },
   {
-    "created_unix": 1792873098,
     "id": 76,
-    "source": "https://progate.com/plans/for_users",
+    "text": "Verified price (2026-10-25): Progate monthly plan costs 1490 yen including tax. Progateの月額プランは1490円（税込）。公式ページ https://progate.com/plans/for_users で確認。",
     "tags": [
       "progate",
       "price",
       "verified",
       "learning"
     ],
-    "text": "Verified price (2026-10-25): Progate monthly plan costs 1490 yen including tax. Progateの月額プランは1490円（税込）。公式ページ https://progate.com/plans/for_users で確認。"
+    "source": "https://progate.com/plans/for_users",
+    "created_unix": 1792873098
   },
   {
-    "created_unix": 1792873098,
     "id": 77,
-    "source": "https://paiza.jp/works/paid_plan_lp/settlement",
+    "text": "Verified price (2026-10-25): paiza monthly plan costs 1490 yen including tax. paizaラーニングの月額プランは1490円（税込）。公式ページ https://paiza.jp/works/paid_plan_lp/settlement で確認。",
     "tags": [
       "paiza",
       "price",
       "verified",
       "learning"
     ],
-    "text": "Verified price (2026-10-25): paiza monthly plan costs 1490 yen including tax. paizaラーニングの月額プランは1490円（税込）。公式ページ https://paiza.jp/works/paid_plan_lp/settlement で確認。"
+    "source": "https://paiza.jp/works/paid_plan_lp/settlement",
+    "created_unix": 1792873098
   },
   {
-    "created_unix": 1792959449,
     "id": 78,
-    "source": "https://dotinstall.com/premium",
+    "text": "Verified price (2026-10-26): Dotinstall monthly plan costs 1480 yen including tax. ドットインストールの月額プランは1480円（税込）。公式ページ https://dotinstall.com/premium で確認。",
     "tags": [
       "dotinstall",
       "price",
       "verified",
       "learning"
     ],
-    "text": "Verified price (2026-10-26): Dotinstall monthly plan costs 1480 yen including tax. ドットインストールの月額プランは1480円（税込）。公式ページ https://dotinstall.com/premium で確認。"
+    "source": "https://dotinstall.com/premium",
+    "created_unix": 1792959449
   },
   {
-    "created_unix": 1792959449,
     "id": 79,
-    "source": "https://progate.com/plans/for_users",
+    "text": "Verified price (2026-10-26): Progate monthly plan costs 1490 yen including tax. Progateの月額プランは1490円（税込）。公式ページ https://progate.com/plans/for_users で確認。",
     "tags": [
       "progate",
       "price",
       "verified",
       "learning"
     ],
-    "text": "Verified price (2026-10-26): Progate monthly plan costs 1490 yen including tax. Progateの月額プランは1490円（税込）。公式ページ https://progate.com/plans/for_users で確認。"
+    "source": "https://progate.com/plans/for_users",
+    "created_unix": 1792959449
   },
   {
-    "created_unix": 1792959449,
     "id": 80,
-    "source": "https://paiza.jp/works/paid_plan_lp/settlement",
+    "text": "Verified price (2026-10-26): paiza monthly plan costs 1490 yen including tax. paizaラーニングの月額プランは1490円（税込）。公式ページ https://paiza.jp/works/paid_plan_lp/settlement で確認。",
     "tags": [
       "paiza",
       "price",
       "verified",
       "learning"
     ],
-    "text": "Verified price (2026-10-26): paiza monthly plan costs 1490 yen including tax. paizaラーニングの月額プランは1490円（税込）。公式ページ https://paiza.jp/works/paid_plan_lp/settlement で確認。"
+    "source": "https://paiza.jp/works/paid_plan_lp/settlement",
+    "created_unix": 1792959449
   },
   {
-    "created_unix": 1793045813,
     "id": 81,
-    "source": "https://dotinstall.com/premium",
+    "text": "Verified price (2026-10-27): Dotinstall monthly plan costs 1480 yen including tax. ドットインストールの月額プランは1480円（税込）。公式ページ https://dotinstall.com/premium で確認。",
     "tags": [
       "dotinstall",
       "price",
       "verified",
       "learning"
     ],
-    "text": "Verified price (2026-10-27): Dotinstall monthly plan costs 1480 yen including tax. ドットインストールの月額プランは1480円（税込）。公式ページ https://dotinstall.com/premium で確認。"
+    "source": "https://dotinstall.com/premium",
+    "created_unix": 1793045813
   },
   {
-    "created_unix": 1793045813,
     "id": 82,
-    "source": "https://progate.com/plans/for_users",
+    "text": "Verified price (2026-10-27): Progate monthly plan costs 1490 yen including tax. Progateの月額プランは1490円（税込）。公式ページ https://progate.com/plans/for_users で確認。",
     "tags": [
       "progate",
       "price",
       "verified",
       "learning"
     ],
-    "text": "Verified price (2026-10-27): Progate monthly plan costs 1490 yen including tax. Progateの月額プランは1490円（税込）。公式ページ https://progate.com/plans/for_users で確認。"
+    "source": "https://progate.com/plans/for_users",
+    "created_unix": 1793045813
   },
   {
-    "created_unix": 1793045813,
     "id": 83,
-    "source": "https://paiza.jp/works/paid_plan_lp/settlement",
+    "text": "Verified price (2026-10-27): paiza monthly plan costs 1490 yen including tax. paizaラーニングの月額プランは1490円（税込）。公式ページ https://paiza.jp/works/paid_plan_lp/settlement で確認。",
     "tags": [
       "paiza",
       "price",
       "verified",
       "learning"
     ],
-    "text": "Verified price (2026-10-27): paiza monthly plan costs 1490 yen including tax. paizaラーニングの月額プランは1490円（税込）。公式ページ https://paiza.jp/works/paid_plan_lp/settlement で確認。"
+    "source": "https://paiza.jp/works/paid_plan_lp/settlement",
+    "created_unix": 1793045813
+  },
+  {
+    "id": 84,
+    "text": "Verified price (2026-10-28): Dotinstall monthly plan costs 1480 yen including tax. ドットインストールの月額プランは1480円（税込）。公式ページ https://dotinstall.com/premium で確認。",
+    "tags": [
+      "dotinstall",
+      "price",
+      "verified",
+      "learning"
+    ],
+    "source": "https://dotinstall.com/premium",
+    "created_unix": 1793132210
+  },
+  {
+    "id": 85,
+    "text": "Verified price (2026-10-28): Progate monthly plan costs 1490 yen including tax. Progateの月額プランは1490円（税込）。公式ページ https://progate.com/plans/for_users で確認。",
+    "tags": [
+      "progate",
+      "price",
+      "verified",
+      "learning"
+    ],
+    "source": "https://progate.com/plans/for_users",
+    "created_unix": 1793132210
+  },
+  {
+    "id": 86,
+    "text": "Verified price (2026-10-28): paiza monthly plan costs 1490 yen including tax. paizaラーニングの月額プランは1490円（税込）。公式ページ https://paiza.jp/works/paid_plan_lp/settlement で確認。",
+    "tags": [
+      "paiza",
+      "price",
+      "verified",
+      "learning"
+    ],
+    "source": "https://paiza.jp/works/paid_plan_lp/settlement",
+    "created_unix": 1793132210
   }
 ]
