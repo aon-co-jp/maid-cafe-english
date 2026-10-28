@@ -1551,3 +1551,10 @@ select { max-width: 100%; min-width: 0; text-overflow: ellipsis; }
   .lang-select select, .level-select select { width: 100%; }
 }
 html, body { max-width: 100%; overflow-x: hidden; }
+
+/* 2026-10-28 実機(Android Chrome 411px幅)で発覚: 上部の固定の帯(インストーラー案内326px・スクール説明796px・PC版起動193px)が
+   画面上端に3枚重なって固定表示され、本文(ほぼ画面全体)を覆っていた。狭い画面では固定をやめ、ページの流れの中に置く。 */
+@media (max-width: 900px) {
+  .maintenance-banner { position: static; top: auto; left: auto; right: auto; margin: 6px 8px; border-radius: 10px; z-index: auto; }
+  body { padding-top: env(safe-area-inset-top, 0px) !important; }
+}
