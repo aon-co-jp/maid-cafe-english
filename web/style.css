@@ -1558,3 +1558,8 @@ html, body { max-width: 100%; overflow-x: hidden; }
   .maintenance-banner { position: static; top: auto; left: auto; right: auto; margin: 6px 8px; border-radius: 10px; z-index: auto; }
   body { padding-top: env(safe-area-inset-top, 0px) !important; }
 }
+
+/* 2026-10-28 インストール済みのアプリ(スタンドアロン表示)では、インストーラーの案内は不要なので隠す */
+@media (display-mode: standalone) {
+  #download-recommend-banner, #installer-quick-link { display: none !important; }
+}

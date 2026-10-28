@@ -3208,8 +3208,17 @@ cd aruaru-db
     return null;
   }
   function hint(el) {
-    if (!usable(el) || el.hasAttribute("enterkeyhint")) return;
-    el.setAttribute("enterkeyhint", targetFor(el) || EXPLICIT[el.id] ? "go" : "done");
+    if (!usable(el)) return;
+    /* 実機(Android 14 Gboard)で確認: type="email" / "tel" の欄では、enterkeyhint を指定してもEnterキーが「次の欄へ」(→|)に
+       なってしまい、Enterが働かない。type="text" + inputmode にすると、メール・電話用のキーボードのまま、Enterキーの表示と動作が効く。 */
+    if (el.type === "email" || el.type === "tel") {
+      el.setAttribute("inputmode", el.type);
+      if (!el.hasAttribute("autocapitalize")) el.setAttribute("autocapitalize", "none");
+      el.type = "text";
+    }
+    if (el.hasAttribute("enterkeyhint")) return;
+    var verify = EXPLICIT[el.id] === "login-verify-btn";
+    el.setAttribute("enterkeyhint", verify ? "go" : (targetFor(el) || EXPLICIT[el.id]) ? "send" : "done");
   }
   function act(el, e) {
     e.preventDefault();
