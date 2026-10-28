@@ -3108,11 +3108,13 @@ cd aruaru-db
   function dock() { return document.getElementById("chat-dock"); }
   function update() {
     var h = vv ? vv.height : window.innerHeight;
-    var overlap = vv ? Math.max(0, window.innerHeight - vv.height - vv.offsetTop) : 0;
     if (window.innerHeight > baseH) baseH = window.innerHeight;
-    var shrunk = baseH - h > 150;
     var typing = /^(INPUT|TEXTAREA|SELECT)$/.test((document.activeElement || {}).tagName || "");
-    root.classList.toggle("kb-open", shrunk && typing);
+    /* ピンチズーム中(scale>1)は visualViewport が小さくなるだけでキーボードではない。入力中だけ補正する。 */
+    var zoomed = vv && vv.scale > 1.02;
+    var shrunk = typing && !zoomed && baseH - h > 150;
+    var overlap = (vv && typing && !zoomed) ? Math.max(0, window.innerHeight - vv.height - vv.offsetTop) : 0;
+    root.classList.toggle("kb-open", shrunk);
     root.style.setProperty("--kb", overlap + "px");
     var d = dock();
     if (d) root.style.setProperty("--dock-h", d.offsetHeight + "px");
