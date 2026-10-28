@@ -278,6 +278,7 @@ for line in sys.stdin:
     async fn full_queue_is_busy_not_waiting() {
         let Some(p) = pool_with(1, 1, 5000) else { return };
         let p = Arc::new(p);
+        assert!(p.submit(req("warm")).await.is_ok()); // ワーカーの起動を済ませてから、混雑の挙動を見る
         let running = tokio::spawn({ let p = Arc::clone(&p); async move { p.submit(req("sleep:0.6")).await } });
         tokio::time::sleep(Duration::from_millis(250)).await; // 1つ目はワーカーが処理中
         let queued = tokio::spawn({ let p = Arc::clone(&p); async move { p.submit(req("queued")).await } });
