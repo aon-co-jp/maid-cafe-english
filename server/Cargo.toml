@@ -29,6 +29,9 @@ anyhow = "1"
 # 冗長化構成を持つ)を設定されていればオプトインでミラー先として使う
 # (`aruaru-llm`側`geo_content.rs`と同じ`tokio-postgres`直結パターン)。
 rusqlite = { version = "0.32", features = ["bundled"] }
+# 世界情勢Q&A(2026-10-29): 報道機関のRSS/Atom/RDFの読み取りと、日付の変換
+roxmltree = "0.20"
+chrono = { version = "0.4", default-features = false, features = ["std", "clock"] }
 tokio-postgres = "0.7"
 # DBミラー接続のTLS対応(2026-08-24追加、ユーザー指示「sslmode=require等の
 # PostgreSQL標準的な接続オプションに対応してほしい」への対応)。OpenSSL

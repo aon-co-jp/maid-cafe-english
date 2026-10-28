@@ -2832,7 +2832,7 @@ async function advanceTrainingMode(userText) {
   reply += internetAccessSuffix(userText);
   reply += govConsultingSuffix(userText);
   reply += fairTradeSuffix(userText);
-  reply += await newsSuffix(userText);
+  reply = await newsQaCompose(userText, reply);
   reply += topicGuideSuffix(userText);
   reply += await troubledSuffix(userText);
   reply += nuclearDeterrenceSuffix(userText);
@@ -3165,7 +3165,7 @@ async function askTrainer(userText) {
     reply += internetAccessSuffix(userText);
     reply += govConsultingSuffix(userText);
     reply += fairTradeSuffix(userText);
-    reply += await newsSuffix(userText);
+    reply = await newsQaCompose(userText, reply);
   reply += topicGuideSuffix(userText);
     reply += await troubledSuffix(userText);
     reply += nuclearDeterrenceSuffix(userText);
@@ -3441,7 +3441,7 @@ async function askTrainer(userText) {
   reply += internetAccessSuffix(userText);
   reply += govConsultingSuffix(userText);
   reply += fairTradeSuffix(userText);
-  reply += await newsSuffix(userText);
+  reply = await newsQaCompose(userText, reply);
   reply += topicGuideSuffix(userText);
   reply += await troubledSuffix(userText);
   reply += nuclearDeterrenceSuffix(userText);
@@ -3887,8 +3887,8 @@ function incomeWallSuffix(userText) {
 // 会話に織り込み、「話題についていけるように」する(ユーザー指示、
 // 2026-08-17)。`referralsSuffix`と同じ「話題検出→サーバーへ問い合わせ→
 // 末尾に追記」の設計。
-const NEWS_TOPIC_KEYWORDS_JA = ["ニュース", "時事", "最近の出来事", "今日の話題"];
-const NEWS_TOPIC_KEYWORDS_EN = ["news", "current events", "what's happening", "headlines"];
+const NEWS_TOPIC_KEYWORDS_JA = ["ニュース", "時事", "最近の出来事", "今日の話題", "世界情勢", "国際情勢", "情勢", "速報", "報道"];
+const NEWS_TOPIC_KEYWORDS_EN = ["news", "current events", "what's happening", "headlines", "world affairs", "geopolitic", "breaking"];
 
 function mentionsNewsTopic(userText) {
   const lower = userText.toLowerCase();
@@ -4130,6 +4130,25 @@ async function archiveNewsSuffix(country) {
     return "";
   }
 }
+// 世界情勢Q&A(2026-10-29): ニュースの質問には、報道機関のRSSを毎時ためた記事(GitHubの公開ニュース保存庫にも日ごとに書き出し)から、
+// 出典・日付つきの引用だけで答える(`GET /v1/public/news/ask`)。AIの推測は入れない。該当する記事が無ければ「分かりません」と答える。
+// Q&Aが先頭、これまでの返答(英会話の先生の口調)はその下に残す。Q&Aに接続できないときは、従来のニュース表示に戻す。
+async function newsQaCompose(userText, reply) {
+  if (!mentionsNewsTopic(userText)) return reply;
+  const url = location.hostname.endsWith("maid-cafe.tokyo") ? "/v1/public/news/ask" : "https://maid-cafe.tokyo/v1/public/news/ask";
+  try {
+    const res = await fetchWithTimeout(`${url}?q=${encodeURIComponent(userText)}`, { cache: "no-store" }, AUX_TIMEOUT_MS);
+    if (!res.ok) throw new Error("HTTP " + res.status);
+    const data = await res.json();
+    if (!data || data.ok !== true) throw new Error("not ok");
+    const qa = containsJapanese(userText) ? data.answer_ja : data.answer_en;
+    if (!qa) throw new Error("empty");
+    return qa + "\n\n――――――――――\n" + reply;
+  } catch (e) {
+    return reply + (await newsSuffix(userText));
+  }
+}
+
 async function newsSuffix(userText) {
   if (!mentionsNewsTopic(userText)) return "";
   const country = newsCountryForUserText(userText);

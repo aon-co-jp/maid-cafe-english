@@ -23,6 +23,7 @@ mod db;
 mod github_agent;
 mod line_bot;
 mod local_agent;
+mod news_qa;
 mod self_update;
 mod totp;
 mod tts;
@@ -1948,6 +1949,36 @@ async fn auth_logout(req: Request) -> Response {
 /// Hostがループバックで、かつリバースプロキシ由来のヘッダー
 /// (x-forwarded-for/x-real-ip/x-forwarded-host)が無い場合のみtrue。
 /// VPSのnginx経由ではHostが公開ドメインでプロキシヘッダーも付くため常にfalse。
+/// `GET /v1/public/news/ask?q=...`(世界情勢Q&A): 保存した報道機関の記事から、出典・日付つきで答える。
+async fn news_ask(req: Request) -> Response {
+    let q = query_param(&req, "q").unwrap_or_default();
+    if q.trim().is_empty() {
+        return rs_json_response_cors(StatusCode::BAD_REQUEST, &serde_json::json!({"ok": false, "error": "q is required / qが必要です"}));
+    }
+    let v = tokio::task::spawn_blocking(move || news_qa::ask(&q)).await.unwrap_or_else(|_| serde_json::json!({"ok": false}));
+    rs_json_response_cors(StatusCode::OK, &v)
+}
+
+/// `GET /v1/public/news/stock`: ためた記事の件数・出典ごとの件数・最新の日時。
+async fn news_stock() -> Response {
+    let v = tokio::task::spawn_blocking(news_qa::stats).await.unwrap_or_else(|_| serde_json::json!({"ok": false}));
+    rs_json_response_cors(StatusCode::OK, &v)
+}
+
+/// `GET /v1/internal/news/export?since=<unix秒>`(この端末内からだけ): GitHubへ書き出す用に、記事を1行1件のJSONで返す。
+async fn news_export(req: Request) -> Response {
+    if !is_local_request(&req) {
+        return rs_json_response(StatusCode::FORBIDDEN, &serde_json::json!({"error": "loopback only"}));
+    }
+    let since = query_param(&req, "since").and_then(|s| s.parse::<i64>().ok()).unwrap_or(0);
+    let body = tokio::task::spawn_blocking(move || news_qa::export_jsonl(since)).await.unwrap_or_default();
+    hyper::Response::builder()
+        .status(StatusCode::OK)
+        .header("content-type", "application/x-ndjson; charset=utf-8")
+        .body(open_runo_poem_compat::hyper_compat::fixed_body(bytes::Bytes::from(body)))
+        .expect("building a response from a fixed set of valid headers cannot fail")
+}
+
 fn is_local_request(req: &Request) -> bool {
     let h = req.headers();
     if h.contains_key("x-forwarded-for") || h.contains_key("x-real-ip") || h.contains_key("x-forwarded-host") {
@@ -3479,6 +3510,18 @@ async fn main() {
 
     let root = repo_root();
 
+    // 世界情勢Q&A(2026-10-29新設、`news_qa.rs`参照): 報道機関のRSSを毎時集めてSQLiteへストックする。
+    // 保存先は `OPEN_ENGLISH_NEWS_DB`、無ければ配信ルートの `data/news-stock.sqlite3`。
+    {
+        let news_db = std::env::var_os("OPEN_ENGLISH_NEWS_DB").map(PathBuf::from).unwrap_or_else(|| root.join("data").join("news-stock.sqlite3"));
+        match news_qa::init(news_db) {
+            Ok(()) => {
+                tokio::spawn(news_qa::run_collector());
+            }
+            Err(e) => eprintln!("[news-stock] 初期化に失敗しました(世界情勢Q&Aは使えません): {e}"),
+        }
+    }
+
     // クライアント静的ファイル(`web/`)が存在する場合(=開発機・VPS・CIの
     // フルチェックアウト)、その内容を配信ルート(`root`)へミラーする
     // (2026-09-15、旧`open-english-pc`submoduleを本体へ再統合。`web/`は
@@ -3552,6 +3595,9 @@ async fn main() {
     app = app.at("/v1/admin/aruaru-llm/qwen/select", post(handler_fn(|req, _p| Box::pin(proxy_aruaru_llm_post("/v1/qwen/select", req)))));
     app = app.at("/v1/admin/aruaru-llm/qwen/install", post(handler_fn(|req, _p| Box::pin(proxy_aruaru_llm_post("/v1/qwen/install", req)))));
     app = app.at("/v1/public/aruaru-llm/recommend", get(handler_fn(|_req, _p| Box::pin(proxy_aruaru_llm_get("/v1/recommend")))));
+    app = app.at("/v1/public/news/ask", get(handler_fn(|req, _p| Box::pin(news_ask(req)))));
+    app = app.at("/v1/public/news/stock", get(handler_fn(|_req, _p| Box::pin(news_stock()))));
+    app = app.at("/v1/internal/news/export", get(handler_fn(|req, _p| Box::pin(news_export(req)))));
     app = app.at("/v1/public/aruaru-llm/runtime", get(handler_fn(|_req, _p| Box::pin(proxy_aruaru_llm_get_sanitized("/v1/runtime")))));
     app = app.at("/v1/public/aruaru-llm/accelerators", get(handler_fn(|_req, _p| Box::pin(proxy_aruaru_llm_get_sanitized("/v1/accelerators")))));
     app = app.at("/v1/public/aruaru-llm/models/catalog", get(handler_fn(|_req, _p| Box::pin(proxy_aruaru_llm_get("/v1/models/catalog")))));
