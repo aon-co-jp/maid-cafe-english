@@ -32,6 +32,30 @@ mod api_docs;
 
 use db::Db;
 
+/// 引っ越し案内(世界中の言語)。`OPEN_ENGLISH_MOVED=1` のとき、realdata.pro 以外のホスト
+/// (easy-web.tokyo/open-english、/maid-cafe-english)の画面入口(`/`・`/index.html`)で表示する。
+/// APIやアプリの自動更新は従来どおり動く(入口の画面だけを案内に差し替える)。
+const MOVED_HTML: &str = include_str!("../moved.html");
+
+fn moved_notice_or(is_entry: bool, inner: open_runo_poem_compat::Handler) -> open_runo_poem_compat::Handler {
+    if !is_entry || std::env::var("OPEN_ENGLISH_MOVED").ok().as_deref() != Some("1") {
+        return inner;
+    }
+    std::sync::Arc::new(move |req: Request, params: open_runo_poem_compat::Params| {
+        let host = req
+            .headers()
+            .get("x-forwarded-host")
+            .or_else(|| req.headers().get("host"))
+            .and_then(|v| v.to_str().ok())
+            .unwrap_or("")
+            .to_ascii_lowercase();
+        if host == "realdata.pro" || host.ends_with(".realdata.pro") || host.starts_with("realdata.pro:") {
+            return inner(req, params);
+        }
+        Box::pin(async move { open_runo_poem_compat::hyper_compat::html_response(StatusCode::OK, MOVED_HTML) })
+    })
+}
+
 /// (URLパス, 実ファイル名, Content-Type)。リポジトリ直下に存在する
 /// 静的アセットのみを列挙する(推測でパスを増やさない)。
 const STATIC_FILES: &[(&str, &str, &str)] = &[
@@ -3377,7 +3401,7 @@ async fn main() {
         const NO_CACHE: &str = "no-cache";
         app = app.at(
             url_path,
-            get(static_file_handler_with_cache_control(file_path.clone(), content_type, Some(NO_CACHE)))
+            get(moved_notice_or(matches!(*url_path, "/" | "/index.html"), static_file_handler_with_cache_control(file_path.clone(), content_type, Some(NO_CACHE))))
                 .head(static_file_head_handler_with_cache_control(file_path, content_type, Some(NO_CACHE))),
         );
     }
