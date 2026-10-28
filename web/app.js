@@ -4433,9 +4433,14 @@ const NUCLEAR_DETERRENCE_TOPIC_KEYWORDS_EN = [
 // 他の漢字・かなで続くものは対象外。
 const BARE_NUCLEAR_WORD_RE = /^[\s　]*核(について|とは|って|は|が|も)?[\s　?？!！。、.…]*$/;
 
+// 「核」(単独)と「核ミサイル」は「核武装」と同じ回答にする(登録済みの「核武装」の別名)。
+function isNuclearArmamentAlias(userText) {
+  return BARE_NUCLEAR_WORD_RE.test(userText) || userText.includes("核ミサイル");
+}
+
 function mentionsNuclearDeterrenceTopic(userText) {
   const lower = userText.toLowerCase();
-  if (BARE_NUCLEAR_WORD_RE.test(userText)) return true;
+  if (isNuclearArmamentAlias(userText)) return true;
   return (
     NUCLEAR_DETERRENCE_TOPIC_KEYWORDS_JA.some((k) => userText.includes(k)) ||
     NUCLEAR_DETERRENCE_TOPIC_KEYWORDS_EN.some((k) => lower.includes(k))
@@ -10801,7 +10806,10 @@ async function matchCustomQaAll(userText) {
     seen.add(key);
     pairs.push(pair);
   }
-  const haystack = userText.toLowerCase();
+  let haystack = userText.toLowerCase();
+  // 2026-10-28 ユーザー指示(「核武装」「核」「核ミサイル」は同じ回答にして): 単独の「核」と「核ミサイル」は、登録済みの
+  // 「核武装」の別名として照合する(登録の追加には管理者のログインが要るため、画面側の別名で対応)。
+  if (isNuclearArmamentAlias(userText)) haystack += " 核武装";
   return pairs.filter(
     (pair) => pair.keywords.length > 0 && pair.keywords.every((kw) => haystack.includes(String(kw).toLowerCase()))
   );
