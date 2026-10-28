@@ -134,7 +134,8 @@ async fn run_job(r: &mut Running, line: &str) -> Result<Vec<u8>, String> {
 }
 
 async fn worker_loop(s: Arc<Settings>, rx: Arc<Mutex<mpsc::Receiver<Job>>>) {
-    let mut running: Option<Running> = None;
+    // 最初の依頼を待たせないよう、先に起動してモデルを読み込んでおく(失敗しても依頼が来たときに再試行する)。
+    let mut running: Option<Running> = start(&s).await.ok();
     loop {
         let job = { rx.lock().await.recv().await };
         let Some(job) = job else { return };
@@ -205,6 +206,11 @@ impl Pool {
 async fn pool() -> Option<&'static Pool> {
     static POOL: OnceCell<Option<Pool>> = OnceCell::const_new();
     POOL.get_or_init(|| async { settings().map(Pool::spawn) }).await.as_ref()
+}
+
+/// プールを(まだなら)作ってワーカーの起動を始める。状態の問い合わせなどで先に呼んでおくと、最初の合成が速い。
+pub async fn warm() {
+    let _ = pool().await;
 }
 
 /// 合成する。`voice` は `VOICES` の名前、`speed` は話速の倍率。混雑時は待たずに `Busy`。

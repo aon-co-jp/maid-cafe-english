@@ -198,6 +198,7 @@ async fn voices() -> Vec<OsVoice> {
     }
     let mut listed = engine::list_voices().await;
     if crate::kokoro_pool::enabled() {
+        crate::kokoro_pool::warm().await;
         // GPU無しのVPSのCPUで動くKokoro(日本語)。先生=女性、ヘルパー=男性。
         for (id, female) in crate::kokoro_pool::VOICES {
             listed.push(OsVoice { name: format!("kokoro:{id}"), culture: "ja-JP".into(), gender: if *female { SourceGender::Female } else { SourceGender::Male } });
