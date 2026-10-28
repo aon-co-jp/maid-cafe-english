@@ -1,7 +1,0 @@
-# Kokoro(ONNX int8)日本語ワーカーの依存(VPS: Python 3.12、`python3-devel` が要る=pyopenjtalkのビルド用)。
-# misaki[ja] が引く unidic は辞書が約1GBなので入れず、unidic-lite を使う(`pip uninstall unidic && pip install unidic-lite`)。
-kokoro-onnx
-misaki[ja]
-unidic-lite
-numpy
-onnxruntime

@@ -8468,10 +8468,10 @@ Reading into `serde_json::Value` gives almost no speed-up even with SIMD (188 ms
 - **静的なダウンロードリンク**(`web/index.html` 等)は、常に最新が置かれる元の `open-english` のままにした(新リポジトリの最新は上のジョブが動くまで古くなりうるため)。GitHubのリンク欄は新旧の両方を並べた。
 - **VPS**: `/root/url/easy-web.tokyo/open-english`(`/root/easy-web.tokyo/open-english` と同じ)の写しは履歴書き換え後に整列済み(旧履歴は `backup-pre-anon-20261016` ブランチ)。デプロイは `git fetch` + `git merge --ff-only origin/master`、サーバーのソースが変わったときは `cargo build --release` 後に `open-english{,-demo}.service` を再起動。**`git pull` は使わない**。
 
-## 2026-10-28 VPSのCPUで動くKokoro(日本語)音声合成API
-- 端末に十分な演算機能(AVX2/NEON/GPU)が無いクライアント向けに、`POST /v1/public/tts`(`lang: ja-*`)をVPSのCPUで合成する。`server/src/kokoro_pool.rs`(Rustのワーカープール)が `server/tts_worker/kokoro_worker.py`(G2P=misaki[ja]+OpenJTalk、推論=kokoro-onnx int8)を子プロセスで常駐させる。**Pythonはワーカーのみ**(HTTP・キュー・上限はRust)。Rust化はOpenJTalk相当のG2Pが課題で未着手。
-- **同時実行数の上限と待ち行列**: ワーカー数(`OPEN_ENGLISH_KOKORO_WORKERS`、既定2)=同時合成数、待ち行列(`..._QUEUE`、既定6)を超えると待たせず503+`Retry-After: 3`(`fallback: true`)。待機中に切断された依頼は捨てる。30秒で打ち切り、異常終了・タイムアウトのワーカーは作り直す。起動時にモデルを読み込んで待機(最初の合成が約2秒)。偽ワーカーによる試験6件(並列・混雑・タイムアウト・クラッシュ復帰・切断破棄)。
-- **有効化**: `OPEN_ENGLISH_KOKORO_DIR`(モデル `kokoro-v1.0.int8.onnx`・`voices-v1.0.bin`+venv)、`..._WORKER`(スクリプトのパス)。VPSは `/etc/systemd/system/open-english.service.d/kokoro.conf`、実体は `/root/kokoro-tts`(venv、約300MB)。VPSに `python3-devel` を入れた(pyopenjtalkのビルド用)。辞書は `unidic-lite`(`unidic` は約1GBなので入れない)。
-- **実測(VPS 4コア、2ワーカー×2スレッド、実サービス)**: 単発約2〜8秒(初回は起動込み)、同一文はキャッシュで約10ms。12件同時 → 8件成功(4.3〜19.5秒)・4件が即503。常駐メモリ約740MB(2ワーカー)。
-- 声: 先生=`jf_alpha`、ヘルパー=`jm_kumo`(男性、評価C-)。SAPI向けのDSP加工は通さない。ハモり(harmony)は未対応。**日本語のみ**(他言語は従来の経路/404)。聴感品質は評価していない(試聴は `F:\tts-audition`)。
-- 未了: 端末側の判定(端末で合成するかVPSへ委譲するか)、英語など他言語、VPSでの負荷時の他サービスへの影響の長期観察。
+## 2026-10-28 VPSのCPUで動くKokoro(日本語)音声合成API(Rustだけ)
+- 端末に十分な演算機能(AVX2/NEON/GPU)が無いクライアント向けに、`POST /v1/public/tts`(`lang: ja-*`)をVPSのCPUで合成する。実体は新規公開リポジトリ [`rs-kokoro-ja`](https://github.com/aon-co-jp/rs-kokoro-ja)(Rust製。日本語G2P・語彙・声npz・ONNX推論・無音トリムを全部Rustで。**Python不使用**。v0.1.0)。`server/src/kokoro_pool.rs` がそれを内蔵するワーカープール。
+- **cargoの機能 `kokoro`**(`cargo build --release --features kokoro`)でだけ有効。辞書(UniDic)とONNX Runtimeを内蔵するのでバイナリが約230MB増える。PC・インストーラー向けの通常ビルドには付けない。
+- **同時実行数の上限と待ち行列**: ワーカー数(`OPEN_ENGLISH_KOKORO_WORKERS`、既定2。各自スレッドとONNXセッションを持つ)=同時合成数、待ち行列(`..._QUEUE`、既定6)を超えると待たせず503+`Retry-After: 3`(`fallback: true`)。待機中に切断された依頼は捨てる。30秒で打ち切り、合成中にパニックしたワーカーはモデルを読み直す。起動時にモデルを読み込んで待機。偽の合成器による試験6件。
+- **有効化**: `OPEN_ENGLISH_KOKORO_DIR`(`kokoro-v1.0.int8.onnx`・`voices-v1.0.bin` のあるフォルダ)、`..._THREADS`(既定2)。VPSは `/etc/systemd/system/open-english.service.d/kokoro.conf`、モデルは `/root/kokoro-tts`。
+- 声: 先生=`jf_alpha`、ヘルパー=`jm_kumo`(男性、評価C-)。SAPI向けのDSP加工は通さない。ハモり(harmony)は未対応。**日本語のみ**(他言語は従来の経路/404)。聴感品質は評価していない(試聴は `F:	ts-audition`)。
+- 未了: 端末側の判定(端末で合成するかVPSへ委譲するか)、英語など他言語。
