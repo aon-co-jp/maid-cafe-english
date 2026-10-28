@@ -3497,6 +3497,9 @@ function isConsumptionTaxSolutionQuestion(userText) {
   if (!containsJapanese(userText)) return false;
   const hasTopic = CONSUMPTION_TAX_TOPIC_KEYWORDS.some((k) => userText.includes(k));
   if (!hasTopic) return false;
+  // 2026-10-28 バグ修正(「消費税」だけ・「消費税と質問」では以前出ていた回答が出なくなった): 質問の言葉が無くても、
+  // 短い文(「消費税」「消費税について」「消費税は?」など)で消費税の話題を出したときは、提案を出す。
+  if (userText.replace(/[\s　?？!！。、.]/g, "").length <= 14) return true;
   return CONSUMPTION_TAX_QUESTION_KEYWORDS.some((k) => userText.includes(k));
 }
 
@@ -4425,8 +4428,14 @@ const NUCLEAR_DETERRENCE_TOPIC_KEYWORDS_EN = [
   "three non-nuclear principles", "non-nuclear principles",
 ];
 
+// 2026-10-28 バグ修正(「核」だけでは以前出ていた回答が出なかった): 単独の「核」(「核」「核について」「核とは」「核は?」など、
+// 文が核の話題だけのとき)も話題として扱う。「核心」「中核」「結核」「核家族」などへの誤反応を避けるため、「核」の直後が
+// 他の漢字・かなで続くものは対象外。
+const BARE_NUCLEAR_WORD_RE = /^[\s　]*核(について|とは|って|は|が|も)?[\s　?？!！。、.…]*$/;
+
 function mentionsNuclearDeterrenceTopic(userText) {
   const lower = userText.toLowerCase();
+  if (BARE_NUCLEAR_WORD_RE.test(userText)) return true;
   return (
     NUCLEAR_DETERRENCE_TOPIC_KEYWORDS_JA.some((k) => userText.includes(k)) ||
     NUCLEAR_DETERRENCE_TOPIC_KEYWORDS_EN.some((k) => lower.includes(k))
