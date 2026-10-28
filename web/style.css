@@ -1492,3 +1492,30 @@ label.setup-note {
 .ai-own-key-row { width: 100%; display: flex; flex-direction: column; gap: 4px; padding: 6px 0; border-bottom: 1px solid rgba(201,161,74,.4); margin-bottom: 4px; }
 .ai-own-key-btn { align-self: flex-start; font-size: 12px; padding: 4px 10px; border-radius: 8px; font-weight: 600; }
 .ai-own-key-note { font-size: 11px; opacity: .85; }
+
+/* 2026-10-28: スマホ・タブレットの仮想キーボード対策。
+   入力中は画面の半分ほどがキーボードで隠れるため、固定ドックを最小限(入力欄とボタン、短い回答枠)に畳み、
+   本文が隠れないよう下に余白を足す。--kb はキーボードの高さ(iOS等、キーボードが画面に重なる環境用)。
+   --dock-h はドックの実際の高さ(スクリプトが更新)。 */
+body { min-height: 100vh; min-height: 100dvh; padding-bottom: calc(var(--dock-h, 0px) + 8px); }
+.chat-dock { bottom: var(--kb, 0px); max-height: 60vh; max-height: 60dvh; overflow-y: auto; overscroll-behavior: contain; }
+/* iOSは入力欄の文字が16px未満だと、フォーカス時に画面が勝手に拡大されるため */
+@media (pointer: coarse) { .chat-form textarea, .chat-form input { font-size: 16px; } }
+html.kb-open .chat-dock .ai-in-use-line,
+html.kb-open .chat-dock #chat-retention-row,
+html.kb-open .chat-dock .dock-avatar { display: none; }
+html.kb-open .chat-dock .dock-answer { max-height: 18vh; max-height: 18dvh; }
+html.kb-open .chat-dock { max-height: 45vh; max-height: 45dvh; padding-top: 4px; }
+html.kb-open .chat-form textarea { rows: 1; height: 2.9em; min-height: 2.9em; max-height: 6em; resize: none; }
+/* 横向きで高さが低い画面(キーボード無しでも低い)でも、ドックが画面を占めすぎないように */
+@media (max-height: 480px) {
+  .chat-dock .ai-in-use-line, .chat-dock #chat-retention-row { display: none; }
+  .chat-dock .dock-answer { max-height: 20vh; max-height: 20dvh; }
+}
+/* スマホ・タブレット: 上部の浮き帯(管理者ログイン・インストーラー案内)が本文に重なって読めなくなるため、
+   狭い画面では固定をやめて通常の流れに置く。キーボード表示中は案内を隠す(画面を広く使うため)。 */
+@media (max-width: 900px) {
+  .admin-login-link, .installer-quick-link { position: static; margin: 6px; }
+  .admin-login-link { display: inline-block; }
+}
+html.kb-open .installer-quick-link { display: none; }

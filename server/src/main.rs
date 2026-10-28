@@ -33,10 +33,37 @@ mod api_docs;
 
 use db::Db;
 
-/// 引っ越し案内(世界中の言語)。`OPEN_ENGLISH_MOVED=1` のとき、realdata.pro 以外のホスト
-/// (easy-web.tokyo/open-english、/maid-cafe-english)の画面入口(`/`・`/index.html`)で表示する。
+/// 引っ越し案内(世界中の言語)。`OPEN_ENGLISH_MOVED=1` のとき、新しい本拠(既定 maid-cafe.tokyo。
+/// `OPEN_ENGLISH_HOME_HOSTS` にカンマ区切りで上書き可)以外のホスト
+/// (realdata.pro/english、easy-web.tokyo/open-english、/maid-cafe-english)の画面入口(`/`・`/index.html`)で表示する。
 /// APIやアプリの自動更新は従来どおり動く(入口の画面だけを案内に差し替える)。
 const MOVED_HTML: &str = include_str!("../moved.html");
+
+/// 新しい本拠のホストか(`host`は小文字。ポート付き・サブドメインも許す)。
+fn is_home_host(host: &str) -> bool {
+    host_in_list(&std::env::var("OPEN_ENGLISH_HOME_HOSTS").unwrap_or_else(|_| "maid-cafe.tokyo".to_string()), host)
+}
+
+fn host_in_list(list: &str, host: &str) -> bool {
+    let name = host.split(':').next().unwrap_or("");
+    list.split(',').map(str::trim).filter(|h| !h.is_empty()).any(|h| name == h || name.ends_with(&format!(".{h}")))
+}
+
+#[cfg(test)]
+mod home_host_tests {
+    use super::host_in_list;
+
+    #[test]
+    fn home_host_matching() {
+        assert!(host_in_list("maid-cafe.tokyo", "maid-cafe.tokyo"));
+        assert!(host_in_list("maid-cafe.tokyo", "www.maid-cafe.tokyo"));
+        assert!(host_in_list("maid-cafe.tokyo", "maid-cafe.tokyo:443"));
+        assert!(!host_in_list("maid-cafe.tokyo", "realdata.pro"));
+        assert!(!host_in_list("maid-cafe.tokyo", "evilmaid-cafe.tokyo"));
+        assert!(!host_in_list("maid-cafe.tokyo", ""));
+        assert!(host_in_list("a.example, maid-cafe.tokyo", "maid-cafe.tokyo"));
+    }
+}
 
 fn moved_notice_or(is_entry: bool, inner: open_runo_poem_compat::Handler) -> open_runo_poem_compat::Handler {
     if !is_entry || std::env::var("OPEN_ENGLISH_MOVED").ok().as_deref() != Some("1") {
@@ -50,7 +77,7 @@ fn moved_notice_or(is_entry: bool, inner: open_runo_poem_compat::Handler) -> ope
             .and_then(|v| v.to_str().ok())
             .unwrap_or("")
             .to_ascii_lowercase();
-        if host == "realdata.pro" || host.ends_with(".realdata.pro") || host.starts_with("realdata.pro:") {
+        if is_home_host(&host) {
             return inner(req, params);
         }
         Box::pin(async move { open_runo_poem_compat::hyper_compat::html_response(StatusCode::OK, MOVED_HTML) })

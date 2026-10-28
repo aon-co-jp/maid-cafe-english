@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
 <meta charset="utf-8" />
-<meta name="viewport" content="width=device-width, initial-scale=1" />
+<meta name="viewport" content="width=device-width, initial-scale=1, interactive-widget=resizes-content" />
 <title>open-english: Maid Cafe English Trainer (Phase 0)</title>
 <script>
 // 実バグ修正(2026-09-24、ユーザー報告「文字入力後に送信ボタンが反応しない」の
@@ -49,9 +49,9 @@
   <div id="demo-moved-notice" class="demo-moved-notice hidden">
     <div class="demo-moved-box">
       <h2>🚚 引っ越しました / We have moved</h2>
-      <p>デモ版は <strong>easy-web.tokyo/open-english/</strong> に引っ越しました。下のボタンから新しいページへお進みください。</p>
-      <p>The demo has moved to <strong>easy-web.tokyo/open-english/</strong>. Please continue at the new page using the button below.</p>
-      <a class="demo-moved-btn" href="https://easy-web.tokyo/open-english/">➡ easy-web.tokyo/open-english/</a>
+      <p>デモ版は <strong>https://maid-cafe.tokyo</strong> に引っ越しました。下のボタンから新しいページへお進みください。</p>
+      <p>The demo has moved to <strong>https://maid-cafe.tokyo</strong>. Please continue at the new page using the button below.</p>
+      <a class="demo-moved-btn" href="https://maid-cafe.tokyo/">➡ https://maid-cafe.tokyo</a>
     </div>
   </div>
   <!-- ログインゲート(2026-08-26新設、ユーザー指示「家族や会社で共有する
@@ -3098,6 +3098,40 @@ cd aruaru-db
     · <a href="facebook.html">Access via Facebook / Facebook経由でアクセス</a>
   </footer>
 
+<script>
+/* 2026-10-28: 仮想キーボード対策。キーボードで画面が狭くなったら html.kb-open を付け(ドックを最小限に畳む)、
+   iOSなどキーボードが画面に重なる環境では --kb でドックをキーボードの上へ上げる。--dock-h は本文の下余白用。 */
+(function () {
+  var root = document.documentElement;
+  var vv = window.visualViewport;
+  var baseH = window.innerHeight;
+  function dock() { return document.getElementById("chat-dock"); }
+  function update() {
+    var h = vv ? vv.height : window.innerHeight;
+    var overlap = vv ? Math.max(0, window.innerHeight - vv.height - vv.offsetTop) : 0;
+    if (window.innerHeight > baseH) baseH = window.innerHeight;
+    var shrunk = baseH - h > 150;
+    var typing = /^(INPUT|TEXTAREA|SELECT)$/.test((document.activeElement || {}).tagName || "");
+    root.classList.toggle("kb-open", shrunk && typing);
+    root.style.setProperty("--kb", overlap + "px");
+    var d = dock();
+    if (d) root.style.setProperty("--dock-h", d.offsetHeight + "px");
+  }
+  if (vv) { vv.addEventListener("resize", update); vv.addEventListener("scroll", update); }
+  window.addEventListener("resize", update);
+  window.addEventListener("orientationchange", function () { baseH = window.innerHeight; setTimeout(update, 300); });
+  document.addEventListener("focusin", function (e) {
+    setTimeout(update, 50);
+    if (e.target && e.target.id === "chat-input") setTimeout(function () { e.target.scrollIntoView({ block: "nearest" }); }, 300);
+  });
+  document.addEventListener("focusout", function () { setTimeout(update, 100); });
+  window.addEventListener("load", function () {
+    update();
+    var d = dock();
+    if (window.ResizeObserver && d) new ResizeObserver(update).observe(d);
+  });
+})();
+</script>
   <script src="app.js"></script>
   <script src="auto-update.js"></script>
 <script>
