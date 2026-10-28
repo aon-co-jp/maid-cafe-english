@@ -6990,6 +6990,18 @@ inputEl.addEventListener("keydown", (e) => {
   e.preventDefault();
   formEl.requestSubmit();
 });
+// 2026-10-28 バグ修正(スマホで文字入力後にEnterを押しても送信されない): Androidの多くの仮想キーボード
+// (Gboard・日本語IME等)は、Enterを押しても keydown の key が "Unidentified"(keyCode 229)で届くため、上の
+// 判定に掛からず、改行が入るだけになっていた。改行の入力操作そのもの(beforeinput の insertLineBreak /
+// insertParagraph)を捕まえて送信にする。変換中(isComposing)の確定Enterと、Shift+Enter(改行)は従来どおり。
+let __lastEnterShift = false;
+inputEl.addEventListener("keydown", (e) => { __lastEnterShift = !!e.shiftKey; });
+inputEl.addEventListener("beforeinput", (e) => {
+  if (e.isComposing || (e.inputType !== "insertLineBreak" && e.inputType !== "insertParagraph")) return;
+  if (__lastEnterShift) return; // Shift+Enterは改行
+  e.preventDefault();
+  formEl.requestSubmit();
+});
 
 formEl.addEventListener("submit", async (e) => {
   e.preventDefault();

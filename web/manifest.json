@@ -1,11 +1,17 @@
 {
-  "name": "open-english: Maid Cafe English Trainer",
-  "short_name": "open-english",
-  "description": "AI-powered maid cafe English conversation trainer (Phase 0 prototype, powered by aruaru-llm)",
-  "start_url": "./index.html",
+  "id": "./",
+  "name": "maid-cafe.tokyo メイドカフェ英会話 / Maid Cafe English",
+  "short_name": "メイドカフェ英会話",
+  "description": "AIメイド先生と英会話・WEB/アプリ開発・学習。AI-powered maid cafe English conversation trainer (powered by aruaru-llm / open-cuda).",
+  "lang": "ja",
+  "dir": "auto",
+  "start_url": "./",
+  "scope": "./",
   "display": "standalone",
+  "orientation": "any",
   "background_color": "#1a1220",
   "theme_color": "#f096be",
+  "categories": ["education", "productivity"],
   "icons": [
     { "src": "icons/icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },
     { "src": "icons/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any" }

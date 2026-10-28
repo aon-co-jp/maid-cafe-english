@@ -1519,3 +1519,35 @@ html.kb-open .chat-form textarea { rows: 1; height: 2.9em; min-height: 2.9em; ma
   .admin-login-link { display: inline-block; }
 }
 html.kb-open .installer-quick-link { display: none; }
+
+/* 2026-10-28 スマホ版(PWA): インストール導線と、ホーム画面アプリ表示(ノッチ・ステータスバー)の余白 */
+.pwa-install { position: static; margin: 6px; display: flex; flex-wrap: wrap; align-items: center; gap: 6px; }
+.pwa-install.hidden { display: none; }
+.pwa-install button { border: 2px solid var(--pink, #f096be); background: #332200; color: #ffd76a; border-radius: 999px; padding: 8px 14px; font-weight: bold; font-size: 14px; cursor: pointer; min-height: 40px; }
+.pwa-install #pwa-install-close { padding: 8px 12px; }
+.pwa-install-help { flex-basis: 100%; margin: 4px 0 0; font-size: 13px; line-height: 1.5; background: #1a2452; color: #fff; border-radius: 10px; padding: 8px 12px; }
+.pwa-install-help.hidden { display: none; }
+@media (display-mode: standalone) {
+  body { padding-top: env(safe-area-inset-top, 0px); }
+  .pwa-install { display: none; }
+}
+/* タップしやすい大きさ(スマホ): ボタン・入力の最小の高さ */
+@media (pointer: coarse) {
+  .chat-form button, .dock-mic { min-height: 44px; min-width: 44px; }
+}
+
+/* 2026-10-28 スマホ: 送信(Enter)ボタンを右下に大きく。入力欄は縮められるように(ボタンが画面外に出ない) */
+.chat-form textarea { min-width: 0; }
+.chat-form .chat-send-btn { flex: 0 0 auto; min-width: 64px; align-self: stretch; font-size: 16px; white-space: nowrap; background: var(--pink); color: #200; border-radius: 10px; touch-action: manipulation; }
+.chat-form .chat-send-btn:active { filter: brightness(0.9); transform: scale(0.97); }
+@media (max-width: 480px) { .chat-form .chat-send-btn .send-en { display: none; } .chat-form { gap: 6px; } }
+
+/* 2026-10-28 スマホ: 選択ボックス(言語・レベル等)が長い選択肢名で画面幅を超え、ページ全体が横にはみ出していた
+   (375px幅でページ幅が487pxになっていた)。選択ボックスは画面幅に収め、長い文字は省略表示にする。 */
+select { max-width: 100%; min-width: 0; text-overflow: ellipsis; }
+.lang-select, .level-select { max-width: 100%; min-width: 0; }
+@media (max-width: 640px) {
+  .lang-select, .level-select { display: flex; flex-direction: column; align-items: stretch; gap: 4px; }
+  .lang-select select, .level-select select { width: 100%; }
+}
+html, body { max-width: 100%; overflow-x: hidden; }

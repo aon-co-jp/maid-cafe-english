@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
 <meta charset="utf-8" />
-<meta name="viewport" content="width=device-width, initial-scale=1, interactive-widget=resizes-content" />
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, interactive-widget=resizes-content" />
 <title>open-english: Maid Cafe English Trainer (Phase 0)</title>
 <script>
 // 実バグ修正(2026-09-24、ユーザー報告「文字入力後に送信ボタンが反応しない」の
@@ -30,6 +30,11 @@
 <link rel="icon" type="image/png" sizes="32x32" href="icons/icon-32.png" />
 <link rel="apple-touch-icon" sizes="180x180" href="icons/icon-180.png" />
 <meta name="theme-color" content="#f096be" />
+<!-- 2026-10-28 スマホ版(PWA): iPhone/iPadでホーム画面から開いたとき、アドレスバー無しのアプリ表示にする -->
+<meta name="apple-mobile-web-app-capable" content="yes" />
+<meta name="mobile-web-app-capable" content="yes" />
+<meta name="apple-mobile-web-app-title" content="メイドカフェ英会話" />
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
 </head>
 <body>
   <!-- 2026-09-20新設(ユーザー指示「easy-web.tokyo/open-englishの上の方に、管理者
@@ -45,6 +50,16 @@
   <div id="installer-quick-link" class="installer-quick-link">
     <a href="#download-recommend-banner">📦 各インストーラーのダウンロードはこちら / Download the installers here</a>
     <button type="button" id="installer-quick-link-close" title="閉じる / Close">✕ 閉じる / Close</button>
+  </div>
+  <!-- 2026-10-28 スマホ版(PWA): ホーム画面に追加してアプリのように使う。Android/PC(Chrome・Edge)は
+       インストール画面、iPhone/iPadは「共有 → ホーム画面に追加」の手順を案内する。 -->
+  <div id="pwa-install" class="pwa-install hidden">
+    <button type="button" id="pwa-install-btn">📲 スマホにインストール / Install on your phone</button>
+    <button type="button" id="pwa-install-close" title="閉じる / Close">✕</button>
+    <p id="pwa-install-help" class="pwa-install-help hidden">
+      iPhone / iPad: Safari の「共有」ボタン <strong>⬆︎</strong> →「ホーム画面に追加」を選んでください。<br>
+      Tap the Share button <strong>⬆︎</strong> in Safari, then “Add to Home Screen”.
+    </p>
   </div>
   <div id="demo-moved-notice" class="demo-moved-notice hidden">
     <div class="demo-moved-box">
@@ -3073,7 +3088,7 @@ cd aruaru-db
           <form id="chat-form" class="chat-form">
             <textarea id="chat-input" rows="3" placeholder="Type in English or Japanese... / 英語または日本語で入力" autocomplete="off" enterkeyhint="send" required></textarea>
             <button type="button" id="dock-mic" class="dock-mic" title="音声入力 / Voice input">🎙</button>
-            <button type="submit">Send</button>
+            <button type="submit" id="chat-send-btn" class="chat-send-btn" aria-label="送信 / Send">送信 ↵<span class="send-en"> Send</span></button>
           </form>
         </div>
       </div>
@@ -3132,6 +3147,30 @@ cd aruaru-db
     var d = dock();
     if (window.ResizeObserver && d) new ResizeObserver(update).observe(d);
   });
+})();
+</script>
+<script>
+/* 2026-10-28 スマホ版(PWA)のインストール導線。すでにアプリとして開いているとき(standalone)は出さない。 */
+(function () {
+  var box = document.getElementById("pwa-install");
+  var btn = document.getElementById("pwa-install-btn");
+  var closeBtn = document.getElementById("pwa-install-close");
+  var help = document.getElementById("pwa-install-help");
+  if (!box || !btn) return;
+  var KEY = "maid-cafe.pwaInstallDismissed";
+  function dismissed() { try { return localStorage.getItem(KEY) === "1"; } catch (e) { return false; } }
+  var standalone = (window.matchMedia && matchMedia("(display-mode: standalone)").matches) || navigator.standalone === true;
+  if (standalone || dismissed()) return;
+  var deferred = null;
+  var ios = /iphone|ipad|ipod/i.test(navigator.userAgent) || (navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1);
+  window.addEventListener("beforeinstallprompt", function (e) { e.preventDefault(); deferred = e; box.classList.remove("hidden"); });
+  window.addEventListener("appinstalled", function () { box.classList.add("hidden"); });
+  if (ios) box.classList.remove("hidden"); /* iPhone/iPadには、インストール画面を出す仕組みが無いので手順を案内 */
+  btn.addEventListener("click", function () {
+    if (deferred) { deferred.prompt(); deferred.userChoice.finally(function () { deferred = null; box.classList.add("hidden"); }); }
+    else if (help) help.classList.toggle("hidden");
+  });
+  if (closeBtn) closeBtn.addEventListener("click", function () { box.classList.add("hidden"); try { localStorage.setItem(KEY, "1"); } catch (e) {} });
 })();
 </script>
   <script src="app.js"></script>
