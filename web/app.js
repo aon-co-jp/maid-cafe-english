@@ -8177,7 +8177,18 @@ if (SpeechRecognitionImpl) {
     finalizeVoiceInput();
   });
   // 起動時から常時ONで待ち受け開始(挨拶の読み上げが終わってから)。
-  scheduleAutoListen(300);
+  // 2026-10-28 実機(Android Chrome)で発覚: マイクの許可が未決定のとき、ページを開いた直後に「マイクの使用許可を
+  // 求めています」のダイアログが出て、何も操作していない利用者を驚かせていた。許可がすでに「許可」の利用者だけ
+  // 従来どおり自動で待ち受け、未決定・拒否の利用者には、🎙を押したとき(利用者の操作による要求)に許可を求める。
+  (async () => {
+    let state = "prompt";
+    try {
+      state = (await navigator.permissions.query({ name: "microphone" })).state;
+    } catch (_) {
+      // Permissions API非対応のブラウザは、自動では要求しない。
+    }
+    if (state === "granted") scheduleAutoListen(300);
+  })();
 } else {
   micBtn.disabled = true;
   micBtn.title = "Voice input not supported in this browser / このブラウザは音声入力に対応していません";

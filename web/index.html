@@ -3172,6 +3172,64 @@ cd aruaru-db
 })();
 </script>
 <script>
+/* 2026-10-28 全ての入力欄にEnterキーを用意する(スマホで「Enterを押しても何も起きない」バグの修正)。
+   テキスト入力欄64個のうち<form>内は1個だけで、スマホのキーボードのEnterキーが無反応だった。
+   (1) Enterキーの表示(enterkeyhint)を付ける。(2) Enterでその欄の「実行ボタン」を押す(ログインは明示の対応、
+   その他は、同じ枠の中でその欄より後ろにある最初の安全なボタン)。実行ボタンが無い欄は、キーボードを閉じる(完了)。
+   削除・リセット・失効などの危険な名前のボタンは、Enterでは押さない。チャット欄は専用の処理があるので対象外。 */
+(function () {
+  var EXPLICIT = {
+    "login-email": "login-send-code-btn", "login-email2": "login-send-code-btn", "login-phone": "login-send-code-btn",
+    "login-verify-email": "login-verify-btn", "login-code": "login-verify-btn"
+  };
+  var RISKY = /削除|消去|リセット|失効|解除|無効|取り消|delete|remove|reset|revoke|disable|wipe|erase|clear/i;
+  var SKIP_TYPES = /^(checkbox|radio|hidden|range|file|button|submit|color|reset|image)$/i;
+  function usable(el) { return el && el.tagName === "INPUT" && !SKIP_TYPES.test(el.type || "text") && el.id !== "chat-input" && !el.readOnly && !el.disabled; }
+  function visible(b) { return b && !b.disabled && b.offsetParent !== null && !b.classList.contains("hidden"); }
+  function targetFor(el) {
+    var id = EXPLICIT[el.id];
+    if (id) {
+      var t = document.getElementById(id);
+      if (visible(t)) return t;
+      if (el.id === "login-phone") { var s = document.getElementById("login-send-sms-code-btn"); if (visible(s)) return s; }
+      return null;
+    }
+    var p = el.parentElement;
+    for (var depth = 0; p && depth < 2; depth++, p = p.parentElement) {
+      var btns = p.querySelectorAll("button");
+      for (var i = 0; i < btns.length; i++) {
+        var b = btns[i];
+        if (!(el.compareDocumentPosition(b) & Node.DOCUMENT_POSITION_FOLLOWING)) continue;
+        if (b.type === "reset" || !visible(b)) continue;
+        if (RISKY.test((b.textContent || "") + " " + (b.id || "") + " " + (b.title || ""))) continue;
+        return b;
+      }
+    }
+    return null;
+  }
+  function hint(el) {
+    if (!usable(el) || el.hasAttribute("enterkeyhint")) return;
+    el.setAttribute("enterkeyhint", targetFor(el) || EXPLICIT[el.id] ? "go" : "done");
+  }
+  function act(el, e) {
+    e.preventDefault();
+    var b = targetFor(el);
+    if (b) b.click(); else el.blur(); /* 実行ボタンが無い欄は、入力を完了してキーボードを閉じる */
+  }
+  document.addEventListener("focusin", function (e) { hint(e.target); });
+  document.addEventListener("DOMContentLoaded", function () { document.querySelectorAll("input").forEach(hint); });
+  document.addEventListener("keydown", function (e) {
+    if (e.key !== "Enter" || e.isComposing || e.keyCode === 229 || e.shiftKey || !usable(e.target)) return;
+    act(e.target, e);
+  }, true);
+  /* Androidの仮想キーボードは、Enterがkeydown(key="Unidentified")で届くことがあるので、入力イベントでも拾う */
+  document.addEventListener("beforeinput", function (e) {
+    if (e.isComposing || (e.inputType !== "insertLineBreak" && e.inputType !== "insertParagraph") || !usable(e.target)) return;
+    act(e.target, e);
+  }, true);
+})();
+</script>
+<script>
 /* 2026-10-28 スマホ版(PWA)のインストール導線。すでにアプリとして開いているとき(standalone)は出さない。 */
 (function () {
   var box = document.getElementById("pwa-install");
