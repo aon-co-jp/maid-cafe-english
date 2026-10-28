@@ -3150,6 +3150,28 @@ cd aruaru-db
 })();
 </script>
 <script>
+/* 2026-10-28 実機(Android Chrome)で発覚: このページが起動時に http://localhost:4600(閲覧者自身の端末のaruaru-llm)を
+   探しに行くため、新しいChromeが「このデバイス上の他のアプリやサービスへのアクセスを要求しています」という許可
+   ダイアログを出していた。公開サイト(localhost以外)から閲覧者の端末のlocalhostへは、本人が「自分の端末のaruaru-llmを使う」
+   と選んだとき(localStorageの maid.useOwnAruaruLlm=1、またはURLに ?own-llm=1)だけ接続する。それ以外はfetchを即失敗させ、
+   既存のフォールバック(サーバーに1か所だけ入れた共有のaruaru-llm・open-cuda)に任せる。 */
+(function () {
+  var KEY = "maid.useOwnAruaruLlm";
+  try { if (/[?&]own-llm=1(&|$)/.test(location.search)) localStorage.setItem(KEY, "1"); if (/[?&]own-llm=0(&|$)/.test(location.search)) localStorage.removeItem(KEY); } catch (e) {}
+  function optedIn() { try { return localStorage.getItem(KEY) === "1"; } catch (e) { return false; } }
+  var isLocalPage = /^(localhost|127\.0\.0\.1|\[::1\])$/.test(location.hostname);
+  if (isLocalPage || !window.fetch) return;
+  var realFetch = window.fetch.bind(window);
+  window.fetch = function (input, init) {
+    var url = typeof input === "string" ? input : (input && input.url) || "";
+    if (/^https?:\/\/(localhost|127\.0\.0\.1|\[::1\])(:\d+)?(\/|$)/i.test(url) && !optedIn()) {
+      return Promise.reject(new TypeError("own-device aruaru-llm probing is off (using the shared server) / 自分の端末への接続は無効(サーバー共有を使用)"));
+    }
+    return realFetch(input, init);
+  };
+})();
+</script>
+<script>
 /* 2026-10-28 スマホ版(PWA)のインストール導線。すでにアプリとして開いているとき(standalone)は出さない。 */
 (function () {
   var box = document.getElementById("pwa-install");
