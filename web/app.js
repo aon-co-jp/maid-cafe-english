@@ -3144,8 +3144,18 @@ async function askTrainer(userText) {
         knowledge: ["AIの持っている知識では、自信が持てなかった", "wasn't confident based on the AI's own knowledge"],
       };
       const [reasonJa, reasonEn] = reasonMap[searchBoostReason] || reasonMap.language;
-      reply += `\n\n🔎 ${reasonJa}ため、Google検索で確認してから回答しました(${priorityResult.searchNotes.join(", ")})。 / ` +
-        `Since I ${reasonEn}, I checked with a Google search before answering (${priorityResult.searchNotes.join(", ")}).`;
+      // 2026-10-28 実機の確認で発覚: 検索サービスのエラー全文(HTTP 403、JSONの生の中身など)がそのまま利用者に出ていた。
+      // しかも検索が失敗していても「確認してから回答しました」と書いていて事実と違った。失敗の記録は短い説明に置き換え、
+      // 全て失敗したときは「確認しようとしましたが使えなかった」と正直に伝える。
+      const noteIsFailure = (n) => /fail|error|HTTP\s*\d{3}|forbidden|unreachable|denied|timeout|{/i.test(String(n));
+      const okNotes = priorityResult.searchNotes.filter((n) => !noteIsFailure(n));
+      if (okNotes.length) {
+        reply += `\n\n🔎 ${reasonJa}ため、検索で確認してから回答しました(${okNotes.join(", ")})。 / ` +
+          `Since I ${reasonEn}, I checked with a search before answering (${okNotes.join(", ")}).`;
+      } else {
+        reply += `\n\n🔎 ${reasonJa}ため、検索で確認しようとしましたが、いま検索サービスが使えませんでした(内容が古い・不確かな可能性があります)。 / ` +
+          `Since I ${reasonEn}, I tried to verify with a search, but the search service was unavailable (this may be outdated or uncertain).`;
+      }
     }
     reply += await referralsSuffix(userText);
     reply += consumptionTaxSuffix(userText);
