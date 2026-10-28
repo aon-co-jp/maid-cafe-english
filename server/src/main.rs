@@ -771,6 +771,70 @@ async fn proxy_aruaru_llm_get_with_query(req: Request, path: &str) -> Response {
     }
 }
 
+/// 公開してよい形に整える: サーバー内のパス(`*_path`のキー、`/`や`~`、`C:\`で始まる文字列)を取り除く。
+/// aruaru-llmの`/v1/runtime`は`cli_path`・`model_path`にこのサーバーのフォルダ名を含むため、そのままは出さない。
+fn sanitize_public_json(v: &mut serde_json::Value) {
+    match v {
+        serde_json::Value::Object(map) => {
+            map.retain(|k, val| {
+                // 文字列の値だけが対象(`avx2_fma_path: true`のような真偽値は、ハードウェアの事実なので残す)
+                let remove = val.as_str().is_some_and(|s| k.ends_with("_path") || s.starts_with('/') || s.starts_with('~') || s.contains(":\\"));
+                !remove
+            });
+            for val in map.values_mut() {
+                sanitize_public_json(val);
+            }
+        }
+        serde_json::Value::Array(items) => items.iter_mut().for_each(sanitize_public_json),
+        _ => {}
+    }
+}
+
+/// 来場者向けの読み取り専用の中継(aruaru-llmの`/v1/runtime`・`/v1/accelerators`)。VPSに1か所だけ入れた
+/// aruaru-llm(open-cuda)の状態を、各サイトの画面が(閲覧者の端末に無くても)表示できるようにする。
+async fn proxy_aruaru_llm_get_sanitized(path: &str) -> Response {
+    let url = format!("{}{}", aruaru_llm_base_url(), path);
+    let client = match reqwest::Client::builder().timeout(std::time::Duration::from_secs(10)).build() {
+        Ok(c) => c,
+        Err(e) => return rs_json_response(StatusCode::INTERNAL_SERVER_ERROR, &serde_json::json!({"error": format!("failed to build HTTP client: {e}")})),
+    };
+    match client.get(&url).send().await {
+        Ok(resp) if resp.status().is_success() => match resp.json::<serde_json::Value>().await {
+            Ok(mut v) => {
+                sanitize_public_json(&mut v);
+                rs_json_response(StatusCode::OK, &v)
+            }
+            Err(e) => rs_json_response(StatusCode::BAD_GATEWAY, &serde_json::json!({"error": format!("failed to parse aruaru-llm response: {e}")})),
+        },
+        Ok(resp) => rs_json_response(StatusCode::BAD_GATEWAY, &serde_json::json!({"error": format!("aruaru-llm returned HTTP {}", resp.status().as_u16())})),
+        Err(e) => aruaru_llm_unreachable_response(&url, e),
+    }
+}
+
+#[cfg(test)]
+mod sanitize_tests {
+    use super::sanitize_public_json;
+
+    #[test]
+    fn removes_server_paths_but_keeps_hardware_facts() {
+        let mut v = serde_json::json!({
+            "device_count": 1,
+            "devices": [{"name": "OpenCUDA CPU Device (rayon, 4 threads)", "compute_units": 4}],
+            "active_model_dir": "models/gpt2",
+            "cpu_simd": {"avx2_fma_path": true},
+            "whisper": {"cli_path": "/root/x/whisper-cli", "model_path": "/root/x/ggml-small.bin", "available": true, "dir": "C:\\data\\m"},
+        });
+        sanitize_public_json(&mut v);
+        assert_eq!(v["device_count"], 1);
+        assert_eq!(v["devices"][0]["compute_units"], 4);
+        assert_eq!(v["active_model_dir"], "models/gpt2");
+        assert_eq!(v["cpu_simd"]["avx2_fma_path"], true);
+        assert_eq!(v["whisper"]["available"], true);
+        assert!(v["whisper"].get("cli_path").is_none() && v["whisper"].get("model_path").is_none() && v["whisper"].get("dir").is_none());
+        assert!(!v.to_string().contains("/root"));
+    }
+}
+
 async fn proxy_aruaru_llm_get(path: &str) -> Response {
     let url = format!("{}{}", aruaru_llm_base_url(), path);
     let client = match reqwest::Client::builder().timeout(std::time::Duration::from_secs(15)).build() {
@@ -3488,6 +3552,8 @@ async fn main() {
     app = app.at("/v1/admin/aruaru-llm/qwen/select", post(handler_fn(|req, _p| Box::pin(proxy_aruaru_llm_post("/v1/qwen/select", req)))));
     app = app.at("/v1/admin/aruaru-llm/qwen/install", post(handler_fn(|req, _p| Box::pin(proxy_aruaru_llm_post("/v1/qwen/install", req)))));
     app = app.at("/v1/public/aruaru-llm/recommend", get(handler_fn(|_req, _p| Box::pin(proxy_aruaru_llm_get("/v1/recommend")))));
+    app = app.at("/v1/public/aruaru-llm/runtime", get(handler_fn(|_req, _p| Box::pin(proxy_aruaru_llm_get_sanitized("/v1/runtime")))));
+    app = app.at("/v1/public/aruaru-llm/accelerators", get(handler_fn(|_req, _p| Box::pin(proxy_aruaru_llm_get_sanitized("/v1/accelerators")))));
     app = app.at("/v1/public/aruaru-llm/models/catalog", get(handler_fn(|_req, _p| Box::pin(proxy_aruaru_llm_get("/v1/models/catalog")))));
     app = app.at("/v1/public/aruaru-llm/models/select", post(handler_fn(|req, _p| async move { public_aruaru_llm_select(req).await })));
     app = app.at("/v1/public/aruaru-llm/switch-status", get(handler_fn(|_req, _p| async move { public_aruaru_llm_switch_status().await })));

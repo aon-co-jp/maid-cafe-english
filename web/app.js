@@ -2067,7 +2067,7 @@ function renderRuntimeBadge(info) {
   const tier = accel ? accel.tier : info.gpu_in_use ? "vulkan" : "cpu-simd";
   const shortLabel = { cuda: "GPU (CUDA)", vulkan: "GPU (Vulkan)", "directx-gemm": "GPU (DirectX 12, GEMM) + CPU SIMD", "cpu-simd": "CPU SIMD" }[tier] || (info.gpu_in_use ? "GPU" : "CPU");
   const model = info.engine || "(unknown engine)";
-  runtimeBadgeEl.textContent = `compute: ${shortLabel} · ${model}`;
+  runtimeBadgeEl.textContent = `compute: ${shortLabel} · ${model}` + (info.__shared ? " · サーバー共有 / shared on server" : "");
   runtimeBadgeEl.className = `runtime-badge ${tier === "cpu-simd" ? "cpu" : "gpu"}`;
 
   // ツールチップには各段の compiled_in / active を正直に並べる。
@@ -2083,6 +2083,7 @@ function renderRuntimeBadge(info) {
         .join("\n")
     : "";
   runtimeBadgeEl.title =
+    (info.__shared ? "VPSに1か所だけ入れた aruaru-llm / open-cuda を、このサイトも共用しています(サイトごとのインストールは不要)。\nThis site shares the single aruaru-llm / open-cuda installed on the server (no per-site install needed).\n" : "") +
     `${info.summary_ja || ""}\n${info.summary_en || ""}\n` +
     (accel ? `acceleration tier: ${accel.tier_label_ja || ""} / ${accel.tier_label_en || ""}\n${tierLines}\n` : "") +
     `devices: ${(info.devices || []).map((d) => d.name).join(", ")}\n` +
@@ -2099,6 +2100,19 @@ async function refreshRuntimeInfo() {
     lastRuntimeInfo = await res.json();
   } catch (err) {
     lastRuntimeInfo = null;
+  }
+  // 閲覧者の端末にaruaru-llmが無いとき(VPSに1か所だけ入れた共有のaruaru-llm/open-cudaを使う場合)は、
+  // 同じオリジンのサーバー経由の中継(読み取り専用、サーバー内のパスは除去済み)から実行基盤を取る。
+  if (!lastRuntimeInfo) {
+    try {
+      const res = await fetchWithTimeout("/v1/public/aruaru-llm/runtime", { cache: "no-store" }, 5000);
+      if (res.ok) {
+        lastRuntimeInfo = await res.json();
+        lastRuntimeInfo.__shared = true;
+      }
+    } catch (err) {
+      lastRuntimeInfo = null;
+    }
   }
   renderRuntimeBadge(lastRuntimeInfo);
   return lastRuntimeInfo;
@@ -2893,8 +2907,9 @@ async function checkHealth() {
     // ようです」複数回)。フォールバック可否を確認し、可能なら
     // その旨を正しく伝える。
     if (!err.isTimeout && (await isAruaruLlmPublicChatAvailable())) {
-      setStatus(true, "aruaru-llm: using shared demo server (your own device not detected) / 共有デモサーバーを使用中(ご自身の端末は未検出)");
+      setStatus(true, "aruaru-llm: using the shared aruaru-llm / open-cuda installed once on the server (your own device not detected) / サーバーに1か所だけ入れた共有のaruaru-llm・open-cudaを使用中(ご自身の端末は未検出)");
       wasConnected = true;
+      refreshRuntimeInfo().catch(() => {}); // 共有の実行基盤(CPU/GPU・モデル)をバッジに反映
       return;
     }
     setStatus(false, err.isTimeout ? "aruaru-llm: no response within 4s / 4秒以内に応答なし" : "aruaru-llm: unreachable (CORS or server not running?)");
