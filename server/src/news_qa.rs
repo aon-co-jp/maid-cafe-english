@@ -31,6 +31,10 @@ pub const FEEDS: &[Feed] = &[
     Feed { id: "guardian-world", name: "The Guardian (World)", url: "https://www.theguardian.com/world/rss", lang: "en" },
     Feed { id: "japantimes", name: "The Japan Times", url: "https://www.japantimes.co.jp/feed/", lang: "en" },
     Feed { id: "france24", name: "France 24", url: "https://www.france24.com/en/rss", lang: "en" },
+    // 日本語の新しい記事(NHKの配信は2026-08-08で更新が止まっているため、他社の配信を追加: 2026-10-29)
+    Feed { id: "mainichi-flash", name: "毎日新聞(速報)", url: "https://mainichi.jp/rss/etc/mainichi-flash.rss", lang: "ja" },
+    Feed { id: "asahi-headlines", name: "朝日新聞(見出し)", url: "https://www.asahi.com/rss/asahi/newsheadlines.rdf", lang: "ja" },
+    Feed { id: "yomiuri-world", name: "読売新聞(国際)", url: "https://assets.wor.jp/rss/rdf/yomiuri/world.rdf", lang: "ja" },
 ];
 
 #[derive(Debug, Clone, Serialize, PartialEq)]
