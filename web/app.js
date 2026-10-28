@@ -2906,8 +2906,13 @@ async function checkHealth() {
     // 誤解させていた(ユーザー報告「WEB版でaruaru-llmが動いていない
     // ようです」複数回)。フォールバック可否を確認し、可能なら
     // その旨を正しく伝える。
-    if (!err.isTimeout && (await isAruaruLlmPublicChatAvailable())) {
-      setStatus(true, "aruaru-llm: using the shared aruaru-llm / open-cuda installed once on the server (your own device not detected) / サーバーに1か所だけ入れた共有のaruaru-llm・open-cudaを使用中(ご自身の端末は未検出)");
+    // 2026-10-28: タイムアウト(自分の端末のlocalhost:4600が4秒以内に応答しない)でも、サーバー共有が使えるなら
+    // 赤い「no response」ではなく共有の使用中として表示する(以前はタイムアウトだけ除外していて、共有が使えるのに
+    // 「4秒以内に応答なし」と出ていた)。
+    if (await isAruaruLlmPublicChatAvailable()) {
+      setStatus(true, err.isTimeout
+        ? "aruaru-llm: your own device did not respond within 4s — using the shared aruaru-llm / open-cuda on the server / ご自身の端末は4秒以内に応答なし — サーバー共有のaruaru-llm・open-cudaを使用中"
+        : "aruaru-llm: using the shared aruaru-llm / open-cuda installed once on the server (your own device not detected) / サーバーに1か所だけ入れた共有のaruaru-llm・open-cudaを使用中(ご自身の端末は未検出)");
       wasConnected = true;
       refreshRuntimeInfo().catch(() => {}); // 共有の実行基盤(CPU/GPU・モデル)をバッジに反映
       return;
