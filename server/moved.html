@@ -104,6 +104,10 @@ var L = [
  ["la","Latina","«realdata.pro/english/» et «realdata.pro/» ad maid-cafe.tokyo migraverunt. Novam paginam visita."]
 ];
 var RTL = {ar:1, he:1, fa:1, ur:1};
+// 案内文の「引っ越した元」の名前を、いま開いているURL自身に合わせる(easy-web.tokyo/open-english/ で
+// 「realdata.pro/english/ は引っ越しました」と出ると不正確なため)。realdata.pro/english/ で開けば元の文のまま。
+var HERE = location.hostname + (location.pathname.replace(/index.html$/, "") || "/");
+function here(t) { return t.split("realdata.pro/english/").join(HERE); }
 function pick() {
   var prefs = (navigator.languages && navigator.languages.length) ? navigator.languages : [navigator.language || "en"];
   for (var i = 0; i < prefs.length; i++) {
@@ -119,14 +123,14 @@ function show(item) {
   var lead = document.getElementById("lead");
   lead.lang = item[0]; lead.dir = rtl ? "rtl" : "ltr";
   document.documentElement.lang = item[0];
-  document.getElementById("msg").textContent = item[2];
+  document.getElementById("msg").textContent = here(item[2]);
   document.getElementById("langname").textContent = item[1];
 }
 var list = document.getElementById("list");
 L.forEach(function (it) {
   var li = document.createElement("li");
   var b = document.createElement("b"); b.textContent = it[1];
-  var p = document.createElement("span"); p.textContent = it[2]; p.lang = it[0]; p.dir = RTL[it[0].split("-")[0]] ? "rtl" : "ltr";
+  var p = document.createElement("span"); p.textContent = here(it[2]); p.lang = it[0]; p.dir = RTL[it[0].split("-")[0]] ? "rtl" : "ltr";
   p.style.display = "block";
   li.appendChild(b); li.appendChild(p); list.appendChild(li);
 });
