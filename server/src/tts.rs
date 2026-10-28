@@ -52,6 +52,14 @@ impl Persona {
         }
     }
 
+    /// Kokoro(日本語)の話速。先生はやや落ち着いて、ヘルパーは標準。
+    fn kokoro_speed(self) -> f64 {
+        match self {
+            Persona::Teacher => 0.95,
+            Persona::Helper => 1.0,
+        }
+    }
+
     /// 話速の倍率。`app.js`のWeb Speech版(先生 rate 0.82、ヘルパー 1.05)と同じ。
     fn rate(self) -> f64 {
         match self {
@@ -77,6 +85,8 @@ pub enum TtsError {
     NoVoice(String),
     BadRequest(String),
     Failed(String),
+    /// 合成待ちが一杯(Kokoroのワーカープールが混雑)。HTTPは503+Retry-After。
+    Busy,
 }
 
 #[derive(serde::Deserialize, schemars::JsonSchema)]
@@ -186,7 +196,13 @@ async fn voices() -> Vec<OsVoice> {
             }
         }
     }
-    let listed = engine::list_voices().await;
+    let mut listed = engine::list_voices().await;
+    if crate::kokoro_pool::enabled() {
+        // GPU無しのVPSのCPUで動くKokoro(日本語)。先生=女性、ヘルパー=男性。
+        for (id, female) in crate::kokoro_pool::VOICES {
+            listed.push(OsVoice { name: format!("kokoro:{id}"), culture: "ja-JP".into(), gender: if *female { SourceGender::Female } else { SourceGender::Male } });
+        }
+    }
     if let Ok(mut g) = cell.lock() {
         *g = Some((Instant::now(), listed.clone()));
     }
@@ -203,6 +219,18 @@ pub async fn synthesize(v: &Validated) -> Result<Arc<Vec<u8>>, TtsError> {
     let key = cache_key(v, &voice);
     if let Some(hit) = cache().lock().ok().and_then(|c| c.get(&key)) {
         return Ok(hit);
+    }
+    if let Some(id) = voice.name.strip_prefix("kokoro:") {
+        // Kokoroは声そのものが目的の声質なので、SAPI向けの加工(`render`)は通さない。ハモり(harmony)は未対応。
+        let wav = crate::kokoro_pool::synthesize(id, &v.text, v.persona.kokoro_speed()).await.map_err(|e| match e {
+            crate::kokoro_pool::PoolError::Busy => TtsError::Busy,
+            crate::kokoro_pool::PoolError::Failed(m) => TtsError::Failed(m),
+        })?;
+        let wav = Arc::new(wav);
+        if let Ok(mut c) = cache().lock() {
+            c.put(key, wav.clone(), CACHE_ENTRIES);
+        }
+        return Ok(wav);
     }
     static LIMIT: OnceLock<tokio::sync::Semaphore> = OnceLock::new();
     let limit = LIMIT.get_or_init(|| tokio::sync::Semaphore::new(MAX_CONCURRENT));
@@ -431,7 +459,8 @@ pub async fn status() -> Response {
         StatusCode::OK,
         &serde_json::json!({
             "available": available,
-            "engine": if available { Some(engine::NAME) } else { None },
+            "engine": if !available { None } else if voices.iter().all(|v| v.name.starts_with("kokoro:")) { Some("kokoro-onnx") } else { Some(engine::NAME) },
+            "kokoro": crate::kokoro_pool::describe(),
             "voices": voices.iter().map(|v| serde_json::json!({"name": v.name, "culture": v.culture})).collect::<Vec<_>>(),
             "max_text_chars": MAX_TEXT_CHARS,
         }),
@@ -465,9 +494,14 @@ fn error_response(e: TtsError) -> Response {
         TtsError::NoVoice(lang) => (StatusCode::NOT_FOUND, format!("no installed voice for {lang}"), "no_voice"),
         TtsError::BadRequest(m) => (StatusCode::BAD_REQUEST, m, "bad_request"),
         TtsError::Failed(m) => (StatusCode::BAD_GATEWAY, m, "failed"),
+        TtsError::Busy => (StatusCode::SERVICE_UNAVAILABLE, "speech synthesis is busy; retry shortly or use the device's own voice".to_string(), "busy"),
     };
     // クライアント(app.js)は、200以外ならその発話だけWeb Speech APIへフォールバックする。
-    rs_json_response(status, &serde_json::json!({"error": msg, "code": code, "fallback": true}))
+    let mut resp = rs_json_response(status, &serde_json::json!({"error": msg, "code": code, "fallback": true}));
+    if status == StatusCode::SERVICE_UNAVAILABLE {
+        resp.headers_mut().insert("retry-after", hyper::header::HeaderValue::from_static("3"));
+    }
+    resp
 }
 
 #[cfg(test)]

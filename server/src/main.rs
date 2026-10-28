@@ -26,6 +26,7 @@ mod local_agent;
 mod self_update;
 mod totp;
 mod tts;
+mod kokoro_pool;
 mod vps_agent;
 mod world_lab;
 mod api_docs;
