@@ -18620,7 +18620,7 @@ async function refreshAdminState() {
       e.preventDefault();
       applyLoginModeToGate("otp");
       const note = document.getElementById("login-2fa-note");
-      if (note) note.classList.add("hidden");
+      if (note) note.classList.remove("hidden"); // 管理者は常に2段階(メールのコード+スマホでQR確認)
       const title = document.getElementById("login-gate-title");
       if (title) title.textContent = "🔐 Administrator login / 管理者ログイン";
       if (closeEl) closeEl.classList.remove("hidden");

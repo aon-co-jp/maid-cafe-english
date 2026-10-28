@@ -1669,7 +1669,9 @@ async fn auth_verify_otp(req: Request, db: Arc<Db>) -> Response {
         Ok(v) => v,
         Err(resp) => return resp,
     };
-    if mode == "otp_qr" {
+    // 管理者メールは、ログイン方式の設定に関わらず常に2段階(メールのコード+QR確認)。
+    let force_2fa = auth::admin_restriction_enabled() && auth::is_admin_email(&body.email);
+    if mode == "otp_qr" || force_2fa {
         match auth::verify_otp_start_2fa(&body.email, &body.code) {
             Ok(qr_login_id) => qr_login_start_response(&host, scheme, qr_login_id),
             Err(e) => rs_json_response(StatusCode::UNAUTHORIZED, &serde_json::json!({"error": format!("{e:#}")})),
@@ -1769,6 +1771,24 @@ async fn auth_qr_login_whoami(req: Request) -> Response {
     }
 }
 
+/// TOTPの設定(秘密鍵とQRの表示)を許すか: ローカルの要求か、同じメールアドレスでログイン済みのときだけ。
+fn totp_setup_allowed(local: bool, session_email: Option<&str>, email: &str) -> bool {
+    local || session_email.is_some_and(|s| s.trim().eq_ignore_ascii_case(email.trim()))
+}
+
+#[cfg(test)]
+mod totp_setup_tests {
+    use super::totp_setup_allowed;
+
+    #[test]
+    fn setup_requires_matching_login_or_local() {
+        assert!(!totp_setup_allowed(false, None, "a@example.com"));
+        assert!(!totp_setup_allowed(false, Some("b@example.com"), "a@example.com"));
+        assert!(totp_setup_allowed(false, Some("A@Example.com "), "a@example.com"));
+        assert!(totp_setup_allowed(true, None, "a@example.com"));
+    }
+}
+
 #[derive(serde::Deserialize, schemars::JsonSchema)]
 struct TotpSetupRequest {
     email: String,
@@ -1780,10 +1800,23 @@ struct TotpSetupRequest {
 /// TOTPシークレットが無ければ新規生成、あれば既存のものからQRコードを
 /// 再生成して返す。認証(ログイン)は行わない——設定のみ。
 async fn auth_totp_setup(req: Request, db: Arc<Db>) -> Response {
+    // 2026-10-28 セキュリティ修正: 以前は無認証で、メールアドレスを渡すだけで(設定済みなら既存の)秘密鍵とQRが
+    // 返り、管理者メールを知っていれば /v1/auth/totp-verify と組み合わせて管理者になれた。今は、そのメール
+    // アドレスで既にログイン済みのセッションか、この端末(ローカル)からの要求だけに限る。
+    let local = is_local_request(&req);
+    let session_email = auth::extract_session_cookie(req.headers().get("cookie").and_then(|v| v.to_str().ok()))
+        .as_deref()
+        .and_then(auth::session_email);
     let body: TotpSetupRequest = match read_rs_json_body(req).await {
         Ok(v) => v,
         Err(resp) => return resp,
     };
+    if !totp_setup_allowed(local, session_email.as_deref(), &body.email) {
+        return rs_json_response(
+            StatusCode::FORBIDDEN,
+            &serde_json::json!({"ok": false, "error": "log in with this email address first / 先にこのメールアドレスでログインしてください"}),
+        );
+    }
     match auth::totp_setup(&db, &body.email, body.phone_label.as_deref()) {
         Ok((secret, qr_svg)) => rs_json_response(StatusCode::OK, &serde_json::json!({"ok": true, "secret": secret, "qr_svg": qr_svg})),
         Err(e) => rs_json_response(StatusCode::BAD_REQUEST, &serde_json::json!({"ok": false, "error": format!("{e:#}")})),
@@ -1805,6 +1838,14 @@ async fn auth_totp_verify(req: Request, db: Arc<Db>) -> Response {
         Ok(v) => v,
         Err(resp) => return resp,
     };
+    // 2026-10-28 セキュリティ修正: 管理者メールは、TOTP単独(1要素)ではログインさせない。管理者は
+    // メールのコード+QR確認の2段階(/v1/auth/verify-otp)だけを通す。
+    if auth::admin_restriction_enabled() && auth::is_admin_email(&body.email) {
+        return rs_json_response(
+            StatusCode::FORBIDDEN,
+            &serde_json::json!({"error": "administrators must use the email code + QR two-step login / 管理者はメールのコード+QRの2段階ログインを使ってください"}),
+        );
+    }
     match auth::totp_verify(&db, &body.email, &body.code) {
         Ok(token) => {
             let resp_body = rust_json::to_vec_strict(&crate::api_docs::OkResponse { ok: true }).unwrap_or_else(|_| b"{}".to_vec());
