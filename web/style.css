@@ -1575,3 +1575,8 @@ html, body { max-width: 100%; overflow-x: hidden; }
   .chat-dock .dock-avatar { display: none; }              /* 狭い画面では、キャラクターの絵を隠して、入力欄と送信キーの場所を確保する */
   .chat-form .chat-send-btn { min-width: 56px; padding: 10px 8px; }
 }
+
+/* 2026-10-29 音声ON/OFFボタン(読み上げとマイクを止める)。OFFのときは、灰色にして、OFFだと分かるようにする */
+.chat-dock .dock-voice-toggle { background: #3a8f5c; color: #fff; }
+.chat-dock .dock-voice-toggle.voice-off { background: #6b6b6b; color: #fff; }
+@media (max-width: 360px) { .chat-form .dock-voice-toggle { padding: 10px 8px; } }

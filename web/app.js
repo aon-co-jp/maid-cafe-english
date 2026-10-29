@@ -8229,6 +8229,15 @@ if (SpeechRecognitionImpl) {
   // 2026-10-28 実機(Android Chrome)で発覚: マイクの許可が未決定のとき、ページを開いた直後に「マイクの使用許可を
   // 求めています」のダイアログが出て、何も操作していない利用者を驚かせていた。許可がすでに「許可」の利用者だけ
   // 従来どおり自動で待ち受け、未決定・拒否の利用者には、🎙を押したとき(利用者の操作による要求)に許可を求める。
+  // 2026-10-29 「音声OFF」ボタン(下の setupVoiceToggle)から、マイクの待ち受けを止めるための口。
+  window.__maidMicOff = () => {
+    voiceAlwaysOn = false;
+    try {
+      recognition.stop();
+    } catch (_) {
+      // 待ち受け中でなければ何もしない。
+    }
+  };
   (async () => {
     let state = "prompt";
     try {
@@ -8236,7 +8245,7 @@ if (SpeechRecognitionImpl) {
     } catch (_) {
       // Permissions API非対応のブラウザは、自動では要求しない。
     }
-    if (state === "granted") scheduleAutoListen(300);
+    if (state === "granted" && !window.__voiceOff) scheduleAutoListen(300);
   })();
 } else {
   micBtn.disabled = true;
@@ -19118,4 +19127,59 @@ const INSTALLER_QUICK_LINK_CLOSED_KEY = "open-english.installerQuickLinkClosed";
   if (!/^(127\.0\.0\.1|localhost|\[::1\])$/.test(location.hostname)) {
     document.documentElement.classList.add("is-web-only");
   }
+})();
+
+// 2026-10-29 ユーザー指示「音声をOFFにする機能」: ドックの🔊/🔇ボタンで、読み上げ(声)とマイクの常時待ち受けを、ワンタップで止める。
+// OFFのときは、いま話している声も止め、新しい返答も声にしない(文字は出る)。設定は端末に覚える(localStorage)。
+// ONに戻すと、読み上げが再開する。マイクは、🎙を押したときに、また待ち受けを始める(勝手には始めない)。
+(function setupVoiceToggle() {
+  const btn = document.getElementById("dock-voice-toggle");
+  if (!btn) return;
+  const KEY = "maid.voiceOff";
+  const stored = () => {
+    try {
+      return localStorage.getItem(KEY) === "1";
+    } catch (e) {
+      return false;
+    }
+  };
+  const stopAllSpeech = () => {
+    try {
+      if ("speechSynthesis" in window) window.speechSynthesis.cancel();
+    } catch (e) {
+      // 止められなくても続行
+    }
+    try {
+      serverTtsCancel();
+    } catch (e) {
+      // 同上
+    }
+    try {
+      trainerEl.classList.remove("speaking");
+    } catch (e) {
+      // 同上
+    }
+  };
+  function apply(off, persist) {
+    window.__voiceOff = off;
+    btn.textContent = off ? "🔇" : "🔊";
+    btn.setAttribute("aria-pressed", String(off));
+    btn.title = off ? "音声OFF中(タップでON) / Voice is OFF (tap to turn on)" : "音声ON(タップでOFF) / Voice is ON (tap to turn off)";
+    btn.classList.toggle("voice-off", off);
+    if (voiceOutEl) voiceOutEl.checked = !off;
+    if (off) {
+      stopAllSpeech();
+      if (typeof window.__maidMicOff === "function") window.__maidMicOff();
+    }
+    if (persist) {
+      try {
+        if (off) localStorage.setItem(KEY, "1");
+        else localStorage.removeItem(KEY);
+      } catch (e) {
+        // 覚えられなくても、この画面の間は有効
+      }
+    }
+  }
+  btn.addEventListener("click", () => apply(!window.__voiceOff, true));
+  apply(stored(), false);
 })();
