@@ -1563,3 +1563,15 @@ html, body { max-width: 100%; overflow-x: hidden; }
 @media (display-mode: standalone) {
   #download-recommend-banner, #installer-quick-link { display: none !important; }
 }
+
+/* 2026-10-29 縦向きのスマホで、送信(Enter)キーが画面の右にはみ出す、というご報告への補強。入力欄の幅は「余った分だけ」にし、
+   マイクと送信キーは常に画面内に収める。ドック全体も、画面の幅を超えない(横スクロールさせない)。 */
+.chat-dock { box-sizing: border-box; width: 100%; max-width: 100vw; overflow-x: hidden; }
+.chat-dock .dock-row { width: 100%; min-width: 0; box-sizing: border-box; }
+.chat-dock .chat-form { min-width: 0; flex: 1 1 0; }
+.chat-form textarea { flex: 1 1 0; width: 0; min-width: 0; }
+.chat-form .dock-mic, .chat-form .chat-send-btn { flex: 0 0 auto; }
+@media (max-width: 360px) {
+  .chat-dock .dock-avatar { display: none; }              /* 狭い画面では、キャラクターの絵を隠して、入力欄と送信キーの場所を確保する */
+  .chat-form .chat-send-btn { min-width: 56px; padding: 10px 8px; }
+}

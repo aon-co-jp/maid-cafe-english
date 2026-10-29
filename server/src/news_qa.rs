@@ -489,6 +489,128 @@ pub fn answer(conn: &Connection, q: &str, now: i64) -> serde_json::Value {
     json!({"ok": true, "found": hits.len(), "stock_total": total, "latest_published_at": latest, "items": items, "answer_ja": ja, "answer_en": en})
 }
 
+// ---------------------------------------------------------------- 該当記事が無いときの検索結果(Google・YouTube・ウェブ検索)
+
+/// URLに入れるための文字の変換(英数字と -_.~ 以外を %XX にする)。
+pub fn pct_encode(s: &str) -> String {
+    let mut out = String::new();
+    for b in s.bytes() {
+        if b.is_ascii_alphanumeric() || matches!(b, b'-' | b'_' | b'.' | b'~') {
+            out.push(b as char);
+        } else {
+            out.push_str(&format!("%{b:02X}"));
+        }
+    }
+    out
+}
+
+pub fn google_url(q: &str) -> String {
+    format!("https://www.google.com/search?q={}", pct_encode(q))
+}
+
+pub fn youtube_url(q: &str) -> String {
+    format!("https://www.youtube.com/results?search_query={}", pct_encode(q))
+}
+
+/// 検索結果の1件: (題名, リンク, 抜粋)
+pub type Found = (String, String, String);
+
+/// 該当記事が無いときの案内文(日本語, 英語)。**「記事の裏付けのある答え」ではなく検索結果である**ことを明記する。
+pub fn compose_fallback(q: &str, stock_total: i64, web: &[Found], videos: &[Found]) -> (String, String) {
+    let mut ja = format!("📰 保存したニュース({stock_total}件)の中に、ご質問に合う記事がありませんでした。代わりに、検索の結果を表示します。\n※これは検索結果であり、ニュース記事の裏付けのある答えではありません。内容の正しさは、各リンク先でご確認ください。\n");
+    let mut en = format!("📰 None of the {stock_total} stored news items match your question. Showing search results instead.\nNote: these are search results, not an answer backed by news articles; please check each linked page.\n");
+    ja.push_str(&format!("\n🔎 Google検索の結果: {}\n▶️ YouTubeの検索結果: {}\n", google_url(q), youtube_url(q)));
+    en.push_str(&format!("\n🔎 Google results: {}\n▶️ YouTube results: {}\n", google_url(q), youtube_url(q)));
+    if !web.is_empty() {
+        ja.push_str("\n【ウェブ検索の結果】");
+        en.push_str("\n[Web search results]");
+        for (t, l, sn) in web {
+            ja.push_str(&format!("\n・{t}\n  {l}"));
+            en.push_str(&format!("\n- {t}\n  {l}"));
+            if !sn.is_empty() {
+                let sn = truncate_chars(sn, 140);
+                ja.push_str(&format!("\n  {sn}"));
+                en.push_str(&format!("\n  {sn}"));
+            }
+        }
+    }
+    if !videos.is_empty() {
+        ja.push_str("\n\n【YouTubeの動画】");
+        en.push_str("\n\n[YouTube videos]");
+        for (t, l, _) in videos {
+            ja.push_str(&format!("\n・{t}\n  {l}"));
+            en.push_str(&format!("\n- {t}\n  {l}"));
+        }
+    }
+    (ja, en)
+}
+
+fn is_youtube(link: &str) -> bool {
+    let host = link.split("://").nth(1).unwrap_or("").split('/').next().unwrap_or("").to_lowercase();
+    host == "youtu.be" || host == "youtube.com" || host.ends_with(".youtube.com")
+}
+
+async fn aruaru_search(client: &reqwest::Client, base: &str, query: &str, hl: &str, n: usize) -> Vec<Found> {
+    let url = format!("{base}/v1/search?q={}&hl={hl}&n={n}", pct_encode(query));
+    let v: serde_json::Value = match client.get(&url).send().await {
+        Ok(r) if r.status().is_success() => r.json().await.unwrap_or_default(),
+        _ => return Vec::new(),
+    };
+    v["results"]
+        .as_array()
+        .map(|a| {
+            a.iter()
+                .filter_map(|r| {
+                    let link = r["link"].as_str()?.to_string();
+                    if !link.starts_with("http") {
+                        return None;
+                    }
+                    Some((r["title"].as_str().unwrap_or(&link).to_string(), link, r["snippet"].as_str().unwrap_or("").to_string()))
+                })
+                .collect()
+        })
+        .unwrap_or_default()
+}
+
+/// 1分に20回まで(検索サービスを、この入口から使いすぎないため)。
+static FALLBACK_WINDOW: Mutex<(i64, u32)> = Mutex::new((0, 0));
+fn fallback_allowed(now: i64) -> bool {
+    let mut g = FALLBACK_WINDOW.lock().unwrap_or_else(|e| e.into_inner());
+    if now - g.0 >= 60 {
+        *g = (now, 0);
+    }
+    if g.1 >= 20 {
+        false
+    } else {
+        g.1 += 1;
+        true
+    }
+}
+
+/// 該当記事が無かった回答(found == 0)を、Google・YouTubeの検索へのリンクと、ウェブ検索の結果つきの案内に差し替える。
+/// ウェブ検索(aruaru-search、APIキー不要)に接続できなくても、GoogleとYouTubeへのリンクは必ず付ける。
+pub async fn with_fallback(mut base: serde_json::Value, q: &str) -> serde_json::Value {
+    let q: String = q.chars().take(200).collect();
+    let total = base["stock_total"].as_i64().unwrap_or(0);
+    let (mut web, mut videos): (Vec<Found>, Vec<Found>) = (Vec::new(), Vec::new());
+    if fallback_allowed(now_unix()) {
+        let search_base = std::env::var("ARUARU_SEARCH_URL").unwrap_or_else(|_| "http://127.0.0.1:4610".to_string());
+        let hl = if q.chars().any(|c| is_kanji(c) || is_katakana(c) || ('\u{3040}'..='\u{309f}').contains(&c)) { "ja" } else { "en" };
+        if let Ok(client) = reqwest::Client::builder().timeout(std::time::Duration::from_secs(12)).build() {
+            let yq = format!("site:youtube.com {q}");
+            let (w, y) = tokio::join!(aruaru_search(&client, &search_base, &q, hl, 5), aruaru_search(&client, &search_base, &yq, hl, 8));
+            web = w.into_iter().filter(|(_, l, _)| !is_youtube(l)).take(5).collect();
+            videos = y.into_iter().filter(|(_, l, _)| is_youtube(l)).take(4).collect();
+        }
+    }
+    let (ja, en) = compose_fallback(&q, total, &web, &videos);
+    let pack = |v: &[Found]| -> Vec<serde_json::Value> { v.iter().map(|(t, l, s)| json!({"title": t, "url": l, "snippet": s})).collect() };
+    base["answer_ja"] = json!(ja);
+    base["answer_en"] = json!(en);
+    base["fallback"] = json!({"google_url": google_url(&q), "youtube_url": youtube_url(&q), "web": pack(&web), "videos": pack(&videos)});
+    base
+}
+
 // ---------------------------------------------------------------- 公開API用の入口
 
 fn with_store<T>(f: impl FnOnce(&Connection) -> T) -> Option<T> {
@@ -616,6 +738,38 @@ mod tests {
         upsert(&c, &FEED, &[Item { url: "https://ex.test/oil".into(), title: "アメリカの原油輸出減少".into(), summary: "輸出動向が注目されます".into(), published_at: now, source: "T".into(), lang: "ja".into() }], now);
         assert_eq!(answer(&c, "量子コンピュータの最新動向", now)["found"], 0);
         assert_eq!(strip_tags("a​ b⁠c"), "a bc");
+    }
+
+    #[test]
+    fn fallback_links_are_encoded_and_the_text_says_these_are_search_results() {
+        assert_eq!(pct_encode("a b&ウ"), "a%20b%26%E3%82%A6");
+        assert_eq!(google_url("量子"), "https://www.google.com/search?q=%E9%87%8F%E5%AD%90");
+        assert_eq!(youtube_url("quantum computing"), "https://www.youtube.com/results?search_query=quantum%20computing");
+        let web = vec![("Quantum computing - Wikipedia".to_string(), "https://en.wikipedia.org/wiki/Quantum_computing".to_string(), "A quantum computer...".to_string())];
+        let vid = vec![("Quantum explained".to_string(), "https://www.youtube.com/watch?v=abc".to_string(), String::new())];
+        let (ja, en) = compose_fallback("量子コンピュータ", 342, &web, &vid);
+        assert!(ja.contains("検索結果であり、ニュース記事の裏付けのある答えではありません"));
+        assert!(ja.contains("google.com/search?q=") && ja.contains("youtube.com/results?search_query="));
+        assert!(ja.contains("Quantum computing - Wikipedia") && ja.contains("watch?v=abc") && ja.contains("342件"));
+        assert!(en.contains("not an answer backed by news articles"));
+        assert!(!ja.contains("分かりません"));
+        // 検索サービスに接続できなくても、リンクは必ず付く
+        let (ja2, _) = compose_fallback("x", 0, &[], &[]);
+        assert!(ja2.contains("google.com/search?q=x") && ja2.contains("youtube.com/results"));
+        assert!(is_youtube("https://www.youtube.com/watch?v=1") && is_youtube("https://youtu.be/1") && !is_youtube("https://notyoutube.com/x") && !is_youtube("https://example.com/youtube.com"));
+    }
+
+    #[test]
+    fn fallback_is_rate_limited_per_minute() {
+        let base = 10_000_000_000i64;
+        let mut allowed = 0;
+        for _ in 0..30 {
+            if fallback_allowed(base) {
+                allowed += 1;
+            }
+        }
+        assert_eq!(allowed, 20);
+        assert!(fallback_allowed(base + 61));
     }
 
     #[test]

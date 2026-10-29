@@ -3495,17 +3495,14 @@ const CONSUMPTION_TAX_QUESTION_KEYWORDS = [
 
 function isConsumptionTaxSolutionQuestion(userText) {
   if (!containsJapanese(userText)) return false;
-  const hasTopic = CONSUMPTION_TAX_TOPIC_KEYWORDS.some((k) => userText.includes(k));
-  if (!hasTopic) return false;
-  // 2026-10-28 バグ修正(「消費税」だけ・「消費税と質問」では以前出ていた回答が出なくなった): 質問の言葉が無くても、
-  // 短い文(「消費税」「消費税について」「消費税は?」など)で消費税の話題を出したときは、提案を出す。
-  if (userText.replace(/[\s　?？!！。、.]/g, "").length <= 14) return true;
-  return CONSUMPTION_TAX_QUESTION_KEYWORDS.some((k) => userText.includes(k));
+  // 2026-10-29 ユーザー指示(知識DATABASE: 質問に「消費税」の言葉が入っていたら「消費税とは? 法人税が約40%だった時に、将来約20%…」を出す):
+  // 質問の言葉(解決策・教えて等)の有無や文の長さに関わらず、「消費税」が入っていれば、この回答を出す。
+  return CONSUMPTION_TAX_TOPIC_KEYWORDS.some((k) => userText.includes(k));
 }
 
 function consumptionTaxProposalText() {
   const ja =
-    "【消費税問題への提案(開発者からの一意見)】\n" +
+    "【消費税とは?(開発者からの一意見)】\n" +
     "消費税は、法人税が約40%だった頃に、将来的に約20%へ引き下げる前提で" +
     "導入された経緯があります(2026年8月時点の法人税は約20%)。その前提に" +
     "立てば、消費税を撤廃する、あるいは法人税を元の40%程度へ引き上げ、" +
@@ -3517,7 +3514,7 @@ function consumptionTaxProposalText() {
     "基礎年金+厚生年金の皆保険化(全員加入型)による年金受給額の増額、" +
     "後期高齢者医療制度における低所得層・中間所得層の無償化が実現可能です。";
   const en =
-    "[A proposal on the consumption-tax problem (the developer's own opinion)]\n" +
+    "[What is the consumption tax? (the developer's own opinion)]\n" +
     "Japan's consumption tax was originally introduced on the premise that the " +
     "corporate tax rate, then around 40%, would eventually be lowered to around " +
     "20% (as of August 2026 it is indeed around 20%). Given that history, a " +

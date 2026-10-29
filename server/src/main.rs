@@ -1955,7 +1955,12 @@ async fn news_ask(req: Request) -> Response {
     if q.trim().is_empty() {
         return rs_json_response_cors(StatusCode::BAD_REQUEST, &serde_json::json!({"ok": false, "error": "q is required / qが必要です"}));
     }
-    let v = tokio::task::spawn_blocking(move || news_qa::ask(&q)).await.unwrap_or_else(|_| serde_json::json!({"ok": false}));
+    let q2 = q.clone();
+    let mut v = tokio::task::spawn_blocking(move || news_qa::ask(&q2)).await.unwrap_or_else(|_| serde_json::json!({"ok": false}));
+    // 保存した記事に該当が無いとき: 「分かりません」ではなく、Google・YouTubeの検索へのリンクと、ウェブ検索の結果を返す
+    if v["ok"] == true && v["found"].as_i64() == Some(0) {
+        v = news_qa::with_fallback(v, &q).await;
+    }
     rs_json_response_cors(StatusCode::OK, &v)
 }
 
