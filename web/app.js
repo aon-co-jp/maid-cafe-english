@@ -3493,43 +3493,52 @@ const CONSUMPTION_TAX_QUESTION_KEYWORDS = [
   "どう思う", "教えて",
 ];
 
+// 2026-10-29 ユーザー指示(知識DATABASE): 質問に「消費税」またはその類似語、「百数万円の壁」またはその類似語が入っていたら、
+// 「消費税とは? 法人税が約40%だった時に、将来約20%まで下げる約束で導入された税金で…」の回答を出す。
+const CONSUMPTION_TAX_SIMILAR_JA = ["消費税", "消費増税", "増税", "減税", "付加価値税", "軽減税率", "インボイス", "税率", "税金", "法人税", "所得税", "累進課税", "社会保険料", "社会保険税"];
+const INCOME_WALL_SIMILAR_JA_RE = /年収の壁|[0-9０-９]{2,3}万円?の?壁|百[数万]*万円の壁|壁.{0,6}万円|万円.{0,6}壁|扶養|配偶者控除|就業調整|社会保険の壁/;
+const TAX_SIMILAR_EN_RE = /consumption tax|sales tax|\bvat\b|value[- ]added tax|tax wall|income wall|annual income wall|progressive tax/i;
 function isConsumptionTaxSolutionQuestion(userText) {
+  if (TAX_SIMILAR_EN_RE.test(userText)) return true;
   if (!containsJapanese(userText)) return false;
-  // 2026-10-29 ユーザー指示(知識DATABASE: 質問に「消費税」の言葉が入っていたら「消費税とは? 法人税が約40%だった時に、将来約20%…」を出す):
-  // 質問の言葉(解決策・教えて等)の有無や文の長さに関わらず、「消費税」が入っていれば、この回答を出す。
-  return CONSUMPTION_TAX_TOPIC_KEYWORDS.some((k) => userText.includes(k));
+  return CONSUMPTION_TAX_SIMILAR_JA.some((k) => userText.includes(k)) || INCOME_WALL_SIMILAR_JA_RE.test(userText);
 }
 
 function consumptionTaxProposalText() {
+  // 日本語の文章は、ユーザー(開発者)が指示した文章のまま(2026-10-29)。英語は、その訳(AIによる翻訳)。
   const ja =
     "【消費税とは?(開発者からの一意見)】\n" +
-    "消費税は、法人税が約40%だった頃に、将来的に約20%へ引き下げる前提で" +
-    "導入された経緯があります(2026年8月時点の法人税は約20%)。その前提に" +
-    "立てば、消費税を撤廃する、あるいは法人税を元の40%程度へ引き上げ、" +
-    "それでも足りなければ45〜50%程度まで引き上げるという選択肢が現実的です。" +
-    "それでも財源が不足する場合は、行政のWEBサイト・LINEアプリ化を進める" +
-    "eガバメント・デジタルガバメント化により、市区町村・都道府県庁の統廃合、" +
-    "中央省庁・国会のオンライン化(在宅勤務・オンライン国会)を進めて公務員を" +
-    "大幅にリストラし、財源を確保します。その財源で、少子高齢化対策予算、" +
-    "基礎年金+厚生年金の皆保険化(全員加入型)による年金受給額の増額、" +
-    "後期高齢者医療制度における低所得層・中間所得層の無償化が実現可能です。";
+    "法人税が約40%だった時に、将来約20%まで下げる約束で導入された税金で、財源は、法人税だったのです。\n" +
+    "消費税を全廃、撤廃するには、2026年の今、約20%まで下がっている法人税を元の約40%もしくは、足りなければ、45%くらいまで元に戻し、" +
+    "更に、財源が足りなければ、バラク・オバマ元大統領が言われた様に、我々、裕福層にこそ、所得税などの税金の累進課税地率のカーブをUPするべきだと言う、" +
+    "ご提案に賛成で御座います。\n" +
+    "所得税や社会保険税などの税金は、裕福層への累進課税率のカーブはアップして、逆に低所得層への累進課税率のカーブはダウンさせて、負担率を下げる、" +
+    "しかし一定の金額以下は、全く税金を払わなくて良いと言う考え方は、全く収入が無いに近い場合を除いて、考え直した方が良いと思います。\n" +
+    "更に、eガバメント、デジタルガバメントと言う政府やお役所のLINEアプリ化やTVアプリ化やコンビニのロッピーやファミポートなどによって、" +
+    "市区町村役場や都道府県庁の庁舎と司法立法行政府、中央省庁の全公務員を大幅にリストラして消費高齢化予算、" +
+    "専業主婦や働いていない人なども含めて全国民参加の年金を皆保険として、基礎年金+厚生年金+増額年金の年金予算確保、" +
+    "後期高齢者医療制度の低所得層と中間所得層の負担率の大幅なカーブのダウンや失業時だけ、住宅ローンや自動者ローンや携帯電話代やインターネットプロバイダー代金を肩代わりして無償化にする予算などや" +
+    "低所得層の医療費無償化や中間所得層の医療費の累進負担率のカーブも大幅に下げる予算などや" +
+    "イタリア製ミニウェル・プロクサ(お勧めは、左右の視力が異なっていても同じ種類の30cm手元から遠くまでよく見える眼内コンタクトレンズ)や" +
+    "長期感壊れにくくて安心して使える人工心臓や人工関節などを完全に国保対応とする予算確保など。\n" +
+    "(開発者個人の意見です。税務・医療・投資の助言ではありません。)";
   const en =
-    "[What is the consumption tax? (the developer's own opinion)]\n" +
-    "Japan's consumption tax was originally introduced on the premise that the " +
-    "corporate tax rate, then around 40%, would eventually be lowered to around " +
-    "20% (as of August 2026 it is indeed around 20%). Given that history, a " +
-    "realistic option is to abolish the consumption tax — or raise the " +
-    "corporate tax rate back toward 40%, and to 45-50% if still not enough. " +
-    "If revenue is still short, advancing e-government/digital-government " +
-    "(moving administrative websites and services onto LINE-style apps), " +
-    "consolidating/abolishing municipal and prefectural government offices, " +
-    "and moving central-government ministries and the Diet online (remote work, " +
-    "online parliamentary sessions) would allow a major reduction in the civil " +
-    "service headcount, freeing up funds. Those funds could then go toward the " +
-    "declining-birthrate/aging-society budget, raising pension payouts by making " +
-    "the basic pension plus employees' pension universal (mandatory enrollment " +
-    "for all), and making the late-stage elderly medical system free for " +
-    "low-income and middle-income households.";
+    "[What is the consumption tax? (the developer's own opinion; English is an AI translation)]\n" +
+    "It is a tax that was introduced on the promise that the corporate tax rate, then around 40%, would later be lowered to around 20%, " +
+    "and its source of revenue was the corporate tax.\n" +
+    "To abolish the consumption tax completely, I agree with the proposal to raise the corporate tax rate - which in 2026 has fallen to around 20% - " +
+    "back to its original level of about 40%, or to around 45% if that is not enough; and, if revenue is still short, to raise the progressive-tax curve of " +
+    "income tax and other taxes on the wealthy, as former U.S. President Barack Obama is said to have argued that we, the wealthy, are the ones who should pay more.\n" +
+    "For income tax, social-insurance contributions and similar taxes, I think the idea of raising the progressive-rate curve for the wealthy and lowering it for low earners " +
+    "to reduce their burden - while people below a certain income pay no tax at all - should be reconsidered, except for people with almost no income.\n" +
+    "Furthermore, through e-government / digital government - putting government and municipal services on LINE apps and TV apps and on convenience-store kiosks such as Loppi and FamiPort - " +
+    "I would substantially downsize the civil servants of city and ward offices, prefectural offices, the judicial, legislative and executive branches and all central ministries, " +
+    "and secure budgets for: measures for the aging society and declining birthrate; universal pension insurance covering everyone, including full-time homemakers and people not working " +
+    "(basic pension + employees' pension + an additional pension); a large reduction of the burden-rate curve for low- and middle-income households under the late-stage elderly medical system; " +
+    "paying housing-loan, car-loan, mobile-phone and internet-provider charges for people only while they are unemployed; free medical care for low-income households and a much lower progressive " +
+    "cost-sharing curve for middle-income households; and bringing under full national health insurance coverage things such as Italian-made intraocular contact lenses " +
+    "(recommended: a type that gives good vision from 30 cm to far distances even when the left and right eyes differ) and durable, reliable artificial hearts and artificial joints.\n" +
+    "(This is the developer's personal opinion, not tax, medical or investment advice.)";
   return `\n\n💰 ${en}\n\n${ja}`;
 }
 
