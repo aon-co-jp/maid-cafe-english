@@ -24,6 +24,7 @@ mod github_agent;
 mod line_bot;
 mod local_agent;
 mod news_qa;
+mod places;
 mod self_update;
 mod totp;
 mod tts;

@@ -60,7 +60,140 @@ const SCHEMA: &str = "CREATE TABLE IF NOT EXISTS news_items (
     feed_id TEXT NOT NULL,
     lang TEXT NOT NULL
 );
-CREATE INDEX IF NOT EXISTS idx_news_published ON news_items(published_at DESC);";
+CREATE INDEX IF NOT EXISTS idx_news_published ON news_items(published_at DESC);
+CREATE TABLE IF NOT EXISTS news_keys (
+    key TEXT NOT NULL,
+    item_id INTEGER NOT NULL,
+    PRIMARY KEY (key, item_id)
+);
+CREATE INDEX IF NOT EXISTS idx_news_keys_item ON news_keys(item_id);";
+
+/// 保存した記事から、索引のキーを自動で作る。地名は `place:paris`(日本語名でも英名でも同じキー)、
+/// 話題の言葉は `w:russia` のように付ける。質問のときも同じ作り方でキーを作るので、保存と質問が自動でつながる。
+pub fn extract_keys(title: &str, summary: &str) -> Vec<String> {
+    let text = format!("{title} {summary}");
+    let mut keys: Vec<String> = crate::places::find(&text).iter().map(|p| crate::places::key(p)).collect();
+    for t in tokens(title).into_iter().chain(tokens(summary)) {
+        keys.push(format!("w:{}", t.to_lowercase()));
+    }
+    keys.sort();
+    keys.dedup();
+    keys.truncate(60);
+    keys
+}
+
+fn index_item(conn: &Connection, id: i64, title: &str, summary: &str) {
+    for k in extract_keys(title, summary) {
+        let _ = conn.execute("INSERT OR IGNORE INTO news_keys (key, item_id) VALUES (?1, ?2)", params![k, id]);
+    }
+    // 重要な言葉(統計で選んだもの)は `kw:` として、別に印を付ける
+    for w in pick_important(conn, title, summary, 8) {
+        let _ = conn.execute("INSERT OR IGNORE INTO news_keys (key, item_id) VALUES (?1, ?2)", params![format!("kw:{}", w.to_lowercase()), id]);
+    }
+}
+
+fn idf(conn: &Connection, tok: &str, n_items: i64) -> f64 {
+    let df: i64 = conn.query_row("SELECT COUNT(*) FROM news_keys WHERE key = ?1", params![format!("w:{}", tok.to_lowercase())], |r| r.get(0)).unwrap_or(0);
+    (((n_items + 1) as f64) / ((df + 1) as f64)).ln()
+}
+
+/// 文章の中で「重要な言葉」を選ぶ(統計): ストック全体で珍しい言葉ほど重要(idf)、見出しに出る言葉・地名は更に重要、
+/// 1文字の語や、ありふれた語は下げる。外部のAIが無くても動く。
+pub fn pick_important(conn: &Connection, title: &str, summary: &str, n: usize) -> Vec<String> {
+    let n_items: i64 = conn.query_row("SELECT COUNT(*) FROM news_items", [], |r| r.get(0)).unwrap_or(0);
+    let in_title: std::collections::HashSet<String> = tokens(title).into_iter().collect();
+    let mut cands: Vec<String> = tokens(title).into_iter().chain(tokens(summary)).collect();
+    cands.sort();
+    cands.dedup();
+    let mut scored: Vec<(f64, String)> = cands
+        .into_iter()
+        .map(|t| {
+            let mut s = idf(conn, &t, n_items) + 0.5;
+            if in_title.contains(&t) {
+                s *= 1.6;
+            }
+            if !crate::places::find(&t).is_empty() {
+                s *= 1.5;
+            }
+            if t.chars().count() < 2 {
+                s *= 0.5;
+            }
+            (s, t)
+        })
+        .collect();
+    scored.sort_by(|a, b| b.0.partial_cmp(&a.0).unwrap_or(std::cmp::Ordering::Equal).then(a.1.cmp(&b.1)));
+    scored.into_iter().take(n).map(|(_, t)| t).collect()
+}
+
+/// aruaru-llm(open-cudaで動く埋め込み)に、見出しとの「意味の近さ」で候補の言葉を並べ直してもらい、
+/// 近い上位を `ik:` として足す。aruaru-llmに繋がらないときは何もしない(統計のキーだけで動き続ける)。
+/// 1回に処理する記事数に上限を付け、残りは次の回(毎時)に回す。
+pub async fn refine_with_llm(limit: usize) -> usize {
+    let todo: Vec<(i64, String, Vec<String>)> = with_store(|c| {
+        let mut out = Vec::new();
+        if let Ok(mut st) = c.prepare("SELECT id,title,summary FROM news_items WHERE NOT EXISTS (SELECT 1 FROM news_keys k WHERE k.item_id = news_items.id AND k.key = 'llm:done') ORDER BY published_at DESC LIMIT ?1") {
+            if let Ok(rows) = st.query_map(params![limit as i64], |r| Ok((r.get::<_, i64>(0)?, r.get::<_, String>(1)?, r.get::<_, String>(2)?))) {
+                for (id, t, s) in rows.filter_map(Result::ok) {
+                    out.push((id, t.clone(), pick_important(c, &t, &s, 12)));
+                }
+            }
+        }
+        out
+    })
+    .unwrap_or_default();
+    if todo.is_empty() {
+        return 0;
+    }
+    let base = std::env::var("ARUARU_LLM_BIND").map(|b| format!("http://{b}")).unwrap_or_else(|_| "http://127.0.0.1:4600".to_string());
+    let client = match reqwest::Client::builder().timeout(std::time::Duration::from_secs(30)).build() {
+        Ok(c) => c,
+        Err(_) => return 0,
+    };
+    let mut done = 0;
+    for (id, title, cands) in todo {
+        if cands.is_empty() {
+            with_store(|c| c.execute("INSERT OR IGNORE INTO news_keys (key,item_id) VALUES ('llm:done', ?1)", params![id]).ok());
+            continue;
+        }
+        let docs: Vec<String> = cands.iter().take(15).map(|s| s.chars().take(400).collect()).collect();
+        let q: String = title.chars().take(300).collect();
+        let resp = client.post(format!("{base}/v1/rerank")).json(&json!({"query": q, "documents": docs})).send().await;
+        let scores: Vec<f64> = match resp {
+            Ok(r) if r.status().is_success() => match r.json::<serde_json::Value>().await {
+                Ok(v) => v["scores"].as_array().map(|a| a.iter().filter_map(|x| x.as_f64()).collect()).unwrap_or_default(),
+                Err(_) => Vec::new(),
+            },
+            _ => Vec::new(),
+        };
+        if scores.len() != docs.len() {
+            break; // aruaru-llmに繋がらない/失敗: 今回は終わり(次の回にやり直す)
+        }
+        let mut ranked: Vec<(f64, &String)> = scores.iter().cloned().zip(cands.iter()).collect();
+        ranked.sort_by(|a, b| b.0.partial_cmp(&a.0).unwrap_or(std::cmp::Ordering::Equal));
+        with_store(|c| {
+            for (_, w) in ranked.iter().take(4) {
+                let _ = c.execute("INSERT OR IGNORE INTO news_keys (key,item_id) VALUES (?1, ?2)", params![format!("ik:{}", w.to_lowercase()), id]);
+            }
+            let _ = c.execute("INSERT OR IGNORE INTO news_keys (key,item_id) VALUES ('llm:done', ?1)", params![id]);
+        });
+        done += 1;
+    }
+    done
+}
+
+/// 既にストックしてある記事のうち、キーが未作成のものに、キーを後付けする(起動時。何度でも安全)。
+pub fn backfill_keys(conn: &Connection) -> usize {
+    let rows: Vec<(i64, String, String)> = match conn.prepare("SELECT id,title,summary FROM news_items WHERE NOT EXISTS (SELECT 1 FROM news_keys k WHERE k.item_id = news_items.id) LIMIT 20000") {
+        Ok(mut st) => st.query_map([], |r| Ok((r.get(0)?, r.get(1)?, r.get(2)?))).map(|it| it.filter_map(Result::ok).collect()).unwrap_or_default(),
+        Err(_) => return 0,
+    };
+    let _ = conn.execute_batch("BEGIN");
+    for (id, t, s) in &rows {
+        index_item(conn, *id, t, s);
+    }
+    let _ = conn.execute_batch("COMMIT");
+    rows.len()
+}
 
 pub fn init(path: PathBuf) -> Result<(), String> {
     if let Some(dir) = path.parent() {
@@ -68,6 +201,7 @@ pub fn init(path: PathBuf) -> Result<(), String> {
     }
     let conn = Connection::open(&path).map_err(|e| format!("news db: {e}"))?;
     conn.execute_batch(SCHEMA).map_err(|e| format!("news schema: {e}"))?;
+    backfill_keys(&conn);
     STORE.set(Mutex::new(conn)).map_err(|_| "news store already initialised".to_string())
 }
 
@@ -193,6 +327,9 @@ fn upsert(conn: &Connection, feed: &Feed, items: &[Item], now: i64) -> usize {
                 params![it.url, it.title, it.summary, it.published_at, now, it.source, feed.id, it.lang],
             )
             .unwrap_or(0);
+        if n == 1 {
+            index_item(conn, conn.last_insert_rowid(), &it.title, &it.summary);
+        }
         added += n;
     }
     added
@@ -239,6 +376,8 @@ pub async fn run_collector() {
     loop {
         let r = fetch_all().await;
         eprintln!("[news-stock] {r}");
+        let refined = refine_with_llm(30).await;
+        eprintln!("[news-stock] aruaru-llm refined keywords for {refined} items");
         tokio::time::sleep(std::time::Duration::from_secs(3600)).await;
     }
 }
@@ -349,6 +488,11 @@ pub fn tokens(q: &str) -> Vec<String> {
         }
     }
     out.extend(extra);
+    // 地名(日本語名・英名どちらで聞かれても、両方の名前で探す)
+    for pl in crate::places::find(q) {
+        out.push(pl.en.to_lowercase());
+        out.push(pl.ja.to_string());
+    }
     out.sort();
     out.dedup();
     out
@@ -436,6 +580,46 @@ pub fn search(conn: &Connection, q: &str, limit: usize, now: i64) -> Vec<Hit> {
             hits.push(Hit { item: it, score });
         }
     }
+    // 索引(保存時に自動で付けたキー)からも探す。地名のキーに合う記事は、点を多く足す。
+    let mut qkeys: Vec<String> = crate::places::find(q).iter().map(|p| crate::places::key(p)).collect();
+    let place_n = qkeys.len();
+    qkeys.extend(toks.iter().map(|t| format!("w:{}", t.to_lowercase())));
+    // 質問の中の「重要な言葉」(ストックで珍しい言葉)は、重要語のキー(kw:/ik:)でも引く
+    let n_items: i64 = conn.query_row("SELECT COUNT(*) FROM news_items", [], |r| r.get(0)).unwrap_or(0);
+    let mut ranked: Vec<(f64, &String)> = toks.iter().map(|t| (idf(conn, t, n_items), t)).collect();
+    ranked.sort_by(|a, b| b.0.partial_cmp(&a.0).unwrap_or(std::cmp::Ordering::Equal));
+    for (_, t) in ranked.into_iter().take(6) {
+        qkeys.push(format!("kw:{}", t.to_lowercase()));
+        qkeys.push(format!("ik:{}", t.to_lowercase()));
+    }
+    if !qkeys.is_empty() {
+        let ph = (1..=qkeys.len()).map(|i| format!("?{i}")).collect::<Vec<_>>().join(",");
+        let sql = format!(
+            "SELECT n.url,n.title,n.summary,n.published_at,n.source,n.lang,k.key FROM news_keys k JOIN news_items n ON n.id = k.item_id WHERE k.key IN ({ph}) ORDER BY n.published_at DESC LIMIT 600"
+        );
+        if let Ok(mut st) = conn.prepare(&sql) {
+            let rows = st.query_map(rusqlite::params_from_iter(qkeys.iter()), |r| {
+                Ok((Item { url: r.get(0)?, title: r.get(1)?, summary: r.get(2)?, published_at: r.get(3)?, source: r.get(4)?, lang: r.get(5)? }, r.get::<_, String>(6)?))
+            });
+            if let Ok(rows) = rows {
+                for (it, key) in rows.filter_map(Result::ok) {
+                    let bonus = if qkeys[..place_n].contains(&key) {
+                        4
+                    } else if key.starts_with("ik:") {
+                        3
+                    } else if key.starts_with("kw:") {
+                        2
+                    } else {
+                        1
+                    };
+                    match hits.iter_mut().find(|h| h.item.url == it.url) {
+                        Some(h) => h.score += bonus,
+                        None => hits.push(Hit { item: it, score: bonus }),
+                    }
+                }
+            }
+        }
+    }
     hits.sort_by(|a, b| b.score.cmp(&a.score).then(b.item.published_at.cmp(&a.item.published_at)));
     hits.truncate(limit);
     hits
@@ -456,6 +640,7 @@ pub fn answer(conn: &Connection, q: &str, now: i64) -> serde_json::Value {
     let hits = search(conn, q, 6, now);
     let (total, latest) = stock_stats(conn);
     let generic = tokens(q).is_empty();
+    let card = crate::places::card(q);
     if hits.is_empty() {
         let ja = format!(
             "📰 分かりません。保存したニュース({total}件、最新 {})の中に、ご質問に合う記事がありませんでした。推測では答えません。別の言葉(国名・出来事の名前)でもう一度お試しください。",
@@ -465,10 +650,19 @@ pub fn answer(conn: &Connection, q: &str, now: i64) -> serde_json::Value {
             "📰 I don't know. None of the {total} stored news items (latest: {}) match your question, and I won't guess. Please try other words (a country or an event).",
             if latest > 0 { jst(latest) } else { "none".into() }
         );
-        return json!({"ok": true, "found": 0, "stock_total": total, "latest_published_at": latest, "items": [], "answer_ja": ja, "answer_en": en});
+        let (pj, pe) = card.clone().unwrap_or_default();
+        return json!({"ok": true, "found": 0, "stock_total": total, "latest_published_at": latest, "items": [], "answer_ja": ja, "answer_en": en, "place_ja": pj, "place_en": pe});
     }
-    let mut ja = String::from(if generic { "📰 世界情勢Q&A — 保存した最新の記事です(見出し・日付・出典のみ。AIの推測は入れていません)\n" } else { "📰 世界情勢Q&A — ご質問に合う、保存した記事です(見出し・日付・出典のみ。AIの推測は入れていません)\n" });
-    let mut en = String::from(if generic { "📰 World-affairs Q&A — latest stored articles (headline, date and source only; no AI guesses)\n" } else { "📰 World-affairs Q&A — stored articles matching your question (headline, date and source only; no AI guesses)\n" });
+    let mut ja = String::new();
+    let mut en = String::new();
+    if let Some((pj, pe)) = &card {
+        ja.push_str(pj);
+        ja.push_str("\n\n");
+        en.push_str(pe);
+        en.push_str("\n\n");
+    }
+    ja.push_str(if generic { "📰 世界情勢Q&A — 保存した最新の記事です(見出し・日付・出典のみ。AIの推測は入れていません)\n" } else { "📰 世界情勢Q&A — ご質問に合う、保存した記事です(見出し・日付・出典のみ。AIの推測は入れていません)\n" });
+    en.push_str(if generic { "📰 World-affairs Q&A — latest stored articles (headline, date and source only; no AI guesses)\n" } else { "📰 World-affairs Q&A — stored articles matching your question (headline, date and source only; no AI guesses)\n" });
     for h in &hits {
         let it = &h.item;
         ja.push_str(&format!("\n・[{}] {}「{}」", jst(it.published_at), it.source, it.title));
@@ -603,7 +797,12 @@ pub async fn with_fallback(mut base: serde_json::Value, q: &str) -> serde_json::
             videos = y.into_iter().filter(|(_, l, _)| is_youtube(l)).take(4).collect();
         }
     }
-    let (ja, en) = compose_fallback(&q, total, &web, &videos);
+    let (mut ja, mut en) = compose_fallback(&q, total, &web, &videos);
+    // 地名の索引カードがあれば、先頭に付ける(名所・都市の質問でも、まず名簿の事実を示す)
+    if let (Some(pj), Some(pe)) = (base["place_ja"].as_str().filter(|s| !s.is_empty()), base["place_en"].as_str()) {
+        ja = format!("{pj}\n\n{ja}");
+        en = format!("{pe}\n\n{en}");
+    }
     let pack = |v: &[Found]| -> Vec<serde_json::Value> { v.iter().map(|(t, l, s)| json!({"title": t, "url": l, "snippet": s})).collect() };
     base["answer_ja"] = json!(ja);
     base["answer_en"] = json!(en);
@@ -642,8 +841,8 @@ pub fn stats() -> serde_json::Value {
 pub fn export_jsonl(since: i64) -> String {
     with_store(|c| {
         let mut out = String::new();
-        if let Ok(mut st) = c.prepare("SELECT url,title,summary,published_at,source,lang FROM news_items WHERE fetched_at >= ?1 ORDER BY published_at ASC LIMIT 5000") {
-            if let Ok(rows) = st.query_map(params![since], |r| Ok(json!({"url": r.get::<_, String>(0)?, "title": r.get::<_, String>(1)?, "summary": r.get::<_, String>(2)?, "published_at": r.get::<_, i64>(3)?, "published_jst": jst(r.get::<_, i64>(3)?), "source": r.get::<_, String>(4)?, "lang": r.get::<_, String>(5)?}))) {
+        if let Ok(mut st) = c.prepare("SELECT url,title,summary,published_at,source,lang,(SELECT group_concat(key) FROM news_keys WHERE item_id = news_items.id) FROM news_items WHERE fetched_at >= ?1 ORDER BY published_at ASC LIMIT 5000") {
+            if let Ok(rows) = st.query_map(params![since], |r| Ok(json!({"url": r.get::<_, String>(0)?, "title": r.get::<_, String>(1)?, "summary": r.get::<_, String>(2)?, "published_at": r.get::<_, i64>(3)?, "published_jst": jst(r.get::<_, i64>(3)?), "source": r.get::<_, String>(4)?, "lang": r.get::<_, String>(5)?, "keys": r.get::<_, Option<String>>(6)?.unwrap_or_default().split(',').filter(|k| !k.is_empty()).collect::<Vec<_>>()}))) {
                 for v in rows.filter_map(Result::ok) {
                     out.push_str(&v.to_string());
                     out.push('\n');
@@ -808,5 +1007,65 @@ mod live_probe {
                 println!("{}", v["answer_ja"].as_str().unwrap_or("").lines().take(6).collect::<Vec<_>>().join("\n"));
             }
         }
+    }
+}
+
+#[cfg(test)]
+mod index_tests {
+    use super::*;
+
+    #[test]
+    fn stocking_auto_indexes_and_backfill_covers_old_rows() {
+        let c = Connection::open_in_memory().unwrap();
+        c.execute_batch(SCHEMA).unwrap();
+        // 索引が無かった時代に保存した記事(キー無し)
+        c.execute("INSERT INTO news_items (url,title,summary,published_at,fetched_at,source,feed_id,lang) VALUES ('https://ex.test/old','Fire near the Eiffel Tower in Paris','Visitors evacuated.',1793190000,1793190000,'Old News','t','en')", []).unwrap();
+        assert_eq!(c.query_row("SELECT COUNT(*) FROM news_keys", [], |r| r.get::<_, i64>(0)).unwrap(), 0);
+        assert_eq!(backfill_keys(&c), 1);
+        assert_eq!(backfill_keys(&c), 0); // 2回目は何もしない
+        // 新しく保存する記事は、保存と同時にキーが付く
+        let feed = Feed { id: "t", name: "New News", url: "x", lang: "ja" };
+        let it = Item { url: "https://ex.test/new".into(), title: "京都で国際会議が開幕".into(), summary: String::new(), published_at: 1793195000, source: "New News".into(), lang: "ja".into() };
+        assert_eq!(upsert(&c, &feed, &[it], 1793195000), 1);
+        let has = |k: &str| c.query_row("SELECT COUNT(*) FROM news_keys WHERE key=?1", [k], |r| r.get::<_, i64>(0)).unwrap();
+        assert_eq!(has("place:paris"), 1);
+        assert_eq!(has("place:eiffel tower"), 1);
+        assert_eq!(has("place:kyoto"), 1);
+        // 日本語で聞いても、英語の記事に届く / 英語で聞いても、日本語の記事に届く
+        let h = search(&c, "パリの様子は?", 5, 1793200000);
+        assert!(h.iter().any(|x| x.item.url == "https://ex.test/old"));
+        let h = search(&c, "Kyoto news", 5, 1793200000);
+        assert!(h.iter().any(|x| x.item.url == "https://ex.test/new"));
+        let a = answer(&c, "エッフェル塔について", 1793200000);
+        assert!(a["answer_ja"].as_str().unwrap().contains("フランス・パリ"));
+    }
+}
+
+#[cfg(test)]
+mod important_tests {
+    use super::*;
+
+    #[test]
+    fn rare_words_in_the_headline_beat_common_words() {
+        let c = Connection::open_in_memory().unwrap();
+        c.execute_batch(SCHEMA).unwrap();
+        let feed = Feed { id: "t", name: "T", url: "x", lang: "en" };
+        // 「government」は、どの記事にも出るありふれた言葉
+        let mut items = Vec::new();
+        for i in 0..30 {
+            items.push(Item { url: format!("https://ex.test/{i}"), title: format!("Government statement number {i}"), summary: "The government said".into(), published_at: 1793190000 + i, source: "T".into(), lang: "en".into() });
+        }
+        upsert(&c, &feed, &items, 1793190000);
+        let pick = pick_important(&c, "Government announces Zelenskyy visit", "The government said", 3);
+        eprintln!("PICK={pick:?}");
+        assert!(pick.contains(&"zelenskyy".to_string()));
+        assert!(!pick.contains(&"government".to_string()) || pick.iter().position(|x| x == "government").unwrap() > 0);
+        // 質問側でも、重要語のキー(kw:)が付いた記事に届く
+        let mut it = items[0].clone();
+        it.url = "https://ex.test/z".into();
+        it.title = "Zelenskyy visits Warsaw".into();
+        upsert(&c, &feed, &[it], 1793190100);
+        let h = search(&c, "Zelenskyy", 3, 1793200000);
+        assert_eq!(h[0].item.url, "https://ex.test/z");
     }
 }
