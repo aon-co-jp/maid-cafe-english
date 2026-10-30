@@ -1426,11 +1426,16 @@ const loginVerifyEmailEl = document.getElementById("login-verify-email");
 const loginCodeEl = document.getElementById("login-code");
 const loginVerifyBtn = document.getElementById("login-verify-btn");
 const loginStatusEl = document.getElementById("login-status");
+// 2026-10-30 不具合修正: 日本語入力では「＠」や「．」が全角で入り、サーバーが「@が無い」として400で断っていた。
+// 全角を半角にそろえ(NFKC)、空白を除いてから送る。
+function normalizeEmail(s) {
+  return String(s || "").normalize("NFKC").replace(/\s+/g, "").trim();
+}
 
 if (loginSendCodeBtn) {
   loginSendCodeBtn.addEventListener("click", async () => {
-    const email = loginEmailEl.value.trim();
-    const email2 = (loginEmail2El?.value || "").trim();
+    const email = normalizeEmail(loginEmailEl.value);
+    const email2 = normalizeEmail(loginEmail2El?.value);
     if (!email) {
       loginStatusEl.textContent = "Please enter your email / メールアドレスを入力してください";
       return;
@@ -1549,7 +1554,7 @@ async function verifyOtpFactorOne(identifier, code) {
 
 if (loginVerifyBtn) {
   loginVerifyBtn.addEventListener("click", () => {
-    const email = (loginVerifyEmailEl?.value || loginEmailEl.value).trim();
+    const email = normalizeEmail(loginVerifyEmailEl?.value || loginEmailEl.value);
     // 全角数字(日本語IME)・空白・ハイフンを除去して半角の6桁へ正規化する
     // (2026-09-20: メールのコードをコピー/手入力した際に全角や空白が
     // 混ざると「incorrect code」になるため)。
