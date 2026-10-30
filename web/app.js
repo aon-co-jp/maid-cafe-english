@@ -19201,15 +19201,15 @@ const INSTALLER_QUICK_LINK_CLOSED_KEY = "open-english.installerQuickLinkClosed";
     const helper = typeof activeCharacter !== "undefined" && activeCharacter === "helper";
     const text = helper
       ? "Welcome back, master! / お帰りなさいませ、ご主人様!\nいらっしゃいませ。今日も一緒に学びましょう! / Let's learn together today!"
-      : "Welcome home, master! / お帰りなさいませ!ご主人様!\n美味しくなーれ、美味しくなーれ、萌え萌えキュン♡ / Delicious, delicious, moe moe kyun!♡";
+      : "Welcome home, master! / お帰りなさいませ!ご主人様!\n美味しくなーれ、萌え萌えキュ-ン♡ 萌え萌えキュ-ン♡ / Delicious, moe moe kyun!♡ Moe moe kyun!♡";
     appendMessage("trainer", text);
     const sayOnce = () => {
       window.removeEventListener("pointerdown", sayOnce, true);
       window.removeEventListener("keydown", sayOnce, true);
       if (window.__voiceOff || !voiceOutEl.checked || !hasSpeechOutput()) return;
       try {
-        // 日本語で、可愛らしく: 「お帰りなさいませ!ご主人様!美味しくなーれ、美味しくなーれ、萌え萌えキュ〜ン」
-        const say = "お帰りなさいませ!ご主人様!美味しくなーれ、美味しくなーれ、萌え萌えキュ〜ン!";
+        // 日本語で、可愛らしく: 「お帰りなさいませ!ご主人様!美味しくなーれ、萌え萌えキュ〜ン、萌え萌えキュ〜ン」
+        const say = "お帰りなさいませ!ご主人様!美味しくなーれ、萌え萌えキュ〜ン!萌え萌えキュ〜ン!";
         if ("speechSynthesis" in window) window.speechSynthesis.cancel();
         serverTtsCancel();
         window.__cuteVoice = true;
