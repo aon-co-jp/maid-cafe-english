@@ -899,6 +899,8 @@ makeCollapsiblePanel("topbar", "topbar-toggle", "topbar", "✕ CLOSE", "＋ OPEN
 makeCollapsiblePanel("maintenance-banner-detail", "maintenance-banner-toggle", "maintenanceBannerDetail", "✕ CLOSE", "＋ OPEN");
 makeCollapsiblePanel("download-recommend-banner", "download-recommend-banner-toggle", "downloadRecommendBanner", "✕ CLOSE", "＋ OPEN");
 makeCollapsiblePanel("about-school-banner", "about-school-banner-toggle", "aboutSchoolBanner", "✕ CLOSE", "＋ OPEN");
+// 上の2つ(説明パネル・PC版の案内)をまとめた外側のパネル。
+makeCollapsiblePanel("info-panels", "info-panels-toggle", "infoPanels", "✕ CLOSE", "＋ OPEN");
 // 2026-10-30 ユーザー指示: 「PC版をここからダウンロード…」の範囲も、✕ CLOSE / ＋ OPEN で開閉できるパネルにする(状態は記憶)。
 makeCollapsiblePanel("launch-pc-version-banner", "launch-pc-version-banner-toggle", "launchPcVersionBanner", "✕ CLOSE", "＋ OPEN");
 // 2026-09-07追記(ユーザー指示): 「PC版を起動してご利用下さい」という
@@ -19211,7 +19213,8 @@ const INSTALLER_QUICK_LINK_CLOSED_KEY = "open-english.installerQuickLinkClosed";
       try {
         window.speechSynthesis.cancel();
         serverTtsCancel();
-        const utter = new SpeechSynthesisUtterance(prepareSpeechText(say, "ja-JP"));
+        // 出だし(「お帰りなさい」)が欠けて聞こえる不具合の対策: 先頭に短い間(読点)を足す
+        const utter = new SpeechSynthesisUtterance("、、" + prepareSpeechText(say, "ja-JP"));
         utter.lang = "ja-JP";
         const voice = pickVoice("ja-JP", false);
         if (voice) utter.voice = voice;
@@ -19227,7 +19230,8 @@ const INSTALLER_QUICK_LINK_CLOSED_KEY = "open-english.installerQuickLinkClosed";
           end();
           if (!spoken && ev && ev.error === "not-allowed" && onBlocked) onBlocked();
         };
-        window.speechSynthesis.speak(utter);
+        // cancel()の直後にすぐ話すと出だしが欠けることがあるため、少し待ってから話す
+        setTimeout(() => window.speechSynthesis.speak(utter), 300);
       } catch (err) {
         // 声が出せなくても、文字のお出迎えは出ている
       }

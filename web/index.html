@@ -24,7 +24,7 @@
   document.currentScript.after(base);
 })();
 </script>
-<link rel="stylesheet" href="style.css?v=20261030e" />
+<link rel="stylesheet" href="style.css?v=20261030f" />
 <link rel="manifest" href="manifest.json" />
 <link rel="icon" type="image/png" sizes="192x192" href="icons/icon-192.png" />
 <link rel="icon" type="image/png" sizes="32x32" href="icons/icon-32.png" />
@@ -240,6 +240,9 @@
        Grok、有料のClaude Code DeskTOPなどを選べ、open-englishと一緒に使うと…言語学習とプログラミング学習や
        スマホアプリ・WEBサイト開発も一緒に楽しめます、という説明を日本語と英語で書いて表示する機能を」)。
        他のバナーと同じ「✕ CLOSE / ＋ OPEN」の開閉(makeCollapsiblePanel、状態はlocalStorageに記憶)。 -->
+  <!-- 2026-10-30 ユーザー指示: 「PC版をここからダウンロード…」から「Courseraの注意書き」までの範囲を、1つのパネルにして ✕ CLOSE / ＋ OPEN で開閉できるようにする。 -->
+  <button type="button" id="info-panels-toggle" class="collapsible-toggle-btn">✕ CLOSE</button>
+  <div id="info-panels">
   <button type="button" id="about-school-banner-toggle" class="collapsible-toggle-btn">✕ CLOSE</button>
   <div id="about-school-banner" class="maintenance-banner">
     <p>
@@ -274,6 +277,7 @@
       <strong>Please <a href="https://github.com/aon-co-jp/maid-cafe-english/releases/latest" target="_blank" rel="noopener noreferrer">download the PC version here</a>, launch it, then use it in your browser.</strong>
     </p>
     <p id="pc-version-launch-status">PC版はまだ起動してません。 / PC version has not been launched yet.</p>
+  </div>
   </div>
   <div id="local-instance-badge" class="local-instance-badge hidden"></div>
   <div id="free-tier-banner" class="free-tier-banner hidden">
@@ -3264,8 +3268,8 @@ cd aruaru-db
   if (closeBtn) closeBtn.addEventListener("click", function () { box.classList.add("hidden"); try { localStorage.setItem(KEY, "1"); } catch (e) {} });
 })();
 </script>
-  <script src="app.js?v=20261030e"></script>
-  <script src="auto-update.js?v=20261030e"></script>
+  <script src="app.js?v=20261030f"></script>
+  <script src="auto-update.js?v=20261030f"></script>
 <script>
 (function () {
   var el = document.getElementById("line-friend-link");
