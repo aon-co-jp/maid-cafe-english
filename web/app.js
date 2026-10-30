@@ -19203,32 +19203,49 @@ const INSTALLER_QUICK_LINK_CLOSED_KEY = "open-english.installerQuickLinkClosed";
       ? "Welcome back, master! / お帰りなさいませ、ご主人様!\nいらっしゃいませ。今日も一緒に学びましょう! / Let's learn together today!"
       : "Welcome home, master! / お帰りなさいませ!ご主人様!\n美味しくなーれ、萌え萌えキュ-ン♡ 萌え萌えキュ-ン♡ / Delicious, moe moe kyun!♡ Moe moe kyun!♡";
     appendMessage("trainer", text);
-    const sayOnce = () => {
-      window.removeEventListener("pointerdown", sayOnce, true);
-      window.removeEventListener("keydown", sayOnce, true);
-      if (window.__voiceOff || !voiceOutEl.checked || !hasSpeechOutput()) return;
+    const say = "お帰りなさいませ!ご主人様!美味しくなーれ、萌え萌えキュ〜ン!萌え萌えキュ〜ン!";
+    let spoken = false;
+    // 声を出す。ブラウザが「操作の前の自動再生」を断った(not-allowed)ときは、onBlockedを呼ぶ。
+    const speakNow = (onBlocked) => {
+      if (spoken || window.__voiceOff || !voiceOutEl.checked || !hasSpeechOutput() || !("speechSynthesis" in window)) return;
       try {
-        // 日本語で、可愛らしく: 「お帰りなさいませ!ご主人様!美味しくなーれ、萌え萌えキュ〜ン、萌え萌えキュ〜ン」
-        const say = "お帰りなさいませ!ご主人様!美味しくなーれ、萌え萌えキュ〜ン!萌え萌えキュ〜ン!";
-        if ("speechSynthesis" in window) window.speechSynthesis.cancel();
+        window.speechSynthesis.cancel();
         serverTtsCancel();
-        window.__cuteVoice = true;
-        trainerEl.classList.add("speaking");
-        const done = () => {
-          window.__cuteVoice = false;
-          trainerEl.classList.remove("speaking");
+        const utter = new SpeechSynthesisUtterance(prepareSpeechText(say, "ja-JP"));
+        utter.lang = "ja-JP";
+        const voice = pickVoice("ja-JP", false);
+        if (voice) utter.voice = voice;
+        utter.pitch = 1.7; // 可愛らしく、愛くるしい高めの声
+        utter.rate = 1.0;
+        utter.onstart = () => {
+          spoken = true;
+          trainerEl.classList.add("speaking");
         };
-        if (!enqueueSpeech(prepareSpeechText(say, "ja-JP"), "ja-JP", false, done)) done();
-      } catch (e) {
-        window.__cuteVoice = false;
+        const end = () => trainerEl.classList.remove("speaking");
+        utter.onend = end;
+        utter.onerror = (ev) => {
+          end();
+          if (!spoken && ev && ev.error === "not-allowed" && onBlocked) onBlocked();
+        };
+        window.speechSynthesis.speak(utter);
+      } catch (err) {
         // 声が出せなくても、文字のお出迎えは出ている
       }
     };
-    if (navigator.userActivation && navigator.userActivation.hasBeenActive) sayOnce();
-    else {
-      window.addEventListener("pointerdown", sayOnce, true);
-      window.addEventListener("keydown", sayOnce, true);
-    }
+    // 1) 開いた直後(F5・リセットの後も)に、まず自動で話してみる。
+    // 2) ブラウザに断られたら、最初のタップ/キー入力の直後に、1回だけ話す。
+    const armGesture = () => {
+      const once = () => {
+        window.removeEventListener("pointerdown", once, true);
+        window.removeEventListener("keydown", once, true);
+        speakNow(null);
+      };
+      window.addEventListener("pointerdown", once, true);
+      window.addEventListener("keydown", once, true);
+    };
+    speakNow(armGesture);
+    // 音声の一覧が遅れて読み込まれる端末向けに、声が選べた時点でも、まだ話せていなければもう一度試す
+    setTimeout(() => speakNow(armGesture), 1200);
   } catch (e) {
     // お出迎えが出せなくても、アプリ本体は動かす
   }
