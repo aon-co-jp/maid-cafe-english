@@ -899,6 +899,8 @@ makeCollapsiblePanel("topbar", "topbar-toggle", "topbar", "✕ CLOSE", "＋ OPEN
 makeCollapsiblePanel("maintenance-banner-detail", "maintenance-banner-toggle", "maintenanceBannerDetail", "✕ CLOSE", "＋ OPEN");
 makeCollapsiblePanel("download-recommend-banner", "download-recommend-banner-toggle", "downloadRecommendBanner", "✕ CLOSE", "＋ OPEN");
 makeCollapsiblePanel("about-school-banner", "about-school-banner-toggle", "aboutSchoolBanner", "✕ CLOSE", "＋ OPEN");
+// 2026-10-30 ユーザー指示: 「PC版をここからダウンロード…」の範囲も、✕ CLOSE / ＋ OPEN で開閉できるパネルにする(状態は記憶)。
+makeCollapsiblePanel("launch-pc-version-banner", "launch-pc-version-banner-toggle", "launchPcVersionBanner", "✕ CLOSE", "＋ OPEN");
 // 2026-09-07追記(ユーザー指示): 「PC版を起動してご利用下さい」という
 // 案内は、ローカルPC版(この端末でインストール済みのサーバーへ
 // localhost/127.0.0.1で接続している場合)では出さない——PC版利用者
@@ -1007,6 +1009,7 @@ async function isInstalledInstanceHostname() {
   const isInstalled = await isInstalledInstanceHostname();
   if (!isInstalled) return; // 公開WEB版: 端末の種類に関わらず「起動中」バッジは一切出さない
   document.getElementById("launch-pc-version-banner")?.classList.add("hidden");
+  document.getElementById("launch-pc-version-banner-toggle")?.classList.add("hidden");
   if (isTabletUserAgent()) {
     const badgeEl = document.getElementById("local-instance-badge");
     if (badgeEl) {

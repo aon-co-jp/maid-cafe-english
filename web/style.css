@@ -1591,3 +1591,6 @@ html, body { max-width: 100%; overflow-x: hidden; }
   .stage { padding: 8px 6px; gap: 10px; }
   .chat-dock { padding-left: 6px; padding-right: 6px; }
 }
+
+/* 2026-10-30 ユーザー指示: バナー内の注記(Courseraの注意書き・PC版の起動状態)の背景を、上のバナーの色(橙)に合わせる */
+.maintenance-banner .setup-note, .maintenance-banner #pc-version-launch-status { background: transparent; color: #222; border: 0; }

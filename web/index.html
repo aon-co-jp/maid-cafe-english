@@ -24,7 +24,7 @@
   document.currentScript.after(base);
 })();
 </script>
-<link rel="stylesheet" href="style.css?v=20261029b" />
+<link rel="stylesheet" href="style.css?v=20261030a" />
 <link rel="manifest" href="manifest.json" />
 <link rel="icon" type="image/png" sizes="192x192" href="icons/icon-192.png" />
 <link rel="icon" type="image/png" sizes="32x32" href="icons/icon-32.png" />
@@ -267,6 +267,7 @@
       Coursera's programs, fees and requirements change; please check Coursera's own site. / Courseraの提供内容・料金・修了要件は変更されることがあります。必ずCoursera公式サイトでご確認ください。
     </p>
   </div>
+  <button type="button" id="launch-pc-version-banner-toggle" class="collapsible-toggle-btn">✕ CLOSE</button>
   <div id="launch-pc-version-banner" class="maintenance-banner">
     <p>
       🖥️ <strong>PC版を<a href="https://github.com/aon-co-jp/maid-cafe-english/releases/latest" target="_blank" rel="noopener noreferrer">ここからダウンロード</a>して起動してからブラウザで御利用下さい。</strong> /
@@ -3263,8 +3264,8 @@ cd aruaru-db
   if (closeBtn) closeBtn.addEventListener("click", function () { box.classList.add("hidden"); try { localStorage.setItem(KEY, "1"); } catch (e) {} });
 })();
 </script>
-  <script src="app.js?v=20261029b"></script>
-  <script src="auto-update.js?v=20261029b"></script>
+  <script src="app.js?v=20261030a"></script>
+  <script src="auto-update.js?v=20261030a"></script>
 <script>
 (function () {
   var el = document.getElementById("line-friend-link");
