@@ -2425,8 +2425,9 @@ function enqueueWebSpeech(chunks, lang, isHelper, onEnd) {
     utter.lang = lang;
     const voice = pickVoice(lang, isHelper);
     if (voice) utter.voice = voice;
-    utter.pitch = isHelper ? 0.75 : 1.1;
-    utter.rate = isHelper ? 1.05 : 0.82;
+    // お出迎え(window.__cuteVoice)のときだけ、高めの声で、少し軽やかに話す(可愛らしく愛くるしい声: ユーザー指示 2026-10-30)
+    utter.pitch = window.__cuteVoice ? 1.7 : isHelper ? 0.75 : 1.1;
+    utter.rate = window.__cuteVoice ? 1.0 : isHelper ? 1.05 : 0.82;
     if (i === chunks.length - 1 && onEnd) {
       utter.onend = onEnd;
       utter.onerror = onEnd;
@@ -19190,4 +19191,45 @@ const INSTALLER_QUICK_LINK_CLOSED_KEY = "open-english.installerQuickLinkClosed";
   }
   btn.addEventListener("click", () => apply(!window.__voiceOff, true));
   apply(stored(), false);
+})();
+
+// 2026-10-30 ユーザー指示: 画面かアプリを起動したら、「お帰りなさいませ!ご主人様!美味しくなーれ…」とお出迎えする。
+// 文字は、開いた直後にチャットへ出す。声は、ブラウザの決まり(最初の操作の後でないと声を出せない)により、最初のタップ/キー入力の後に1回だけ。
+// 音声OFF(🔇)のときは、文字だけで声は出さない。
+(function setupWelcomeGreeting() {
+  try {
+    const helper = typeof activeCharacter !== "undefined" && activeCharacter === "helper";
+    const text = helper
+      ? "Welcome back, master! / お帰りなさいませ、ご主人様!\nいらっしゃいませ。今日も一緒に学びましょう! / Let's learn together today!"
+      : "Welcome home, master! / お帰りなさいませ!ご主人様!\n美味しくなーれ、美味しくなーれ、萌え萌えキュン♡ / Delicious, delicious, moe moe kyun!♡";
+    appendMessage("trainer", text);
+    const sayOnce = () => {
+      window.removeEventListener("pointerdown", sayOnce, true);
+      window.removeEventListener("keydown", sayOnce, true);
+      if (window.__voiceOff || !voiceOutEl.checked || !hasSpeechOutput()) return;
+      try {
+        // 日本語で、可愛らしく: 「お帰りなさいませ!ご主人様!美味しくなーれ、美味しくなーれ、萌え萌えキュ〜ン」
+        const say = "お帰りなさいませ!ご主人様!美味しくなーれ、美味しくなーれ、萌え萌えキュ〜ン!";
+        if ("speechSynthesis" in window) window.speechSynthesis.cancel();
+        serverTtsCancel();
+        window.__cuteVoice = true;
+        trainerEl.classList.add("speaking");
+        const done = () => {
+          window.__cuteVoice = false;
+          trainerEl.classList.remove("speaking");
+        };
+        if (!enqueueSpeech(prepareSpeechText(say, "ja-JP"), "ja-JP", false, done)) done();
+      } catch (e) {
+        window.__cuteVoice = false;
+        // 声が出せなくても、文字のお出迎えは出ている
+      }
+    };
+    if (navigator.userActivation && navigator.userActivation.hasBeenActive) sayOnce();
+    else {
+      window.addEventListener("pointerdown", sayOnce, true);
+      window.addEventListener("keydown", sayOnce, true);
+    }
+  } catch (e) {
+    // お出迎えが出せなくても、アプリ本体は動かす
+  }
 })();
