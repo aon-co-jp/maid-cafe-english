@@ -19222,6 +19222,7 @@ const INSTALLER_QUICK_LINK_CLOSED_KEY = "open-english.installerQuickLinkClosed";
         utter.rate = 1.0;
         utter.onstart = () => {
           spoken = true;
+          window.__greetVia = "speech";
           trainerEl.classList.add("speaking");
         };
         const end = () => trainerEl.classList.remove("speaking");
@@ -19236,20 +19237,42 @@ const INSTALLER_QUICK_LINK_CLOSED_KEY = "open-english.installerQuickLinkClosed";
         // 声が出せなくても、文字のお出迎えは出ている
       }
     };
-    // 1) 開いた直後(F5・リセットの後も)に、まず自動で話してみる。
-    // 2) ブラウザに断られたら、最初のタップ/キー入力の直後に、1回だけ話す。
+    // 録音済みの声(サーバーのKokoroで作った女性の声。先頭に0.4秒の無音を足し、出だしが欠けないようにしてある)。
+    // <audio>の再生は、Web Speechよりブラウザの自動再生の許可が通りやすい(操作の後のF5・リセット、ホーム画面に入れたアプリ、
+    // サイトの音の許可、など)。断られたら、Web Speech、それも断られたら最初の操作の直後に話す。
+    const playGreetingAudio = () =>
+      new Promise((resolve) => {
+        if (spoken || window.__voiceOff || !voiceOutEl.checked) return resolve(true);
+        try {
+          const a = new Audio("greeting.wav?v=20261030g");
+          a.onplaying = () => {
+            spoken = true;
+            window.__greetVia = "audio";
+            trainerEl.classList.add("speaking");
+          };
+          a.onended = a.onerror = () => trainerEl.classList.remove("speaking");
+          a.play().then(() => resolve(true), () => resolve(false));
+        } catch (err) {
+          resolve(false);
+        }
+      });
+    // 1) 開いた直後(F5・リセットの後も)に、まず自動で話してみる(録音 → Web Speech)。
+    // 2) どちらもブラウザに断られたら、最初のタップ/キー入力の直後に、1回だけ話す。
     const armGesture = () => {
       const once = () => {
         window.removeEventListener("pointerdown", once, true);
         window.removeEventListener("keydown", once, true);
-        speakNow(null);
+        playGreetingAudio().then((ok) => {
+          if (!ok) speakNow(null);
+        });
       };
       window.addEventListener("pointerdown", once, true);
       window.addEventListener("keydown", once, true);
     };
-    speakNow(armGesture);
-    // 音声の一覧が遅れて読み込まれる端末向けに、声が選べた時点でも、まだ話せていなければもう一度試す
-    setTimeout(() => speakNow(armGesture), 1200);
+    playGreetingAudio().then((ok) => {
+      if (!ok) window.__greetVia = "blocked-audio";
+      if (!ok) speakNow(armGesture);
+    });
   } catch (e) {
     // お出迎えが出せなくても、アプリ本体は動かす
   }
