@@ -138,6 +138,8 @@ const STATIC_FILES: &[(&str, &str, &str)] = &[
     // (PHP+Laravel/Python+FastAPI/Rust+Poem・RPoem)データ。正本はaon-co-jp/
     // maidcafe-programming-schoolリポジトリ、このファイルはweb/内の複製。
     ("/web-dev-path.json", "web-dev-path.json", "application/json; charset=utf-8"),
+    // 2026-10-30新設: 起動時のお出迎えの声(録音済み、Kokoroの女性声)。
+    ("/greeting.wav", "greeting.wav", "audio/wav"),
     ("/icons/icon-32.png", "icons/icon-32.png", "image/png"),
     ("/icons/icon-180.png", "icons/icon-180.png", "image/png"),
     ("/icons/icon-192.png", "icons/icon-192.png", "image/png"),
