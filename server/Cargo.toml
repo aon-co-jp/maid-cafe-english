@@ -115,6 +115,6 @@ kokoro = ["dep:kokoro-ja"]
 
 [dependencies.kokoro-ja]
 git = "https://github.com/aon-co-jp/rs-kokoro-ja"
-tag = "v0.1.0"
+rev = "a0713f771f756556ab6654d9edd58bd30459a221"
 features = ["engine"]
 optional = true

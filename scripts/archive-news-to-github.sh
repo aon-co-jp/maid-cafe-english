@@ -274,7 +274,7 @@ post_steps() {
 if [ "${ARCHIVE_TEST_ROTATE:-}" = 1 ]; then rotate_news_readme; build_news_index; exit 0; fi
 
 # 1) aruaru-llmへ刈り取りを依頼する。
-if ! curl -fsS -X POST --max-time 15 "$ARUARU_LLM_BASE_URL/v1/news/prune-archive" -o /dev/null; then
+if ! curl -fsS -X POST -H "content-type: application/json" -d "{}" --max-time 15 "$ARUARU_LLM_BASE_URL/aruaru_llm.v1.Llm/NewsPruneArchive" -o /dev/null; then
   log "警告: prune-archive の呼び出しに失敗しました(aruaru-llm未起動の可能性)。中断します。"
   exit 0
 fi

@@ -299,9 +299,9 @@
   <button type="button" id="phone-accel-banner-toggle" class="collapsible-toggle-btn">✕ CLOSE</button>
   <div id="phone-accel-banner" class="free-tier-banner">
     <p class="free-tier-note" style="margin:0;">
-      📱 使わなくなったスマホもフル動員しましょう！(実験的機能) PC側にタスク配布API(<code>GET /v1/background-fold/task</code>・<code>POST /v1/background-fold/task-result</code>)を、Androidアプリ側にポーリング計算ワーカーを実装しました。NNAPI対応端末では、ベクトルの内積計算をNNAPI(NPU/GPU/DSP)へ委譲します(CPUより速く数値が一致する場合だけ採用、そうでなければCPU)。どのハードウェアで走るかはNNAPIが決めます。エミュレータ(NPU無し)での動作確認は済みで、実機NPUでの検証は端末ごとに異なります。使うにはAndroidアプリ内の「使わなくなったスマホもフル動員」欄にPC側のURLを入力して開始してください。
+      📱 使わなくなったスマホもフル動員しましょう！(実験的機能) PC側にタスク配布API(<code>POST /aruaru_llm.v1.Llm/BackgroundFoldTask</code>・<code>POST /v1/background-fold/task-result</code>)を、Androidアプリ側にポーリング計算ワーカーを実装しました。NNAPI対応端末では、ベクトルの内積計算をNNAPI(NPU/GPU/DSP)へ委譲します(CPUより速く数値が一致する場合だけ採用、そうでなければCPU)。どのハードウェアで走るかはNNAPIが決めます。エミュレータ(NPU無し)での動作確認は済みで、実機NPUでの検証は端末ごとに異なります。使うにはAndroidアプリ内の「使わなくなったスマホもフル動員」欄にPC側のURLを入力して開始してください。
       <br />
-      Let's put your unused phones to full use! (Experimental) We've implemented a PC-side task distribution API (<code>GET /v1/background-fold/task</code>, <code>POST /v1/background-fold/task-result</code>) and an Android polling worker that computes tasks. On NNAPI-capable devices the vector dot-product math is delegated to NNAPI (NPU/GPU/DSP) only when it is faster than the CPU and numerically matches; otherwise it runs on the CPU. The NNAPI runtime decides which hardware runs it. Verified on an emulator (no NPU); results on real NPUs vary by device. To try it, enter the PC's URL in the "put unused phones to full use" section of the Android app and start.
+      Let's put your unused phones to full use! (Experimental) We've implemented a PC-side task distribution API (<code>POST /aruaru_llm.v1.Llm/BackgroundFoldTask</code>, <code>POST /v1/background-fold/task-result</code>) and an Android polling worker that computes tasks. On NNAPI-capable devices the vector dot-product math is delegated to NNAPI (NPU/GPU/DSP) only when it is faster than the CPU and numerically matches; otherwise it runs on the CPU. The NNAPI runtime decides which hardware runs it. Verified on an emulator (no NPU); results on real NPUs vary by device. To try it, enter the PC's URL in the "put unused phones to full use" section of the Android app and start.
     </p>
   </div>
   <!--
@@ -535,12 +535,12 @@
         • Toshiba's SBM (simulated bifurcation, quantum-inspired
         optimization) is <u>already wired in</u> for one concrete task —
         choosing which model sizes to keep cached on disk under a storage
-        budget (<code>POST /v1/models/optimize-cache</code>). It is a
+        budget (<code>POST /aruaru_llm.v1.Llm/ModelsOptimizeCache</code>). It is a
         real, working combinatorial optimizer for that one job, not a
         general-purpose accelerator for every AI computation.<br />
         東芝のSBM(シミュレーテッド分岐、擬似量子最適化)は、ディスク容量
         予算内でどのモデルサイズをキャッシュに残すか選ぶ処理
-        (<code>POST /v1/models/optimize-cache</code>)という具体的な
+        (<code>POST /aruaru_llm.v1.Llm/ModelsOptimizeCache</code>)という具体的な
         1タスクに<u>既に組み込み済み</u>です。この1タスクに対しては実際に
         動作する組合せ最適化エンジンですが、あらゆるAI計算を汎用的に
         高速化する仕組みではありません。<br />
@@ -556,8 +556,8 @@
         simpler, real, peer-reviewed alternative: layer-level Block
         Influence redundancy detection and <u>actual layer removal</u>
         (ShortGPT, arXiv:2403.03853 / Gromov et al., arXiv:2403.17887).
-        <code>POST /v1/models/layer-redundancy</code> (read-only preview)
-        and <code>POST /v1/models/fold-layers</code> (actually removes
+        <code>POST /aruaru_llm.v1.Llm/ModelsLayerRedundancy</code> (read-only preview)
+        and <code>POST /aruaru_llm.v1.Llm/ModelsFoldLayers</code> (actually removes
         redundant layers and swaps the live model, returning a
         before/after generation sample so you can judge quality
         yourself) are real, working, and verified end-to-end with real
@@ -617,8 +617,8 @@
         代わりに、より単純で実在する査読済みの代替手法——層単位の
         Block Influence冗長性検出+<u>実際の層除去</u>(ShortGPT論文
         arXiv:2403.03853 / Gromov et al. arXiv:2403.17887)——を実装
-        しました。<code>POST /v1/models/layer-redundancy</code>(読み取り
-        専用の下調べ)・<code>POST /v1/models/fold-layers</code>(実際に
+        しました。<code>POST /aruaru_llm.v1.Llm/ModelsLayerRedundancy</code>(読み取り
+        専用の下調べ)・<code>POST /aruaru_llm.v1.Llm/ModelsFoldLayers</code>(実際に
         冗長な層を除去し稼働中のモデルを差し替え、折りたたみ前後の生成
         結果を返すので自分の目で品質を判断できる)は、実GPT-2重みで
         実際にHTTP検証済みです——保守的な閾値では恒等写像に近い1層のみを
@@ -699,13 +699,13 @@
 
       <h3>🧬 Model Folding — try it from here / ここからModel Foldingを試す</h3>
       <p class="setup-note">
-        Calls <code>POST /v1/models/fold-layers</code> on the aruaru-llm
+        Calls <code>POST /aruaru_llm.v1.Llm/ModelsFoldLayers</code> on the aruaru-llm
         server configured above (see "aruaru-llm server URL" field).
         This actually removes redundant layers from the currently active
         model — read the disclosures above first. Leave "layers to remove"
         empty to use the conservative threshold mode instead.<br />
         上のaruaru-llmサーバーURL欄に設定された接続先へ実際に
-        <code>POST /v1/models/fold-layers</code>を呼びます。現在アクティブな
+        <code>POST /aruaru_llm.v1.Llm/ModelsFoldLayers</code>を呼びます。現在アクティブな
         モデルの層を実際に除去します——事前に上の開示文をお読みください。
         「除去する層数」を空欄にすると保守的な閾値方式で実行します。
       </p>
@@ -1214,12 +1214,12 @@ cargo run --release</pre>
       </p>
       <p class="setup-honest">
         <strong>Honest disclosure:</strong> This reads your GPU VRAM/CPU/system-memory/NPU
-        detection results from <code>aruaru-llm</code> (<code>GET /v1/recommend</code>) and
+        detection results from <code>aruaru-llm</code> (<code>POST /aruaru_llm.v1.Llm/Recommend</code>) and
         picks a size heuristically (VRAM &lt; 2GB → 124M, 2-4GB → 355M, 4-8GB → 774M,
         8GB+ → 1.5B). It is a rough parameter-count-vs-VRAM estimate, not a precise
         benchmark.<br /><br />
         <strong>正直な開示:</strong> <code>aruaru-llm</code>の
-        <code>GET /v1/recommend</code>が返すGPU VRAM/CPU/システムメモリ/NPU検出結果を元に、
+        <code>POST /aruaru_llm.v1.Llm/Recommend</code>が返すGPU VRAM/CPU/システムメモリ/NPU検出結果を元に、
         簡易ヒューリスティック(VRAM 2GB未満→124M、2-4GB→355M、4-8GB→774M、8GB以上→1.5B)で
         サイズを選びます。パラメータ数とVRAM容量の大まかな見積もりであり、精密な
         ベンチマークではありません。
@@ -3009,14 +3009,14 @@ cd aruaru-db
         programming language or framework (e.g. "I want to learn Python", "teach me Rust")
         triggers the equivalent programming course the same way.<br /><br />
         <strong>Honest disclosure:</strong> AI responses are generated by a base
-        GPT-2 language model (via <code>aruaru-llm</code>'s <code>/v1/generate</code>)
+        GPT-2 language model (via <code>aruaru-llm</code>'s <code>/aruaru_llm.v1.Llm/Generate</code>)
         with no dialogue fine-tuning. Response quality and level-matching are not
         guaranteed. Voice input/output uses the browser's built-in Web Speech API
         (not all browsers support it). This is a Phase 0 prototype, not a
         production tutor.<br /><br />
         <strong>正直な開示:</strong> AIの応答は、対話用のファインチューニングを
         受けていない素のGPT-2言語モデル(<code>aruaru-llm</code>の
-        <code>/v1/generate</code>経由)が生成しています。応答の品質・
+        <code>/aruaru_llm.v1.Llm/Generate</code>経由)が生成しています。応答の品質・
         指定レベルへの適合は保証されません。声の入出力はブラウザ標準の
         Web Speech API(対応ブラウザのみ)を使用します。これはPhase 0の
         試作品であり、本番運用レベルの講師ではありません。<br /><br />
@@ -3105,7 +3105,7 @@ cd aruaru-db
           <input id="api-base" type="text" value="http://localhost:4600" />
         </label>
         <span id="status" class="status">not checked</span>
-        <!-- 実行基盤バッジ(2026-08-22追加): aruaru-llmの GET /v1/runtime が
+        <!-- 実行基盤バッジ(2026-08-22追加): aruaru-llmの POST /aruaru_llm.v1.Llm/Runtime が
              報告した内容(open-cudaのデバイスプールがCPUのみかGPUを含むか・
              アクティブなモデル)をそのまま表示する。誇張はしない——既定
              ビルドはCPUのみで、GPU高速化は効いていない。 -->

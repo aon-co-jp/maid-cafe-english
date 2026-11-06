@@ -6,7 +6,7 @@
 # 手動コマンド不要で取得できる。open-englishを起動し「⚙ Setup
 # aruaru-llm.」パネル内の「🧠 Recommend LLM / おすすめLLM」ボタンを
 # 押すだけでよい(内部でaruaru-llm側のAPIを自動的に呼ぶGUI導線、
-# 2026-08-26修正——以前は`POST /v1/models/install`という生のAPI呼び
+# 2026-08-26修正——以前は`POST /aruaru_llm.v1.Llm/ModelsInstall`という生のAPI呼び
 # 出しを案内していたが、これは大半の利用者が実行できないコマンドで
 # あり不親切だった)。aruaru-db・PostgreSQLは含まない——それぞれ別
 # リポジトリのセットアップ手順に従うこと(README-INSTALLED.txt参照)。

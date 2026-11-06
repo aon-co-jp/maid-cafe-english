@@ -55,8 +55,8 @@ interface Transport {
 
 /**
  * 実装済みの唯一の経路。[PhoneAccelWorker]が`HttpURLConnection`で
- * PC/ホスト側の`GET /v1/background-fold/task`・
- * `POST /v1/background-fold/task-result`をポーリングする(WiFi/LAN、
+ * PC/ホスト側の`POST /aruaru_llm.v1.Llm/BackgroundFoldTask`・
+ * `POST /aruaru_llm.v1.Llm/BackgroundFoldTaskResult`をポーリングする(WiFi/LAN、
  * またはUSBテザリング/`adb forward`経由でも同じくHTTPとして到達可能)。
  */
 class HttpTransport(private val baseUrl: String) : Transport {

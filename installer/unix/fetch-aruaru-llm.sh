@@ -56,4 +56,4 @@ case "$ASSET_URL" in
 esac
 rm -f "$ARCHIVE"
 
-echo "aruaru-llm downloaded to $DEST_DIR. Model weights are NOT included — run it once and use POST /v1/models/install, or see its own README."
+echo "aruaru-llm downloaded to $DEST_DIR. Model weights are NOT included — run it once and use POST /aruaru_llm.v1.Llm/ModelsInstall, or see its own README."

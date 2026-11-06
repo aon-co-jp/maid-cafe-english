@@ -109,7 +109,7 @@
 // マウントされている場合(本番・デモとも同一バイナリ・同一静的ファイル)、
 // ブラウザはこれをオリジン直下(`https://easy-web.tokyo/v1/...`)へ解決
 // してしまい、別のテナント(本番の`open-english`バックエンド)へ誤って
-// 到達する——例えば`/open-english/demo`から見た`/v1/auth/config`が
+// 到達する——例えば`/open-english/demo`から見た`/openenglish.v1.Auth/ConfigGet`が
 // 本番の`login_required:true`を返してしまい、デモなのにログインを
 // 要求する画面になる、という実害のあるバグとして発覚した(open-redmine/
 // RS-Sync/open-giteaで過去に踏んだのと同じ既知のパターン)。
@@ -123,11 +123,28 @@
   } else if (path.startsWith("/open-english")) {
     prefix = "/open-english";
   }
-  if (!prefix) return; // ルート直下配信(localhost等)は無変更のまま。
   const originalFetch = window.fetch.bind(window);
+  // Connect(2026-11-05〜): 自サーバーのAPIは `POST /openenglish.v1.<Service>/<Method>`(JSON)のみ。
+  // 呼び出し側が method / body を省いた場合は POST と空のJSON本文 `{}` を補う(旧GETの名残のクエリはURLに残る)。
+  const isConnect = (u) => /\/openenglish\.v1\.[A-Za-z]+\//.test(u);
+  const withConnectDefaults = (url, init) => {
+    if (!isConnect(url)) return init;
+    const next = Object.assign({}, init || {});
+    next.method = "POST";
+    if (next.body === undefined) next.body = "{}";
+    const h = new Headers(next.headers || {});
+    if (!h.has("content-type")) {
+      let cross = false;
+      try { cross = new URL(url, location.href).origin !== location.origin; } catch (e) { /* 相対 */ }
+      h.set("content-type", cross ? "text/plain" : "application/json"); // 別オリジンはプリフライトを避ける
+    }
+    next.headers = h;
+    return next;
+  };
   window.fetch = (input, init) => {
-    if (typeof input === "string" && input.startsWith("/v1/")) {
-      return originalFetch(prefix + input, init);
+    if (typeof input === "string") {
+      const url = prefix && input.startsWith("/openenglish.v1.") ? prefix + input : input;
+      return originalFetch(url, withConnectDefaults(url, init));
     }
     return originalFetch(input, init);
   };
@@ -440,12 +457,12 @@ if (learnTargetEl) {
       }
       const base = apiBaseEl.value.trim();
       try {
-        const res = await fetch(`${base}/v1/news/latest`, { cache: "no-store" });
+        const res = await llmFetch(`${base}/aruaru_llm.v1.Llm/NewsLatest`, { cache: "no-store" });
         const db = res.ok ? await res.json() : null;
         const fetchedAt = db && db.fetched_at_unix ? db.fetched_at_unix * 1000 : 0;
         const stale = !fetchedAt || Date.now() - fetchedAt > NEWS_STALE_HOURS * 60 * 60 * 1000;
         if (stale) {
-          fetch(`${base}/v1/news/refresh`, { method: "POST" }).catch(() => {});
+          llmFetch(`${base}/aruaru_llm.v1.Llm/NewsRefresh`, { method: "POST" }).catch(() => {});
         }
       } catch (e) {
         /* aruaru-llmに届かない場合は何もしない(次の機会に再確認) */
@@ -466,7 +483,7 @@ if (learnTargetEl) {
   // 遅らせて初期化完了後に呼び出す(実ブラウザで発覚した`ReferenceError:
   // Cannot access 'apiBaseEl' before initialization`の修正)。
   setTimeout(() => {
-    fetch(`${apiBaseEl.value.trim()}/v1/news/refresh`, { method: "POST" }).catch(() => {});
+    llmFetch(`${apiBaseEl.value.trim()}/aruaru_llm.v1.Llm/NewsRefresh`, { method: "POST" }).catch(() => {});
   }, 0);
   let remaining = 30;
   const timer = setInterval(() => {
@@ -898,6 +915,11 @@ makeCollapsiblePanel("world-language-banner", "world-language-banner-toggle", "w
 makeCollapsiblePanel("topbar", "topbar-toggle", "topbar", "✕ CLOSE", "＋ OPEN");
 makeCollapsiblePanel("maintenance-banner-detail", "maintenance-banner-toggle", "maintenanceBannerDetail", "✕ CLOSE", "＋ OPEN");
 makeCollapsiblePanel("download-recommend-banner", "download-recommend-banner-toggle", "downloadRecommendBanner", "✕ CLOSE", "＋ OPEN");
+makeCollapsiblePanel("about-school-banner", "about-school-banner-toggle", "aboutSchoolBanner", "✕ CLOSE", "＋ OPEN");
+// 上の2つ(説明パネル・PC版の案内)をまとめた外側のパネル。
+makeCollapsiblePanel("info-panels", "info-panels-toggle", "infoPanels", "✕ CLOSE", "＋ OPEN");
+// 2026-10-30 ユーザー指示: 「PC版をここからダウンロード…」の範囲も、✕ CLOSE / ＋ OPEN で開閉できるパネルにする(状態は記憶)。
+makeCollapsiblePanel("launch-pc-version-banner", "launch-pc-version-banner-toggle", "launchPcVersionBanner", "✕ CLOSE", "＋ OPEN");
 // 2026-09-07追記(ユーザー指示): 「PC版を起動してご利用下さい」という
 // 案内は、ローカルPC版(この端末でインストール済みのサーバーへ
 // localhost/127.0.0.1で接続している場合)では出さない——PC版利用者
@@ -910,7 +932,7 @@ makeCollapsiblePanel("download-recommend-banner", "download-recommend-banner-tog
 // 場合、そのドメイン経由でアクセスしても「共有デモ」ではなく
 // 「自分のPC版が起動中」の扱いにしたい、という要望への対応。
 // hostnameの文字列判定だけでは区別できないため、サーバー自身に
-// `/v1/config`(既存、2026-08-25新設)経由で「これは自分自身のPC版
+// `/openenglish.v1.Config/Config`(既存、2026-08-25新設)経由で「これは自分自身のPC版
 // インスタンスである」と申告してもらう
 // (`OPEN_ENGLISH_SELF_HOSTED_HOSTNAMES`環境変数、未設定なら従来通り
 // localhost/127.0.0.1のみが対象)。
@@ -935,7 +957,7 @@ function showLocalInstanceBadgeFromPlatformInfo() {
     badgeEl.textContent = `${LAUNCHING_BADGE_LABEL.ja} / ${LAUNCHING_BADGE_LABEL.en}`;
     badgeEl.classList.remove("hidden");
   }
-  fetch("/v1/platform-info")
+  fetch("/openenglish.v1.PlatformInfo/PlatformInfo")
     .then((r) => (r.ok ? r.json() : null))
     .then((data) => {
       const label = data && PLATFORM_BADGE_LABELS[data.os];
@@ -953,7 +975,7 @@ function showLocalInstanceBadgeFromPlatformInfo() {
 // 「open-english-mobile」として扱い、PC版(Windows/macOS/Linuxを
 // まとめた「open-english-pc」)とは別のバッジ「モバイル版起動中！/
 // Mobile version running!」を上部に表示する。判定はサーバー側の
-// OS(`/v1/platform-info`はPC側のプロセスのビルドOSしか返さない)
+// OS(`/openenglish.v1.PlatformInfo/PlatformInfo`はPC側のプロセスのビルドOSしか返さない)
 // ではなく、閲覧している端末自身のUser-Agentで行う(PCサーバーへ
 // スマホから接続してくるケースも含め、あくまで「今見ている端末」を
 // 表す)。
@@ -992,13 +1014,13 @@ function isMobileOrFeaturePhoneUserAgent() {
 async function isInstalledInstanceHostname() {
   if (/^(127\.0\.0\.1|localhost|\[::1\])$/.test(location.hostname)) return true;
   try {
-    const res = await fetch("/v1/config", { cache: "no-store" });
+    const res = await fetch("/openenglish.v1.Config/Config", { cache: "no-store" });
     if (!res.ok) return false;
     const data = await res.json();
     const selfHostedHostnames = (data && data.self_hosted_hostnames) || [];
     return selfHostedHostnames.includes(location.hostname.toLowerCase());
   } catch (e) {
-    // `/v1/config`未提供の配信形態(file://直開き等)では黙って既定(共有デモ扱い)のまま。
+    // `/openenglish.v1.Config/Config`未提供の配信形態(file://直開き等)では黙って既定(共有デモ扱い)のまま。
     return false;
   }
 }
@@ -1006,6 +1028,7 @@ async function isInstalledInstanceHostname() {
   const isInstalled = await isInstalledInstanceHostname();
   if (!isInstalled) return; // 公開WEB版: 端末の種類に関わらず「起動中」バッジは一切出さない
   document.getElementById("launch-pc-version-banner")?.classList.add("hidden");
+  document.getElementById("launch-pc-version-banner-toggle")?.classList.add("hidden");
   if (isTabletUserAgent()) {
     const badgeEl = document.getElementById("local-instance-badge");
     if (badgeEl) {
@@ -1112,7 +1135,7 @@ async function autorwRefreshGithubStatus() {
     // 実際に問い合わせて判定する。
     el.textContent = "確認中... / Checking...";
     try {
-      const res = await fetch("/v1/agent/github/status", { cache: "no-store" });
+      const res = await fetch("/openenglish.v1.Agent/GithubStatus", { cache: "no-store" });
       const data = await res.json();
       el.textContent = data.configured
         ? "✅ SETUP済み(サーバー側環境変数) / Already set up (server-side environment variable)"
@@ -1283,7 +1306,7 @@ async function autorwRefreshVpsStatus() {
   const el = document.getElementById("autorw-vps-status");
   if (!el) return;
   try {
-    const res = await fetch("/v1/agent/vps/status", { cache: "no-store" });
+    const res = await fetch("/openenglish.v1.Agent/VpsStatus", { cache: "no-store" });
     const data = await res.json();
     el.textContent = data.configured
       ? `✅ SETUP済み(host: ${data.host}, user: ${data.user}) / Already set up (host: ${data.host}, user: ${data.user})`
@@ -1297,7 +1320,7 @@ document.getElementById("autorw-vps-test-btn")?.addEventListener("click", async 
   const el = document.getElementById("autorw-vps-status");
   if (!el) return;
   try {
-    const statusRes = await fetch("/v1/agent/vps/status", { cache: "no-store" });
+    const statusRes = await fetch("/openenglish.v1.Agent/VpsStatus", { cache: "no-store" });
     const status = await statusRes.json();
     if (!status.configured || !status.allowed_paths || status.allowed_paths.length === 0) {
       el.textContent = "未SETUP、または許可パスが1件も無いためテストできません / Not set up, or no allowed paths to test with";
@@ -1310,7 +1333,7 @@ document.getElementById("autorw-vps-test-btn")?.addEventListener("click", async 
     const testPath = `${status.allowed_paths[0].replace(/\/$/, "")}/open-english-vps-test.txt`;
     const testContent = `open-english VPS auto read/write test — ${new Date().toISOString()}\n`;
     el.textContent = `テスト中(${testPath})... / Testing (${testPath})...`;
-    const writeRes = await fetch("/v1/agent/vps/write", {
+    const writeRes = await fetch("/openenglish.v1.Agent/VpsWrite", {
       method: "POST",
       headers: { "content-type": "application/json" },
       body: JSON.stringify({ path: testPath, content: testContent }),
@@ -1320,7 +1343,7 @@ document.getElementById("autorw-vps-test-btn")?.addEventListener("click", async 
       el.textContent = `書き込みテストに失敗しました / Write test failed: ${writeData.error || writeRes.status}`;
       return;
     }
-    const readRes = await fetch(`/v1/agent/vps/read?path=${encodeURIComponent(testPath)}`);
+    const readRes = await fetch(`/openenglish.v1.Agent/VpsRead?path=${encodeURIComponent(testPath)}`);
     const readData = await readRes.json();
     if (readRes.ok && readData.ok && readData.content === testContent) {
       el.textContent = `✅ SETUP済み・実際に書き込み→読み込みの往復テストに成功しました(${testPath}) / Already set up — real write→read round trip succeeded (${testPath})`;
@@ -1347,17 +1370,17 @@ const LOGIN_PROMPT_SHOWN_KEY = "open-english.loginPromptShown";
   if (!gateEl || !promptEl) return;
   let config;
   try {
-    const res = await fetch("/v1/auth/config", { cache: "no-store" });
+    const res = await fetch("/openenglish.v1.Auth/ConfigGet", { cache: "no-store" });
     config = await res.json();
   } catch (e) {
-    // `/v1/auth/config`未提供の配信形態(file://直開き等)では
+    // `/openenglish.v1.Auth/ConfigGet`未提供の配信形態(file://直開き等)では
     // ログイン保護なしの既定動作へ黙ってフォールバックする。
     return;
   }
 
   if (config.login_required) {
     try {
-      const res = await fetch("/v1/auth/session", { cache: "no-store" });
+      const res = await fetch("/openenglish.v1.Auth/Session", { cache: "no-store" });
       const session = await res.json();
       if (!session.logged_in) {
         gateEl.classList.remove("hidden");
@@ -1422,18 +1445,23 @@ const loginVerifyEmailEl = document.getElementById("login-verify-email");
 const loginCodeEl = document.getElementById("login-code");
 const loginVerifyBtn = document.getElementById("login-verify-btn");
 const loginStatusEl = document.getElementById("login-status");
+// 2026-10-30 不具合修正: 日本語入力では「＠」や「．」が全角で入り、サーバーが「@が無い」として400で断っていた。
+// 全角を半角にそろえ(NFKC)、空白を除いてから送る。
+function normalizeEmail(s) {
+  return String(s || "").normalize("NFKC").replace(/\s+/g, "").trim();
+}
 
 if (loginSendCodeBtn) {
   loginSendCodeBtn.addEventListener("click", async () => {
-    const email = loginEmailEl.value.trim();
-    const email2 = (loginEmail2El?.value || "").trim();
+    const email = normalizeEmail(loginEmailEl.value);
+    const email2 = normalizeEmail(loginEmail2El?.value);
     if (!email) {
       loginStatusEl.textContent = "Please enter your email / メールアドレスを入力してください";
       return;
     }
     loginStatusEl.textContent = "Sending... / 送信中...";
     try {
-      const res = await fetch("/v1/auth/request-otp", {
+      const res = await fetch("/openenglish.v1.Auth/RequestOtp", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(email2 ? { email, email2 } : { email }),
@@ -1457,7 +1485,7 @@ if (loginSendCodeBtn) {
 }
 // 2026-08-28変更(ユーザー指示「email OTP+QRコードを毎回その場で
 // スキャンして即ログイン、という二段階ログインへ統一」への対応)。
-// `/v1/auth/verify-otp`は第一要素(email/SMSコード)の検証成功時に
+// `/openenglish.v1.Auth/VerifyOtp`は第一要素(email/SMSコード)の検証成功時に
 // もうセッションを発行しない——`second_factor_required:true`+QR確認
 // セッションを返すので、ここでQRを表示してポーリングを開始する。
 const qrLoginSection = document.getElementById("qr-login-section");
@@ -1477,7 +1505,7 @@ function startQrLoginPoll(qrLoginId) {
   stopQrLoginPoll();
   qrLoginPollTimer = setInterval(async () => {
     try {
-      const res = await fetch(`/v1/auth/qr-login/status?id=${encodeURIComponent(qrLoginId)}`);
+      const res = await fetch(`/openenglish.v1.Auth/QrLoginStatus?id=${encodeURIComponent(qrLoginId)}`);
       const data = await res.json();
       if (!res.ok) {
         stopQrLoginPoll();
@@ -1487,7 +1515,7 @@ function startQrLoginPoll(qrLoginId) {
       if (data.confirmed) {
         stopQrLoginPoll();
         if (qrLoginStatusEl) qrLoginStatusEl.textContent = "Confirmed! Logging in... / 確認されました！ログインしています...";
-        const finishRes = await fetch("/v1/auth/qr-login/finish", {
+        const finishRes = await fetch("/openenglish.v1.Auth/QrLoginFinish", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ id: qrLoginId }),
@@ -1521,7 +1549,7 @@ function showQrLoginStep(qrSvg, confirmUrl) {
 async function verifyOtpFactorOne(identifier, code) {
   loginStatusEl.textContent = "Verifying... / 確認中...";
   try {
-    const res = await fetch("/v1/auth/verify-otp", {
+    const res = await fetch("/openenglish.v1.Auth/VerifyOtp", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ email: identifier, code }),
@@ -1545,7 +1573,7 @@ async function verifyOtpFactorOne(identifier, code) {
 
 if (loginVerifyBtn) {
   loginVerifyBtn.addEventListener("click", () => {
-    const email = (loginVerifyEmailEl?.value || loginEmailEl.value).trim();
+    const email = normalizeEmail(loginVerifyEmailEl?.value || loginEmailEl.value);
     // 全角数字(日本語IME)・空白・ハイフンを除去して半角の6桁へ正規化する
     // (2026-09-20: メールのコードをコピー/手入力した際に全角や空白が
     // 混ざると「incorrect code」になるため)。
@@ -1563,7 +1591,7 @@ if (loginQrOnlyStartBtn) {
     loginQrOnlyStartBtn.disabled = true;
     loginStatusEl.textContent = "Generating QR code... / QRコード生成中...";
     try {
-      const res = await fetch("/v1/auth/qr-login/start", { method: "POST" });
+      const res = await fetch("/openenglish.v1.Auth/QrLoginStart", { method: "POST" });
       const data = await res.json();
       if (res.ok && data.qr_login_id) {
         loginStatusEl.textContent = "";
@@ -1587,7 +1615,7 @@ if (loginQrOnlyStartBtn) {
 // ユーザー指示により中止し、代わりに携帯電話番号へ実際にSMSでワンタイム
 // コードを送る方式へ置き換えた(サーバー側`auth::request_sms_otp`、
 // Twilio等のSMSゲートウェイの持ち込みが必要——正直な開示は下記メッセージ
-// 参照)。検証は既存の`/v1/auth/verify-otp`をそのまま使う(電話番号も
+// 参照)。検証は既存の`/openenglish.v1.Auth/VerifyOtp`をそのまま使う(電話番号も
 // メールも同じ仕組みで検証できる、サーバー側`verify_otp`のdoc参照)。
 // **自動入力・自動認証(WebOTP API)**: 「自動入力、自動認証として」との
 // 指示に対応するため、ブラウザ標準のWebOTP API
@@ -1638,7 +1666,7 @@ if (loginSendSmsCodeBtn) {
     }
     loginStatusEl.textContent = "Sending SMS... / SMS送信中...";
     try {
-      const res = await fetch("/v1/auth/request-sms-otp", {
+      const res = await fetch("/openenglish.v1.Auth/RequestSmsOtp", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ phone }),
@@ -1682,7 +1710,7 @@ if (loginSetupEnableBtn) {
     const selected = document.querySelector('input[name="login-mode-choice"]:checked');
     const loginMode = selected ? selected.value : "none";
     try {
-      await fetch("/v1/auth/config", {
+      await fetch("/openenglish.v1.Auth/ConfigSet", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ login_mode: loginMode }),
@@ -1769,7 +1797,7 @@ async function autoDetectAruaruLlmBase() {
 async function applyDeploymentAruaruLlmBaseIfOwnDeviceUnavailable() {
   if (!apiBaseEl) return;
   try {
-    const res = await fetch("/v1/config", { cache: "no-store" });
+    const res = await fetch("/openenglish.v1.Config/Config", { cache: "no-store" });
     if (!res.ok) return;
     const data = await res.json();
     if (!data.aruaru_llm_base_url) return;
@@ -1788,21 +1816,21 @@ async function applyDeploymentAruaruLlmBaseIfOwnDeviceUnavailable() {
     // モードへ切り替えるための判定に使う、2026-09-12)。
     window.__aruaruLlmSharedDeployment = true;
   } catch (e) {
-    // `/v1/config`未提供の配信形態(file://直開き等)では黙って既定のまま。
+    // `/openenglish.v1.Config/Config`未提供の配信形態(file://直開き等)では黙って既定のまま。
   }
 }
 
 /**
  * サーバー(open-english-server)自身からaruaru-llmへ到達できるかどうか
  * (2026-09-12新設)。`true`なら、閲覧者自身の端末にaruaru-llmが無くても
- * `askTrainer`が同一オリジンの`/v1/public/aruaru-llm/generate*`
+ * `askTrainer`が同一オリジンの`/openenglish.v1.AruaruLlm/Generate*`
  * (グローバルなレート制限付き)へ自動フォールバックできる——ユーザー報告
  * 「🔌 Could not reach aruaru-llm」(訪問者自身の端末未設置時に会話不可
  * だった問題)への対応、ユーザー承認「レート制限付きで導入」。
  */
 async function isAruaruLlmPublicChatAvailable() {
   try {
-    const res = await fetch("/v1/config", { cache: "no-store" });
+    const res = await fetch("/openenglish.v1.Config/Config", { cache: "no-store" });
     if (!res.ok) return false;
     const data = await res.json();
     return !!data.aruaru_llm_public_chat_available;
@@ -2012,11 +2040,25 @@ function setStatus(ok, text) {
 const AUX_TIMEOUT_MS = 8000;
 
 /** 指定ミリ秒でabortする`fetch`。タイムアウト時は`err.isTimeout`が真になる。 */
+/** aruaru-llm は Connect(POST /aruaru_llm.v1.Llm/<Method> + JSON)のみ受ける(REST全廃、2026-11-04)。
+ *  URL が Connect なら method を POST、content-type を JSON、本文を既定 "{}" にそろえる。 */
+function connectNormalize(url, options = {}) {
+  if (typeof url !== "string" || !url.includes("/aruaru_llm.v1.Llm/")) return options;
+  return {
+    ...options,
+    method: "POST",
+    headers: { "content-type": "application/json", ...(options.headers || {}) },
+    body: options.body !== undefined ? options.body : "{}",
+  };
+}
+function llmFetch(url, options = {}) {
+  return fetch(url, connectNormalize(url, options));
+}
 async function fetchWithTimeout(url, options = {}, timeoutMs = 15000) {
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), timeoutMs);
   try {
-    return await fetch(url, { ...options, signal: controller.signal });
+    return await fetch(url, { ...connectNormalize(url, options), signal: controller.signal });
   } catch (err) {
     if (err && err.name === "AbortError") {
       const e = new Error(`timed out after ${Math.round(timeoutMs / 1000)}s`);
@@ -2054,7 +2096,7 @@ function renderRuntimeBadge(info) {
   if (!info) {
     runtimeBadgeEl.textContent = "compute: unknown / 実行基盤: 不明";
     runtimeBadgeEl.className = "runtime-badge unknown";
-    runtimeBadgeEl.title = "aruaru-llmの GET /v1/runtime に接続できませんでした(古いaruaru-llmには存在しないエンドポイントです)。";
+    runtimeBadgeEl.title = "aruaru-llmの Runtime(Connect)に接続できませんでした(古いaruaru-llmには存在しないエンドポイントです)。";
     return;
   }
   // 階層的アクセラレーション(2026-08-23、aruaru-llm側`acceleration`
@@ -2066,7 +2108,7 @@ function renderRuntimeBadge(info) {
   const tier = accel ? accel.tier : info.gpu_in_use ? "vulkan" : "cpu-simd";
   const shortLabel = { cuda: "GPU (CUDA)", vulkan: "GPU (Vulkan)", "directx-gemm": "GPU (DirectX 12, GEMM) + CPU SIMD", "cpu-simd": "CPU SIMD" }[tier] || (info.gpu_in_use ? "GPU" : "CPU");
   const model = info.engine || "(unknown engine)";
-  runtimeBadgeEl.textContent = `compute: ${shortLabel} · ${model}`;
+  runtimeBadgeEl.textContent = `compute: ${shortLabel} · ${model}` + (info.__shared ? " · サーバー共有 / shared on server" : "");
   runtimeBadgeEl.className = `runtime-badge ${tier === "cpu-simd" ? "cpu" : "gpu"}`;
 
   // ツールチップには各段の compiled_in / active を正直に並べる。
@@ -2082,6 +2124,7 @@ function renderRuntimeBadge(info) {
         .join("\n")
     : "";
   runtimeBadgeEl.title =
+    (info.__shared ? "VPSに1か所だけ入れた aruaru-llm / open-cuda を、このサイトも共用しています(サイトごとのインストールは不要)。\nThis site shares the single aruaru-llm / open-cuda installed on the server (no per-site install needed).\n" : "") +
     `${info.summary_ja || ""}\n${info.summary_en || ""}\n` +
     (accel ? `acceleration tier: ${accel.tier_label_ja || ""} / ${accel.tier_label_en || ""}\n${tierLines}\n` : "") +
     `devices: ${(info.devices || []).map((d) => d.name).join(", ")}\n` +
@@ -2093,11 +2136,24 @@ function renderRuntimeBadge(info) {
 async function refreshRuntimeInfo() {
   const base = apiBaseEl.value.trim();
   try {
-    const res = await fetchWithTimeout(`${base}/v1/runtime`, { cache: "no-store" }, 5000);
+    const res = await fetchWithTimeout(`${base}/aruaru_llm.v1.Llm/Runtime`, { cache: "no-store" }, 5000);
     if (!res.ok) throw new Error(`HTTP ${res.status}`);
     lastRuntimeInfo = await res.json();
   } catch (err) {
     lastRuntimeInfo = null;
+  }
+  // 閲覧者の端末にaruaru-llmが無いとき(VPSに1か所だけ入れた共有のaruaru-llm/open-cudaを使う場合)は、
+  // 同じオリジンのサーバー経由の中継(読み取り専用、サーバー内のパスは除去済み)から実行基盤を取る。
+  if (!lastRuntimeInfo) {
+    try {
+      const res = await fetchWithTimeout("/openenglish.v1.AruaruLlm/Runtime", { cache: "no-store" }, 5000);
+      if (res.ok) {
+        lastRuntimeInfo = await res.json();
+        lastRuntimeInfo.__shared = true;
+      }
+    } catch (err) {
+      lastRuntimeInfo = null;
+    }
   }
   renderRuntimeBadge(lastRuntimeInfo);
   return lastRuntimeInfo;
@@ -2249,7 +2305,7 @@ function splitSpeechChunks(text, lang) {
 //
 // WEB版はブラウザのWeb Speech APIで読み上げるが、その出力音声はスクリプトから取り出せず、声質の加工ができない。
 // ローカルサーバー(`server/src/tts.rs`)は、OSの音声合成(現状はWindowsのSAPI)で作ったWAVを、RPoemの共有クレート
-// `open-runo-voice`で加工して(先生=メイド風、ヘルパー=太く低い男性)返す。起動時に`/v1/public/tts/status`で
+// `open-runo-voice`で加工して(先生=メイド風、ヘルパー=太く低い男性)返す。起動時に`/openenglish.v1.Tts/Status`で
 // 使えるか確かめ、使えれば`enqueueSpeech`はサーバーのWAVを再生する。WEB版(静的ホスティング)・VPS・サーバーが
 // 非対応の環境では`available`が偽のままで、従来どおりWeb Speech APIを使う(=既存の挙動は変わらない)。
 // 1つの発話だけ失敗(その言語の声が無い等)した場合は、その発話だけWeb Speech APIへフォールバックする。
@@ -2257,7 +2313,7 @@ const serverTts = { available: false, failures: 0, queue: [], running: false, ep
 
 async function probeServerTts() {
   try {
-    const res = await fetch("/v1/public/tts/status", { cache: "no-store" });
+    const res = await fetch("/openenglish.v1.Tts/Status", { cache: "no-store" });
     if (!res.ok) return;
     const info = await res.json();
     serverTts.available = info.available === true;
@@ -2293,7 +2349,7 @@ function serverTtsCancel() {
 }
 
 async function fetchServerTts(item) {
-  const res = await fetch("/v1/public/tts", {
+  const res = await fetch("/openenglish.v1.Tts/Tts", {
     method: "POST",
     headers: { "content-type": "application/json" },
     body: JSON.stringify({ text: item.text, lang: item.lang, persona: item.isHelper ? "helper" : "teacher" }),
@@ -2402,8 +2458,9 @@ function enqueueWebSpeech(chunks, lang, isHelper, onEnd) {
     utter.lang = lang;
     const voice = pickVoice(lang, isHelper);
     if (voice) utter.voice = voice;
-    utter.pitch = isHelper ? 0.75 : 1.1;
-    utter.rate = isHelper ? 1.05 : 0.82;
+    // お出迎え(window.__cuteVoice)のときだけ、高めの声で、少し軽やかに話す(可愛らしく愛くるしい声: ユーザー指示 2026-10-30)
+    utter.pitch = window.__cuteVoice ? 1.7 : isHelper ? 0.75 : 1.1;
+    utter.rate = window.__cuteVoice ? 1.0 : isHelper ? 1.05 : 0.82;
     if (i === chunks.length - 1 && onEnd) {
       utter.onend = onEnd;
       utter.onerror = onEnd;
@@ -2546,7 +2603,7 @@ async function personaPromptText() {
     : "You are Sakura, a cheerful maid teacher. Use short sentences around one key word, smile, use gestures, find common topics, and praise every attempt.";
   try {
     const url = location.hostname.endsWith("easy-web.tokyo")
-      ? "/v1/public/persona/prompt"
+      ? "/openenglish.v1.Persona/Prompt"
       : "https://easy-web.tokyo/open-english/v1/public/persona/prompt";
     const res = await fetchWithTimeout(url, {
       method: "POST",
@@ -2584,7 +2641,7 @@ async function findCountryFunFact(text) {
   let dbCapital = null;
   try {
     const base = apiBaseEl.value.trim();
-    const res = await fetchWithTimeout(`${base}/v1/geo/lookup`, {
+    const res = await fetchWithTimeout(`${base}/aruaru_llm.v1.Llm/GeoLookup`, {
       method: "POST",
       headers: { "content-type": "application/json" },
       body: JSON.stringify({ country: text.trim() }),
@@ -2631,7 +2688,7 @@ async function findCountryFunFact(text) {
 async function fujiInfoText() {
   try {
     const base = apiBaseEl.value.trim();
-    const res = await fetchWithTimeout(`${base}/v1/geo/fuji`, {}, AUX_TIMEOUT_MS);
+    const res = await fetchWithTimeout(`${base}/aruaru_llm.v1.Llm/GeoFuji`, {}, AUX_TIMEOUT_MS);
     const info = await res.json();
     const hut = info.mountain_huts && info.mountain_huts[0];
     const transport = info.transport_reservations && info.transport_reservations[0];
@@ -2659,7 +2716,7 @@ async function fujiInfoText() {
 async function tourSearchText(place) {
   try {
     const base = apiBaseEl.value.trim();
-    const res = await fetchWithTimeout(`${base}/v1/geo/tours`, {
+    const res = await fetchWithTimeout(`${base}/aruaru_llm.v1.Llm/GeoTours`, {
       method: "POST",
       headers: { "content-type": "application/json" },
       body: JSON.stringify({ place }),
@@ -2817,7 +2874,7 @@ async function advanceTrainingMode(userText) {
   reply += internetAccessSuffix(userText);
   reply += govConsultingSuffix(userText);
   reply += fairTradeSuffix(userText);
-  reply += await newsSuffix(userText);
+  reply = await newsQaCompose(userText, reply);
   reply += topicGuideSuffix(userText);
   reply += await troubledSuffix(userText);
   reply += nuclearDeterrenceSuffix(userText);
@@ -2891,9 +2948,15 @@ async function checkHealth() {
     // 誤解させていた(ユーザー報告「WEB版でaruaru-llmが動いていない
     // ようです」複数回)。フォールバック可否を確認し、可能なら
     // その旨を正しく伝える。
-    if (!err.isTimeout && (await isAruaruLlmPublicChatAvailable())) {
-      setStatus(true, "aruaru-llm: using shared demo server (your own device not detected) / 共有デモサーバーを使用中(ご自身の端末は未検出)");
+    // 2026-10-28: タイムアウト(自分の端末のlocalhost:4600が4秒以内に応答しない)でも、サーバー共有が使えるなら
+    // 赤い「no response」ではなく共有の使用中として表示する(以前はタイムアウトだけ除外していて、共有が使えるのに
+    // 「4秒以内に応答なし」と出ていた)。
+    if (await isAruaruLlmPublicChatAvailable()) {
+      setStatus(true, err.isTimeout
+        ? "aruaru-llm: your own device did not respond within 4s — using the shared aruaru-llm / open-cuda on the server / ご自身の端末は4秒以内に応答なし — サーバー共有のaruaru-llm・open-cudaを使用中"
+        : "aruaru-llm: using the shared aruaru-llm / open-cuda installed once on the server (your own device not detected) / サーバーに1か所だけ入れた共有のaruaru-llm・open-cudaを使用中(ご自身の端末は未検出)");
       wasConnected = true;
+      refreshRuntimeInfo().catch(() => {}); // 共有の実行基盤(CPU/GPU・モデル)をバッジに反映
       return;
     }
     setStatus(false, err.isTimeout ? "aruaru-llm: no response within 4s / 4秒以内に応答なし" : "aruaru-llm: unreachable (CORS or server not running?)");
@@ -3123,8 +3186,18 @@ async function askTrainer(userText) {
         knowledge: ["AIの持っている知識では、自信が持てなかった", "wasn't confident based on the AI's own knowledge"],
       };
       const [reasonJa, reasonEn] = reasonMap[searchBoostReason] || reasonMap.language;
-      reply += `\n\n🔎 ${reasonJa}ため、Google検索で確認してから回答しました(${priorityResult.searchNotes.join(", ")})。 / ` +
-        `Since I ${reasonEn}, I checked with a Google search before answering (${priorityResult.searchNotes.join(", ")}).`;
+      // 2026-10-28 実機の確認で発覚: 検索サービスのエラー全文(HTTP 403、JSONの生の中身など)がそのまま利用者に出ていた。
+      // しかも検索が失敗していても「確認してから回答しました」と書いていて事実と違った。失敗の記録は短い説明に置き換え、
+      // 全て失敗したときは「確認しようとしましたが使えなかった」と正直に伝える。
+      const noteIsFailure = (n) => /fail|error|HTTP\s*\d{3}|forbidden|unreachable|denied|timeout|{/i.test(String(n));
+      const okNotes = priorityResult.searchNotes.filter((n) => !noteIsFailure(n));
+      if (okNotes.length) {
+        reply += `\n\n🔎 ${reasonJa}ため、検索で確認してから回答しました(${okNotes.join(", ")})。 / ` +
+          `Since I ${reasonEn}, I checked with a search before answering (${okNotes.join(", ")}).`;
+      } else {
+        reply += `\n\n🔎 ${reasonJa}ため、検索で確認しようとしましたが、いま検索サービスが使えませんでした(内容が古い・不確かな可能性があります)。 / ` +
+          `Since I ${reasonEn}, I tried to verify with a search, but the search service was unavailable (this may be outdated or uncertain).`;
+      }
     }
     reply += await referralsSuffix(userText);
     reply += consumptionTaxSuffix(userText);
@@ -3134,7 +3207,7 @@ async function askTrainer(userText) {
     reply += internetAccessSuffix(userText);
     reply += govConsultingSuffix(userText);
     reply += fairTradeSuffix(userText);
-    reply += await newsSuffix(userText);
+    reply = await newsQaCompose(userText, reply);
   reply += topicGuideSuffix(userText);
     reply += await troubledSuffix(userText);
     reply += nuclearDeterrenceSuffix(userText);
@@ -3222,6 +3295,7 @@ async function askTrainer(userText) {
   let directSearchError = null;
   let useDirectSearchPath = false;
   const endpoint = useWebSearch ? "/v1/generate-with-search" : "/v1/generate";
+  const llmMethod = useWebSearch ? "GenerateWithSearch" : "Generate";
   // 2026-08-27バグ修正: `prompt`(メイドカフェ講師ペルソナ+レベル指示+
   // 「Student: ...\nTrainer:」まで組み込んだ、既にラップ済みのテンプレート)
   // をそのまま`buildSearchAugmentedPromptClient`の「質問」として渡すと、
@@ -3270,7 +3344,7 @@ async function askTrainer(userText) {
   };
   let res;
   try {
-    res = await fetchWithTimeout(`${base}${endpoint}`, fetchOpts, timeoutMs);
+    res = await fetchWithTimeout(`${base}/aruaru_llm.v1.Llm/${llmMethod}`, fetchOpts, timeoutMs);
   } catch (err) {
     // 閲覧者自身の端末(`base`)に到達できなかった場合、サーバーが
     // VPS共有のaruaru-llmへ到達可能なら同一オリジンの公開プロキシへ
@@ -3336,7 +3410,7 @@ async function askTrainer(userText) {
       const fallbackPrompt = buildSearchAugmentedPromptClient(formatSearchResultsAsContext(directSearchResults), userText);
       const fallbackBody = { prompt: fallbackPrompt, max_new_tokens: inputIsJapanese ? 12 : 24 };
       try {
-        const fallbackRes = await fetchWithTimeout(`${base}/v1/generate`, {
+        const fallbackRes = await fetchWithTimeout(`${base}/aruaru_llm.v1.Llm/Generate`, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify(fallbackBody),
@@ -3410,7 +3484,7 @@ async function askTrainer(userText) {
   reply += internetAccessSuffix(userText);
   reply += govConsultingSuffix(userText);
   reply += fairTradeSuffix(userText);
-  reply += await newsSuffix(userText);
+  reply = await newsQaCompose(userText, reply);
   reply += topicGuideSuffix(userText);
   reply += await troubledSuffix(userText);
   reply += nuclearDeterrenceSuffix(userText);
@@ -3431,7 +3505,7 @@ async function askTrainer(userText) {
 async function referralsSuffix(userText) {
   try {
     const base = apiBaseEl.value.trim();
-    const res = await fetchWithTimeout(`${base}/v1/referrals/check`, {
+    const res = await fetchWithTimeout(`${base}/aruaru_llm.v1.Llm/ReferralsCheck`, {
       method: "POST",
       headers: { "content-type": "application/json" },
       body: JSON.stringify({ text: userText }),
@@ -3462,43 +3536,52 @@ const CONSUMPTION_TAX_QUESTION_KEYWORDS = [
   "どう思う", "教えて",
 ];
 
+// 2026-10-29 ユーザー指示(知識DATABASE): 質問に「消費税」またはその類似語、「百数万円の壁」またはその類似語が入っていたら、
+// 「消費税とは? 法人税が約40%だった時に、将来約20%まで下げる約束で導入された税金で…」の回答を出す。
+const CONSUMPTION_TAX_SIMILAR_JA = ["消費税", "消費増税", "増税", "減税", "付加価値税", "軽減税率", "インボイス", "税率", "税金", "法人税", "所得税", "累進課税", "社会保険料", "社会保険税"];
+const INCOME_WALL_SIMILAR_JA_RE = /年収の壁|[0-9０-９]{2,3}万円?の?壁|百[数万]*万円の壁|壁.{0,6}万円|万円.{0,6}壁|扶養|配偶者控除|就業調整|社会保険の壁/;
+const TAX_SIMILAR_EN_RE = /consumption tax|sales tax|\bvat\b|value[- ]added tax|tax wall|income wall|annual income wall|progressive tax/i;
 function isConsumptionTaxSolutionQuestion(userText) {
+  if (TAX_SIMILAR_EN_RE.test(userText)) return true;
   if (!containsJapanese(userText)) return false;
-  const hasTopic = CONSUMPTION_TAX_TOPIC_KEYWORDS.some((k) => userText.includes(k));
-  if (!hasTopic) return false;
-  return CONSUMPTION_TAX_QUESTION_KEYWORDS.some((k) => userText.includes(k));
+  return CONSUMPTION_TAX_SIMILAR_JA.some((k) => userText.includes(k)) || INCOME_WALL_SIMILAR_JA_RE.test(userText);
 }
 
 function consumptionTaxProposalText() {
+  // 日本語の文章は、ユーザー(開発者)が指示した文章のまま(2026-10-29)。英語は、その訳(AIによる翻訳)。
   const ja =
-    "【消費税問題への提案(開発者からの一意見)】\n" +
-    "消費税は、法人税が約40%だった頃に、将来的に約20%へ引き下げる前提で" +
-    "導入された経緯があります(2026年8月時点の法人税は約20%)。その前提に" +
-    "立てば、消費税を撤廃する、あるいは法人税を元の40%程度へ引き上げ、" +
-    "それでも足りなければ45〜50%程度まで引き上げるという選択肢が現実的です。" +
-    "それでも財源が不足する場合は、行政のWEBサイト・LINEアプリ化を進める" +
-    "eガバメント・デジタルガバメント化により、市区町村・都道府県庁の統廃合、" +
-    "中央省庁・国会のオンライン化(在宅勤務・オンライン国会)を進めて公務員を" +
-    "大幅にリストラし、財源を確保します。その財源で、少子高齢化対策予算、" +
-    "基礎年金+厚生年金の皆保険化(全員加入型)による年金受給額の増額、" +
-    "後期高齢者医療制度における低所得層・中間所得層の無償化が実現可能です。";
+    "【消費税とは?(開発者からの一意見)】\n" +
+    "法人税が約40%だった時に、将来約20%まで下げる約束で導入された税金で、財源は、法人税だったのです。\n" +
+    "消費税を全廃、撤廃するには、2026年の今、約20%まで下がっている法人税を元の約40%もしくは、足りなければ、45%くらいまで元に戻し、" +
+    "更に、財源が足りなければ、バラク・オバマ元大統領が言われた様に、我々、裕福層にこそ、所得税などの税金の累進課税率のカーブをUPするべきだと言う、" +
+    "ご提案に賛成で御座います。\n" +
+    "所得税や社会保険税などの税金は、裕福層への累進課税率のカーブはアップして、逆に低所得層への累進課税率のカーブはダウンさせて、負担率を下げる、" +
+    "しかし一定の金額以下は、全く税金を払わなくて良いと言う考え方は、全く収入が無いに近い場合を除いて、考え直した方が良いと思います。\n" +
+    "更に、eガバメント、デジタルガバメントと言う政府やお役所のLINEアプリ化やTVアプリ化やコンビニのロッピーやファミポートなどによって、" +
+    "市区町村役場や都道府県庁の庁舎と司法立法行政府、中央省庁の全公務員を大幅にリストラして少子高齢化予算、" +
+    "専業主婦や働いていない人なども含めて全国民参加の年金を皆保険として、基礎年金+厚生年金+増額年金の年金予算確保、" +
+    "後期高齢者医療制度の低所得層と中間所得層の負担率の大幅なカーブのダウンや失業時だけ、住宅ローンや自動車ローンや携帯電話代やインターネットプロバイダー代金を肩代わりして無償化にする予算などや" +
+    "低所得層の医療費無償化や中間所得層の医療費の累進負担率のカーブも大幅に下げる予算などや" +
+    "イタリア製ミニウェル・プロクサ(お勧めは、左右の視力が異なっていても同じ種類の30cm手元から遠くまでよく見える眼内コンタクトレンズ)や" +
+    "長期間壊れにくくて安心して使える人工心臓や人工関節などを完全に国保対応とする予算確保など。\n" +
+    "(開発者個人の意見です。税務・医療・投資の助言ではありません。)";
   const en =
-    "[A proposal on the consumption-tax problem (the developer's own opinion)]\n" +
-    "Japan's consumption tax was originally introduced on the premise that the " +
-    "corporate tax rate, then around 40%, would eventually be lowered to around " +
-    "20% (as of August 2026 it is indeed around 20%). Given that history, a " +
-    "realistic option is to abolish the consumption tax — or raise the " +
-    "corporate tax rate back toward 40%, and to 45-50% if still not enough. " +
-    "If revenue is still short, advancing e-government/digital-government " +
-    "(moving administrative websites and services onto LINE-style apps), " +
-    "consolidating/abolishing municipal and prefectural government offices, " +
-    "and moving central-government ministries and the Diet online (remote work, " +
-    "online parliamentary sessions) would allow a major reduction in the civil " +
-    "service headcount, freeing up funds. Those funds could then go toward the " +
-    "declining-birthrate/aging-society budget, raising pension payouts by making " +
-    "the basic pension plus employees' pension universal (mandatory enrollment " +
-    "for all), and making the late-stage elderly medical system free for " +
-    "low-income and middle-income households.";
+    "[What is the consumption tax? (the developer's own opinion; English is an AI translation)]\n" +
+    "It is a tax that was introduced on the promise that the corporate tax rate, then around 40%, would later be lowered to around 20%, " +
+    "and its source of revenue was the corporate tax.\n" +
+    "To abolish the consumption tax completely, I agree with the proposal to raise the corporate tax rate - which in 2026 has fallen to around 20% - " +
+    "back to its original level of about 40%, or to around 45% if that is not enough; and, if revenue is still short, to raise the progressive-tax curve of " +
+    "income tax and other taxes on the wealthy, as former U.S. President Barack Obama is said to have argued that we, the wealthy, are the ones who should pay more.\n" +
+    "For income tax, social-insurance contributions and similar taxes, I think the idea of raising the progressive-rate curve for the wealthy and lowering it for low earners " +
+    "to reduce their burden - while people below a certain income pay no tax at all - should be reconsidered, except for people with almost no income.\n" +
+    "Furthermore, through e-government / digital government - putting government and municipal services on LINE apps and TV apps and on convenience-store kiosks such as Loppi and FamiPort - " +
+    "I would substantially downsize the civil servants of city and ward offices, prefectural offices, the judicial, legislative and executive branches and all central ministries, " +
+    "and secure budgets for: measures for the aging society and declining birthrate; universal pension insurance covering everyone, including full-time homemakers and people not working " +
+    "(basic pension + employees' pension + an additional pension); a large reduction of the burden-rate curve for low- and middle-income households under the late-stage elderly medical system; " +
+    "paying housing-loan, car-loan, mobile-phone and internet-provider charges for people only while they are unemployed; free medical care for low-income households and a much lower progressive " +
+    "cost-sharing curve for middle-income households; and bringing under full national health insurance coverage things such as Italian-made intraocular contact lenses " +
+    "(recommended: a type that gives good vision from 30 cm to far distances even when the left and right eyes differ) and durable, reliable artificial hearts and artificial joints.\n" +
+    "(This is the developer's personal opinion, not tax, medical or investment advice.)";
   return `\n\n💰 ${en}\n\n${ja}`;
 }
 
@@ -3853,8 +3936,8 @@ function incomeWallSuffix(userText) {
 // 会話に織り込み、「話題についていけるように」する(ユーザー指示、
 // 2026-08-17)。`referralsSuffix`と同じ「話題検出→サーバーへ問い合わせ→
 // 末尾に追記」の設計。
-const NEWS_TOPIC_KEYWORDS_JA = ["ニュース", "時事", "最近の出来事", "今日の話題"];
-const NEWS_TOPIC_KEYWORDS_EN = ["news", "current events", "what's happening", "headlines"];
+const NEWS_TOPIC_KEYWORDS_JA = ["ニュース", "時事", "最近の出来事", "今日の話題", "世界情勢", "国際情勢", "情勢", "速報", "報道"];
+const NEWS_TOPIC_KEYWORDS_EN = ["news", "current events", "what's happening", "headlines", "world affairs", "geopolitic", "breaking"];
 
 function mentionsNewsTopic(userText) {
   const lower = userText.toLowerCase();
@@ -3869,7 +3952,7 @@ const TOPIC_GUIDES = [
   { ja: ["作者のgithub", "githubを紹介", "作者について", "ソースコード"], en: ["author's github", "source code", "your github"],
     title: "👤 作者のGitHub / Author's GitHub",
     desc: "ソースコードはすべて公開しています。 / All source code is public.",
-    q: [], links: ["https://github.com/aon-co-jp", "https://github.com/aon-co-jp/open-english", "https://github.com/aon-co-jp/aruaru-llm", "https://github.com/aon-co-jp/aruaru-db"] },
+    q: [], links: ["https://github.com/aon-co-jp", "https://github.com/aon-co-jp/maid-cafe-english", "https://github.com/aon-co-jp/open-english", "https://github.com/aon-co-jp/aruaru-llm", "https://github.com/aon-co-jp/aruaru-db"] },
   { ja: ["イヤホン", "ヘッドホン", "ヘッドフォン", "イヤフォン", "usb-c", "4.4mm", "xlr", "ブルートゥース"], en: ["earphone", "headphone", "earbuds", "bluetooth audio"],
     title: "🎧 イヤホン・ヘッドホン / Earphones & headphones",
     desc: "安いUSB-C・3.5mm・4.4mmバランス・XLR・Bluetoothまで。 / From cheap USB-C, 3.5mm, 4.4mm balanced, XLR to Bluetooth.",
@@ -4067,7 +4150,7 @@ function newsCountryForUserText(userText) {
 // 前になったニュースはaruaru-llmのローカルDBから追い出され、`NEWS-TITLE-README.md`
 // (このリポジトリ直下)へVPS上のcronスクリプト(`aruaru-llm/scripts/
 // archive-news-to-github.sh`)経由でGitHubへアーカイブされる。以下はその
-// アーカイブを`/v1/public/news/archive-search`でその場検索して参照する機能。
+// アーカイブを`/openenglish.v1.News/ArchiveSearch`でその場検索して参照する機能。
 // 検索結果を使って作った回答に付ける出典表示(ユーザー指示、2026-10-03: 「Google AIの回答です」ではなく
 // 「検索結果による回答です」/「過去の回答例です」と明記する。現状の検索元はAIの回答を返さないため)。
 const SEARCH_ANSWER_LABEL =
@@ -4082,7 +4165,7 @@ function mentionsPastNews(userText) {
 async function archiveNewsSuffix(country) {
   try {
     const url = location.hostname.endsWith("easy-web.tokyo")
-      ? `/v1/public/news/archive-search?q=${encodeURIComponent(country)}&limit=3`
+      ? `/openenglish.v1.News/ArchiveSearch?q=${encodeURIComponent(country)}&limit=3`
       : `https://easy-web.tokyo/open-english/v1/public/news/archive-search?q=${encodeURIComponent(country)}&limit=3`;
     const res = await fetchWithTimeout(url, { cache: "no-store" }, AUX_TIMEOUT_MS);
     const data = await res.json();
@@ -4096,12 +4179,31 @@ async function archiveNewsSuffix(country) {
     return "";
   }
 }
+// 世界情勢Q&A(2026-10-29): ニュースの質問には、報道機関のRSSを毎時ためた記事(GitHubの公開ニュース保存庫にも日ごとに書き出し)から、
+// 出典・日付つきの引用だけで答える(`GET /v1/public/news/ask`)。AIの推測は入れない。該当する記事が無ければ「分かりません」と答える。
+// Q&Aが先頭、これまでの返答(英会話の先生の口調)はその下に残す。Q&Aに接続できないときは、従来のニュース表示に戻す。
+async function newsQaCompose(userText, reply) {
+  if (!mentionsNewsTopic(userText)) return reply;
+  const url = location.hostname.endsWith("maid-cafe.tokyo") ? "/openenglish.v1.News/Ask" : "https://maid-cafe.tokyo/v1/public/news/ask";
+  try {
+    const res = await fetchWithTimeout(`${url}?q=${encodeURIComponent(userText)}`, { cache: "no-store" }, AUX_TIMEOUT_MS);
+    if (!res.ok) throw new Error("HTTP " + res.status);
+    const data = await res.json();
+    if (!data || data.ok !== true) throw new Error("not ok");
+    const qa = containsJapanese(userText) ? data.answer_ja : data.answer_en;
+    if (!qa) throw new Error("empty");
+    return qa + "\n\n――――――――――\n" + reply;
+  } catch (e) {
+    return reply + (await newsSuffix(userText));
+  }
+}
+
 async function newsSuffix(userText) {
   if (!mentionsNewsTopic(userText)) return "";
   const country = newsCountryForUserText(userText);
   try {
     const url = location.hostname.endsWith("easy-web.tokyo")
-      ? `/v1/public/news/for?country=${encodeURIComponent(country)}`
+      ? `/openenglish.v1.News/For?country=${encodeURIComponent(country)}`
       : `${SHARED_NEWS_FOR_ABSOLUTE_URL}?country=${encodeURIComponent(country)}`;
     const res = await fetchWithTimeout(url, { cache: "no-store" }, AUX_TIMEOUT_MS);
     const data = await res.json();
@@ -4394,8 +4496,19 @@ const NUCLEAR_DETERRENCE_TOPIC_KEYWORDS_EN = [
   "three non-nuclear principles", "non-nuclear principles",
 ];
 
+// 2026-10-28 バグ修正(「核」だけでは以前出ていた回答が出なかった): 単独の「核」(「核」「核について」「核とは」「核は?」など、
+// 文が核の話題だけのとき)も話題として扱う。「核心」「中核」「結核」「核家族」などへの誤反応を避けるため、「核」の直後が
+// 他の漢字・かなで続くものは対象外。
+const BARE_NUCLEAR_WORD_RE = /^[\s　]*核(について|とは|って|は|が|も)?[\s　?？!！。、.…]*$/;
+
+// 「核」(単独)と「核ミサイル」は「核武装」と同じ回答にする(登録済みの「核武装」の別名)。
+function isNuclearArmamentAlias(userText) {
+  return BARE_NUCLEAR_WORD_RE.test(userText) || userText.includes("核ミサイル");
+}
+
 function mentionsNuclearDeterrenceTopic(userText) {
   const lower = userText.toLowerCase();
+  if (isNuclearArmamentAlias(userText)) return true;
   return (
     NUCLEAR_DETERRENCE_TOPIC_KEYWORDS_JA.some((k) => userText.includes(k)) ||
     NUCLEAR_DETERRENCE_TOPIC_KEYWORDS_EN.some((k) => lower.includes(k))
@@ -6969,6 +7082,18 @@ inputEl.addEventListener("keydown", (e) => {
   e.preventDefault();
   formEl.requestSubmit();
 });
+// 2026-10-28 バグ修正(スマホで文字入力後にEnterを押しても送信されない): Androidの多くの仮想キーボード
+// (Gboard・日本語IME等)は、Enterを押しても keydown の key が "Unidentified"(keyCode 229)で届くため、上の
+// 判定に掛からず、改行が入るだけになっていた。改行の入力操作そのもの(beforeinput の insertLineBreak /
+// insertParagraph)を捕まえて送信にする。変換中(isComposing)の確定Enterと、Shift+Enter(改行)は従来どおり。
+let __lastEnterShift = false;
+inputEl.addEventListener("keydown", (e) => { __lastEnterShift = !!e.shiftKey; });
+inputEl.addEventListener("beforeinput", (e) => {
+  if (e.isComposing || (e.inputType !== "insertLineBreak" && e.inputType !== "insertParagraph")) return;
+  if (__lastEnterShift) return; // Shift+Enterは改行
+  e.preventDefault();
+  formEl.requestSubmit();
+});
 
 formEl.addEventListener("submit", async (e) => {
   e.preventDefault();
@@ -7224,7 +7349,7 @@ formEl.addEventListener("submit", async (e) => {
       msg =
         `⏱ aruaru-llm did not reply in time (${err.message}). It may still be loading a large model, ` +
         `or the model is too big for this machine. Try a shorter message, or switch to a smaller model ` +
-        `(POST /v1/download-smaller on the aruaru-llm side).\n` +
+        `(DownloadSmaller on the aruaru-llm side).\n` +
         `⏱ aruaru-llmから時間内に応答がありませんでした(${err.message})。大きなモデルの読み込み中か、` +
         `この端末にはモデルが大きすぎる可能性があります。短い文で試すか、より小さなモデルへ切り替えてください。`;
     } else if (err instanceof TypeError) {
@@ -7425,7 +7550,7 @@ async function speechTranslationHelper(text, spokenTag) {
     if (!base) return;
 
     const res = await fetchWithTimeout(
-      `${base}/v1/translate`,
+      `${base}/aruaru_llm.v1.Llm/Translate`,
       {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -7484,7 +7609,7 @@ const whisperState = { loadPromise: null, pipelinePromise: null, disabled: false
 /** WASM 実行段のスレッド数ヒント(open-cpu の検出結果を server 経由で)。 */
 async function whisperWasmThreadHint() {
   try {
-    const res = await fetchWithTimeout("/v1/cpu-runtime", { cache: "no-store" }, 2000);
+    const res = await fetchWithTimeout("/openenglish.v1.CpuRuntime/CpuRuntime", { cache: "no-store" }, 2000);
     if (!res.ok) return 1;
     const d = await res.json();
     const hasSimd = !!(d && (d.avx2 || d.simd128 || d.neon || /avx2|neon|simd/i.test(JSON.stringify(d))));
@@ -7906,7 +8031,7 @@ async function serverTranscribePcm(pcm, langTag) {
       prompt = (typeof lastTrainerUtterance === "function" && lastTrainerUtterance()) || "";
     } catch (_) {}
     const res = await fetchWithTimeout(
-      `${base}/v1/transcribe`,
+      `${base}/aruaru_llm.v1.Llm/Transcribe`,
       {
         method: "POST",
         headers: { "content-type": "application/json" },
@@ -8144,7 +8269,27 @@ if (SpeechRecognitionImpl) {
     finalizeVoiceInput();
   });
   // 起動時から常時ONで待ち受け開始(挨拶の読み上げが終わってから)。
-  scheduleAutoListen(300);
+  // 2026-10-28 実機(Android Chrome)で発覚: マイクの許可が未決定のとき、ページを開いた直後に「マイクの使用許可を
+  // 求めています」のダイアログが出て、何も操作していない利用者を驚かせていた。許可がすでに「許可」の利用者だけ
+  // 従来どおり自動で待ち受け、未決定・拒否の利用者には、🎙を押したとき(利用者の操作による要求)に許可を求める。
+  // 2026-10-29 「音声OFF」ボタン(下の setupVoiceToggle)から、マイクの待ち受けを止めるための口。
+  window.__maidMicOff = () => {
+    voiceAlwaysOn = false;
+    try {
+      recognition.stop();
+    } catch (_) {
+      // 待ち受け中でなければ何もしない。
+    }
+  };
+  (async () => {
+    let state = "prompt";
+    try {
+      state = (await navigator.permissions.query({ name: "microphone" })).state;
+    } catch (_) {
+      // Permissions API非対応のブラウザは、自動では要求しない。
+    }
+    if (state === "granted" && !window.__voiceOff) scheduleAutoListen(300);
+  })();
 } else {
   micBtn.disabled = true;
   micBtn.title = "Voice input not supported in this browser / このブラウザは音声入力に対応していません";
@@ -8247,7 +8392,7 @@ if (foldLayersBtn) {
     foldLayersStatusEl.textContent = "…running fold-layers / fold-layers実行中…";
     try {
       const res = await fetchWithTimeout(
-        `${base}/v1/models/fold-layers`,
+        `${base}/aruaru_llm.v1.Llm/ModelsFoldLayers`,
         { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(body) },
         60000
       );
@@ -8295,8 +8440,8 @@ if (aruaruDbSetupBtn && aruaruDbSetupModal) {
 
 // データ・モデル保存先パネル(ユーザー指示「モデル重みの保存先と同期
 // バックアップ機能を実装、日英併記UIで」への対応、2026-08-19新設)。
-// バックエンドの`/v1/db/info`・`/v1/db/storage-path`・`/v1/db/rsync-backup`・
-// `/v1/db/install-rsync`(2026-08-18に実装済み)へ初めて接続するUI。
+// バックエンドの`/openenglish.v1.Db/Info`・`/openenglish.v1.Db/StoragePath`・`/openenglish.v1.Db/RsyncBackup`・
+// `/openenglish.v1.Db/InstallRsync`(2026-08-18に実装済み)へ初めて接続するUI。
 // 正直な開示: ここでバックアップ・移動できるのは会話履歴・設定の
 // SQLite DBのみ——`aruaru-llm`本体のモデル重み(GPT-2系・埋め込み
 // モデル)は別リポジトリ`aruaru-llm`自身の`/v1/models/*`APIで管理されて
@@ -8330,7 +8475,7 @@ async function refreshDataStorageInfo() {
   if (!dataStorageInfoEl) return;
   dataStorageInfoEl.textContent = "Loading… / 読み込み中…";
   try {
-    const res = await fetch("/v1/db/info");
+    const res = await fetch("/openenglish.v1.Db/Info");
     const info = await res.json();
     // 2026-08-24: DUAL同時書き込み(2つのDBへ同時に書き込む設定)に対応した
     // ため、ミラーの状態を「無効 / 1か所 / DUAL(2か所同時)」の3値で正直に
@@ -8395,7 +8540,7 @@ async function folderBrowserLoad(path) {
   folderBrowserListEl.textContent = "Loading… / 読み込み中…";
   folderBrowserStatusEl.textContent = "";
   try {
-    const url = path ? `/v1/fs/list-dir?path=${encodeURIComponent(path)}` : "/v1/fs/list-dir";
+    const url = path ? `/openenglish.v1.Fs/ListDir?path=${encodeURIComponent(path)}` : "/openenglish.v1.Fs/ListDir";
     const res = await fetch(url);
     const body = await res.json();
     if (!res.ok || !body.ok) {
@@ -8477,7 +8622,7 @@ if (dataStorageRelocateBtn) {
     }
     dataStorageRelocateStatusEl.textContent = "Moving… / 移動中…";
     try {
-      const res = await fetch("/v1/db/storage-path", {
+      const res = await fetch("/openenglish.v1.Db/StoragePath", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ new_path: newPath }),
@@ -8501,7 +8646,7 @@ async function runRsyncBackup() {
     dataStorageBackupStatusEl.textContent = "Please enter a backup destination. / バックアップ先を入力してください。";
     return null;
   }
-  const res = await fetch("/v1/db/rsync-backup", {
+  const res = await fetch("/openenglish.v1.Db/RsyncBackup", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ destination }),
@@ -8535,7 +8680,7 @@ if (dataStorageInstallRsyncBtn) {
     dataStorageBackupStatusEl.textContent = "Installing RSync… / RSyncをインストール中…";
     const destination = (dataStorageRsyncDestEl?.value || "").trim();
     try {
-      const res = await fetch("/v1/db/install-rsync", {
+      const res = await fetch("/openenglish.v1.Db/InstallRsync", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(destination ? { retry_destination: destination } : {}),
@@ -8559,7 +8704,7 @@ if (dataStorageInstallRsyncBtn) {
 // 指示「RSyncで、open-englishのaruaru-dbとpostgresqlを他のデバイスに
 // バックアップ同時を可能に、その設定方法も簡単にして」への対応、
 // 2026-08-19新設)。宛先を1箇所入力するだけで両方バックアップされる
-// (`/v1/db/rsync-backup-all`、既存の`/v1/db/rsync-backup`とは別
+// (`/openenglish.v1.Db/RsyncBackupAll`、既存の`/openenglish.v1.Db/RsyncBackup`とは別
 // エンドポイント)。
 const dataStorageRsyncDestAllEl = document.getElementById("data-storage-rsync-dest-all");
 const dataStorageBackupAllBtn = document.getElementById("data-storage-backup-all-btn");
@@ -8574,7 +8719,7 @@ if (dataStorageBackupAllBtn) {
     }
     dataStorageBackupAllStatusEl.textContent = "Backing up both… / 両方バックアップ中…";
     try {
-      const res = await fetch("/v1/db/rsync-backup-all", {
+      const res = await fetch("/openenglish.v1.Db/RsyncBackupAll", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ destination }),
@@ -8624,7 +8769,7 @@ async function requestDowngrade(component, version) {
   if (!confirmed) return;
   updatesDowngradeStatusEl.textContent = `Rolling back ${component} to ${version}… / ${component}を${version}へ戻しています…`;
   try {
-    const res = await fetch("/v1/updates/downgrade", {
+    const res = await fetch("/openenglish.v1.Updates/Downgrade", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ component, version }),
@@ -8654,7 +8799,7 @@ async function refreshUpdatesHistory() {
   if (!updatesHistoryListEl) return;
   updatesHistoryListEl.textContent = "Loading… / 読み込み中…";
   try {
-    const res = await fetch("/v1/updates/history");
+    const res = await fetch("/openenglish.v1.Updates/History");
     const body = await res.json();
     const components = body.components || [];
     updatesHistoryListEl.innerHTML = "";
@@ -9087,7 +9232,7 @@ async function isSearchConfiguredOnOwnDevice() {
   try {
     const base = apiBaseEl ? apiBaseEl.value.trim() : "";
     if (!base) return false;
-    const res = await fetchWithTimeout(`${base}/v1/settings/google-search`, { cache: "no-store" }, 2000);
+    const res = await fetchWithTimeout(`${base}/aruaru_llm.v1.Llm/GetGoogleSearchSettings`, { cache: "no-store" }, 2000);
     if (!res.ok) return false;
     const data = await res.json();
     return !!data.configured;
@@ -9157,7 +9302,7 @@ async function refreshGoogleSearchFallbackHealth() {
   const el = document.getElementById("google-search-fallback-health");
   if (!el) return;
   try {
-    const res = await fetchWithTimeout(`${apiBaseEl.value.trim()}/v1/search/fallback-status`, {}, 5000);
+    const res = await fetchWithTimeout(`${apiBaseEl.value.trim()}/aruaru_llm.v1.Llm/SearchFallbackStatus`, {}, 5000);
     if (!res.ok) {
       el.textContent = "";
       return;
@@ -9748,8 +9893,8 @@ if (googleSearchBtn && googleSearchModal) {
     if (!base) return;
     try {
       const [priorityRes, keysRes] = await Promise.all([
-        fetchWithTimeout(`${base}/v1/settings/provider-priority`, { cache: "no-store" }, 4000),
-        fetchWithTimeout(`${base}/v1/settings/chat-providers`, { cache: "no-store" }, 4000),
+        fetchWithTimeout(`${base}/aruaru_llm.v1.Llm/GetProviderPrioritySettings`, { cache: "no-store" }, 4000),
+        fetchWithTimeout(`${base}/aruaru_llm.v1.Llm/GetChatProviderSettings`, { cache: "no-store" }, 4000),
       ]);
       if (priorityRes.ok) {
         const data = await priorityRes.json();
@@ -9804,7 +9949,7 @@ if (googleSearchBtn && googleSearchModal) {
     const results = [];
     try {
       const res = await fetchWithTimeout(
-        `${base}/v1/settings/provider-priority`,
+        `${base}/aruaru_llm.v1.Llm/SetProviderPrioritySettings`,
         { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ enabled, order: priorityOrder }) },
         8000
       );
@@ -9836,7 +9981,7 @@ if (googleSearchBtn && googleSearchModal) {
       }
       try {
         const res = await fetchWithTimeout(
-          `${base}/v1/settings/chat-providers`,
+          `${base}/aruaru_llm.v1.Llm/SetChatProviderSettings`,
           { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ provider, api_key: value }) },
           8000
         );
@@ -9857,7 +10002,7 @@ if (googleSearchBtn && googleSearchModal) {
   // 配信している場合)とブラウザ版(file://直接、または開発者用の別サーバー
   // からの配信)を区別する(ユーザー指示「ダウンロードPC版は端末のPCです
   // よね？そのDATABASEに保存して次回そこから読んで良いか質問する機能を
-  // 搭載して」への対応)。判定は「同一オリジンの`/v1/db/settings`
+  // 搭載して」への対応)。判定は「同一オリジンの`/openenglish.v1.Db/SettingsGet`
   // (open-english-serverのSQLite設定API)が実際に到達可能かどうか」で
   // 行う——これはブラウザ版(共有VPS等)でも技術的には到達可能なため
   // 完全に確実な判定ではないが、少なくとも「サーバーへ到達できない
@@ -9875,7 +10020,7 @@ if (googleSearchBtn && googleSearchModal) {
   // 選択肢を追加する形)。
   async function isDbReachable() {
     try {
-      const res = await fetchWithTimeout("/v1/db/settings", { cache: "no-store" }, 3000);
+      const res = await fetchWithTimeout("/openenglish.v1.Db/SettingsGet", { cache: "no-store" }, 3000);
       return res.ok;
     } catch (e) {
       return false;
@@ -9926,7 +10071,7 @@ if (googleSearchBtn && googleSearchModal) {
     if (!(await isDbReachable())) return;
     let settings;
     try {
-      const res = await fetchWithTimeout("/v1/db/settings", { cache: "no-store" }, 3000);
+      const res = await fetchWithTimeout("/openenglish.v1.Db/SettingsGet", { cache: "no-store" }, 3000);
       if (!res.ok) return;
       settings = await res.json();
     } catch (e) {
@@ -9964,7 +10109,7 @@ if (googleSearchBtn && googleSearchModal) {
       const value = settings[`open-english.dbProviderKey.${provider}`];
       try {
         await fetchWithTimeout(
-          `${base}/v1/settings/chat-providers`,
+          `${base}/aruaru_llm.v1.Llm/SetChatProviderSettings`,
           { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ provider, api_key: value }) },
           8000
         );
@@ -10063,10 +10208,10 @@ if (googleSearchBtn && googleSearchModal) {
       refreshLocalProviderKeyStatus();
       if (base) {
         try {
-          await fetchWithTimeout(`${base}/v1/settings/chat-providers`, { method: "DELETE" }, 8000);
-          await fetchWithTimeout(`${base}/v1/settings/provider-priority`, { method: "DELETE" }, 8000);
-          await fetchWithTimeout(`${base}/v1/settings/github-search`, { method: "DELETE" }, 8000);
-          await fetchWithTimeout(`${base}/v1/settings/youtube-search`, { method: "DELETE" }, 8000);
+          await fetchWithTimeout(`${base}/aruaru_llm.v1.Llm/ClearChatProviderSettings`, { method: "DELETE" }, 8000);
+          await fetchWithTimeout(`${base}/aruaru_llm.v1.Llm/ResetProviderPrioritySettings`, { method: "DELETE" }, 8000);
+          await fetchWithTimeout(`${base}/aruaru_llm.v1.Llm/ClearGithubSearchSettings`, { method: "DELETE" }, 8000);
+          await fetchWithTimeout(`${base}/aruaru_llm.v1.Llm/ClearYoutubeSearchSettings`, { method: "DELETE" }, 8000);
         } catch (e) {
           /* ignore, best-effort */
         }
@@ -10121,7 +10266,7 @@ if (googleSearchBtn && googleSearchModal) {
     try {
       body.providers = getSelectedAis();
       const res = await fetchWithTimeout(
-        `${base}/v1/chat-providers/complete-priority`,
+        `${base}/aruaru_llm.v1.Llm/ChatProvidersCompletePriority`,
         { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(body) },
         45000
       );
@@ -10605,7 +10750,7 @@ function saveCustomQaPairs(pairs) {
   // なった(ユーザー報告)。専用のログイン不要な`POST /v1/custom-qa`を
   // 直接呼ぶことで、登録UIの表示制御(管理者にのみボタンを見せる)を
   // アクセス制御として使う既存方針と整合させる。
-  fetch("/v1/custom-qa", {
+  fetch("/openenglish.v1.CustomQa/CustomQaSet", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ pairs }),
@@ -10624,7 +10769,7 @@ function saveCustomQaPairs(pairs) {
  */
 // VPS本番の公開カスタムQ&Aエンドポイント(絶対URL)。PC/タブレット/
 // スマホ版(それぞれ`http://localhost:4601`等、別オリジンで動くローカル
-// サーバー)は自分自身の`/v1/custom-qa`(自分のローカルDB、通常は空)
+// サーバー)は自分自身の`/openenglish.v1.CustomQa/CustomQaGet`(自分のローカルDB、通常は空)
 // ではなく、この絶対URLを直接fetchすることで、管理者がVPS本番へ登録した
 // 最新のQ&Aを毎回反映できる(2026-09-13新設、ユーザー指示「PC、タブレット、
 // スマホ版でも…毎回最新のDATABASE Q&AのDATAもdemoと同じ様にAIが自動回答
@@ -10671,7 +10816,7 @@ function getSelectedAis() {
 const SHARED_PRIORITY_PROVIDER_ABSOLUTE_URL = "https://easy-web.tokyo/open-english/v1/public/chat-providers/complete-priority";
 async function trySharedPriorityProviderReply(prompt) {
   if (isCloudOff()) return null;
-  const url = location.hostname === "easy-web.tokyo" ? "/v1/public/chat-providers/complete-priority" : SHARED_PRIORITY_PROVIDER_ABSOLUTE_URL;
+  const url = location.hostname === "easy-web.tokyo" ? "/openenglish.v1.ChatProviders/CompletePriority" : SHARED_PRIORITY_PROVIDER_ABSOLUTE_URL;
   try {
     // 2026-09-22追加: 文字入力・音声入力・言語翻訳に「自信がない」と判定できたときは、
     // 共有WEB版の呼び出しにもGoogle検索の裏取りを付ける(`shouldBoostWithGoogleSearch`)。
@@ -10702,7 +10847,7 @@ async function fetchSharedCustomQaPairs() {
   // (デモはサーバー側で本番へ中継、本番は自分自身のDBを返す)。それ以外
   // (PC/タブレット/スマホ版のローカルサーバー)は絶対URLで本番へ直接
   // fetchする。
-  const url = location.hostname === "easy-web.tokyo" ? "/v1/custom-qa" : SHARED_CUSTOM_QA_ABSOLUTE_URL;
+  const url = location.hostname === "easy-web.tokyo" ? "/openenglish.v1.CustomQa/CustomQaGet" : SHARED_CUSTOM_QA_ABSOLUTE_URL;
   try {
     const res = await fetchWithTimeout(url, { cache: "no-store" }, 4000);
     if (!res.ok) return [];
@@ -10738,7 +10883,10 @@ async function matchCustomQaAll(userText) {
     seen.add(key);
     pairs.push(pair);
   }
-  const haystack = userText.toLowerCase();
+  let haystack = userText.toLowerCase();
+  // 2026-10-28 ユーザー指示(「核武装」「核」「核ミサイル」は同じ回答にして): 単独の「核」と「核ミサイル」は、登録済みの
+  // 「核武装」の別名として照合する(登録の追加には管理者のログインが要るため、画面側の別名で対応)。
+  if (isNuclearArmamentAlias(userText)) haystack += " 核武装";
   return pairs.filter(
     (pair) => pair.keywords.length > 0 && pair.keywords.every((kw) => haystack.includes(String(kw).toLowerCase()))
   );
@@ -10955,7 +11103,7 @@ function persistSetting(key, value) {
   } catch (e) {
     /* localStorageが使えなくてもDB側には保存される(次回はDBから復元) */
   }
-  fetch("/v1/db/settings", {
+  fetch("/openenglish.v1.Db/SettingsSet", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ key, value }),
@@ -10969,7 +11117,7 @@ function persistSetting(key, value) {
 async function restoreSettingsFromServer() {
   let settings;
   try {
-    const res = await fetch("/v1/db/settings", { cache: "no-store" });
+    const res = await fetch("/openenglish.v1.Db/SettingsGet", { cache: "no-store" });
     if (!res.ok) return;
     settings = await res.json();
   } catch (e) {
@@ -11062,7 +11210,7 @@ function saveEnabledLanguages(codes) {
 
 async function fetchWorldLanguages() {
   try {
-    const res = await fetch("/v1/world-languages", { cache: "no-store" });
+    const res = await fetch("/openenglish.v1.WorldLanguages/WorldLanguages", { cache: "no-store" });
     if (!res.ok) throw new Error(`HTTP ${res.status}`);
     const data = await res.json();
     // 2026-08-25新設: メモリ/ディスク容量が限られたデプロイ(VPS等)向けの
@@ -11772,7 +11920,7 @@ if (multiSpeakOutputEl) {
   if (saveDbBtn) {
     saveDbBtn.addEventListener("click", async () => {
       try {
-        const res = await fetch("/v1/db/history", {
+        const res = await fetch("/openenglish.v1.Db/HistorySet", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ role: "multilingual-phrase", content: multiSpeakPlainText() }),
@@ -11846,7 +11994,7 @@ async function runTopicBriefing() {
   // 1) 先頭の言語のニュース見出し(実際にインターネットから取得)
   let newsHtml = "";
   try {
-    const res = await fetch(`/v1/region-news?lang=${encodeURIComponent(top)}`, { cache: "no-store" });
+    const res = await fetch(`/openenglish.v1.RegionNews/RegionNews?lang=${encodeURIComponent(top)}`, { cache: "no-store" });
     const data = await res.json();
     if (data.ok && (data.headlines || []).length > 0) {
       newsHtml =
@@ -11871,7 +12019,7 @@ async function runTopicBriefing() {
   for (const code of codes) {
     let region = null;
     try {
-      const res = await fetch(`/v1/region-info?lang=${encodeURIComponent(code)}`, { cache: "no-store" });
+      const res = await fetch(`/openenglish.v1.RegionInfo/RegionInfo?lang=${encodeURIComponent(code)}`, { cache: "no-store" });
       const data = await res.json();
       if (data.ok) region = data.region;
     } catch (e) {
@@ -12040,7 +12188,7 @@ async function installAndSwitchModel(base, id, statusEl) {
   if (isSharedLlmDeployment()) {
     statusEl.textContent = `Switching to ${id}… / ${id}へ切替中…`;
     try {
-      const selectRes = await fetch("/v1/public/aruaru-llm/models/select", {
+      const selectRes = await fetch("/openenglish.v1.AruaruLlm/ModelsSelect", {
         method: "POST",
         headers: { "content-type": "application/json" },
         body: JSON.stringify({ id }),
@@ -12065,13 +12213,13 @@ async function installAndSwitchModel(base, id, statusEl) {
   }
   statusEl.textContent = `Installing & switching to ${id}… / ${id}へインストール・切替中…`;
   try {
-    const installRes = await fetch(`${base}/v1/models/install`, {
+    const installRes = await llmFetch(`${base}/aruaru_llm.v1.Llm/ModelsInstall`, {
       method: "POST",
       headers: { "content-type": "application/json" },
       body: JSON.stringify({ id }),
     });
     if (!installRes.ok) throw new Error(`install HTTP ${installRes.status}`);
-    const selectRes = await fetch(`${base}/v1/models/select`, {
+    const selectRes = await llmFetch(`${base}/aruaru_llm.v1.Llm/ModelsSelect`, {
       method: "POST",
       headers: { "content-type": "application/json" },
       body: JSON.stringify({ id }),
@@ -12091,9 +12239,9 @@ async function detectAndCompareLlm() {
   if (llmDemoSharedNoteEl) llmDemoSharedNoteEl.classList.toggle("hidden", !shared);
   llmRecommendBody.innerHTML = "<p class=\"setup-note\">Detecting… / 検出中…</p>";
   try {
-    const recUrl = shared ? "/v1/public/aruaru-llm/recommend" : `${base}/v1/recommend`;
-    const catalogUrl = shared ? "/v1/public/aruaru-llm/models/catalog" : `${base}/v1/models/catalog`;
-    const [recRes, catalogRes] = await Promise.all([fetch(recUrl), fetch(catalogUrl)]);
+    const recUrl = shared ? "/openenglish.v1.AruaruLlm/Recommend" : `${base}/aruaru_llm.v1.Llm/Recommend`;
+    const catalogUrl = shared ? "/openenglish.v1.AruaruLlm/ModelsCatalog" : `${base}/aruaru_llm.v1.Llm/ModelsCatalog`;
+    const [recRes, catalogRes] = await Promise.all([llmFetch(recUrl), llmFetch(catalogUrl)]);
     if (!recRes.ok || !catalogRes.ok) throw new Error(`HTTP ${recRes.status}/${catalogRes.status}`);
     const rec = await recRes.json();
     const catalog = await catalogRes.json();
@@ -12174,8 +12322,8 @@ async function detectAndCompareLlm() {
     if (!shared) {
       try {
         const [rt, ac] = await Promise.all([
-          fetch(`${base}/v1/runtime`).then((r) => (r.ok ? r.json() : null)).catch(() => null),
-          fetch(`${base}/v1/accelerators`).then((r) => (r.ok ? r.json() : null)).catch(() => null),
+          llmFetch(`${base}/aruaru_llm.v1.Llm/Runtime`).then((r) => (r.ok ? r.json() : null)).catch(() => null),
+          llmFetch(`${base}/aruaru_llm.v1.Llm/Accelerators`).then((r) => (r.ok ? r.json() : null)).catch(() => null),
         ]);
         const lines = [];
         if (ac) lines.push(`CPU: ${ac.cpu_logical_cores} logical cores / 論理コア ${ac.cpu_logical_cores} (${ac.os}/${ac.arch})`);
@@ -12251,7 +12399,7 @@ async function pollLlmSwitchingStatus() {
   const bannerEl = document.getElementById("llm-switching-banner");
   if (!bannerEl) return;
   try {
-    const res = await fetch("/v1/public/aruaru-llm/switch-status", { cache: "no-store" });
+    const res = await fetch("/openenglish.v1.AruaruLlm/SwitchStatus", { cache: "no-store" });
     if (!res.ok) return;
     const data = await res.json();
     if (data.switching) {
@@ -12519,13 +12667,13 @@ const NETWORK_STATUS_LABELS = {
 async function refreshNetworkStatus() {
   if (!networkStatusBadge || !networkStatusTextEl) return;
   try {
-    // 実バグ修正(2026-09-07): `/v1/network/status`はこのopen-english-
+    // 実バグ修正(2026-09-07): `/openenglish.v1.Network/Status`はこのopen-english-
     // server自身のエンドポイント(server/src/main.rsのnetwork_status)で
     // あり、aruaru-llm側のベースURL(apiBaseEl、別オリジンかつ別ポート)
     // ではない。誤って`apiBaseEl`を付けていたためaruaru-llm側へCORS
     // ブロック済みのクロスオリジンリクエストを送ってしまい、常に失敗して
     // いた——同一オリジンの相対パスで呼ぶよう修正。
-    const res = await fetch("/v1/network/status");
+    const res = await fetch("/openenglish.v1.Network/Status");
     const data = await res.json();
     const isPublic = !!data.is_public;
     networkStatusBadge.classList.toggle("is-public", isPublic);
@@ -12590,7 +12738,7 @@ if (duckdnsUpdateBtn) {
     }
     if (duckdnsStatusEl) duckdnsStatusEl.textContent = "Updating… / 更新中…";
     try {
-      const res = await fetch(`${apiBaseEl ? apiBaseEl.value.replace(/\/$/, "") : ""}/v1/duckdns/update`, {
+      const res = await fetch(`${apiBaseEl ? apiBaseEl.value.replace(/\/$/, "") : ""}/openenglish.v1.Duckdns/Update`, {
         method: "POST",
         headers: { "content-type": "application/json" },
         body: JSON.stringify({ domain, token }),
@@ -12678,7 +12826,7 @@ async function refreshWorldLabStatus() {
   if (!worldLabStatusInfoEl) return;
   worldLabStatusInfoEl.textContent = "Loading… / 読み込み中…";
   try {
-    const res = await fetch("/v1/world-lab/status");
+    const res = await fetch("/openenglish.v1.WorldLab/Status");
     const info = await res.json();
     const en = info.enabled ? "ENABLED (pairing)" : "disabled";
     const ja = info.enabled ? "有効(ペアリング)" : "無効";
@@ -12697,7 +12845,7 @@ async function refreshWorldLabDevices() {
   if (!worldLabDeviceListEl) return;
   worldLabDeviceListEl.textContent = "Loading… / 読み込み中…";
   try {
-    const res = await fetch("/v1/world-lab/devices");
+    const res = await fetch("/openenglish.v1.WorldLab/Devices");
     const body = await res.json();
     if (!res.ok || !body.ok) {
       worldLabDeviceListEl.textContent = `${body.error || "unknown error"} / ${body.error || "不明なエラー"}`;
@@ -12721,7 +12869,7 @@ async function refreshWorldLabDevices() {
       unpairBtn.textContent = "✕ Unpair / 解除";
       unpairBtn.addEventListener("click", async () => {
         try {
-          const r = await fetch("/v1/world-lab/unpair", {
+          const r = await fetch("/openenglish.v1.WorldLab/Unpair", {
             method: "POST",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({ device_id: d.device_id }),
@@ -13079,7 +13227,7 @@ if (worldLabPairBtn) {
     }
     worldLabPairStatusEl.textContent = "Pairing… / ペアリング中…";
     try {
-      const res = await fetch("/v1/world-lab/pair", {
+      const res = await fetch("/openenglish.v1.WorldLab/Pair", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ token, device_name: deviceName, connection, kind, capabilities }),
@@ -13123,7 +13271,7 @@ if (worldLabBulkPairBtn) {
     worldLabBulkPairStatusEl.textContent = `Pairing ${names.length} device(s)… / ${names.length}台をペアリング中…`;
     try {
       const devices = names.map((device_name) => ({ device_name, connection, kind, capabilities }));
-      const res = await fetch("/v1/world-lab/pair/bulk", {
+      const res = await fetch("/openenglish.v1.WorldLab/PairBulk", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ token, devices }),
@@ -13167,7 +13315,7 @@ if (worldLabTaskRunBtn) {
       const inputText = worldLabTaskInputEl?.value || "";
       const wasmBase64 = arrayBufferToBase64(wasmBytes);
       const inputBase64 = btoa(unescape(encodeURIComponent(inputText)));
-      const res = await fetch("/v1/world-lab/task/run", {
+      const res = await fetch("/openenglish.v1.WorldLab/TaskRun", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ token, wasm_base64: wasmBase64, input_base64: inputBase64 }),
@@ -14449,7 +14597,7 @@ function saveTutorSettings() {
 function recordTutorHistory(text) {
   try {
     const base = typeof apiBaseEl !== "undefined" && apiBaseEl ? "" : "";
-    fetch(`${base}/v1/db/history`, {
+    fetch(`${base}/openenglish.v1.Db/HistorySet`, {
       method: "POST",
       headers: { "content-type": "application/json" },
       body: JSON.stringify({ role: "tutor-course-result", content: text }),
@@ -15242,7 +15390,7 @@ function renderTutorProgrammingMaterials() {
 //
 // 設計は既存の「学生向け家庭教師コース」(TUTOR_*)をそのまま踏襲する:
 //   区分(学年に相当)を選ぶ → 分野(教科に相当)をチェックしてインストール
-//   → ランダム出題 → 採点 → `/v1/db/history` へ保存 → トレーナーと復習。
+//   → ランダム出題 → 採点 → `/openenglish.v1.Db/HistoryGet` へ保存 → トレーナーと復習。
 // 新しい保存先・新しいAPIは一切増やしていない。
 //
 // **正直な開示(改変時も弱めないこと)**:
@@ -16777,7 +16925,7 @@ function saveVschoolSettings() {
  *  失敗しても学習の進行は止めない。 */
 function recordVschoolHistory(text) {
   try {
-    fetch("/v1/db/history", {
+    fetch("/openenglish.v1.Db/HistorySet", {
       method: "POST",
       headers: { "content-type": "application/json" },
       body: JSON.stringify({ role: "virtual-school-result", content: text }),
@@ -17722,7 +17870,7 @@ async function freelanceCopyText(text, statusEl) {
 // キー(無料枠のみ・あくまで予備)へフォールバックする優先順位へ変更した。
 async function freelanceRunSearchViaAruaruSearch(query) {
   const res = await fetchWithTimeout(
-    "/v1/public/freelance/job-search",
+    "/openenglish.v1.Freelance/JobSearch",
     { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ query }) },
     15000,
   );
@@ -17970,7 +18118,7 @@ function freelanceRefreshGithubTokenStatus() {
       : "Vault未読み込みです。上の欄でURLを指定して読み込んでください。 / Vault not loaded yet — enter its URL above and load it.";
   } else if (mode === "server") {
     freelanceGithubTokenStatusEl.textContent = "確認中... / Checking...";
-    fetch("/v1/agent/github/status", { cache: "no-store" })
+    fetch("/openenglish.v1.Agent/GithubStatus", { cache: "no-store" })
       .then((res) => res.json())
       .then((data) => {
         if (!freelanceGithubTokenStatusEl) return;
@@ -18454,7 +18602,7 @@ function freelanceUtf8ToBase64(str) {
 async function freelanceGithubServerCreateRepoAndPush() {
   const repoName = (freelanceGithubRepoNameEl?.value || "").trim();
   if (!repoName) throw new Error("リポジトリ名を入力してください。 / Please enter a repository name.");
-  const res = await fetch("/v1/agent/github/create-and-push", {
+  const res = await fetch("/openenglish.v1.Agent/GithubCreateAndPush", {
     method: "POST",
     headers: { "content-type": "application/json" },
     body: JSON.stringify({
@@ -18598,7 +18746,7 @@ async function refreshAdminState() {
   }
   let session = { logged_in: false, admin: false, local: false };
   try {
-    const res = await fetch("/v1/auth/session", { cache: "no-store" });
+    const res = await fetch("/openenglish.v1.Auth/Session", { cache: "no-store" });
     if (res.ok) session = await res.json();
   } catch (e) {
     /* 到達できない配信形態(file://等)では管理機能なしのまま */
@@ -18619,7 +18767,7 @@ async function refreshAdminState() {
       e.preventDefault();
       applyLoginModeToGate("otp");
       const note = document.getElementById("login-2fa-note");
-      if (note) note.classList.add("hidden");
+      if (note) note.classList.remove("hidden"); // 管理者は常に2段階(メールのコード+スマホでQR確認)
       const title = document.getElementById("login-gate-title");
       if (title) title.textContent = "🔐 Administrator login / 管理者ログイン";
       if (closeEl) closeEl.classList.remove("hidden");
@@ -18728,7 +18876,7 @@ const INSTALLER_QUICK_LINK_CLOSED_KEY = "open-english.installerQuickLinkClosed";
   let lastStatus = null;
   async function refreshAiInUse() {
     try {
-      const res = await fetch(sharedBase() + "/v1/public/chat-providers/active", { cache: "no-store" });
+      const res = await fetch(sharedBase() + "/openenglish.v1.ChatProviders/Active", { cache: "no-store" });
       if (!res.ok) throw new Error("HTTP " + res.status);
       const s = await res.json();
       try {
@@ -18736,7 +18884,7 @@ const INSTALLER_QUICK_LINK_CLOSED_KEY = "open-english.installerQuickLinkClosed";
         if (!document.documentElement.classList.contains("is-web-only")) {
           const lb = (document.getElementById("api-base") || {}).value;
           if (lb) {
-            const lr = await fetch(lb.trim().replace(/\/$/, "") + "/v1/chat-providers/active", { cache: "no-store" });
+            const lr = await llmFetch(lb.trim().replace(/\/$/, "") + "/aruaru_llm.v1.Llm/ChatProvidersActive", { cache: "no-store" });
             if (lr.ok) {
               const ls = await lr.json();
               s.available = Array.from(new Set([...(ls.available || []), ...(s.available || [])]));
@@ -19021,5 +19169,143 @@ const INSTALLER_QUICK_LINK_CLOSED_KEY = "open-english.installerQuickLinkClosed";
 (function () {
   if (!/^(127\.0\.0\.1|localhost|\[::1\])$/.test(location.hostname)) {
     document.documentElement.classList.add("is-web-only");
+  }
+})();
+
+// 2026-10-29 ユーザー指示「音声をOFFにする機能」: ドックの🔊/🔇ボタンで、読み上げ(声)とマイクの常時待ち受けを、ワンタップで止める。
+// OFFのときは、いま話している声も止め、新しい返答も声にしない(文字は出る)。設定は端末に覚える(localStorage)。
+// ONに戻すと、読み上げが再開する。マイクは、🎙を押したときに、また待ち受けを始める(勝手には始めない)。
+(function setupVoiceToggle() {
+  const btn = document.getElementById("dock-voice-toggle");
+  if (!btn) return;
+  const KEY = "maid.voiceOff";
+  const stored = () => {
+    try {
+      return localStorage.getItem(KEY) === "1";
+    } catch (e) {
+      return false;
+    }
+  };
+  const stopAllSpeech = () => {
+    try {
+      if ("speechSynthesis" in window) window.speechSynthesis.cancel();
+    } catch (e) {
+      // 止められなくても続行
+    }
+    try {
+      serverTtsCancel();
+    } catch (e) {
+      // 同上
+    }
+    try {
+      trainerEl.classList.remove("speaking");
+    } catch (e) {
+      // 同上
+    }
+  };
+  function apply(off, persist) {
+    window.__voiceOff = off;
+    btn.textContent = off ? "🔇" : "🔊";
+    btn.setAttribute("aria-pressed", String(off));
+    btn.title = off ? "音声OFF中(タップでON) / Voice is OFF (tap to turn on)" : "音声ON(タップでOFF) / Voice is ON (tap to turn off)";
+    btn.classList.toggle("voice-off", off);
+    if (voiceOutEl) voiceOutEl.checked = !off;
+    if (off) {
+      stopAllSpeech();
+      if (typeof window.__maidMicOff === "function") window.__maidMicOff();
+    }
+    if (persist) {
+      try {
+        if (off) localStorage.setItem(KEY, "1");
+        else localStorage.removeItem(KEY);
+      } catch (e) {
+        // 覚えられなくても、この画面の間は有効
+      }
+    }
+  }
+  btn.addEventListener("click", () => apply(!window.__voiceOff, true));
+  apply(stored(), false);
+})();
+
+// 2026-10-30 ユーザー指示: 画面かアプリを起動したら、「お帰りなさいませ!ご主人様!美味しくなーれ…」とお出迎えする。
+// 文字は、開いた直後にチャットへ出す。声は、ブラウザの決まり(最初の操作の後でないと声を出せない)により、最初のタップ/キー入力の後に1回だけ。
+// 音声OFF(🔇)のときは、文字だけで声は出さない。
+(function setupWelcomeGreeting() {
+  try {
+    const helper = typeof activeCharacter !== "undefined" && activeCharacter === "helper";
+    const text = helper
+      ? "Welcome back, master! / お帰りなさいませ、ご主人様!\nいらっしゃいませ。今日も一緒に学びましょう! / Let's learn together today!"
+      : "Welcome home, master! / お帰りなさいませ!ご主人様!\n美味しくなーれ、萌え萌えキュ-ン♡ 萌え萌えキュ-ン♡ / Delicious, moe moe kyun!♡ Moe moe kyun!♡";
+    appendMessage("trainer", text);
+    const say = "お帰りなさいませ!ご主人様!美味しくなーれ、萌え萌えキュ〜ン!萌え萌えキュ〜ン!";
+    let spoken = false;
+    // 声を出す。ブラウザが「操作の前の自動再生」を断った(not-allowed)ときは、onBlockedを呼ぶ。
+    const speakNow = (onBlocked) => {
+      if (spoken || window.__voiceOff || !voiceOutEl.checked || !hasSpeechOutput() || !("speechSynthesis" in window)) return;
+      try {
+        window.speechSynthesis.cancel();
+        serverTtsCancel();
+        // 出だし(「お帰りなさい」)が欠けて聞こえる不具合の対策: 先頭に短い間(読点)を足す
+        const utter = new SpeechSynthesisUtterance("、、" + prepareSpeechText(say, "ja-JP"));
+        utter.lang = "ja-JP";
+        const voice = pickVoice("ja-JP", false);
+        if (voice) utter.voice = voice;
+        utter.pitch = 1.7; // 可愛らしく、愛くるしい高めの声
+        utter.rate = 1.0;
+        utter.onstart = () => {
+          spoken = true;
+          window.__greetVia = "speech";
+          trainerEl.classList.add("speaking");
+        };
+        const end = () => trainerEl.classList.remove("speaking");
+        utter.onend = end;
+        utter.onerror = (ev) => {
+          end();
+          if (!spoken && ev && ev.error === "not-allowed" && onBlocked) onBlocked();
+        };
+        // cancel()の直後にすぐ話すと出だしが欠けることがあるため、少し待ってから話す
+        setTimeout(() => window.speechSynthesis.speak(utter), 300);
+      } catch (err) {
+        // 声が出せなくても、文字のお出迎えは出ている
+      }
+    };
+    // 録音済みの声(サーバーのKokoroで作った女性の声。先頭に0.4秒の無音を足し、出だしが欠けないようにしてある)。
+    // <audio>の再生は、Web Speechよりブラウザの自動再生の許可が通りやすい(操作の後のF5・リセット、ホーム画面に入れたアプリ、
+    // サイトの音の許可、など)。断られたら、Web Speech、それも断られたら最初の操作の直後に話す。
+    const playGreetingAudio = () =>
+      new Promise((resolve) => {
+        if (spoken || window.__voiceOff || !voiceOutEl.checked) return resolve(true);
+        try {
+          const a = new Audio("greeting.wav?v=20261030g");
+          a.onplaying = () => {
+            spoken = true;
+            window.__greetVia = "audio";
+            trainerEl.classList.add("speaking");
+          };
+          a.onended = a.onerror = () => trainerEl.classList.remove("speaking");
+          a.play().then(() => resolve(true), () => resolve(false));
+        } catch (err) {
+          resolve(false);
+        }
+      });
+    // 1) 開いた直後(F5・リセットの後も)に、まず自動で話してみる(録音 → Web Speech)。
+    // 2) どちらもブラウザに断られたら、最初のタップ/キー入力の直後に、1回だけ話す。
+    const armGesture = () => {
+      const once = () => {
+        window.removeEventListener("pointerdown", once, true);
+        window.removeEventListener("keydown", once, true);
+        playGreetingAudio().then((ok) => {
+          if (!ok) speakNow(null);
+        });
+      };
+      window.addEventListener("pointerdown", once, true);
+      window.addEventListener("keydown", once, true);
+    };
+    playGreetingAudio().then((ok) => {
+      if (!ok) window.__greetVia = "blocked-audio";
+      if (!ok) speakNow(armGesture);
+    });
+  } catch (e) {
+    // お出迎えが出せなくても、アプリ本体は動かす
   }
 })();

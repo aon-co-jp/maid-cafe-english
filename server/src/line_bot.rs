@@ -254,7 +254,7 @@ async fn ask_llm(prompt: &str) -> String {
     if !crate::aruaru_llm_chat_rate_limit_allow() {
         return "ただいま混み合っています。少し待ってからもう一度送ってください。".to_string();
     }
-    let url = format!("{}/v1/chat-providers/complete-priority", crate::aruaru_llm_base_url());
+    let url = crate::llm_connect_url("ChatProvidersCompletePriority");
     let client = match reqwest::Client::builder().timeout(std::time::Duration::from_secs(25)).build() {
         Ok(c) => c,
         Err(_) => return "エラーが発生しました。0 でメニューに戻れます。".to_string(),
@@ -416,7 +416,7 @@ async fn transcribe_line_audio(token: &str, message_id: &str, lang: usize) -> Re
         "language": LANG_CODES[lang.min(LANG_CODES.len() - 1)],
     });
     let resp = client
-        .post(format!("{}/v1/transcribe", crate::aruaru_llm_base_url()))
+        .post(crate::llm_connect_url("Transcribe"))
         .json(&body)
         .send()
         .await

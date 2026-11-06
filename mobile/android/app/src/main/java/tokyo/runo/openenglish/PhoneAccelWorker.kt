@@ -15,8 +15,8 @@ import java.net.URL
 import kotlin.math.sqrt
 
 /**
- * PC側(`aruaru-llm`)が新設した`GET /v1/background-fold/task`・
- * `POST /v1/background-fold/task-result`をポーリングし、受け取った軽量な
+ * PC側(`aruaru-llm`)が新設した`POST /aruaru_llm.v1.Llm/BackgroundFoldTask`・
+ * `POST /aruaru_llm.v1.Llm/BackgroundFoldTaskResult`をポーリングし、受け取った軽量な
  * 数値計算タスク(2本のベクトルのコサイン類似度)をこの端末上で実行して
  * 結果を送り返すワーカー(2026-08-19新設、ユーザー指示「使わなくなった
  * スマホもフル動員…USBで接続すると、そのスマホのCPU・GPU・NPUを
@@ -145,12 +145,15 @@ class PhoneAccelWorker(
     private data class Task(val taskId: Long, val vecA: FloatArray, val vecB: FloatArray)
 
     private suspend fun fetchTask(): Task? = withContext(Dispatchers.IO) {
-        val url = URL("$pcBaseUrl/v1/background-fold/task")
+        val url = URL("$pcBaseUrl/aruaru_llm.v1.Llm/BackgroundFoldTask")
         val conn = url.openConnection() as HttpURLConnection
-        conn.requestMethod = "GET"
+        conn.requestMethod = "POST"
+        conn.doOutput = true
+        conn.setRequestProperty("Content-Type", "application/json")
         conn.connectTimeout = CONNECT_TIMEOUT_MS
         conn.readTimeout = READ_TIMEOUT_MS
         try {
+            conn.outputStream.use { it.write("{}".toByteArray(Charsets.UTF_8)) }
             if (conn.responseCode != 200) return@withContext null
             val body = conn.inputStream.bufferedReader().use { it.readText() }
             val json = JSONObject(body)
@@ -165,7 +168,7 @@ class PhoneAccelWorker(
     }
 
     private suspend fun submitResult(taskId: Long, similarity: Float) = withContext(Dispatchers.IO) {
-        val url = URL("$pcBaseUrl/v1/background-fold/task-result")
+        val url = URL("$pcBaseUrl/aruaru_llm.v1.Llm/BackgroundFoldTaskResult")
         val conn = url.openConnection() as HttpURLConnection
         conn.requestMethod = "POST"
         conn.doOutput = true

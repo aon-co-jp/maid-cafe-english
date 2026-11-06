@@ -157,7 +157,7 @@ pub async fn refine_with_llm(limit: usize) -> usize {
         }
         let docs: Vec<String> = cands.iter().take(15).map(|s| s.chars().take(400).collect()).collect();
         let q: String = title.chars().take(300).collect();
-        let resp = client.post(format!("{base}/v1/rerank")).json(&json!({"query": q, "documents": docs})).send().await;
+        let resp = client.post(crate::llm_connect_url("Rerank")).json(&json!({"query": q, "documents": docs})).send().await;
         let scores: Vec<f64> = match resp {
             Ok(r) if r.status().is_success() => match r.json::<serde_json::Value>().await {
                 Ok(v) => v["scores"].as_array().map(|a| a.iter().filter_map(|x| x.as_f64()).collect()).unwrap_or_default(),
@@ -745,8 +745,9 @@ fn is_youtube(link: &str) -> bool {
 }
 
 async fn aruaru_search(client: &reqwest::Client, base: &str, query: &str, hl: &str, n: usize) -> Vec<Found> {
-    let url = format!("{base}/v1/search?q={}&hl={hl}&n={n}", pct_encode(query));
-    let v: serde_json::Value = match client.get(&url).send().await {
+    let url = format!("{base}/aruaru_search.v1.Search/Search");
+    let body = serde_json::json!({ "q": query, "hl": hl, "n": n });
+    let v: serde_json::Value = match client.post(&url).json(&body).send().await {
         Ok(r) if r.status().is_success() => r.json().await.unwrap_or_default(),
         _ => return Vec::new(),
     };

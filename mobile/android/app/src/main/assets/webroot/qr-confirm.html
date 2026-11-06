@@ -80,7 +80,7 @@
     btn.classList.add("hidden");
     statusEl.className = "status";
     statusEl.textContent = "Confirming... / 確認中...";
-    fetch("/v1/auth/qr-login/confirm", {
+    fetch("openenglish.v1.Auth/QrLoginConfirm", {
       method: "POST",
       headers: { "content-type": "application/json" },
       body: JSON.stringify({ id: id }),
@@ -106,7 +106,7 @@
   // 「自動送受信・自動承認」(ユーザー指示、2026-08-28): このページを
   // 開いた時点で本人の意思とみなし、ボタン操作を待たず自動的に確認する。
   // 失敗時のみ再試行ボタンを表示する。
-  fetch("/v1/auth/qr-login/whoami?id=" + encodeURIComponent(id))
+  fetch("openenglish.v1.Auth/QrLoginWhoami?id=" + encodeURIComponent(id), { method: "POST", headers: { "content-type": "application/json" }, body: "{}" })
     .then(function (r) { return r.json().then(function (j) { return { ok: r.ok, body: j }; }); })
     .then(function (res) {
       if (res.ok && res.body && res.body.masked_identifier) {
