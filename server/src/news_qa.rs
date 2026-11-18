@@ -425,6 +425,41 @@ const JA_EN: &[(&str, &[&str])] = &[
     ("宇宙", &["space", "nasa", "rocket"]),
 ];
 
+/// 類義語の組。質問に含まれる語と同じ組の別の語を足して探し直す(推測で答えるのではなく、検索語を広げるだけ)。
+const SYNONYMS: &[&[&str]] = &[
+    &["戦争", "紛争", "戦闘", "war", "conflict", "fighting"],
+    &["選挙", "投票", "election", "vote"],
+    &["経済", "景気", "economy", "recession"],
+    &["物価", "インフレ", "inflation", "prices"],
+    &["地震", "震災", "earthquake"],
+    &["首相", "総理", "prime minister"],
+    &["大統領", "president"],
+    &["関税", "貿易摩擦", "tariff"],
+    &["原発", "原子力", "nuclear"],
+    &["気候変動", "温暖化", "climate"],
+    &["人工知能", "ai", "artificial intelligence"],
+    &["停戦", "休戦", "ceasefire", "truce"],
+    &["制裁", "sanctions"],
+    &["洪水", "水害", "flood"],
+    &["感染", "パンデミック", "pandemic", "outbreak"],
+];
+
+/// 質問から類義語を取り出す。(足す検索語の文字列, 使った類義語)。元の質問に既にある語は足さない。
+pub fn similar_terms(q: &str) -> (String, Vec<String>) {
+    let lower = q.to_lowercase();
+    let mut used: Vec<String> = Vec::new();
+    for group in SYNONYMS {
+        if group.iter().any(|w| lower.contains(w)) {
+            for w in group.iter() {
+                if !lower.contains(w) && !used.iter().any(|u| u == w) {
+                    used.push((*w).to_string());
+                }
+            }
+        }
+    }
+    (used.join(" "), used)
+}
+
 fn is_kanji(c: char) -> bool {
     matches!(c as u32, 0x4E00..=0x9FFF | 0x3400..=0x4DBF)
 }
@@ -637,7 +672,18 @@ fn stock_stats(conn: &Connection) -> (i64, i64) {
 
 /// 質問に、保存した記事の引用だけで答える(出典・日付つき)。根拠が無ければ「分かりません」。
 pub fn answer(conn: &Connection, q: &str, now: i64) -> serde_json::Value {
-    let hits = search(conn, q, 6, now);
+    let mut hits = search(conn, q, 6, now);
+    // 直接の一致が無いときは、類義語に言い換えて保存記事から拾い直す(拾えたら、その旨を明記する)
+    let mut similar_used: Vec<String> = Vec::new();
+    if hits.is_empty() {
+        let (extra, used) = similar_terms(q);
+        if !extra.is_empty() {
+            hits = search(conn, &extra, 6, now);
+            if !hits.is_empty() {
+                similar_used = used;
+            }
+        }
+    }
     let (total, latest) = stock_stats(conn);
     let generic = tokens(q).is_empty();
     let card = crate::places::card(q);
@@ -660,6 +706,11 @@ pub fn answer(conn: &Connection, q: &str, now: i64) -> serde_json::Value {
         ja.push_str("\n\n");
         en.push_str(pe);
         en.push_str("\n\n");
+    }
+    if !similar_used.is_empty() {
+        let l = similar_used.join("、");
+        ja.push_str(&format!("🔁 ご質問の言葉そのものの記事は無かったため、類義語({l})で保存記事から探しました。\n\n"));
+        en.push_str(&format!("🔁 No article matched your exact words, so I searched the stored news with similar terms ({l}).\n\n"));
     }
     ja.push_str(if generic { "📰 世界情勢Q&A — 保存した最新の記事です(見出し・日付・出典のみ。AIの推測は入れていません)\n" } else { "📰 世界情勢Q&A — ご質問に合う、保存した記事です(見出し・日付・出典のみ。AIの推測は入れていません)\n" });
     en.push_str(if generic { "📰 World-affairs Q&A — latest stored articles (headline, date and source only; no AI guesses)\n" } else { "📰 World-affairs Q&A — stored articles matching your question (headline, date and source only; no AI guesses)\n" });
@@ -1068,5 +1119,20 @@ mod important_tests {
         upsert(&c, &feed, &[it], 1793190100);
         let h = search(&c, "Zelenskyy", 3, 1793200000);
         assert_eq!(h[0].item.url, "https://ex.test/z");
+    }
+}
+
+#[cfg(test)]
+mod similar_tests {
+    use super::similar_terms;
+    #[test]
+    fn expands_without_repeating_query_words() {
+        let (s, used) = similar_terms("戦争はどうなっていますか");
+        assert!(s.contains("紛争") && s.contains("conflict"));
+        assert!(!used.iter().any(|u| u == "戦争"));
+    }
+    #[test]
+    fn nothing_for_unrelated() {
+        assert!(similar_terms("こんにちは").0.is_empty());
     }
 }
