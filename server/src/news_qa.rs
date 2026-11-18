@@ -1124,6 +1124,7 @@ mod important_tests {
 
 #[cfg(test)]
 mod similar_tests {
+    use super::{Connection, SCHEMA};
     use super::similar_terms;
     #[test]
     fn expands_without_repeating_query_words() {
@@ -1134,5 +1135,14 @@ mod similar_tests {
     #[test]
     fn nothing_for_unrelated() {
         assert!(similar_terms("こんにちは").0.is_empty());
+    }
+    #[test]
+    fn answer_falls_back_to_similar_words() {
+        let c = Connection::open_in_memory().unwrap();
+        c.execute_batch(SCHEMA).unwrap();
+        c.execute("INSERT INTO news_items(url,title,summary,published_at,fetched_at,source,feed_id,lang) VALUES('https://ex.test/1','Ceasefire talks resume in Gaza','',1000,1000,'T','t','en')", []).unwrap();
+        let v = super::answer(&c, "休戦はどうなっていますか", 2000);
+        assert_eq!(v["found"], 1);
+        assert!(v["answer_ja"].as_str().unwrap().contains("類義語"));
     }
 }
