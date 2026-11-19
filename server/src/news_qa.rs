@@ -448,6 +448,10 @@ const SYNONYMS: &[&[&str]] = &[
 pub fn similar_terms(q: &str) -> (String, Vec<String>) {
     let lower = q.to_lowercase();
     let mut used: Vec<String> = Vec::new();
+    // 日付・番号などの正確さが要る質問は、言い換えると別物になるので広げない(ノイズ対策)
+    if lower.chars().any(|c| c.is_ascii_digit()) {
+        return (String::new(), used);
+    }
     for group in SYNONYMS {
         if group.iter().any(|w| lower.contains(w)) {
             for w in group.iter() {
@@ -457,6 +461,7 @@ pub fn similar_terms(q: &str) -> (String, Vec<String>) {
             }
         }
     }
+    used.truncate(8); // 広げすぎると無関係な記事が混ざるので上限を設ける
     (used.join(" "), used)
 }
 
@@ -1131,6 +1136,10 @@ mod similar_tests {
         let (s, used) = similar_terms("戦争はどうなっていますか");
         assert!(s.contains("紛争") && s.contains("conflict"));
         assert!(!used.iter().any(|u| u == "戦争"));
+    }
+    #[test]
+    fn no_expansion_for_dates_or_numbers() {
+        assert!(similar_terms("2026年の選挙").0.is_empty());
     }
     #[test]
     fn nothing_for_unrelated() {
