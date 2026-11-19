@@ -8608,7 +8608,7 @@ Reading into `serde_json::Value` gives almost no speed-up even with SIMD (188 ms
 3. 類義語表は15組だけ。実際に多く出た言葉を見て増やす。
 4. `open-english` リポジトリ側への取り込み(今は VPS のパッチのみ)。
 
-**再開用メッセージ(そのまま貼り付け)**: 「`F:unoepository\_work\mce`(maid-cafe-english)の `PORTING.md` 末尾『2026-11-19 世界情勢Q&A』を読んでから再開します。未了は、学習をONにする画面、localhost での記録の通し確認、類義語表の拡張、open-english 側への取り込みです。決まり: 新しいRESTは作らない、秘密は表示しない、質問文は保存しない、実機で確認してから完了と報告する。」
+**再開用メッセージ(そのまま貼り付け)**: 「`F:\runo\repository\_work\mce`(maid-cafe-english)の `PORTING.md` 末尾『2026-11-19 世界情勢Q&A』を読んでから再開します。未了は、学習をONにする画面、localhost での記録の通し確認、類義語表の拡張、open-english 側への取り込みです。決まり: 新しいRESTは作らない、秘密は表示しない、質問文は保存しない、実機で確認してから完了と報告する。」
 
 ### English (simple words, easy to read)
 **What is new**
@@ -8627,4 +8627,4 @@ Reading into `serde_json::Value` gives almost no speed-up even with SIMD (188 ms
 3. The similar-word table has only 15 groups. We should grow it by looking at the words people really use.
 4. The change is not yet in the `open-english` repository (it is only a patch on the VPS).
 
-**Message to paste when you continue**: "Read 'PORTING.md', the last section '2026-11-19 世界情勢Q&A', in `F:unoepository\_work\mce` (maid-cafe-english) before you start. Open items: a screen to turn learning on, a real localhost check of saving words, a bigger similar-word table, and moving the change into open-english. Rules: no new REST, never print secrets, never save the question text, and check on a real system before saying it is done."
+**Message to paste when you continue**: "Read 'PORTING.md', the last section '2026-11-19 世界情勢Q&A', in `F:\runo\repository\_work\mce` (maid-cafe-english) before you start. Open items: a screen to turn learning on, a real localhost check of saving words, a bigger similar-word table, and moving the change into open-english. Rules: no new REST, never print secrets, never save the question text, and check on a real system before saying it is done."
