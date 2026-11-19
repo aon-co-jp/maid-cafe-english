@@ -873,6 +873,39 @@ fn with_store<T>(f: impl FnOnce(&Connection) -> T) -> Option<T> {
     STORE.get().map(|m| f(&m.lock().unwrap_or_else(|e| e.into_inner())))
 }
 
+/// 回答できなかった質問から取り出した「言葉」だけを数える(質問文そのものは保存しない)。
+/// 呼び出し側が「インストールした本人のPC(localhost)で、本人が学習をONにした」ことを確認した場合にだけ呼ぶこと。
+pub fn record_unanswered(q: &str) {
+    let toks = tokens(q);
+    if toks.is_empty() {
+        return;
+    }
+    let now = now_unix();
+    with_store(|c| {
+        let _ = c.execute("CREATE TABLE IF NOT EXISTS unanswered_terms (term TEXT PRIMARY KEY, n INTEGER NOT NULL, last_seen INTEGER NOT NULL)", []);
+        for t in toks {
+            let _ = c.execute(
+                "INSERT INTO unanswered_terms(term,n,last_seen) VALUES(?1,1,?2) ON CONFLICT(term) DO UPDATE SET n=n+1,last_seen=?2",
+                rusqlite::params![t, now],
+            );
+        }
+    });
+}
+
+/// 回答できなかった質問に多く出た言葉(辞書に類義語を足す候補。自動では辞書に入れない=人が確認する)。
+pub fn top_unanswered(limit: usize) -> Vec<(String, i64)> {
+    with_store(|c| {
+        let mut st = match c.prepare("SELECT term,n FROM unanswered_terms ORDER BY n DESC, last_seen DESC LIMIT ?1") {
+            Ok(s) => s,
+            Err(_) => return Vec::new(),
+        };
+        st.query_map([limit as i64], |r| Ok((r.get::<_, String>(0)?, r.get::<_, i64>(1)?)))
+            .map(|it| it.filter_map(Result::ok).collect())
+            .unwrap_or_default()
+    })
+    .unwrap_or_default()
+}
+
 pub fn ask(q: &str) -> serde_json::Value {
     let q: String = q.chars().take(200).collect();
     with_store(|c| answer(c, &q, now_unix())).unwrap_or_else(|| json!({"ok": false, "error": "news store is not ready"}))
@@ -1153,5 +1186,17 @@ mod similar_tests {
         let v = super::answer(&c, "休戦はどうなっていますか", 2000);
         assert_eq!(v["found"], 1);
         assert!(v["answer_ja"].as_str().unwrap().contains("類義語"));
+    }
+}
+
+#[cfg(test)]
+mod learn_tests {
+    use super::*;
+    #[test]
+    fn store_has_only_terms_not_raw_question() {
+        let c = Connection::open_in_memory().unwrap();
+        c.execute("CREATE TABLE unanswered_terms (term TEXT PRIMARY KEY, n INTEGER NOT NULL, last_seen INTEGER NOT NULL)", []).unwrap();
+        let cols: Vec<String> = c.prepare("PRAGMA table_info(unanswered_terms)").unwrap().query_map([], |r| r.get::<_, String>(1)).unwrap().filter_map(Result::ok).collect();
+        assert_eq!(cols, vec!["term", "n", "last_seen"]);
     }
 }

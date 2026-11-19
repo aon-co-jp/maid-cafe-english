@@ -1986,10 +1986,17 @@ async fn news_ask(req: Request) -> Response {
     if q.trim().is_empty() {
         return rs_json_response_cors(StatusCode::BAD_REQUEST, &serde_json::json!({"ok": false, "error": "q is required / qが必要です"}));
     }
+    let learn_on = query_param(&req, "learn").as_deref() == Some("1");
+    let learn_ok = learn_on && is_local_request(&req);
     let q2 = q.clone();
     let mut v = tokio::task::spawn_blocking(move || news_qa::ask(&q2)).await.unwrap_or_else(|_| serde_json::json!({"ok": false}));
     // 保存した記事に該当が無いとき: 「分かりません」ではなく、Google・YouTubeの検索へのリンクと、ウェブ検索の結果を返す
     if v["ok"] == true && v["found"].as_i64() == Some(0) {
+        // 辞書を育てる学習は既定OFF。インストールした本人のPC(localhost)で、本人が learn=1 を付けた時だけ、言葉だけを数える
+        if learn_ok {
+            let q3 = q.clone();
+            let _ = tokio::task::spawn_blocking(move || news_qa::record_unanswered(&q3)).await;
+        }
         v = news_qa::with_fallback(v, &q).await;
     }
     rs_json_response_cors(StatusCode::OK, &v)
