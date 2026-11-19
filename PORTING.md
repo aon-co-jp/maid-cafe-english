@@ -1398,3 +1398,44 @@ Reading into `serde_json::Value` gives almost no speed-up even with SIMD (188 ms
 - **WASM по-прежнему остаётся технологией для интерфейса.** Изменилось лишь то, что вызываемый им API теперь построен на Connect.
 - Интерфейсы, форма которых задана внешним стандартом (ACME, обратные вызовы OAuth, вебхуки сторонних сервисов, проверки работоспособности, статические файлы, OTLP), остаются обычным HTTP.
 - **Если есть сомнения — выбирайте Connect.**
+
+
+## 2026-11-19 世界情勢Q&A: 類義語で探し直す機能と、回答できなかった質問の学習(別アカウントでの再開用) / News Q&A: similar-word search and opt-in learning
+
+### 日本語
+**何ができるようになったか**
+- 質問にぴったり合う保存記事が無いとき、**類義語**(例: 戦争→紛争/conflict、休戦→ceasefire)で保存記事を探し直します。見つかったときは、回答の先頭に「類義語で探しました」と日本語と英語で書きます。それでも見つからなければ、これまでどおり Google・YouTube・aruaru-search の案内を出します。
+- 次の質問では類義語を足しません: **数字を含む質問**(日付・番号は、言い換えると別の意味になるため)。足す類義語は**最大8語**です(多すぎると関係のない記事が混ざるため)。
+- **回答できなかった質問の学習**(既定はOFF): インストールした本人のPC(`localhost`、プロキシを通らない接続)から、本人が `learn=1` を付けて質問したときだけ働きます。保存するのは質問から取り出した**言葉と回数だけ**で、質問文そのものは保存しません。VPSなど公開サーバーでは働きません(実測で、テーブルが作られないことを確認)。多く出た言葉は `top_unanswered` で見られますが、**辞書には自動で入れません**(人が確認して `SYNONYMS` に足します)。
+- 変更は `server/src/news_qa.rs`(`similar_terms`・`record_unanswered`・`top_unanswered`)と `server/src/main.rs`(`news_ask`)です。コミット `bd7e026`・`9b421f2`・`6502c12`・`769c085`(`maid-cafe-english` の `master`)。テストは news_qa の16件が成功。
+
+**本番(VPS)の状態**
+- 本番は `open-english` リポジトリのクローン(`/root/easy-web.tokyo/open-english`)から動いています。上のコミットは `maid-cafe-english` にあるため、同じ内容をパッチとして当て、ビルドして差し替えました(`open-english.service` と `open-english-demo.service` は active、`maid-cafe.tokyo` は200、エラーログ0)。
+- そのため、VPSのクローンには**未コミットの変更が残っています**。`git pull` する前に必ず確認してください。戻すときは `/root/open-english-server.before-similar-20261119` か `.before-learn-20261119` を使います。
+
+**まだ終わっていないこと**
+1. 学習をONにする**画面(ボタン)**がまだ無い。今は `learn=1` を付けた呼び出しだけで動く。
+2. localhost で実際に言葉が記録される場面の通し確認(判定は既存の `is_local_request` を使用)。
+3. 類義語表は15組だけ。実際に多く出た言葉を見て増やす。
+4. `open-english` リポジトリ側への取り込み(今は VPS のパッチのみ)。
+
+**再開用メッセージ(そのまま貼り付け)**: 「`F:unoepository\_work\mce`(maid-cafe-english)の `PORTING.md` 末尾『2026-11-19 世界情勢Q&A』を読んでから再開します。未了は、学習をONにする画面、localhost での記録の通し確認、類義語表の拡張、open-english 側への取り込みです。決まり: 新しいRESTは作らない、秘密は表示しない、質問文は保存しない、実機で確認してから完了と報告する。」
+
+### English (simple words, easy to read)
+**What is new**
+- When no saved news article matches a question, the app now tries **similar words** (for example, "war" and "conflict", or "truce" and "ceasefire"). If this finds articles, the answer starts with a short note in Japanese and English: "I searched with similar words." If nothing is found, the app still shows the Google, YouTube and aruaru-search links as before.
+- It does **not** add similar words when the question has **a number** in it (dates and numbers can change meaning if we swap words). It adds **at most 8** words, because too many words bring in unrelated news.
+- **Learning from unanswered questions** is **off by default**. It works only when the question comes from the owner's own PC (`localhost`, not through a proxy) **and** the owner adds `learn=1`. It saves only the **words and how many times they appeared**. It never saves the question itself. It does not work on public servers such as the VPS (we checked that the table is not even created). Common words can be listed with `top_unanswered`, but they are **never added to the dictionary automatically**. A person checks them and adds them to `SYNONYMS`.
+- Changed files: `server/src/news_qa.rs` (`similar_terms`, `record_unanswered`, `top_unanswered`) and `server/src/main.rs` (`news_ask`). Commits: `bd7e026`, `9b421f2`, `6502c12`, `769c085` (branch `master` of `maid-cafe-english`). All 16 news_qa tests pass.
+
+**Production (VPS)**
+- Production runs from a clone of the `open-english` repository (`/root/easy-web.tokyo/open-english`). Our commits live in `maid-cafe-english`, so we applied the same change as a patch, built it and swapped the program (`open-english.service` and `open-english-demo.service` are active, `maid-cafe.tokyo` returns 200, no errors in the log).
+- Because of this, the VPS clone has **changes that are not committed**. Please check before you run `git pull`. To go back, use `/root/open-english-server.before-similar-20261119` or `.before-learn-20261119`.
+
+**Not finished yet**
+1. There is **no button or screen** yet to turn learning on. Today it works only with a call that has `learn=1`.
+2. We have not yet watched words being saved on a real `localhost` run (the check itself uses the existing `is_local_request`).
+3. The similar-word table has only 15 groups. We should grow it by looking at the words people really use.
+4. The change is not yet in the `open-english` repository (it is only a patch on the VPS).
+
+**Message to paste when you continue**: "Read 'PORTING.md', the last section '2026-11-19 世界情勢Q&A', in `F:unoepository\_work\mce` (maid-cafe-english) before you start. Open items: a screen to turn learning on, a real localhost check of saving words, a bigger similar-word table, and moving the change into open-english. Rules: no new REST, never print secrets, never save the question text, and check on a real system before saying it is done."

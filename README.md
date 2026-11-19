@@ -1587,3 +1587,10 @@ DATABASEに蓄積するデータが溢れる前に非公開GitHubリポジトリ
 - **WASM по-прежнему остаётся технологией для интерфейса.** Изменилось лишь то, что вызываемый им API теперь построен на Connect.
 - Интерфейсы, форма которых задана внешним стандартом (ACME, обратные вызовы OAuth, вебхуки сторонних сервисов, проверки работоспособности, статические файлы, OTLP), остаются обычным HTTP.
 - **Если есть сомнения — выбирайте Connect.**
+
+
+## 世界情勢Q&A: 類義語と学習 / News Q&A: similar words and learning (2026-11-19)
+
+**日本語**: 保存した記事に合うものが無いとき、「戦争」と「紛争」のような**似た言葉**で探し直します。見つかったときは、そう書いてお知らせします。回答できなかった質問から辞書を育てる**学習機能**もありますが、**初期設定はOFF**です。ONにできるのは、インストールした本人のPCだけです。保存するのは言葉と回数だけで、質問の文は保存しません。公開サーバーでは動きません。
+
+**English**: If no saved news article matches your question, the app tries **similar words**, like "war" and "conflict". When it finds something this way, it tells you. There is also a **learning feature** that grows the word list from questions the app could not answer. It is **off by default**. Only the person who installed the app on their own PC can turn it on. It saves only words and counts, never your question. It does not run on public servers.
