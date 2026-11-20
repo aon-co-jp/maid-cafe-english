@@ -8628,3 +8628,7 @@ Reading into `serde_json::Value` gives almost no speed-up even with SIMD (188 ms
 4. The change is not yet in the `open-english` repository (it is only a patch on the VPS).
 
 **Message to paste when you continue**: "Read 'PORTING.md', the last section '2026-11-19 世界情勢Q&A', in `F:\runo\repository\_work\mce` (maid-cafe-english) before you start. Open items: a screen to turn learning on, a real localhost check of saving words, a bigger similar-word table, and moving the change into open-english. Rules: no new REST, never print secrets, never save the question text, and check on a real system before saying it is done."
+
+## 2026-11-20 低VRAM・VRAM無し端末(VPS・PC・タブレット・スマホ)でのAI/LLMのノウハウ / Low-VRAM AI know-how
+日本語: AI・LLMを使う機能(推論・要約・補完等)は [aruaru-llm/docs/LOW-VRAM-KNOWHOW.md](https://github.com/aon-co-jp/aruaru-llm/blob/main/docs/LOW-VRAM-KNOWHOW.md) に従う: 短い文脈・上限・タイムアウト、VPSで重い推論を直接回さない、メモリが足りなければ小さいモデルへ自動で下げる。広い桁(FP64以上)は本番で使わず、試験の正解にだけ使う。
+English: Features that use AI/LLMs follow the file above: short context, caps and timeouts, no heavy inference directly on the VPS, auto-downgrade to a smaller model when memory is short. Wide floats (FP64 and above) are for test oracles only, not production.
