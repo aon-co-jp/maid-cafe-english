@@ -1594,3 +1594,7 @@ DATABASEに蓄積するデータが溢れる前に非公開GitHubリポジトリ
 **日本語**: 保存した記事に合うものが無いとき、「戦争」と「紛争」のような**似た言葉**で探し直します。見つかったときは、そう書いてお知らせします。回答できなかった質問から辞書を育てる**学習機能**もありますが、**初期設定はOFF**です。ONにできるのは、インストールした本人のPCだけです。保存するのは言葉と回数だけで、質問の文は保存しません。公開サーバーでは動きません。
 
 **English**: If no saved news article matches your question, the app tries **similar words**, like "war" and "conflict". When it finds something this way, it tells you. There is also a **learning feature** that grows the word list from questions the app could not answer. It is **off by default**. Only the person who installed the app on their own PC can turn it on. It saves only words and counts, never your question. It does not run on public servers.
+
+## 2026-11-20 融合の記録: maid-cafe.tokyo / Fusion record
+**日本語**: このリポジトリ(英会話・学習)は、データ分析の realdata.pro と融合して **maid-cafe.tokyo** になりました。融合後の入口・配備の正本は [`maid-cafe-tokyo`](https://github.com/aon-co-jp/maid-cafe-tokyo) です。ここのコードは、融合後も英会話・学習の部品(open-english-server)として使われ続けます。リリースやミラーの手順は変えていません(コード自体の統合は、配備を壊さないよう別途、試験してから行います)。
+**English**: This repository (English learning) has been fused with data analysis (realdata.pro) into **maid-cafe.tokyo**. The entrance and deployment source of truth after the fusion is [`maid-cafe-tokyo`](https://github.com/aon-co-jp/maid-cafe-tokyo). The code here keeps serving as the English-learning part (open-english-server). Release and mirror steps are unchanged; merging the code itself will be done separately, after tests, so as not to break deployment.

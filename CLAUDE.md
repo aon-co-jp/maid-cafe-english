@@ -8632,3 +8632,7 @@ Reading into `serde_json::Value` gives almost no speed-up even with SIMD (188 ms
 ## 2026-11-20 低VRAM・VRAM無し端末(VPS・PC・タブレット・スマホ)でのAI/LLMのノウハウ / Low-VRAM AI know-how
 日本語: AI・LLMを使う機能(推論・要約・補完等)は [aruaru-llm/docs/LOW-VRAM-KNOWHOW.md](https://github.com/aon-co-jp/aruaru-llm/blob/main/docs/LOW-VRAM-KNOWHOW.md) に従う: 短い文脈・上限・タイムアウト、VPSで重い推論を直接回さない、メモリが足りなければ小さいモデルへ自動で下げる。広い桁(FP64以上)は本番で使わず、試験の正解にだけ使う。
 English: Features that use AI/LLMs follow the file above: short context, caps and timeouts, no heavy inference directly on the VPS, auto-downgrade to a smaller model when memory is short. Wide floats (FP64 and above) are for test oracles only, not production.
+
+## 2026-11-20 融合の記録: maid-cafe.tokyo / Fusion record
+**日本語**: このリポジトリ(英会話・学習)は、データ分析の realdata.pro と融合して **maid-cafe.tokyo** になりました。融合後の入口・配備の正本は [`maid-cafe-tokyo`](https://github.com/aon-co-jp/maid-cafe-tokyo) です。ここのコードは、融合後も英会話・学習の部品(open-english-server)として使われ続けます。リリースやミラーの手順は変えていません(コード自体の統合は、配備を壊さないよう別途、試験してから行います)。
+**English**: This repository (English learning) has been fused with data analysis (realdata.pro) into **maid-cafe.tokyo**. The entrance and deployment source of truth after the fusion is [`maid-cafe-tokyo`](https://github.com/aon-co-jp/maid-cafe-tokyo). The code here keeps serving as the English-learning part (open-english-server). Release and mirror steps are unchanged; merging the code itself will be done separately, after tests, so as not to break deployment.
