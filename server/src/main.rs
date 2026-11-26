@@ -727,10 +727,10 @@ fn aruaru_llm_base_url() -> String {
     format!("http://{bind}")
 }
 
-/// aruaru-llm(Connect)のメソッドURL。`POST <base>/aruaru_llm.v1.Llm/<Method>` + JSON本文。
+/// aruaru-llm(Connect)のメソッドURL。`POST <base>/aruaru_llm.Llm/<Method>` + JSON本文。
 /// REST全廃方針(2026-11-04)で旧`/v1/...`経路は aruaru-llm 側から削除された。
 pub(crate) fn llm_connect_url(method: &str) -> String {
-    format!("{}/aruaru_llm.v1.Llm/{}", aruaru_llm_base_url(), method)
+    format!("{}/aruaru_llm.Llm/{}", aruaru_llm_base_url(), method)
 }
 
 /// クエリ文字列の値のパーセントデコード(`+`は空白)。

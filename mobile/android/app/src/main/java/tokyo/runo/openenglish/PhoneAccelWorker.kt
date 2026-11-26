@@ -15,8 +15,8 @@ import java.net.URL
 import kotlin.math.sqrt
 
 /**
- * PC側(`aruaru-llm`)が新設した`POST /aruaru_llm.v1.Llm/BackgroundFoldTask`・
- * `POST /aruaru_llm.v1.Llm/BackgroundFoldTaskResult`をポーリングし、受け取った軽量な
+ * PC側(`aruaru-llm`)が新設した`POST /aruaru_llm.Llm/BackgroundFoldTask`・
+ * `POST /aruaru_llm.Llm/BackgroundFoldTaskResult`をポーリングし、受け取った軽量な
  * 数値計算タスク(2本のベクトルのコサイン類似度)をこの端末上で実行して
  * 結果を送り返すワーカー(2026-08-19新設、ユーザー指示「使わなくなった
  * スマホもフル動員…USBで接続すると、そのスマホのCPU・GPU・NPUを
@@ -145,7 +145,7 @@ class PhoneAccelWorker(
     private data class Task(val taskId: Long, val vecA: FloatArray, val vecB: FloatArray)
 
     private suspend fun fetchTask(): Task? = withContext(Dispatchers.IO) {
-        val url = URL("$pcBaseUrl/aruaru_llm.v1.Llm/BackgroundFoldTask")
+        val url = URL("$pcBaseUrl/aruaru_llm.Llm/BackgroundFoldTask")
         val conn = url.openConnection() as HttpURLConnection
         conn.requestMethod = "POST"
         conn.doOutput = true
@@ -168,7 +168,7 @@ class PhoneAccelWorker(
     }
 
     private suspend fun submitResult(taskId: Long, similarity: Float) = withContext(Dispatchers.IO) {
-        val url = URL("$pcBaseUrl/aruaru_llm.v1.Llm/BackgroundFoldTaskResult")
+        val url = URL("$pcBaseUrl/aruaru_llm.Llm/BackgroundFoldTaskResult")
         val conn = url.openConnection() as HttpURLConnection
         conn.requestMethod = "POST"
         conn.doOutput = true

@@ -457,12 +457,12 @@ if (learnTargetEl) {
       }
       const base = apiBaseEl.value.trim();
       try {
-        const res = await llmFetch(`${base}/aruaru_llm.v1.Llm/NewsLatest`, { cache: "no-store" });
+        const res = await llmFetch(`${base}/aruaru_llm.Llm/NewsLatest`, { cache: "no-store" });
         const db = res.ok ? await res.json() : null;
         const fetchedAt = db && db.fetched_at_unix ? db.fetched_at_unix * 1000 : 0;
         const stale = !fetchedAt || Date.now() - fetchedAt > NEWS_STALE_HOURS * 60 * 60 * 1000;
         if (stale) {
-          llmFetch(`${base}/aruaru_llm.v1.Llm/NewsRefresh`, { method: "POST" }).catch(() => {});
+          llmFetch(`${base}/aruaru_llm.Llm/NewsRefresh`, { method: "POST" }).catch(() => {});
         }
       } catch (e) {
         /* aruaru-llmに届かない場合は何もしない(次の機会に再確認) */
@@ -483,7 +483,7 @@ if (learnTargetEl) {
   // 遅らせて初期化完了後に呼び出す(実ブラウザで発覚した`ReferenceError:
   // Cannot access 'apiBaseEl' before initialization`の修正)。
   setTimeout(() => {
-    llmFetch(`${apiBaseEl.value.trim()}/aruaru_llm.v1.Llm/NewsRefresh`, { method: "POST" }).catch(() => {});
+    llmFetch(`${apiBaseEl.value.trim()}/aruaru_llm.Llm/NewsRefresh`, { method: "POST" }).catch(() => {});
   }, 0);
   let remaining = 30;
   const timer = setInterval(() => {
@@ -2040,10 +2040,10 @@ function setStatus(ok, text) {
 const AUX_TIMEOUT_MS = 8000;
 
 /** 指定ミリ秒でabortする`fetch`。タイムアウト時は`err.isTimeout`が真になる。 */
-/** aruaru-llm は Connect(POST /aruaru_llm.v1.Llm/<Method> + JSON)のみ受ける(REST全廃、2026-11-04)。
+/** aruaru-llm は Connect(POST /aruaru_llm.Llm/<Method> + JSON)のみ受ける(REST全廃、2026-11-04)。
  *  URL が Connect なら method を POST、content-type を JSON、本文を既定 "{}" にそろえる。 */
 function connectNormalize(url, options = {}) {
-  if (typeof url !== "string" || !url.includes("/aruaru_llm.v1.Llm/")) return options;
+  if (typeof url !== "string" || !url.includes("/aruaru_llm.Llm/")) return options;
   return {
     ...options,
     method: "POST",
@@ -2136,7 +2136,7 @@ function renderRuntimeBadge(info) {
 async function refreshRuntimeInfo() {
   const base = apiBaseEl.value.trim();
   try {
-    const res = await fetchWithTimeout(`${base}/aruaru_llm.v1.Llm/Runtime`, { cache: "no-store" }, 5000);
+    const res = await fetchWithTimeout(`${base}/aruaru_llm.Llm/Runtime`, { cache: "no-store" }, 5000);
     if (!res.ok) throw new Error(`HTTP ${res.status}`);
     lastRuntimeInfo = await res.json();
   } catch (err) {
@@ -2641,7 +2641,7 @@ async function findCountryFunFact(text) {
   let dbCapital = null;
   try {
     const base = apiBaseEl.value.trim();
-    const res = await fetchWithTimeout(`${base}/aruaru_llm.v1.Llm/GeoLookup`, {
+    const res = await fetchWithTimeout(`${base}/aruaru_llm.Llm/GeoLookup`, {
       method: "POST",
       headers: { "content-type": "application/json" },
       body: JSON.stringify({ country: text.trim() }),
@@ -2688,7 +2688,7 @@ async function findCountryFunFact(text) {
 async function fujiInfoText() {
   try {
     const base = apiBaseEl.value.trim();
-    const res = await fetchWithTimeout(`${base}/aruaru_llm.v1.Llm/GeoFuji`, {}, AUX_TIMEOUT_MS);
+    const res = await fetchWithTimeout(`${base}/aruaru_llm.Llm/GeoFuji`, {}, AUX_TIMEOUT_MS);
     const info = await res.json();
     const hut = info.mountain_huts && info.mountain_huts[0];
     const transport = info.transport_reservations && info.transport_reservations[0];
@@ -2716,7 +2716,7 @@ async function fujiInfoText() {
 async function tourSearchText(place) {
   try {
     const base = apiBaseEl.value.trim();
-    const res = await fetchWithTimeout(`${base}/aruaru_llm.v1.Llm/GeoTours`, {
+    const res = await fetchWithTimeout(`${base}/aruaru_llm.Llm/GeoTours`, {
       method: "POST",
       headers: { "content-type": "application/json" },
       body: JSON.stringify({ place }),
@@ -3344,7 +3344,7 @@ async function askTrainer(userText) {
   };
   let res;
   try {
-    res = await fetchWithTimeout(`${base}/aruaru_llm.v1.Llm/${llmMethod}`, fetchOpts, timeoutMs);
+    res = await fetchWithTimeout(`${base}/aruaru_llm.Llm/${llmMethod}`, fetchOpts, timeoutMs);
   } catch (err) {
     // 閲覧者自身の端末(`base`)に到達できなかった場合、サーバーが
     // VPS共有のaruaru-llmへ到達可能なら同一オリジンの公開プロキシへ
@@ -3410,7 +3410,7 @@ async function askTrainer(userText) {
       const fallbackPrompt = buildSearchAugmentedPromptClient(formatSearchResultsAsContext(directSearchResults), userText);
       const fallbackBody = { prompt: fallbackPrompt, max_new_tokens: inputIsJapanese ? 12 : 24 };
       try {
-        const fallbackRes = await fetchWithTimeout(`${base}/aruaru_llm.v1.Llm/Generate`, {
+        const fallbackRes = await fetchWithTimeout(`${base}/aruaru_llm.Llm/Generate`, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify(fallbackBody),
@@ -3505,7 +3505,7 @@ async function askTrainer(userText) {
 async function referralsSuffix(userText) {
   try {
     const base = apiBaseEl.value.trim();
-    const res = await fetchWithTimeout(`${base}/aruaru_llm.v1.Llm/ReferralsCheck`, {
+    const res = await fetchWithTimeout(`${base}/aruaru_llm.Llm/ReferralsCheck`, {
       method: "POST",
       headers: { "content-type": "application/json" },
       body: JSON.stringify({ text: userText }),
@@ -7550,7 +7550,7 @@ async function speechTranslationHelper(text, spokenTag) {
     if (!base) return;
 
     const res = await fetchWithTimeout(
-      `${base}/aruaru_llm.v1.Llm/Translate`,
+      `${base}/aruaru_llm.Llm/Translate`,
       {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -8031,7 +8031,7 @@ async function serverTranscribePcm(pcm, langTag) {
       prompt = (typeof lastTrainerUtterance === "function" && lastTrainerUtterance()) || "";
     } catch (_) {}
     const res = await fetchWithTimeout(
-      `${base}/aruaru_llm.v1.Llm/Transcribe`,
+      `${base}/aruaru_llm.Llm/Transcribe`,
       {
         method: "POST",
         headers: { "content-type": "application/json" },
@@ -8392,7 +8392,7 @@ if (foldLayersBtn) {
     foldLayersStatusEl.textContent = "…running fold-layers / fold-layers実行中…";
     try {
       const res = await fetchWithTimeout(
-        `${base}/aruaru_llm.v1.Llm/ModelsFoldLayers`,
+        `${base}/aruaru_llm.Llm/ModelsFoldLayers`,
         { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(body) },
         60000
       );
@@ -9232,7 +9232,7 @@ async function isSearchConfiguredOnOwnDevice() {
   try {
     const base = apiBaseEl ? apiBaseEl.value.trim() : "";
     if (!base) return false;
-    const res = await fetchWithTimeout(`${base}/aruaru_llm.v1.Llm/GetGoogleSearchSettings`, { cache: "no-store" }, 2000);
+    const res = await fetchWithTimeout(`${base}/aruaru_llm.Llm/GetGoogleSearchSettings`, { cache: "no-store" }, 2000);
     if (!res.ok) return false;
     const data = await res.json();
     return !!data.configured;
@@ -9302,7 +9302,7 @@ async function refreshGoogleSearchFallbackHealth() {
   const el = document.getElementById("google-search-fallback-health");
   if (!el) return;
   try {
-    const res = await fetchWithTimeout(`${apiBaseEl.value.trim()}/aruaru_llm.v1.Llm/SearchFallbackStatus`, {}, 5000);
+    const res = await fetchWithTimeout(`${apiBaseEl.value.trim()}/aruaru_llm.Llm/SearchFallbackStatus`, {}, 5000);
     if (!res.ok) {
       el.textContent = "";
       return;
@@ -9893,8 +9893,8 @@ if (googleSearchBtn && googleSearchModal) {
     if (!base) return;
     try {
       const [priorityRes, keysRes] = await Promise.all([
-        fetchWithTimeout(`${base}/aruaru_llm.v1.Llm/GetProviderPrioritySettings`, { cache: "no-store" }, 4000),
-        fetchWithTimeout(`${base}/aruaru_llm.v1.Llm/GetChatProviderSettings`, { cache: "no-store" }, 4000),
+        fetchWithTimeout(`${base}/aruaru_llm.Llm/GetProviderPrioritySettings`, { cache: "no-store" }, 4000),
+        fetchWithTimeout(`${base}/aruaru_llm.Llm/GetChatProviderSettings`, { cache: "no-store" }, 4000),
       ]);
       if (priorityRes.ok) {
         const data = await priorityRes.json();
@@ -9949,7 +9949,7 @@ if (googleSearchBtn && googleSearchModal) {
     const results = [];
     try {
       const res = await fetchWithTimeout(
-        `${base}/aruaru_llm.v1.Llm/SetProviderPrioritySettings`,
+        `${base}/aruaru_llm.Llm/SetProviderPrioritySettings`,
         { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ enabled, order: priorityOrder }) },
         8000
       );
@@ -9981,7 +9981,7 @@ if (googleSearchBtn && googleSearchModal) {
       }
       try {
         const res = await fetchWithTimeout(
-          `${base}/aruaru_llm.v1.Llm/SetChatProviderSettings`,
+          `${base}/aruaru_llm.Llm/SetChatProviderSettings`,
           { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ provider, api_key: value }) },
           8000
         );
@@ -10109,7 +10109,7 @@ if (googleSearchBtn && googleSearchModal) {
       const value = settings[`open-english.dbProviderKey.${provider}`];
       try {
         await fetchWithTimeout(
-          `${base}/aruaru_llm.v1.Llm/SetChatProviderSettings`,
+          `${base}/aruaru_llm.Llm/SetChatProviderSettings`,
           { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ provider, api_key: value }) },
           8000
         );
@@ -10208,10 +10208,10 @@ if (googleSearchBtn && googleSearchModal) {
       refreshLocalProviderKeyStatus();
       if (base) {
         try {
-          await fetchWithTimeout(`${base}/aruaru_llm.v1.Llm/ClearChatProviderSettings`, { method: "DELETE" }, 8000);
-          await fetchWithTimeout(`${base}/aruaru_llm.v1.Llm/ResetProviderPrioritySettings`, { method: "DELETE" }, 8000);
-          await fetchWithTimeout(`${base}/aruaru_llm.v1.Llm/ClearGithubSearchSettings`, { method: "DELETE" }, 8000);
-          await fetchWithTimeout(`${base}/aruaru_llm.v1.Llm/ClearYoutubeSearchSettings`, { method: "DELETE" }, 8000);
+          await fetchWithTimeout(`${base}/aruaru_llm.Llm/ClearChatProviderSettings`, { method: "DELETE" }, 8000);
+          await fetchWithTimeout(`${base}/aruaru_llm.Llm/ResetProviderPrioritySettings`, { method: "DELETE" }, 8000);
+          await fetchWithTimeout(`${base}/aruaru_llm.Llm/ClearGithubSearchSettings`, { method: "DELETE" }, 8000);
+          await fetchWithTimeout(`${base}/aruaru_llm.Llm/ClearYoutubeSearchSettings`, { method: "DELETE" }, 8000);
         } catch (e) {
           /* ignore, best-effort */
         }
@@ -10266,7 +10266,7 @@ if (googleSearchBtn && googleSearchModal) {
     try {
       body.providers = getSelectedAis();
       const res = await fetchWithTimeout(
-        `${base}/aruaru_llm.v1.Llm/ChatProvidersCompletePriority`,
+        `${base}/aruaru_llm.Llm/ChatProvidersCompletePriority`,
         { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(body) },
         45000
       );
@@ -12213,13 +12213,13 @@ async function installAndSwitchModel(base, id, statusEl) {
   }
   statusEl.textContent = `Installing & switching to ${id}… / ${id}へインストール・切替中…`;
   try {
-    const installRes = await llmFetch(`${base}/aruaru_llm.v1.Llm/ModelsInstall`, {
+    const installRes = await llmFetch(`${base}/aruaru_llm.Llm/ModelsInstall`, {
       method: "POST",
       headers: { "content-type": "application/json" },
       body: JSON.stringify({ id }),
     });
     if (!installRes.ok) throw new Error(`install HTTP ${installRes.status}`);
-    const selectRes = await llmFetch(`${base}/aruaru_llm.v1.Llm/ModelsSelect`, {
+    const selectRes = await llmFetch(`${base}/aruaru_llm.Llm/ModelsSelect`, {
       method: "POST",
       headers: { "content-type": "application/json" },
       body: JSON.stringify({ id }),
@@ -12239,8 +12239,8 @@ async function detectAndCompareLlm() {
   if (llmDemoSharedNoteEl) llmDemoSharedNoteEl.classList.toggle("hidden", !shared);
   llmRecommendBody.innerHTML = "<p class=\"setup-note\">Detecting… / 検出中…</p>";
   try {
-    const recUrl = shared ? "/openenglish.v1.AruaruLlm/Recommend" : `${base}/aruaru_llm.v1.Llm/Recommend`;
-    const catalogUrl = shared ? "/openenglish.v1.AruaruLlm/ModelsCatalog" : `${base}/aruaru_llm.v1.Llm/ModelsCatalog`;
+    const recUrl = shared ? "/openenglish.v1.AruaruLlm/Recommend" : `${base}/aruaru_llm.Llm/Recommend`;
+    const catalogUrl = shared ? "/openenglish.v1.AruaruLlm/ModelsCatalog" : `${base}/aruaru_llm.Llm/ModelsCatalog`;
     const [recRes, catalogRes] = await Promise.all([llmFetch(recUrl), llmFetch(catalogUrl)]);
     if (!recRes.ok || !catalogRes.ok) throw new Error(`HTTP ${recRes.status}/${catalogRes.status}`);
     const rec = await recRes.json();
@@ -12322,8 +12322,8 @@ async function detectAndCompareLlm() {
     if (!shared) {
       try {
         const [rt, ac] = await Promise.all([
-          llmFetch(`${base}/aruaru_llm.v1.Llm/Runtime`).then((r) => (r.ok ? r.json() : null)).catch(() => null),
-          llmFetch(`${base}/aruaru_llm.v1.Llm/Accelerators`).then((r) => (r.ok ? r.json() : null)).catch(() => null),
+          llmFetch(`${base}/aruaru_llm.Llm/Runtime`).then((r) => (r.ok ? r.json() : null)).catch(() => null),
+          llmFetch(`${base}/aruaru_llm.Llm/Accelerators`).then((r) => (r.ok ? r.json() : null)).catch(() => null),
         ]);
         const lines = [];
         if (ac) lines.push(`CPU: ${ac.cpu_logical_cores} logical cores / 論理コア ${ac.cpu_logical_cores} (${ac.os}/${ac.arch})`);
@@ -18884,7 +18884,7 @@ const INSTALLER_QUICK_LINK_CLOSED_KEY = "open-english.installerQuickLinkClosed";
         if (!document.documentElement.classList.contains("is-web-only")) {
           const lb = (document.getElementById("api-base") || {}).value;
           if (lb) {
-            const lr = await llmFetch(lb.trim().replace(/\/$/, "") + "/aruaru_llm.v1.Llm/ChatProvidersActive", { cache: "no-store" });
+            const lr = await llmFetch(lb.trim().replace(/\/$/, "") + "/aruaru_llm.Llm/ChatProvidersActive", { cache: "no-store" });
             if (lr.ok) {
               const ls = await lr.json();
               s.available = Array.from(new Set([...(ls.available || []), ...(s.available || [])]));
