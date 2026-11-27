@@ -3701,51 +3701,51 @@ async fn main() {
     // aruaru-llm モデル管理プロキシ(このサーバーと同じマシン上の
     // aruaru-llm、127.0.0.1:4600 既定、へ中継。ポート4600自体は外部
     // 公開しないまま、管理画面から操作できるようにする)。
-    app = app.at("/openenglish.v1.AdminAruaruLlm/Models", post(handler_fn(wrap_get(|req, _p| Box::pin(async move { if let Err(r) = require_local_or_admin(&req) { return r; } admin_aruaru_llm_models().await })))));
-    app = app.at("/openenglish.v1.AdminAruaruLlm/Runtime", post(handler_fn(wrap_get(|req, _p| Box::pin(async move { if let Err(r) = require_local_or_admin(&req) { return r; } proxy_aruaru_llm_get("Runtime").await })))));
-    app = app.at("/openenglish.v1.AdminAruaruLlm/RecommendAndDownload", post(handler_fn(|req, _p| Box::pin(async move { if let Err(r) = require_local_or_admin(&req) { return r; } proxy_aruaru_llm_get_as_post("RecommendAndDownload").await }))));
-    app = app.at("/openenglish.v1.AdminAruaruLlm/ModelsSelect", post(handler_fn(|req, _p| Box::pin(async move { if let Err(r) = require_local_or_admin(&req) { return r; } proxy_aruaru_llm_post("ModelsSelect", req).await }))));
-    app = app.at("/openenglish.v1.AdminAruaruLlm/ModelsInstall", post(handler_fn(|req, _p| Box::pin(async move { if let Err(r) = require_local_or_admin(&req) { return r; } proxy_aruaru_llm_post("ModelsInstall", req).await }))));
-    app = app.at("/openenglish.v1.AdminAruaruLlm/DownloadLarger", post(handler_fn(|req, _p| Box::pin(async move { if let Err(r) = require_local_or_admin(&req) { return r; } proxy_aruaru_llm_get_as_post("DownloadLarger").await }))));
-    app = app.at("/openenglish.v1.AdminAruaruLlm/DownloadSmaller", post(handler_fn(|req, _p| Box::pin(async move { if let Err(r) = require_local_or_admin(&req) { return r; } proxy_aruaru_llm_get_as_post("DownloadSmaller").await }))));
-    app = app.at("/openenglish.v1.AdminAruaruLlm/QwenSelect", post(handler_fn(|req, _p| Box::pin(async move { if let Err(r) = require_local_or_admin(&req) { return r; } proxy_aruaru_llm_post("QwenSelect", req).await }))));
-    app = app.at("/openenglish.v1.AdminAruaruLlm/QwenInstall", post(handler_fn(|req, _p| Box::pin(async move { if let Err(r) = require_local_or_admin(&req) { return r; } proxy_aruaru_llm_post("QwenInstall", req).await }))));
-    app = app.at("/openenglish.v1.AruaruLlm/Recommend", post(handler_fn(wrap_get(|_req, _p| Box::pin(proxy_aruaru_llm_get("Recommend"))))));
-    app = app.at("/openenglish.v1.News/Ask", post(handler_fn(wrap_get(|req, _p| Box::pin(news_ask(req))))));
-    app = app.at("/openenglish.v1.News/Stock", post(handler_fn(wrap_get(|_req, _p| Box::pin(news_stock())))));
-    app = app.at("/openenglish.v1.Internal/NewsExport", post(handler_fn(wrap_get(|req, _p| Box::pin(news_export(req))))));
-    app = app.at("/openenglish.v1.AruaruLlm/Runtime", post(handler_fn(wrap_get(|_req, _p| Box::pin(proxy_aruaru_llm_get_sanitized("Runtime"))))));
-    app = app.at("/openenglish.v1.AruaruLlm/Accelerators", post(handler_fn(wrap_get(|_req, _p| Box::pin(proxy_aruaru_llm_get_sanitized("Accelerators"))))));
-    app = app.at("/openenglish.v1.AruaruLlm/ModelsCatalog", post(handler_fn(wrap_get(|_req, _p| Box::pin(proxy_aruaru_llm_get("ModelsCatalog"))))));
-    app = app.at("/openenglish.v1.AruaruLlm/ModelsSelect", post(handler_fn(|req, _p| async move { public_aruaru_llm_select(req).await })));
-    app = app.at("/openenglish.v1.AruaruLlm/SwitchStatus", post(handler_fn(wrap_get(|_req, _p| async move { public_aruaru_llm_switch_status().await }))));
-    app = app.at("/openenglish.v1.AruaruLlm/Generate", post(handler_fn(|req, _p| Box::pin(public_aruaru_llm_generate("Generate", req)))));
-    app = app.at("/openenglish.v1.AruaruLlm/GenerateWithSearch", post(handler_fn(|req, _p| Box::pin(public_aruaru_llm_generate("GenerateWithSearch", req)))));
-    app = app.at("/openenglish.v1.ChatProviders/CompletePriority", post(handler_fn(|req, _p| Box::pin(public_chat_provider_complete_priority(req)))));
+    app = app.at("/openenglish.AdminAruaruLlm/Models", post(handler_fn(wrap_get(|req, _p| Box::pin(async move { if let Err(r) = require_local_or_admin(&req) { return r; } admin_aruaru_llm_models().await })))));
+    app = app.at("/openenglish.AdminAruaruLlm/Runtime", post(handler_fn(wrap_get(|req, _p| Box::pin(async move { if let Err(r) = require_local_or_admin(&req) { return r; } proxy_aruaru_llm_get("Runtime").await })))));
+    app = app.at("/openenglish.AdminAruaruLlm/RecommendAndDownload", post(handler_fn(|req, _p| Box::pin(async move { if let Err(r) = require_local_or_admin(&req) { return r; } proxy_aruaru_llm_get_as_post("RecommendAndDownload").await }))));
+    app = app.at("/openenglish.AdminAruaruLlm/ModelsSelect", post(handler_fn(|req, _p| Box::pin(async move { if let Err(r) = require_local_or_admin(&req) { return r; } proxy_aruaru_llm_post("ModelsSelect", req).await }))));
+    app = app.at("/openenglish.AdminAruaruLlm/ModelsInstall", post(handler_fn(|req, _p| Box::pin(async move { if let Err(r) = require_local_or_admin(&req) { return r; } proxy_aruaru_llm_post("ModelsInstall", req).await }))));
+    app = app.at("/openenglish.AdminAruaruLlm/DownloadLarger", post(handler_fn(|req, _p| Box::pin(async move { if let Err(r) = require_local_or_admin(&req) { return r; } proxy_aruaru_llm_get_as_post("DownloadLarger").await }))));
+    app = app.at("/openenglish.AdminAruaruLlm/DownloadSmaller", post(handler_fn(|req, _p| Box::pin(async move { if let Err(r) = require_local_or_admin(&req) { return r; } proxy_aruaru_llm_get_as_post("DownloadSmaller").await }))));
+    app = app.at("/openenglish.AdminAruaruLlm/QwenSelect", post(handler_fn(|req, _p| Box::pin(async move { if let Err(r) = require_local_or_admin(&req) { return r; } proxy_aruaru_llm_post("QwenSelect", req).await }))));
+    app = app.at("/openenglish.AdminAruaruLlm/QwenInstall", post(handler_fn(|req, _p| Box::pin(async move { if let Err(r) = require_local_or_admin(&req) { return r; } proxy_aruaru_llm_post("QwenInstall", req).await }))));
+    app = app.at("/openenglish.AruaruLlm/Recommend", post(handler_fn(wrap_get(|_req, _p| Box::pin(proxy_aruaru_llm_get("Recommend"))))));
+    app = app.at("/openenglish.News/Ask", post(handler_fn(wrap_get(|req, _p| Box::pin(news_ask(req))))));
+    app = app.at("/openenglish.News/Stock", post(handler_fn(wrap_get(|_req, _p| Box::pin(news_stock())))));
+    app = app.at("/openenglish.Internal/NewsExport", post(handler_fn(wrap_get(|req, _p| Box::pin(news_export(req))))));
+    app = app.at("/openenglish.AruaruLlm/Runtime", post(handler_fn(wrap_get(|_req, _p| Box::pin(proxy_aruaru_llm_get_sanitized("Runtime"))))));
+    app = app.at("/openenglish.AruaruLlm/Accelerators", post(handler_fn(wrap_get(|_req, _p| Box::pin(proxy_aruaru_llm_get_sanitized("Accelerators"))))));
+    app = app.at("/openenglish.AruaruLlm/ModelsCatalog", post(handler_fn(wrap_get(|_req, _p| Box::pin(proxy_aruaru_llm_get("ModelsCatalog"))))));
+    app = app.at("/openenglish.AruaruLlm/ModelsSelect", post(handler_fn(|req, _p| async move { public_aruaru_llm_select(req).await })));
+    app = app.at("/openenglish.AruaruLlm/SwitchStatus", post(handler_fn(wrap_get(|_req, _p| async move { public_aruaru_llm_switch_status().await }))));
+    app = app.at("/openenglish.AruaruLlm/Generate", post(handler_fn(|req, _p| Box::pin(public_aruaru_llm_generate("Generate", req)))));
+    app = app.at("/openenglish.AruaruLlm/GenerateWithSearch", post(handler_fn(|req, _p| Box::pin(public_aruaru_llm_generate("GenerateWithSearch", req)))));
+    app = app.at("/openenglish.ChatProviders/CompletePriority", post(handler_fn(|req, _p| Box::pin(public_chat_provider_complete_priority(req)))));
     app = app.at("/v1/line/webhook", post(handler_fn(|req, _p| Box::pin(line_bot::webhook(req)))));
     app = app.at("/v1/line/audio", get(handler_fn(|req, _p| Box::pin(line_bot::audio(req)))));
     app = app.at("/v1/line/info", get(handler_fn(|_req, _p| Box::pin(line_bot::info()))));
-    app = app.at("/openenglish.v1.ChatProviders/Active", post(handler_fn(wrap_get(|_req, _p| Box::pin(public_chat_provider_active())))));
+    app = app.at("/openenglish.ChatProviders/Active", post(handler_fn(wrap_get(|_req, _p| Box::pin(public_chat_provider_active())))));
     // 2026-09-22新設(ユーザー報告「今日のニュースは？に今は回答出来ていません」): WEB版
     // (閲覧者のブラウザ)は自分自身のaruaru-llmを持たず、`apiBaseEl`が既定の
     // `http://localhost:4600`(閲覧者自身の端末)のままだとニュース取得が毎回失敗し
     // 無言で空文字になっていた(`newsSuffix()`のcatch節)。既存の`/v1/public/chat-providers/*`
     // と同じ「同一オリジンの公開プロキシ経由でVPS自身のaruaru-llmへ中継する」パターンで解決する。
-    app = app.at("/openenglish.v1.News/Latest", post(handler_fn(wrap_get(|_req, _p| Box::pin(proxy_aruaru_llm_get("NewsLatest"))))));
+    app = app.at("/openenglish.News/Latest", post(handler_fn(wrap_get(|_req, _p| Box::pin(proxy_aruaru_llm_get("NewsLatest"))))));
     // 2026-09-22追加: 「日本語なら日本のニュース、英語ならアメリカのニュース」のように
     // 呼び出し側が国を指定できる`/v1/news/for?country=...`のクエリ文字列を、そのまま
     // aruaru-llmへ中継する(`proxy_aruaru_llm_get`は固定パスのみでクエリを転送できないため専用実装)。
-    app = app.at("/openenglish.v1.Knowledge/Export", post(handler_fn(wrap_get(|_req, _p| Box::pin(proxy_aruaru_llm_get("KnowledgeSearch"))))));
-    app = app.at("/openenglish.v1.Persona/Prompt", post(handler_fn(|req, _p| Box::pin(proxy_aruaru_llm_post("PersonaPrompt", req)))));
-    app = app.at("/openenglish.v1.News/For", post(handler_fn(wrap_get(|req, _p| Box::pin(proxy_aruaru_llm_get_with_query(req, "NewsFor"))))));
-    app = app.at("/openenglish.v1.News/ArchiveSearch", post(handler_fn(wrap_get(|req, _p| Box::pin(news_archive_search(req))))));
-    app = app.at("/openenglish.v1.Freelance/JobSearch", post(handler_fn(|req, _p| Box::pin(public_freelance_job_search(req)))));
+    app = app.at("/openenglish.Knowledge/Export", post(handler_fn(wrap_get(|_req, _p| Box::pin(proxy_aruaru_llm_get("KnowledgeSearch"))))));
+    app = app.at("/openenglish.Persona/Prompt", post(handler_fn(|req, _p| Box::pin(proxy_aruaru_llm_post("PersonaPrompt", req)))));
+    app = app.at("/openenglish.News/For", post(handler_fn(wrap_get(|req, _p| Box::pin(proxy_aruaru_llm_get_with_query(req, "NewsFor"))))));
+    app = app.at("/openenglish.News/ArchiveSearch", post(handler_fn(wrap_get(|req, _p| Box::pin(news_archive_search(req))))));
+    app = app.at("/openenglish.Freelance/JobSearch", post(handler_fn(|req, _p| Box::pin(public_freelance_job_search(req)))));
     // サーバー側の音声合成(ローカル版・ミックス版、2026-09-30新設、`tts.rs`参照)。WEB版・非対応環境では`status`が`available: false`を返し、
     // クライアント(`app.js`)はWeb Speech APIへフォールバックする。
-    app = app.at("/openenglish.v1.Tts/Status", post(handler_fn(wrap_get(|_req, _p| Box::pin(tts::status())))));
-    app = app.at("/openenglish.v1.Tts/Tts", post(handler_fn(|req, _p| Box::pin(tts::handle(req)))));
-    app = app.at("/openenglish.v1.Config/Config", post(handler_fn(wrap_get(move |_req, _p| async move { app_config().await }))));
-    app = app.at("/openenglish.v1.PlatformInfo/PlatformInfo", post(handler_fn(wrap_get(move |_req, _p| async move { platform_info().await }))));
+    app = app.at("/openenglish.Tts/Status", post(handler_fn(wrap_get(|_req, _p| Box::pin(tts::status())))));
+    app = app.at("/openenglish.Tts/Tts", post(handler_fn(|req, _p| Box::pin(tts::handle(req)))));
+    app = app.at("/openenglish.Config/Config", post(handler_fn(wrap_get(move |_req, _p| async move { app_config().await }))));
+    app = app.at("/openenglish.PlatformInfo/PlatformInfo", post(handler_fn(wrap_get(move |_req, _p| async move { platform_info().await }))));
     // `/health`はopen-web-server/open-easy-web側の「分身の術」テナント
     // 登録パターン(他リポジトリのCLAUDE.md HANDOFF多数参照)が汎用的に
     // 期待するヘルスチェック命名に形状を揃えるための別名(2026-08-24新設)。
@@ -3755,12 +3755,12 @@ async fn main() {
     // 小さい歩み寄り。既存の`/healthz`は後方互換のためそのまま維持する。
     app = app.at("/health", get(handler_fn(move |_req, _p| async move { healthz().await })));
     // 実行基盤(CPU命令セット)情報(2026-08-22新設、cpu_runtime()のdoc参照)。
-    app = app.at("/openenglish.v1.CpuRuntime/CpuRuntime", post(handler_fn(wrap_get(move |_req, _p| async move { cpu_runtime().await }))));
+    app = app.at("/openenglish.CpuRuntime/CpuRuntime", post(handler_fn(wrap_get(move |_req, _p| async move { cpu_runtime().await }))));
     // 多言語擬似模擬試験の対応言語一覧(2026-08-22新設、world_languages()のdoc参照)。
-    app = app.at("/openenglish.v1.WorldLanguages/WorldLanguages", post(handler_fn(wrap_get(move |_req, _p| async move { world_languages().await }))));
+    app = app.at("/openenglish.WorldLanguages/WorldLanguages", post(handler_fn(wrap_get(move |_req, _p| async move { world_languages().await }))));
     // 話題ブリーフィング(2026-08-22新設): 静的な地域情報+公開RSSからの実ニュース見出し。
-    app = app.at("/openenglish.v1.RegionInfo/RegionInfo", post(handler_fn(wrap_get(move |req, _p| async move { region_info(req).await }))));
-    app = app.at("/openenglish.v1.RegionNews/RegionNews", post(handler_fn(wrap_get(move |req, _p| async move { region_news(req).await }))));
+    app = app.at("/openenglish.RegionInfo/RegionInfo", post(handler_fn(wrap_get(move |req, _p| async move { region_info(req).await }))));
+    app = app.at("/openenglish.RegionNews/RegionNews", post(handler_fn(wrap_get(move |req, _p| async move { region_news(req).await }))));
 
     // email+OTPログイン(2026-08-26新設、auth.rsモジュールdoc参照)。
     {
@@ -3768,33 +3768,33 @@ async fn main() {
         let db_for_auth_set = Arc::clone(&db);
         let db_for_totp_setup = Arc::clone(&db);
         let db_for_totp_verify = Arc::clone(&db);
-        app = app.at("/openenglish.v1.Auth/ConfigGet", post(handler_fn(wrap_get(move |_req, _p| {
+        app = app.at("/openenglish.Auth/ConfigGet", post(handler_fn(wrap_get(move |_req, _p| {
                 let db = Arc::clone(&db_for_auth_get);
                 async move { auth_config(db).await }
             }))));
-        app = app.at("/openenglish.v1.Auth/ConfigSet", post(handler_fn(move |req, _p| {
+        app = app.at("/openenglish.Auth/ConfigSet", post(handler_fn(move |req, _p| {
                 let db = Arc::clone(&db_for_auth_set);
                 async move { auth_set_config(req, db).await }
             })));
-        app = app.at("/openenglish.v1.Auth/RequestOtp", post(handler_fn(move |req, _p| async move { auth_request_otp(req).await })));
-        app = app.at("/openenglish.v1.Auth/RequestSmsOtp", post(handler_fn(move |req, _p| async move { auth_request_sms_otp(req).await })));
+        app = app.at("/openenglish.Auth/RequestOtp", post(handler_fn(move |req, _p| async move { auth_request_otp(req).await })));
+        app = app.at("/openenglish.Auth/RequestSmsOtp", post(handler_fn(move |req, _p| async move { auth_request_sms_otp(req).await })));
         let db_for_verify_otp = Arc::clone(&db);
-        app = app.at("/openenglish.v1.Auth/VerifyOtp", post(handler_fn(move |req, _p| {
+        app = app.at("/openenglish.Auth/VerifyOtp", post(handler_fn(move |req, _p| {
                 let db = Arc::clone(&db_for_verify_otp);
                 async move { auth_verify_otp(req, db).await }
             })));
-        app = app.at("/openenglish.v1.Auth/QrLoginStart", post(handler_fn(move |req, _p| async move { auth_qr_login_start(req).await })));
-        app = app.at("/openenglish.v1.Auth/QrLoginConfirm", post(handler_fn(move |req, _p| async move { auth_qr_login_confirm(req).await })));
-        app = app.at("/openenglish.v1.Auth/QrLoginStatus", post(handler_fn(wrap_get(move |req, _p| async move { auth_qr_login_status(req).await }))));
-        app = app.at("/openenglish.v1.Auth/QrLoginFinish", post(handler_fn(move |req, _p| async move { auth_qr_login_finish(req).await })));
-        app = app.at("/openenglish.v1.Auth/QrLoginWhoami", post(handler_fn(wrap_get(move |req, _p| async move { auth_qr_login_whoami(req).await }))));
-        app = app.at("/openenglish.v1.Auth/Session", post(handler_fn(wrap_get(move |req, _p| async move { auth_session(req).await }))));
-        app = app.at("/openenglish.v1.Auth/Logout", post(handler_fn(move |req, _p| async move { auth_logout(req).await })));
-        app = app.at("/openenglish.v1.Auth/TotpSetup", post(handler_fn(move |req, _p| {
+        app = app.at("/openenglish.Auth/QrLoginStart", post(handler_fn(move |req, _p| async move { auth_qr_login_start(req).await })));
+        app = app.at("/openenglish.Auth/QrLoginConfirm", post(handler_fn(move |req, _p| async move { auth_qr_login_confirm(req).await })));
+        app = app.at("/openenglish.Auth/QrLoginStatus", post(handler_fn(wrap_get(move |req, _p| async move { auth_qr_login_status(req).await }))));
+        app = app.at("/openenglish.Auth/QrLoginFinish", post(handler_fn(move |req, _p| async move { auth_qr_login_finish(req).await })));
+        app = app.at("/openenglish.Auth/QrLoginWhoami", post(handler_fn(wrap_get(move |req, _p| async move { auth_qr_login_whoami(req).await }))));
+        app = app.at("/openenglish.Auth/Session", post(handler_fn(wrap_get(move |req, _p| async move { auth_session(req).await }))));
+        app = app.at("/openenglish.Auth/Logout", post(handler_fn(move |req, _p| async move { auth_logout(req).await })));
+        app = app.at("/openenglish.Auth/TotpSetup", post(handler_fn(move |req, _p| {
                 let db = Arc::clone(&db_for_totp_setup);
                 async move { auth_totp_setup(req, db).await }
             })));
-        app = app.at("/openenglish.v1.Auth/TotpVerify", post(handler_fn(move |req, _p| {
+        app = app.at("/openenglish.Auth/TotpVerify", post(handler_fn(move |req, _p| {
                 let db = Arc::clone(&db_for_totp_verify);
                 async move { auth_totp_verify(req, db).await }
             })));
@@ -3807,7 +3807,7 @@ async fn main() {
         // `require_session`でセッションCookieを要求する。
         let db_for_add = Arc::clone(&db);
         let db_for_list = Arc::clone(&db);
-        app = app.at("/openenglish.v1.Db/HistorySet", post(handler_fn(move |req, _p| {
+        app = app.at("/openenglish.Db/HistorySet", post(handler_fn(move |req, _p| {
                 let db = Arc::clone(&db_for_add);
                 async move {
                     if let Err(resp) = require_session(&req, &db).await {
@@ -3816,7 +3816,7 @@ async fn main() {
                     db_add_message(req, db).await
                 }
             })));
-        app = app.at("/openenglish.v1.Db/HistoryGet", post(handler_fn(wrap_get(move |req, _p| {
+        app = app.at("/openenglish.Db/HistoryGet", post(handler_fn(wrap_get(move |req, _p| {
                 let db = Arc::clone(&db_for_list);
                 async move {
                     if let Err(resp) = require_session(&req, &db).await {
@@ -3826,7 +3826,7 @@ async fn main() {
                 }
             }))));
         let db_for_clear = Arc::clone(&db);
-        app = app.at("/openenglish.v1.Db/HistoryClear", post(handler_fn(move |req, _p| {
+        app = app.at("/openenglish.Db/HistoryClear", post(handler_fn(move |req, _p| {
                 let db = Arc::clone(&db_for_clear);
                 async move {
                     if let Err(resp) = require_session(&req, &db).await {
@@ -3837,7 +3837,7 @@ async fn main() {
             })));
         let db_for_set = Arc::clone(&db);
         let db_for_get = Arc::clone(&db);
-        app = app.at("/openenglish.v1.Db/SettingsSet", post(handler_fn(move |req, _p| {
+        app = app.at("/openenglish.Db/SettingsSet", post(handler_fn(move |req, _p| {
                 let db = Arc::clone(&db_for_set);
                 async move {
                     if let Err(resp) = require_session(&req, &db).await {
@@ -3846,7 +3846,7 @@ async fn main() {
                     db_set_setting(req, db).await
                 }
             })));
-        app = app.at("/openenglish.v1.Db/SettingsGet", post(handler_fn(wrap_get(move |req, _p| {
+        app = app.at("/openenglish.Db/SettingsGet", post(handler_fn(wrap_get(move |req, _p| {
                 let db = Arc::clone(&db_for_get);
                 async move {
                     if let Err(resp) = require_session(&req, &db).await {
@@ -3857,64 +3857,64 @@ async fn main() {
             }))));
         let db_for_custom_qa = Arc::clone(&db);
         let db_for_custom_qa_set = Arc::clone(&db);
-        app = app.at("/openenglish.v1.CustomQa/CustomQaGet", post(handler_fn(wrap_get(move |_req, _p| {
+        app = app.at("/openenglish.CustomQa/CustomQaGet", post(handler_fn(wrap_get(move |_req, _p| {
                 let db = Arc::clone(&db_for_custom_qa);
                 async move { public_custom_qa(db).await }
             }))));
-        app = app.at("/openenglish.v1.CustomQa/CustomQaSet", post(handler_fn(move |req, _p| {
+        app = app.at("/openenglish.CustomQa/CustomQaSet", post(handler_fn(move |req, _p| {
                 let db = Arc::clone(&db_for_custom_qa_set);
                 async move { set_custom_qa(req, db).await }
             })));
         let db_for_info = Arc::clone(&db);
-        app = app.at("/openenglish.v1.Db/Info", post(handler_fn(wrap_get(move |_req, _p| {
+        app = app.at("/openenglish.Db/Info", post(handler_fn(wrap_get(move |_req, _p| {
                 let db = Arc::clone(&db_for_info);
                 async move { db_info(db).await }
             }))));
         let db_for_relocate = Arc::clone(&db);
-        app = app.at("/openenglish.v1.Db/StoragePath", post(handler_fn(move |req, _p| {
+        app = app.at("/openenglish.Db/StoragePath", post(handler_fn(move |req, _p| {
                 let db = Arc::clone(&db_for_relocate);
                 async move { db_relocate(req, db).await }
             })));
-        app = app.at("/openenglish.v1.Fs/ListDir", post(handler_fn(wrap_get(move |req, _p| async move { fs_list_dir(req).await }))));
-        app = app.at("/openenglish.v1.Duckdns/Update", post(handler_fn(move |req, _p| async move { duckdns_update(req).await })));
-        app = app.at("/openenglish.v1.Network/Status", post(handler_fn(wrap_get(move |req, _p| async move { network_status(req).await }))));
+        app = app.at("/openenglish.Fs/ListDir", post(handler_fn(wrap_get(move |req, _p| async move { fs_list_dir(req).await }))));
+        app = app.at("/openenglish.Duckdns/Update", post(handler_fn(move |req, _p| async move { duckdns_update(req).await })));
+        app = app.at("/openenglish.Network/Status", post(handler_fn(wrap_get(move |req, _p| async move { network_status(req).await }))));
         let db_for_rsync = Arc::clone(&db);
-        app = app.at("/openenglish.v1.Db/RsyncBackup", post(handler_fn(move |req, _p| {
+        app = app.at("/openenglish.Db/RsyncBackup", post(handler_fn(move |req, _p| {
                 let db = Arc::clone(&db_for_rsync);
                 async move { db_rsync_backup(req, db).await }
             })));
         let db_for_rsync_all = Arc::clone(&db);
-        app = app.at("/openenglish.v1.Db/RsyncBackupAll", post(handler_fn(move |req, _p| {
+        app = app.at("/openenglish.Db/RsyncBackupAll", post(handler_fn(move |req, _p| {
                 let db = Arc::clone(&db_for_rsync_all);
                 async move { db_rsync_backup_all(req, db).await }
             })));
         let db_for_migrate = Arc::clone(&db);
-        app = app.at("/openenglish.v1.Db/MigrateLegacy", post(handler_fn(move |req, _p| {
+        app = app.at("/openenglish.Db/MigrateLegacy", post(handler_fn(move |req, _p| {
                 let db = Arc::clone(&db_for_migrate);
                 async move { db_migrate_legacy(req, db).await }
             })));
         let db_for_install_rsync = Arc::clone(&db);
-        app = app.at("/openenglish.v1.Db/InstallRsync", post(handler_fn(move |req, _p| {
+        app = app.at("/openenglish.Db/InstallRsync", post(handler_fn(move |req, _p| {
                 let db = Arc::clone(&db_for_install_rsync);
                 async move { db_install_rsync(req, db).await }
             })));
-        app = app.at("/openenglish.v1.Updates/History", post(handler_fn(wrap_get(move |_req, _p| async move { updates_history().await }))));
-        app = app.at("/openenglish.v1.Updates/Downgrade", post(handler_fn(move |req, _p| async move { updates_downgrade(req).await })));
+        app = app.at("/openenglish.Updates/History", post(handler_fn(wrap_get(move |_req, _p| async move { updates_history().await }))));
+        app = app.at("/openenglish.Updates/Downgrade", post(handler_fn(move |req, _p| async move { updates_downgrade(req).await })));
     }
 
     // AIプログラミング支援バックエンド(2026-08-20新設、上記
     // "AIプログラミング支援バックエンド"セクションのdoc参照)。
     {
-        app = app.at("/openenglish.v1.Agent/LocalRead", post(handler_fn(wrap_get(move |req, _p| async move { agent_local_read(req).await }))));
-        app = app.at("/openenglish.v1.Agent/LocalWrite", post(handler_fn(move |req, _p| async move { agent_local_write(req).await })));
-        app = app.at("/openenglish.v1.Agent/LocalStatus", post(handler_fn(wrap_get(move |req, _p| async move { agent_local_status(req).await }))));
-        app = app.at("/openenglish.v1.Agent/VpsRead", post(handler_fn(wrap_get(move |req, _p| async move { agent_vps_read(req).await }))));
-        app = app.at("/openenglish.v1.Agent/VpsWrite", post(handler_fn(move |req, _p| async move { agent_vps_write(req).await })));
-        app = app.at("/openenglish.v1.Agent/VpsStatus", post(handler_fn(wrap_get(move |req, _p| async move { agent_vps_status(req).await }))));
-        app = app.at("/openenglish.v1.Agent/GithubRead", post(handler_fn(wrap_get(move |req, _p| async move { agent_github_read(req).await }))));
-        app = app.at("/openenglish.v1.Agent/GithubCommit", post(handler_fn(move |req, _p| async move { agent_github_commit(req).await })));
-        app = app.at("/openenglish.v1.Agent/GithubStatus", post(handler_fn(wrap_get(move |req, _p| async move { agent_github_status(req).await }))));
-        app = app.at("/openenglish.v1.Agent/GithubCreateAndPush", post(handler_fn(move |req, _p| async move { agent_github_create_and_push(req).await })));
+        app = app.at("/openenglish.Agent/LocalRead", post(handler_fn(wrap_get(move |req, _p| async move { agent_local_read(req).await }))));
+        app = app.at("/openenglish.Agent/LocalWrite", post(handler_fn(move |req, _p| async move { agent_local_write(req).await })));
+        app = app.at("/openenglish.Agent/LocalStatus", post(handler_fn(wrap_get(move |req, _p| async move { agent_local_status(req).await }))));
+        app = app.at("/openenglish.Agent/VpsRead", post(handler_fn(wrap_get(move |req, _p| async move { agent_vps_read(req).await }))));
+        app = app.at("/openenglish.Agent/VpsWrite", post(handler_fn(move |req, _p| async move { agent_vps_write(req).await })));
+        app = app.at("/openenglish.Agent/VpsStatus", post(handler_fn(wrap_get(move |req, _p| async move { agent_vps_status(req).await }))));
+        app = app.at("/openenglish.Agent/GithubRead", post(handler_fn(wrap_get(move |req, _p| async move { agent_github_read(req).await }))));
+        app = app.at("/openenglish.Agent/GithubCommit", post(handler_fn(move |req, _p| async move { agent_github_commit(req).await })));
+        app = app.at("/openenglish.Agent/GithubStatus", post(handler_fn(wrap_get(move |req, _p| async move { agent_github_status(req).await }))));
+        app = app.at("/openenglish.Agent/GithubCreateAndPush", post(handler_fn(move |req, _p| async move { agent_github_create_and_push(req).await })));
     }
 
     // world-lab(2026-08-24新設、`world_lab.rs`モジュールdoc参照)。
@@ -3922,27 +3922,27 @@ async fn main() {
     {
         let world_lab = Arc::new(world_lab::WorldLab::from_env());
         let wl = Arc::clone(&world_lab);
-        app = app.at("/openenglish.v1.WorldLab/Status", post(handler_fn(wrap_get(move |_req, _p| {
+        app = app.at("/openenglish.WorldLab/Status", post(handler_fn(wrap_get(move |_req, _p| {
                 let wl = Arc::clone(&wl);
                 async move { world_lab_status(wl).await }
             }))));
         let wl = Arc::clone(&world_lab);
-        app = app.at("/openenglish.v1.WorldLab/Pair", post(handler_fn(move |req, _p| {
+        app = app.at("/openenglish.WorldLab/Pair", post(handler_fn(move |req, _p| {
                 let wl = Arc::clone(&wl);
                 async move { world_lab_pair(req, wl).await }
             })));
         let wl = Arc::clone(&world_lab);
-        app = app.at("/openenglish.v1.WorldLab/Devices", post(handler_fn(wrap_get(move |_req, _p| {
+        app = app.at("/openenglish.WorldLab/Devices", post(handler_fn(wrap_get(move |_req, _p| {
                 let wl = Arc::clone(&wl);
                 async move { world_lab_devices(wl).await }
             }))));
         let wl = Arc::clone(&world_lab);
-        app = app.at("/openenglish.v1.WorldLab/Unpair", post(handler_fn(move |req, _p| {
+        app = app.at("/openenglish.WorldLab/Unpair", post(handler_fn(move |req, _p| {
                 let wl = Arc::clone(&wl);
                 async move { world_lab_unpair(req, wl).await }
             })));
         let wl = Arc::clone(&world_lab);
-        app = app.at("/openenglish.v1.WorldLab/PairBulk", post(handler_fn(move |req, _p| {
+        app = app.at("/openenglish.WorldLab/PairBulk", post(handler_fn(move |req, _p| {
                 let wl = Arc::clone(&wl);
                 async move { world_lab_pair_bulk(req, wl).await }
             })));
@@ -3954,7 +3954,7 @@ async fn main() {
         let compute_engine = Arc::new(world_lab::ComputeEngine::from_env());
         let wl = Arc::clone(&world_lab);
         let ce = Arc::clone(&compute_engine);
-        app = app.at("/openenglish.v1.WorldLab/TaskRun", post(handler_fn(move |req, _p| {
+        app = app.at("/openenglish.WorldLab/TaskRun", post(handler_fn(move |req, _p| {
                 let wl = Arc::clone(&wl);
                 let compute_engine = Arc::clone(&ce);
                 async move { world_lab_task_run(req, wl, compute_engine).await }
@@ -3970,7 +3970,7 @@ async fn main() {
         let wl = Arc::clone(&world_lab);
         let ce = Arc::clone(&compute_engine);
         let aq = Arc::clone(&approval_queue);
-        app = app.at("/openenglish.v1.WorldLab/DispatchRequest", post(handler_fn(move |req, _p| {
+        app = app.at("/openenglish.WorldLab/DispatchRequest", post(handler_fn(move |req, _p| {
                 let wl = Arc::clone(&wl);
                 let ce = Arc::clone(&ce);
                 let aq = Arc::clone(&aq);
@@ -3978,7 +3978,7 @@ async fn main() {
             })));
         let wl = Arc::clone(&world_lab);
         let aq = Arc::clone(&approval_queue);
-        app = app.at("/openenglish.v1.WorldLab/DispatchPending", post(handler_fn(wrap_get(move |req, _p| {
+        app = app.at("/openenglish.WorldLab/DispatchPending", post(handler_fn(wrap_get(move |req, _p| {
                 let wl = Arc::clone(&wl);
                 let aq = Arc::clone(&aq);
                 async move { world_lab_dispatch_pending(req, wl, aq).await }
@@ -3986,7 +3986,7 @@ async fn main() {
         let wl = Arc::clone(&world_lab);
         let ce = Arc::clone(&compute_engine);
         let aq = Arc::clone(&approval_queue);
-        app = app.at("/openenglish.v1.WorldLab/DispatchApprove", post(handler_fn(move |req, p| {
+        app = app.at("/openenglish.WorldLab/DispatchApprove", post(handler_fn(move |req, p| {
                 let wl = Arc::clone(&wl);
                 let ce = Arc::clone(&ce);
                 let aq = Arc::clone(&aq);
@@ -3994,7 +3994,7 @@ async fn main() {
             })));
         let wl = Arc::clone(&world_lab);
         let aq = Arc::clone(&approval_queue);
-        app = app.at("/openenglish.v1.WorldLab/DispatchDeny", post(handler_fn(move |req, p| {
+        app = app.at("/openenglish.WorldLab/DispatchDeny", post(handler_fn(move |req, p| {
                 let wl = Arc::clone(&wl);
                 let aq = Arc::clone(&aq);
                 async move { world_lab_dispatch_deny(req, p, wl, aq).await }

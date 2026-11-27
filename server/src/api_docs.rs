@@ -240,46 +240,46 @@ pub fn spec() -> Spec {
     let s = s
         .op(get_t::<OkResponse>("/healthz", "生存確認", "system"))
         .op(get_t::<OkResponse>("/health", "生存確認(別名)", "system"))
-        .op(get_t::<AppConfig>("/openenglish.v1.Config/Config", "アプリ設定", "system"))
-        .op(get_t::<PlatformInfo>("/openenglish.v1.PlatformInfo/PlatformInfo", "実行環境の情報", "system"))
-        .op(get_t::<CpuRuntime>("/openenglish.v1.CpuRuntime/CpuRuntime", "CPU実行基盤の情報", "system"))
-        .op(get("/openenglish.v1.WorldLanguages/WorldLanguages", "対応する世界の言語一覧", "system"))
-        .op(get("/openenglish.v1.RegionInfo/RegionInfo", "地域情報", "region").query::<LangQuery>())
-        .op(get("/openenglish.v1.RegionNews/RegionNews", "地域ニュース", "region").query::<LangQuery>())
-        .op(get_t::<UpdatesHistoryResponse>("/openenglish.v1.Updates/History", "アップデート履歴", "updates"))
-        .op(post_t::<DowngradeResponse>("/openenglish.v1.Updates/Downgrade", "指定版へ戻す", "updates").body::<DowngradeRequest>());
+        .op(get_t::<AppConfig>("/openenglish.Config/Config", "アプリ設定", "system"))
+        .op(get_t::<PlatformInfo>("/openenglish.PlatformInfo/PlatformInfo", "実行環境の情報", "system"))
+        .op(get_t::<CpuRuntime>("/openenglish.CpuRuntime/CpuRuntime", "CPU実行基盤の情報", "system"))
+        .op(get("/openenglish.WorldLanguages/WorldLanguages", "対応する世界の言語一覧", "system"))
+        .op(get("/openenglish.RegionInfo/RegionInfo", "地域情報", "region").query::<LangQuery>())
+        .op(get("/openenglish.RegionNews/RegionNews", "地域ニュース", "region").query::<LangQuery>())
+        .op(get_t::<UpdatesHistoryResponse>("/openenglish.Updates/History", "アップデート履歴", "updates"))
+        .op(post_t::<DowngradeResponse>("/openenglish.Updates/Downgrade", "指定版へ戻す", "updates").body::<DowngradeRequest>());
     // --- aruaru-llm (admin / public proxy) ---
     let s = s
-        .op(get_t::<AdminModelsResponse>("/openenglish.v1.AdminAruaruLlm/Models", "aruaru-llmのモデル一覧(管理)", "aruaru-llm"))
-        .op(get("/openenglish.v1.AdminAruaruLlm/Runtime", "aruaru-llmの実行基盤(管理)", "aruaru-llm").description("aruaru-llmの対応するエンドポイントのレスポンスをそのまま中継する(形状はaruaru-llmの /api/docs を参照)。"))
-        .op(post("/openenglish.v1.AdminAruaruLlm/RecommendAndDownload", "推奨モデルを取得(管理)", "aruaru-llm").description("aruaru-llmの対応するエンドポイントのレスポンスをそのまま中継する(形状はaruaru-llmの /api/docs を参照)。"))
-        .op(post("/openenglish.v1.AdminAruaruLlm/ModelsSelect", "モデルを選択(管理、aruaru-llmへ中継)", "aruaru-llm").description("aruaru-llmの対応するエンドポイントのレスポンスをそのまま中継する(形状はaruaru-llmの /api/docs を参照)。"))
-        .op(post("/openenglish.v1.AdminAruaruLlm/ModelsInstall", "モデルを導入(管理、aruaru-llmへ中継)", "aruaru-llm").description("aruaru-llmの対応するエンドポイントのレスポンスをそのまま中継する(形状はaruaru-llmの /api/docs を参照)。"))
-        .op(post("/openenglish.v1.AdminAruaruLlm/DownloadLarger", "より大きいモデルを取得(管理)", "aruaru-llm").description("aruaru-llmの対応するエンドポイントのレスポンスをそのまま中継する(形状はaruaru-llmの /api/docs を参照)。"))
-        .op(post("/openenglish.v1.AdminAruaruLlm/DownloadSmaller", "より小さいモデルを取得(管理)", "aruaru-llm").description("aruaru-llmの対応するエンドポイントのレスポンスをそのまま中継する(形状はaruaru-llmの /api/docs を参照)。"))
-        .op(post("/openenglish.v1.AdminAruaruLlm/QwenSelect", "Qwenを選択(管理、中継)", "aruaru-llm").description("aruaru-llmの対応するエンドポイントのレスポンスをそのまま中継する(形状はaruaru-llmの /api/docs を参照)。"))
-        .op(post("/openenglish.v1.AdminAruaruLlm/QwenInstall", "Qwenを導入(管理、中継)", "aruaru-llm").description("aruaru-llmの対応するエンドポイントのレスポンスをそのまま中継する(形状はaruaru-llmの /api/docs を参照)。"))
-        .op(get("/openenglish.v1.AruaruLlm/Recommend", "推奨モデル", "aruaru-llm").description("aruaru-llmの対応するエンドポイントのレスポンスをそのまま中継する(形状はaruaru-llmの /api/docs を参照)。"))
-        .op(get("/openenglish.v1.AruaruLlm/ModelsCatalog", "モデルカタログ", "aruaru-llm").description("aruaru-llmの対応するエンドポイントのレスポンスをそのまま中継する(形状はaruaru-llmの /api/docs を参照)。"))
-        .op(post("/openenglish.v1.AruaruLlm/ModelsSelect", "モデルを選択(公開)", "aruaru-llm").description("aruaru-llmの対応するエンドポイントのレスポンスをそのまま中継する(形状はaruaru-llmの /api/docs を参照)。"))
-        .op(get("/openenglish.v1.AruaruLlm/SwitchStatus", "モデル切替の状況", "aruaru-llm").description("aruaru-llmの対応するエンドポイントのレスポンスをそのまま中継する(形状はaruaru-llmの /api/docs を参照)。"))
-        .op(post("/openenglish.v1.AruaruLlm/Generate", "文章生成(aruaru-llmへ中継)", "aruaru-llm").description("aruaru-llmの対応するエンドポイントのレスポンスをそのまま中継する(形状はaruaru-llmの /api/docs を参照)。"))
-        .op(post("/openenglish.v1.AruaruLlm/GenerateWithSearch", "検索付き文章生成", "aruaru-llm").description("aruaru-llmの対応するエンドポイントのレスポンスをそのまま中継する(形状はaruaru-llmの /api/docs を参照)。"))
-        .op(post("/openenglish.v1.ChatProviders/CompletePriority", "優先順位つきチャット補完", "aruaru-llm").description("aruaru-llmの対応するエンドポイントのレスポンスをそのまま中継する(形状はaruaru-llmの /api/docs を参照)。"))
-        .op(get("/openenglish.v1.ChatProviders/Active", "有効なチャット提供元", "aruaru-llm").description("aruaru-llmの対応するエンドポイントのレスポンスをそのまま中継する(形状はaruaru-llmの /api/docs を参照)。"))
-        .op(get("/openenglish.v1.News/Latest", "最新ニュース", "news").description("aruaru-llmの対応するエンドポイントのレスポンスをそのまま中継する(形状はaruaru-llmの /api/docs を参照)。"))
-        .op(get("/openenglish.v1.Knowledge/Export", "知識の書き出し", "news").description("aruaru-llmの対応するエンドポイントのレスポンスをそのまま中継する(形状はaruaru-llmの /api/docs を参照)。"))
-        .op(post("/openenglish.v1.Persona/Prompt", "ペルソナのプロンプト", "aruaru-llm").description("aruaru-llmの対応するエンドポイントのレスポンスをそのまま中継する(形状はaruaru-llmの /api/docs を参照)。"))
-        .op(get("/openenglish.v1.News/For", "国別ニュース(クエリ: country)", "news").query_param("country", true, "国").description("aruaru-llmの対応するエンドポイントのレスポンスをそのまま中継する(形状はaruaru-llmの /api/docs を参照)。"))
-        .op(get_t::<ItemsResponse>("/openenglish.v1.News/ArchiveSearch", "ニュースアーカイブ検索", "news").query::<ArchiveSearchQuery>())
-        .op(get("/openenglish.v1.News/Ask", "世界情勢Q&A(出典・日付つき)", "news").query_param("q", true, "質問").description("保存した報道記事から、出典と日付つきで回答する。該当が無いときは検索へのリンクを返す。"))
-        .op(get("/openenglish.v1.News/Stock", "ニュース保存の状況", "news").description("ためた記事の件数、出典ごとの件数、最新の日時を返す。"))
-        .op(get("/openenglish.v1.Internal/NewsExport", "ニュースの書き出し(内部)", "news").description("GitHubの公開ニュース保存庫への日次書き出し用。この端末内からのアクセスだけ受け付ける(クエリ: since=Unix秒)。"))
-        .op(get("/openenglish.v1.AruaruLlm/Runtime", "実行環境の概要(公開用に整形)", "aruaru-llm").description("aruaru-llmの /v1/runtime を、公開してよい項目だけに整えて返す。"))
-        .op(get("/openenglish.v1.AruaruLlm/Accelerators", "利用できる計算資源(公開用に整形)", "aruaru-llm").description("aruaru-llmの /v1/accelerators を、公開してよい項目だけに整えて返す。"))
-        .op(post("/openenglish.v1.Freelance/JobSearch", "フリーランス案件の検索", "freelance").body::<PublicFreelanceJobSearchRequest>())
-        .op(get("/openenglish.v1.Tts/Status", "音声合成の状態", "tts"))
-        .op(post("/openenglish.v1.Tts/Tts", "音声合成", "tts").body::<tts::TtsBody>());
+        .op(get_t::<AdminModelsResponse>("/openenglish.AdminAruaruLlm/Models", "aruaru-llmのモデル一覧(管理)", "aruaru-llm"))
+        .op(get("/openenglish.AdminAruaruLlm/Runtime", "aruaru-llmの実行基盤(管理)", "aruaru-llm").description("aruaru-llmの対応するエンドポイントのレスポンスをそのまま中継する(形状はaruaru-llmの /api/docs を参照)。"))
+        .op(post("/openenglish.AdminAruaruLlm/RecommendAndDownload", "推奨モデルを取得(管理)", "aruaru-llm").description("aruaru-llmの対応するエンドポイントのレスポンスをそのまま中継する(形状はaruaru-llmの /api/docs を参照)。"))
+        .op(post("/openenglish.AdminAruaruLlm/ModelsSelect", "モデルを選択(管理、aruaru-llmへ中継)", "aruaru-llm").description("aruaru-llmの対応するエンドポイントのレスポンスをそのまま中継する(形状はaruaru-llmの /api/docs を参照)。"))
+        .op(post("/openenglish.AdminAruaruLlm/ModelsInstall", "モデルを導入(管理、aruaru-llmへ中継)", "aruaru-llm").description("aruaru-llmの対応するエンドポイントのレスポンスをそのまま中継する(形状はaruaru-llmの /api/docs を参照)。"))
+        .op(post("/openenglish.AdminAruaruLlm/DownloadLarger", "より大きいモデルを取得(管理)", "aruaru-llm").description("aruaru-llmの対応するエンドポイントのレスポンスをそのまま中継する(形状はaruaru-llmの /api/docs を参照)。"))
+        .op(post("/openenglish.AdminAruaruLlm/DownloadSmaller", "より小さいモデルを取得(管理)", "aruaru-llm").description("aruaru-llmの対応するエンドポイントのレスポンスをそのまま中継する(形状はaruaru-llmの /api/docs を参照)。"))
+        .op(post("/openenglish.AdminAruaruLlm/QwenSelect", "Qwenを選択(管理、中継)", "aruaru-llm").description("aruaru-llmの対応するエンドポイントのレスポンスをそのまま中継する(形状はaruaru-llmの /api/docs を参照)。"))
+        .op(post("/openenglish.AdminAruaruLlm/QwenInstall", "Qwenを導入(管理、中継)", "aruaru-llm").description("aruaru-llmの対応するエンドポイントのレスポンスをそのまま中継する(形状はaruaru-llmの /api/docs を参照)。"))
+        .op(get("/openenglish.AruaruLlm/Recommend", "推奨モデル", "aruaru-llm").description("aruaru-llmの対応するエンドポイントのレスポンスをそのまま中継する(形状はaruaru-llmの /api/docs を参照)。"))
+        .op(get("/openenglish.AruaruLlm/ModelsCatalog", "モデルカタログ", "aruaru-llm").description("aruaru-llmの対応するエンドポイントのレスポンスをそのまま中継する(形状はaruaru-llmの /api/docs を参照)。"))
+        .op(post("/openenglish.AruaruLlm/ModelsSelect", "モデルを選択(公開)", "aruaru-llm").description("aruaru-llmの対応するエンドポイントのレスポンスをそのまま中継する(形状はaruaru-llmの /api/docs を参照)。"))
+        .op(get("/openenglish.AruaruLlm/SwitchStatus", "モデル切替の状況", "aruaru-llm").description("aruaru-llmの対応するエンドポイントのレスポンスをそのまま中継する(形状はaruaru-llmの /api/docs を参照)。"))
+        .op(post("/openenglish.AruaruLlm/Generate", "文章生成(aruaru-llmへ中継)", "aruaru-llm").description("aruaru-llmの対応するエンドポイントのレスポンスをそのまま中継する(形状はaruaru-llmの /api/docs を参照)。"))
+        .op(post("/openenglish.AruaruLlm/GenerateWithSearch", "検索付き文章生成", "aruaru-llm").description("aruaru-llmの対応するエンドポイントのレスポンスをそのまま中継する(形状はaruaru-llmの /api/docs を参照)。"))
+        .op(post("/openenglish.ChatProviders/CompletePriority", "優先順位つきチャット補完", "aruaru-llm").description("aruaru-llmの対応するエンドポイントのレスポンスをそのまま中継する(形状はaruaru-llmの /api/docs を参照)。"))
+        .op(get("/openenglish.ChatProviders/Active", "有効なチャット提供元", "aruaru-llm").description("aruaru-llmの対応するエンドポイントのレスポンスをそのまま中継する(形状はaruaru-llmの /api/docs を参照)。"))
+        .op(get("/openenglish.News/Latest", "最新ニュース", "news").description("aruaru-llmの対応するエンドポイントのレスポンスをそのまま中継する(形状はaruaru-llmの /api/docs を参照)。"))
+        .op(get("/openenglish.Knowledge/Export", "知識の書き出し", "news").description("aruaru-llmの対応するエンドポイントのレスポンスをそのまま中継する(形状はaruaru-llmの /api/docs を参照)。"))
+        .op(post("/openenglish.Persona/Prompt", "ペルソナのプロンプト", "aruaru-llm").description("aruaru-llmの対応するエンドポイントのレスポンスをそのまま中継する(形状はaruaru-llmの /api/docs を参照)。"))
+        .op(get("/openenglish.News/For", "国別ニュース(クエリ: country)", "news").query_param("country", true, "国").description("aruaru-llmの対応するエンドポイントのレスポンスをそのまま中継する(形状はaruaru-llmの /api/docs を参照)。"))
+        .op(get_t::<ItemsResponse>("/openenglish.News/ArchiveSearch", "ニュースアーカイブ検索", "news").query::<ArchiveSearchQuery>())
+        .op(get("/openenglish.News/Ask", "世界情勢Q&A(出典・日付つき)", "news").query_param("q", true, "質問").description("保存した報道記事から、出典と日付つきで回答する。該当が無いときは検索へのリンクを返す。"))
+        .op(get("/openenglish.News/Stock", "ニュース保存の状況", "news").description("ためた記事の件数、出典ごとの件数、最新の日時を返す。"))
+        .op(get("/openenglish.Internal/NewsExport", "ニュースの書き出し(内部)", "news").description("GitHubの公開ニュース保存庫への日次書き出し用。この端末内からのアクセスだけ受け付ける(クエリ: since=Unix秒)。"))
+        .op(get("/openenglish.AruaruLlm/Runtime", "実行環境の概要(公開用に整形)", "aruaru-llm").description("aruaru-llmの /v1/runtime を、公開してよい項目だけに整えて返す。"))
+        .op(get("/openenglish.AruaruLlm/Accelerators", "利用できる計算資源(公開用に整形)", "aruaru-llm").description("aruaru-llmの /v1/accelerators を、公開してよい項目だけに整えて返す。"))
+        .op(post("/openenglish.Freelance/JobSearch", "フリーランス案件の検索", "freelance").body::<PublicFreelanceJobSearchRequest>())
+        .op(get("/openenglish.Tts/Status", "音声合成の状態", "tts"))
+        .op(post("/openenglish.Tts/Tts", "音声合成", "tts").body::<tts::TtsBody>());
     // --- LINE ---
     let s = s
         .op(Op::post("/v1/line/webhook").summary("LINE Messaging APIのWebhook(署名検証あり)").tag("line").public().body_raw("application/json").response_empty(200, "受理"))
@@ -287,66 +287,66 @@ pub fn spec() -> Spec {
         .op(get("/v1/line/info", "LINEボットの情報", "line"));
     // --- auth ---
     let s = s
-        .op(get_t::<AuthConfig>("/openenglish.v1.Auth/ConfigGet", "認証設定の取得", "auth"))
-        .op(post_t::<AuthConfigSetResponse>("/openenglish.v1.Auth/ConfigSet", "認証設定の更新", "auth").body::<SetAuthConfigRequest>())
-        .op(post_t::<SentResponse>("/openenglish.v1.Auth/RequestOtp", "メールOTPを送る", "auth").body::<RequestOtpRequest>())
-        .op(post_t::<SmsSentResponse>("/openenglish.v1.Auth/RequestSmsOtp", "SMSのOTPを送る", "auth").body::<RequestSmsOtpRequest>())
-        .op(post("/openenglish.v1.Auth/VerifyOtp", "OTPを検証してセッションを発行", "auth").body::<VerifyOtpRequest>())
-        .op(post("/openenglish.v1.Auth/QrLoginStart", "QRログインを開始", "auth"))
-        .op(post_t::<OkResponse>("/openenglish.v1.Auth/QrLoginConfirm", "別端末でQRログインを確認", "auth").body::<QrLoginIdRequest>())
-        .op(get_t::<ConfirmedResponse>("/openenglish.v1.Auth/QrLoginStatus", "QRログインの状態", "auth").query::<IdQuery>())
-        .op(post("/openenglish.v1.Auth/QrLoginFinish", "QRログインを完了しCookieを発行", "auth").body::<QrLoginIdRequest>())
-        .op(get_t::<MaskedIdentityResponse>("/openenglish.v1.Auth/QrLoginWhoami", "QRログイン確認端末の識別", "auth").query::<IdQuery>())
-        .op(get_t::<SessionResponse>("/openenglish.v1.Auth/Session", "現在のセッション", "auth"))
-        .op(post("/openenglish.v1.Auth/Logout", "ログアウト", "auth"))
-        .op(post_t::<TotpSetupResponse>("/openenglish.v1.Auth/TotpSetup", "TOTPの設定", "auth").body::<TotpSetupRequest>())
-        .op(post("/openenglish.v1.Auth/TotpVerify", "TOTPの検証", "auth").body::<TotpVerifyRequest>());
+        .op(get_t::<AuthConfig>("/openenglish.Auth/ConfigGet", "認証設定の取得", "auth"))
+        .op(post_t::<AuthConfigSetResponse>("/openenglish.Auth/ConfigSet", "認証設定の更新", "auth").body::<SetAuthConfigRequest>())
+        .op(post_t::<SentResponse>("/openenglish.Auth/RequestOtp", "メールOTPを送る", "auth").body::<RequestOtpRequest>())
+        .op(post_t::<SmsSentResponse>("/openenglish.Auth/RequestSmsOtp", "SMSのOTPを送る", "auth").body::<RequestSmsOtpRequest>())
+        .op(post("/openenglish.Auth/VerifyOtp", "OTPを検証してセッションを発行", "auth").body::<VerifyOtpRequest>())
+        .op(post("/openenglish.Auth/QrLoginStart", "QRログインを開始", "auth"))
+        .op(post_t::<OkResponse>("/openenglish.Auth/QrLoginConfirm", "別端末でQRログインを確認", "auth").body::<QrLoginIdRequest>())
+        .op(get_t::<ConfirmedResponse>("/openenglish.Auth/QrLoginStatus", "QRログインの状態", "auth").query::<IdQuery>())
+        .op(post("/openenglish.Auth/QrLoginFinish", "QRログインを完了しCookieを発行", "auth").body::<QrLoginIdRequest>())
+        .op(get_t::<MaskedIdentityResponse>("/openenglish.Auth/QrLoginWhoami", "QRログイン確認端末の識別", "auth").query::<IdQuery>())
+        .op(get_t::<SessionResponse>("/openenglish.Auth/Session", "現在のセッション", "auth"))
+        .op(post("/openenglish.Auth/Logout", "ログアウト", "auth"))
+        .op(post_t::<TotpSetupResponse>("/openenglish.Auth/TotpSetup", "TOTPの設定", "auth").body::<TotpSetupRequest>())
+        .op(post("/openenglish.Auth/TotpVerify", "TOTPの検証", "auth").body::<TotpVerifyRequest>());
     // --- db / settings / network ---
     let s = s
-        .op(get_t::<Vec<crate::db::StoredMessage>>("/openenglish.v1.Db/HistoryGet", "会話履歴の取得", "db"))
-        .op(post_t::<OkResponse>("/openenglish.v1.Db/HistorySet", "会話にメッセージを追加", "db").body::<AddMessageRequest>())
-        .op(post_t::<OkResponse>("/openenglish.v1.Db/HistoryClear", "会話履歴を消去", "db"))
-        .op(get_t::<std::collections::HashMap<String, String>>("/openenglish.v1.Db/SettingsGet", "設定の取得", "db"))
-        .op(post_t::<OkResponse>("/openenglish.v1.Db/SettingsSet", "設定を保存", "db").body::<SetSettingRequest>())
-        .op(get_t::<CustomQaResponse>("/openenglish.v1.CustomQa/CustomQaGet", "カスタムQ&Aの取得", "db"))
-        .op(post_t::<OkResponse>("/openenglish.v1.CustomQa/CustomQaSet", "カスタムQ&Aの保存", "db").body::<SetCustomQaRequest>())
-        .op(get_t::<DbInfo>("/openenglish.v1.Db/Info", "DBの情報", "db"))
-        .op(post_t::<RelocateResponse>("/openenglish.v1.Db/StoragePath", "DBの保存先を移す", "db").body::<RelocateRequest>())
-        .op(get_t::<FsListResponse>("/openenglish.v1.Fs/ListDir", "ディレクトリ一覧", "db").query::<PathQuery>())
-        .op(post("/openenglish.v1.Duckdns/Update", "DuckDNSを更新", "network").body::<DuckDnsUpdateRequest>())
-        .op(get("/openenglish.v1.Network/Status", "ネットワーク状態", "network"))
-        .op(post_t::<DetailResponse>("/openenglish.v1.Db/RsyncBackup", "rsyncバックアップ", "db").body::<RsyncBackupRequest>())
-        .op(post_t::<RsyncAllResponse>("/openenglish.v1.Db/RsyncBackupAll", "全件のrsyncバックアップ", "db").body::<RsyncBackupRequest>())
-        .op(post_t::<MigrateLegacyResponse>("/openenglish.v1.Db/MigrateLegacy", "旧形式の履歴を移行", "db").body::<MigrateLegacyRequest>())
-        .op(post_t::<InstallRsyncResponse>("/openenglish.v1.Db/InstallRsync", "rsyncを導入", "db").body::<InstallRsyncRequest>());
+        .op(get_t::<Vec<crate::db::StoredMessage>>("/openenglish.Db/HistoryGet", "会話履歴の取得", "db"))
+        .op(post_t::<OkResponse>("/openenglish.Db/HistorySet", "会話にメッセージを追加", "db").body::<AddMessageRequest>())
+        .op(post_t::<OkResponse>("/openenglish.Db/HistoryClear", "会話履歴を消去", "db"))
+        .op(get_t::<std::collections::HashMap<String, String>>("/openenglish.Db/SettingsGet", "設定の取得", "db"))
+        .op(post_t::<OkResponse>("/openenglish.Db/SettingsSet", "設定を保存", "db").body::<SetSettingRequest>())
+        .op(get_t::<CustomQaResponse>("/openenglish.CustomQa/CustomQaGet", "カスタムQ&Aの取得", "db"))
+        .op(post_t::<OkResponse>("/openenglish.CustomQa/CustomQaSet", "カスタムQ&Aの保存", "db").body::<SetCustomQaRequest>())
+        .op(get_t::<DbInfo>("/openenglish.Db/Info", "DBの情報", "db"))
+        .op(post_t::<RelocateResponse>("/openenglish.Db/StoragePath", "DBの保存先を移す", "db").body::<RelocateRequest>())
+        .op(get_t::<FsListResponse>("/openenglish.Fs/ListDir", "ディレクトリ一覧", "db").query::<PathQuery>())
+        .op(post("/openenglish.Duckdns/Update", "DuckDNSを更新", "network").body::<DuckDnsUpdateRequest>())
+        .op(get("/openenglish.Network/Status", "ネットワーク状態", "network"))
+        .op(post_t::<DetailResponse>("/openenglish.Db/RsyncBackup", "rsyncバックアップ", "db").body::<RsyncBackupRequest>())
+        .op(post_t::<RsyncAllResponse>("/openenglish.Db/RsyncBackupAll", "全件のrsyncバックアップ", "db").body::<RsyncBackupRequest>())
+        .op(post_t::<MigrateLegacyResponse>("/openenglish.Db/MigrateLegacy", "旧形式の履歴を移行", "db").body::<MigrateLegacyRequest>())
+        .op(post_t::<InstallRsyncResponse>("/openenglish.Db/InstallRsync", "rsyncを導入", "db").body::<InstallRsyncRequest>());
     // --- agent ---
     let s = s
-        .op(get_t::<ContentResponse>("/openenglish.v1.Agent/LocalRead", "ローカルファイルを読む", "agent").query::<PathQuery>())
-        .op(post_t::<OkResponse>("/openenglish.v1.Agent/LocalWrite", "ローカルファイルを書く", "agent").body::<LocalWriteRequest>())
-        .op(get_t::<crate::local_agent::LocalAgentStatus>("/openenglish.v1.Agent/LocalStatus", "ローカルエージェントの状態", "agent"))
-        .op(get_t::<ContentResponse>("/openenglish.v1.Agent/VpsRead", "VPSファイルを読む", "agent").query::<PathQuery>())
-        .op(post_t::<OkResponse>("/openenglish.v1.Agent/VpsWrite", "VPSファイルを書く", "agent").body::<VpsWriteRequest>())
-        .op(get_t::<crate::vps_agent::VpsAgentStatus>("/openenglish.v1.Agent/VpsStatus", "VPSエージェントの状態", "agent"))
-        .op(get_t::<GithubReadResponse>("/openenglish.v1.Agent/GithubRead", "GitHubファイルを読む", "agent").query::<GithubReadQuery>())
-        .op(post_t::<GithubCommitResponse>("/openenglish.v1.Agent/GithubCommit", "GitHubへコミット", "agent").body::<GithubCommitRequest>())
-        .op(get_t::<crate::github_agent::ServerModeStatus>("/openenglish.v1.Agent/GithubStatus", "GitHubエージェントの状態", "agent"))
-        .op(post_t::<GithubPushResponse>("/openenglish.v1.Agent/GithubCreateAndPush", "GitHubにリポジトリを作成してpush", "agent").body::<GithubCreateAndPushRequest>());
+        .op(get_t::<ContentResponse>("/openenglish.Agent/LocalRead", "ローカルファイルを読む", "agent").query::<PathQuery>())
+        .op(post_t::<OkResponse>("/openenglish.Agent/LocalWrite", "ローカルファイルを書く", "agent").body::<LocalWriteRequest>())
+        .op(get_t::<crate::local_agent::LocalAgentStatus>("/openenglish.Agent/LocalStatus", "ローカルエージェントの状態", "agent"))
+        .op(get_t::<ContentResponse>("/openenglish.Agent/VpsRead", "VPSファイルを読む", "agent").query::<PathQuery>())
+        .op(post_t::<OkResponse>("/openenglish.Agent/VpsWrite", "VPSファイルを書く", "agent").body::<VpsWriteRequest>())
+        .op(get_t::<crate::vps_agent::VpsAgentStatus>("/openenglish.Agent/VpsStatus", "VPSエージェントの状態", "agent"))
+        .op(get_t::<GithubReadResponse>("/openenglish.Agent/GithubRead", "GitHubファイルを読む", "agent").query::<GithubReadQuery>())
+        .op(post_t::<GithubCommitResponse>("/openenglish.Agent/GithubCommit", "GitHubへコミット", "agent").body::<GithubCommitRequest>())
+        .op(get_t::<crate::github_agent::ServerModeStatus>("/openenglish.Agent/GithubStatus", "GitHubエージェントの状態", "agent"))
+        .op(post_t::<GithubPushResponse>("/openenglish.Agent/GithubCreateAndPush", "GitHubにリポジトリを作成してpush", "agent").body::<GithubCreateAndPushRequest>());
     // --- world-lab ---
-    s.op(get_t::<crate::world_lab::WorldLabStatus>("/openenglish.v1.WorldLab/Status", "world-labの状態", "world-lab"))
-        .op(post_t::<PairResponse>("/openenglish.v1.WorldLab/Pair", "端末をペアリング", "world-lab").body::<WorldLabPairRequest>())
-        .op(get_t::<DevicesResponse>("/openenglish.v1.WorldLab/Devices", "ペアリング済み端末", "world-lab"))
-        .op(post_t::<UnpairResponse>("/openenglish.v1.WorldLab/Unpair", "ペアリング解除", "world-lab").body::<WorldLabUnpairRequest>())
-        .op(post_t::<BulkPairResponse>("/openenglish.v1.WorldLab/PairBulk", "一括ペアリング", "world-lab").body::<WorldLabBulkPairRequest>())
-        .op(post("/openenglish.v1.WorldLab/TaskRun", "タスクを実行", "world-lab").body::<WorldLabTaskRunRequest>())
-        .op(post("/openenglish.v1.WorldLab/DispatchRequest", "配信を要求(承認待ち)", "world-lab").body::<WorldLabDispatchRequestBody>())
-        .op(get_t::<PendingResponse>("/openenglish.v1.WorldLab/DispatchPending", "承認待ちの配信", "world-lab"))
-        .op(post("/openenglish.v1.WorldLab/DispatchApprove", "配信を承認", "world-lab").body::<WorldLabDispatchTokenOnlyRequest>())
-        .op(post_t::<DenyResponse>("/openenglish.v1.WorldLab/DispatchDeny", "配信を拒否", "world-lab").body::<WorldLabDispatchTokenOnlyRequest>())
+    s.op(get_t::<crate::world_lab::WorldLabStatus>("/openenglish.WorldLab/Status", "world-labの状態", "world-lab"))
+        .op(post_t::<PairResponse>("/openenglish.WorldLab/Pair", "端末をペアリング", "world-lab").body::<WorldLabPairRequest>())
+        .op(get_t::<DevicesResponse>("/openenglish.WorldLab/Devices", "ペアリング済み端末", "world-lab"))
+        .op(post_t::<UnpairResponse>("/openenglish.WorldLab/Unpair", "ペアリング解除", "world-lab").body::<WorldLabUnpairRequest>())
+        .op(post_t::<BulkPairResponse>("/openenglish.WorldLab/PairBulk", "一括ペアリング", "world-lab").body::<WorldLabBulkPairRequest>())
+        .op(post("/openenglish.WorldLab/TaskRun", "タスクを実行", "world-lab").body::<WorldLabTaskRunRequest>())
+        .op(post("/openenglish.WorldLab/DispatchRequest", "配信を要求(承認待ち)", "world-lab").body::<WorldLabDispatchRequestBody>())
+        .op(get_t::<PendingResponse>("/openenglish.WorldLab/DispatchPending", "承認待ちの配信", "world-lab"))
+        .op(post("/openenglish.WorldLab/DispatchApprove", "配信を承認", "world-lab").body::<WorldLabDispatchTokenOnlyRequest>())
+        .op(post_t::<DenyResponse>("/openenglish.WorldLab/DispatchDeny", "配信を拒否", "world-lab").body::<WorldLabDispatchTokenOnlyRequest>())
 }
 
 #[cfg(test)]
 mod tests {
-    /// 宣言と、`app.at("/openenglish.v1....")`で登録された実ルートの食い違いを検出する
+    /// 宣言と、`app.at("/openenglish....")`で登録された実ルートの食い違いを検出する
     /// (main.rsのソースを走査。少なくとも1メソッドの宣言が無いパスを失敗にする)。
     #[test]
     fn spec_is_lint_clean_and_covers_registered_api_routes() {
@@ -359,7 +359,7 @@ mod tests {
             if let Some(p) = rest.trim_start().strip_prefix('"') {
                 if let Some(end) = p.find('"') {
                     let path = &p[..end];
-                    let api = path.starts_with("/openenglish.v1.") || path == "/healthz" || path == "/health";
+                    let api = path.starts_with("/openenglish.") || path == "/healthz" || path == "/health";
                     let none = s.undocumented([("POST", path)]).len() == 1;
                     if api && none {
                         undeclared.push(path.to_string());
@@ -374,9 +374,9 @@ mod tests {
     fn typed_responses_and_queries_are_in_the_document() {
         let d = super::spec().build();
         let ok = |p: &str, m: &str| d["paths"][p][m]["responses"]["200"]["content"]["application/json"]["schema"]["$ref"].as_str().unwrap_or("").to_string();
-        assert_eq!(ok("/openenglish.v1.Auth/Session", "post"), "#/components/schemas/SessionResponse");
-        assert_eq!(ok("/openenglish.v1.Db/InstallRsync", "post"), "#/components/schemas/InstallRsyncResponse");
-        let params = d["paths"]["/openenglish.v1.Agent/GithubRead"]["post"]["parameters"].as_array().unwrap();
+        assert_eq!(ok("/openenglish.Auth/Session", "post"), "#/components/schemas/SessionResponse");
+        assert_eq!(ok("/openenglish.Db/InstallRsync", "post"), "#/components/schemas/InstallRsyncResponse");
+        let params = d["paths"]["/openenglish.Agent/GithubRead"]["post"]["parameters"].as_array().unwrap();
         assert!(params.iter().any(|p| p["name"] == "ref"), "{params:?}");
         assert!(params.iter().any(|p| p["name"] == "owner" && p["required"] == true));
     }
@@ -478,4 +478,13 @@ pub(crate) struct CpuRuntime {
     pub(crate) features: CpuFeatures,
     pub(crate) disclosure_ja: &'static str,
     pub(crate) disclosure_en: &'static str,
+}
+
+#[cfg(test)]
+mod versionless_tests {
+    #[test]
+    fn no_v1_routes_registered() {
+        let src = include_str!("main.rs");
+        assert!(!src.contains(concat!("\"/openenglish", ".v1.")));
+    }
 }
